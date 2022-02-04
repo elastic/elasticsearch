@@ -14,6 +14,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -71,6 +72,21 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
                 .limit(size)
                 .collect(toList())
         );
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalStringStats sampled, InternalStringStats reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getAvgLength(), equalTo(reduced.getAvgLength()));
+        assertThat(sampled.getEntropy(), equalTo(reduced.getEntropy()));
+        assertThat(sampled.getCount(), equalTo(samplingContext.inverseScale(reduced.getAvgLength())));
+        assertThat(sampled.getMaxLength(), equalTo(reduced.getMaxLength()));
+        assertThat(sampled.getMinLength(), equalTo(reduced.getMinLength()));
+        assertThat(sampled.getDistribution(), equalTo(reduced.getDistribution()));
     }
 
     private InternalStringStats createTestInstance(String name, Map<String, Object> metadata, long maxCount, long maxTotalLength) {

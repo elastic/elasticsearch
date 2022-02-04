@@ -47,6 +47,20 @@ public record SamplingContext(double probability, int seed) {
     }
 
     /**
+     * Scales the given value according to the configured sampling probability.
+     *
+     * If the sampling context is NONE, then no scaling takes place.
+     * @param value the value to scale
+     * @return the scaled value, or the passed value if no sampling is configured
+     */
+    public double scale(double value) {
+        if (isSampled()) {
+            return value * probability;
+        }
+        return value;
+    }
+
+    /**
      * This scales the given value according to the inverse of the configured sampling probability
      *
      * @param value the value to inversely scale
@@ -54,7 +68,7 @@ public record SamplingContext(double probability, int seed) {
      */
     public double inverseScale(double value) {
         if (isSampled()) {
-            return value * (1.0 / probability);
+            return value / probability;
         }
         return value;
     }

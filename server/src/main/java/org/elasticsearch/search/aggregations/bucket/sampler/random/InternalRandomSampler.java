@@ -80,12 +80,11 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
         long docCount = 0L;
         List<InternalAggregations> subAggregationsList = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
-            assert aggregation.getName().equals(getName());
             docCount += ((InternalSingleBucketAggregation) aggregation).getDocCount();
             subAggregationsList.add(((InternalSingleBucketAggregation) aggregation).getAggregations());
         }
         InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
-        if (reduceContext.isFinalReduce()) {
+        if (reduceContext.isFinalReduce() && aggs != null) {
             SamplingContext context = buildContext();
             aggs = InternalAggregations.from(
                 aggs.asList().stream().map(agg -> ((InternalAggregation) agg).finalizeSampling(context)).collect(Collectors.toList())

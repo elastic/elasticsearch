@@ -66,7 +66,7 @@ public class SqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
         }
 
         indexRandom(true, builders);
-        boolean cancelDuringSearch = true;
+        boolean cancelDuringSearch = randomBoolean();
         List<SearchBlockPlugin> plugins = initBlockFactory(cancelDuringSearch, cancelDuringSearch == false);
         SqlQueryRequest request = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(
             "SELECT event_type FROM test WHERE val=1"

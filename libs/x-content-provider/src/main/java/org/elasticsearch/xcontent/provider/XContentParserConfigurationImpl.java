@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal;
+package org.elasticsearch.xcontent.provider;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.filter.FilteringParserDelegate;
@@ -15,7 +15,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.internal.filtering.FilterPathBasedFilter;
+import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
 import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.util.Set;

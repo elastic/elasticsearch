@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal.json;
+package org.elasticsearch.xcontent.provider.json;
 
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 

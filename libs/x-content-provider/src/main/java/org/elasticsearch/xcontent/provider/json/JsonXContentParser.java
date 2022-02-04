@@ -6,13 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal.json;
+package org.elasticsearch.xcontent.provider.json;
 
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
@@ -22,7 +21,7 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.internal.XContentParserConfigurationImpl;
+import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;

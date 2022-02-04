@@ -6,25 +6,25 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal.smile;
+package org.elasticsearch.xcontent.provider.yaml;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.internal.json.JsonXContentGenerator;
+import org.elasticsearch.xcontent.provider.json.JsonXContentGenerator;
 
 import java.io.OutputStream;
 import java.util.Set;
 
-public class SmileXContentGenerator extends JsonXContentGenerator {
+public class YamlXContentGenerator extends JsonXContentGenerator {
 
-    public SmileXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
+    public YamlXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
         super(jsonGenerator, os, includes, excludes);
     }
 
     @Override
     public XContentType contentType() {
-        return XContentType.SMILE;
+        return XContentType.YAML;
     }
 
     @Override

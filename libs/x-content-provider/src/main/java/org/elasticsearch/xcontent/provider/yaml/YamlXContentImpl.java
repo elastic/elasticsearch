@@ -6,19 +6,18 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal.json;
+package org.elasticsearch.xcontent.provider.yaml;
 
 import com.fasterxml.jackson.core.JsonEncoding;
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,77 +26,71 @@ import java.io.Reader;
 import java.util.Set;
 
 /**
- * A JSON based content implementation using Jackson.
+ * A YAML based content implementation using Jackson.
  */
-public class JsonXContentImpl extends JsonXContent {
+public final class YamlXContentImpl extends YamlXContent {
 
     public static XContentBuilder getContentBuilder() throws IOException {
-        return XContentBuilder.builder(jsonXContent);
+        return XContentBuilder.builder(yamlXContent);
     }
 
-    private static final JsonFactory jsonFactory;
+    static final YAMLFactory yamlFactory;
+    private static final YamlXContentImpl yamlXContent;
 
-    public static final JsonXContent jsonXContent;
-
-    public static final JsonXContent jsonXContent() {
-        return jsonXContent;
+    public static YamlXContentImpl yamlXContent() {
+        return yamlXContent;
     }
 
     static {
-        jsonFactory = new JsonFactory();
-        jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
-        jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
-        jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
-        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
-        jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
-        jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        jsonXContent = new JsonXContentImpl();
+        yamlFactory = new YAMLFactory();
+        yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
+        yamlXContent = new YamlXContentImpl();
     }
 
-    private JsonXContentImpl() {}
+    private YamlXContentImpl() {}
 
     @Override
     public XContentType type() {
-        return XContentType.JSON;
+        return XContentType.YAML;
     }
 
     @Override
     public byte streamSeparator() {
-        return '\n';
+        throw new UnsupportedOperationException("yaml does not support stream parsing...");
     }
 
     @Override
     public boolean detectContent(byte[] bytes, int offset, int length) {
-        return bytes[offset] == '{';
+        return length > 2 && bytes[offset] == '-' && bytes[offset + 1] == '-' && bytes[offset + 2] == '-';
     }
 
     @Override
     public boolean detectContent(CharSequence chars) {
-        return chars.charAt(0) == '{';
+        return chars.length() > 2 && chars.charAt(0) == '-' && chars.charAt(1) == '-' && chars.charAt(2) == '-';
     }
 
     @Override
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
-        return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
+        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(content));
+        return new YamlXContentParser(config, yamlFactory.createParser(content));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(is));
+        return new YamlXContentParser(config, yamlFactory.createParser(is));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(data, offset, length));
+        return new YamlXContentParser(config, yamlFactory.createParser(data, offset, length));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(reader));
+        return new YamlXContentParser(config, yamlFactory.createParser(reader));
     }
 }

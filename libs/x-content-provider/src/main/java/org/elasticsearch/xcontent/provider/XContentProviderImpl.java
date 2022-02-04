@@ -6,16 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal;
+package org.elasticsearch.xcontent.provider;
 
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.cbor.CborXContent;
-import org.elasticsearch.xcontent.internal.cbor.CborXContentImpl;
-import org.elasticsearch.xcontent.internal.json.JsonStringEncoderImpl;
-import org.elasticsearch.xcontent.internal.json.JsonXContentImpl;
-import org.elasticsearch.xcontent.internal.smile.SmileXContentImpl;
-import org.elasticsearch.xcontent.internal.yaml.YamlXContentImpl;
+import org.elasticsearch.xcontent.provider.cbor.CborXContentImpl;
+import org.elasticsearch.xcontent.provider.json.JsonStringEncoderImpl;
+import org.elasticsearch.xcontent.provider.json.JsonXContentImpl;
+import org.elasticsearch.xcontent.provider.smile.SmileXContentImpl;
+import org.elasticsearch.xcontent.provider.yaml.YamlXContentImpl;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;

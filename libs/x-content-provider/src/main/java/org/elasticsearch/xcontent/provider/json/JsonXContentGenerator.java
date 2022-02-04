@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal.json;
+package org.elasticsearch.xcontent.provider.json;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonStreamContext;
@@ -27,7 +27,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.internal.filtering.FilterPathBasedFilter;
+import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;

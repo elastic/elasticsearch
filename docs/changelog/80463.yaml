@@ -1,0 +1,7 @@
+pr: 80463
+issues:
+  - 80129
+  - 80129
+area: Indices APIs
+type: enhancement
+summary: Force merge REST API support `wait_for_completion`

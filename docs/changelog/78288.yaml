@@ -1,0 +1,6 @@
+pr: 78288
+issues:
+  - 77324
+area: Infra/Circuit Breakers
+type: enhancement
+summary: Allow dynamically changing the `use_real_memory` setting

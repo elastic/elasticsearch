@@ -1,0 +1,7 @@
+pr: 81768
+issues:
+  - 51612
+  - 66473
+area: Network
+type: enhancement
+summary: Report close connection exceptions at INFO

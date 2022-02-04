@@ -1,0 +1,6 @@
+pr: 82608
+issues:
+  - 77466
+area: Cluster Coordination
+type: enhancement
+summary: More compact serialization of metadata

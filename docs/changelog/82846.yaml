@@ -1,0 +1,8 @@
+pr: 82846
+issues:
+  - 82409
+  - 81210
+  - 52728
+area: Search
+type: enhancement
+summary: Allow doc-values only search on keyword fields

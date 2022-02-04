@@ -1,0 +1,5 @@
+pr: 81910
+issues: []
+area: Security
+type: enhancement
+summary: Add user profile API for get profile by UID

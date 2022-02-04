@@ -1,0 +1,5 @@
+pr: 80267
+issues: []
+area: Machine Learning
+type: enhancement
+summary: Add ability to update the truncation option at inference

@@ -1,0 +1,6 @@
+pr: 81548
+issues:
+  - 81470
+area: Machine Learning
+type: bug
+summary: Validate vocabulary on model deployment

@@ -1,0 +1,5 @@
+pr: 80090
+issues: []
+area: Cluster Coordination
+type: enhancement
+summary: Improve node-join task descriptions

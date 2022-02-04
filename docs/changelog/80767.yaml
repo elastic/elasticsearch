@@ -1,0 +1,5 @@
+pr: 80767
+issues: []
+area: Allocation
+type: enhancement
+summary: Speed up same host check

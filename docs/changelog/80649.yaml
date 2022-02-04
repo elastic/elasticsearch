@@ -1,0 +1,19 @@
+pr: 80649
+issues:
+  - 79232
+  - 63739
+area: Geo
+type: breaking
+summary: Fields API should return normalize geometries
+breaking:
+  title: The search API's `fields` parameter now normalizes geometry objects that cross the international dateline
+  area: REST API
+  notable: true
+  details: |-
+    The search API's `fields` parameter now normalizes `geo_shape` objects that
+    cross the international dateline (+/-180° longitude). For example, if a polygon
+    crosses the dateline, the `fields` parameter returns it as two polygons. You can
+    still retrieve original, unnormalized geometry objects from `_source`.
+  impact: |-
+    If your application requires unnormalized geometry objects, retrieve them from
+    `_source` rather than using the `fields` parameter.

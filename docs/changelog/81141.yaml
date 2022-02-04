@@ -1,0 +1,6 @@
+pr: 81141
+issues:
+  - 80955
+area: Transform
+type: enhancement
+summary: Report transforms without config as erroneous

@@ -1,0 +1,6 @@
+pr: 82145
+issues:
+  - 81645
+area: Machine Learning
+type: enhancement
+summary: Warn when creating job with an unusual bucket span

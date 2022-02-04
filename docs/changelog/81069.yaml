@@ -1,0 +1,6 @@
+pr: 81069
+issues:
+  - 81013
+area: Machine Learning
+type: enhancement
+summary: Improve error message on starting scrolling datafeed with no matching indices

@@ -1,0 +1,5 @@
+pr: 81146
+issues: []
+area: TSDB
+type: enhancement
+summary: Make time boundaries settings required in TSDB indices

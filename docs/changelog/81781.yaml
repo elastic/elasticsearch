@@ -1,0 +1,5 @@
+pr: 81781
+issues: []
+area: Allocation
+type: bug
+summary: Permit metadata updates on flood-stage-blocked indices

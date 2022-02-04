@@ -1,0 +1,6 @@
+pr: 80420
+issues:
+  - 77773
+area: Allocation
+type: bug
+summary: Make `*.routing.allocation.*` list-based setting

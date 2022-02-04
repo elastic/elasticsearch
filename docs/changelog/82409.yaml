@@ -1,0 +1,21 @@
+pr: 82409
+issues:
+  - 81210
+  - 52728
+area: Search
+type: enhancement
+summary: Allow doc-values only search on number types
+# Note: the following release highlight covers a series of PRs that added
+# this support
+highlight:
+  notable: false
+  title: Doc-values-only search is now supported on numeric, date, keyword, ip, and boolean types
+  body: |-
+    Doc-value-only fields allow users to trade slower query performance for
+    an increased indexing rate and storage space efficiency. This is
+    achieved by disabling inverted structures such as the inverted index or
+    points, and using the columnar storage format of doc values to run
+    queries instead, while still providing the same usual great performance
+    for aggregating and sorting data. {es} {version} supports term and
+    range queries on `numeric`, `date`, `keyword`, `ip`, and `boolean`
+    doc-value-only field types.

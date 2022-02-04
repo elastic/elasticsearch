@@ -1,0 +1,6 @@
+pr: 81030
+issues:
+  - 80904
+area: Authorization
+type: enhancement
+summary: Optimize DLS bitset building for `matchAll` query

@@ -1,0 +1,6 @@
+pr: 81723
+issues:
+  - 81149
+area: Machine Learning
+type: enhancement
+summary: Report thread settings per node for trained model deployments

@@ -1,0 +1,5 @@
+pr: 81968
+issues: []
+area: Authentication
+type: feature
+summary: Introduce domain setting to associate realms

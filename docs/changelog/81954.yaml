@@ -1,0 +1,6 @@
+pr: 81954
+issues:
+  - 80413
+area: Indices APIs
+type: enhancement
+summary: Expose index health and status to the `_stats` API

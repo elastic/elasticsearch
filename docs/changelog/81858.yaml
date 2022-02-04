@@ -1,0 +1,5 @@
+pr: 81858
+issues: []
+area: Analysis
+type: enhancement
+summary: Expose Japanese completion filter to kuromoji analysis plugin

@@ -1,0 +1,5 @@
+pr: 82781
+issues: []
+area: Security
+type: enhancement
+summary: Update Kibana system user privileges

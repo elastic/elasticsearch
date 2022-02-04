@@ -1,0 +1,5 @@
+pr: 80608
+issues: []
+area: Search
+type: enhancement
+summary: Add field usage support for vectors

@@ -1,0 +1,7 @@
+pr: 81376
+issues:
+  - 80437
+  - 81362
+area: Snapshot/Restore
+type: bug
+summary: Adjust `LinuxFileSystemNatives.allocatedSizeInBytes` for aarch64 architectures

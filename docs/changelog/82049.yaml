@@ -1,0 +1,6 @@
+pr: 82049
+issues:
+  - 67311
+area: Security
+type: bug
+summary: Add validation for API key role descriptors

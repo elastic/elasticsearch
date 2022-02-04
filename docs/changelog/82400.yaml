@@ -1,0 +1,5 @@
+pr: 82400
+issues: []
+area: Security
+type: enhancement
+summary: Activate user profile API

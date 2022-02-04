@@ -1,0 +1,5 @@
+pr: 80518
+issues: []
+area: Infra/Scripting
+type: enhancement
+summary: Add '$' syntax as a shortcut for 'field' in Painless

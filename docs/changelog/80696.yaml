@@ -1,0 +1,5 @@
+pr: 80696
+issues: []
+area: Mapping
+type: bug
+summary: Better exception message for `MappingParser.parse`

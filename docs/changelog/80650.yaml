@@ -1,0 +1,6 @@
+pr: 80650
+issues:
+  - 80111
+area: Cluster Coordination
+type: enhancement
+summary: Use network recycler for publications

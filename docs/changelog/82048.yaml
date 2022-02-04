@@ -1,0 +1,5 @@
+pr: 82048
+issues: []
+area: Infra/Settings
+type: enhancement
+summary: Optimize duplicated code block in `MetadataUpdateSettingsService`

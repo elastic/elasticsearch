@@ -1,0 +1,5 @@
+pr: 78875
+issues: []
+area: Cluster Coordination
+type: enhancement
+summary: Paginate persisted cluster state

@@ -1,0 +1,5 @@
+pr: 82175
+issues: []
+area: Authentication
+type: feature
+summary: Initial version of JWT Realm

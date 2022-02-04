@@ -1,0 +1,6 @@
+pr: 80442
+issues:
+  - 78823
+area: Infra/Core
+type: enhancement
+summary: Use `VarHandles` in `ByteUtils`

@@ -1,0 +1,5 @@
+pr: 80276
+issues: []
+area: TSDB
+type: enhancement
+summary: Add `_tsid` field to `time_series` indices

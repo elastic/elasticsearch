@@ -1,5 +1,5 @@
 pr: 83215
-summary: Move Get Snapshots Serialization to Management Pool
+summary: Move get snapshots serialization to management pool
 area: Snapshot/Restore
 type: bug
 issues: []

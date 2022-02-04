@@ -1,0 +1,6 @@
+pr: 82412
+issues:
+  - 82159
+area: Data streams
+type: enhancement
+summary: Defer reroute when autocreating datastream

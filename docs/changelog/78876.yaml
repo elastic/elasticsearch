@@ -1,0 +1,18 @@
+pr: 78876
+issues:
+  - 43774
+area: CRUD
+type: deprecation
+summary: Bulk actions JSON must be well-formed
+deprecation:
+  title: Lenient parsing of bulk actions is deprecated
+  area: REST API
+  notable: true
+  details: |-
+    Older versions of {es} parse the action lines of bulk requests very permissively
+    and would silently ignore invalid or malformed actions. This lenience is
+    deprecated and a future version will reject bulk requests containing invalid
+    actions.
+  impact: |-
+    Ensure that bulk actions are well-formed JSON objects containing a single entry
+    with the correct key.

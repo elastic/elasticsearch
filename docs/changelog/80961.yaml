@@ -1,0 +1,6 @@
+pr: 80961
+issues:
+  - 80898
+area: Network
+type: bug
+summary: Throw `NoSeedNodeLeftException` on proxy failure

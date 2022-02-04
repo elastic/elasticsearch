@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -36,6 +34,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -428,7 +427,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         ComponentTemplate componentTemplate2 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(
-            JsonParseException.class,
+            XContentParseException.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate2)
         );
 

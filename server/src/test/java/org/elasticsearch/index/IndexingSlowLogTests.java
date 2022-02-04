@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,6 +32,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
@@ -301,7 +300,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             )
         );
         assertNotNull(e.getCause());
-        assertThat(e.getCause(), instanceOf(JsonParseException.class));
+        assertThat(e.getCause(), instanceOf(XContentParseException.class));
         assertThat(
             e.getCause(),
             hasToString(

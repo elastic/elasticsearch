@@ -9,9 +9,11 @@
 package org.elasticsearch.xcontent.internal.json;
 
 import com.fasterxml.jackson.core.JsonLocation;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
+import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -51,6 +53,9 @@ public class JsonXContentParser extends AbstractXContentParser {
             return convertToken(parser.nextToken());
         } catch (JsonEOFException e) {
             throw new XContentEOFException(e);
+        } catch (JsonParseException e) {
+            JsonLocation loc = e.getLocation();
+            throw new XContentParseException(new XContentLocation(loc.getLineNr(), loc.getColumnNr()), e.getMessage(), e);
         }
     }
 
@@ -150,7 +155,12 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public Number numberValue() throws IOException {
-        return parser.getNumberValue();
+        try {
+            return parser.getNumberValue();
+        } catch (InputCoercionException e) {
+            JsonLocation loc = e.getLocation();
+            throw new XContentParseException(new XContentLocation(loc.getLineNr(), loc.getColumnNr()), e.getMessage(), e);
+        }
     }
 
     @Override

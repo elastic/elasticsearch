@@ -31,7 +31,7 @@ import java.util.Map;
 import static org.mockito.Mockito.mock;
 
 public class XContentRecordReaderTests extends ESTestCase {
-    public void testRead() throws JsonParseException, IOException {
+    public void testRead() throws IOException {
         String data = """
             {"a":10, "b":20, "c":30}
             {"b":21, "a":11, "c":31}
@@ -57,7 +57,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         assertEquals(-1, reader.read(record, gotFields));
     }
 
-    public void testRead_GivenNestedField() throws JsonParseException, IOException {
+    public void testRead_GivenNestedField() throws IOException {
         String data = """
             {"a":10, "b":20, "c":{"d":30, "e":40}}""";
         XContentParser parser = createParser(data);
@@ -79,7 +79,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         assertEquals(-1, reader.read(record, gotFields));
     }
 
-    public void testRead_GivenSingleValueArrays() throws JsonParseException, IOException {
+    public void testRead_GivenSingleValueArrays() throws IOException {
         String data = """
             {"a":[10], "b":20, "c":{"d":30, "e":[40]}}""";
         XContentParser parser = createParser(data);
@@ -101,7 +101,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         assertEquals(-1, reader.read(record, gotFields));
     }
 
-    public void testRead_GivenMultiValueArrays() throws JsonParseException, IOException {
+    public void testRead_GivenMultiValueArrays() throws IOException {
         String data = """
             {
               "a": [ 10, 11 ],
@@ -138,7 +138,7 @@ public class XContentRecordReaderTests extends ESTestCase {
      * invalid json. This means we miss the next record after a bad one.
      */
 
-    public void testRead_RecoverFromBadJson() throws JsonParseException, IOException {
+    public void testRead_RecoverFromBadJson() throws IOException {
         // no opening '{'
         String data = """
             "a":10, "b":20, "c":30}
@@ -161,7 +161,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         assertEquals(-1, reader.read(record, gotFields));
     }
 
-    public void testRead_RecoverFromBadNestedJson() throws JsonParseException, IOException {
+    public void testRead_RecoverFromBadNestedJson() throws IOException {
         // nested object 'd' is missing a ','
         String data = """
             {"a":10, "b":20, "c":30}
@@ -185,7 +185,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         assertEquals(-1, reader.read(record, gotFields));
     }
 
-    public void testRead_HitParseErrorsLimit() throws JsonParseException, IOException {
+    public void testRead_HitParseErrorsLimit() throws IOException {
         // missing a ':'
         String format = """
             {"a":1%1$d, "b"2%1$d, "c":3%1$d}
@@ -234,7 +234,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         assertEquals(3, reader.read(record, gotFields));
     }
 
-    private XContentParser createParser(String input) throws JsonParseException, IOException {
+    private XContentParser createParser(String input) throws IOException {
         ByteArrayInputStream inputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8));
         InputStream inputStream2 = new CountingInputStream(inputStream, mock(DataCountsReporter.class));
         return XContentFactory.xContent(XContentType.JSON)

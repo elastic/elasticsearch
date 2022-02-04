@@ -11,11 +11,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -26,13 +24,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 
 /**
  * Provides a number of utility methods for interacting with {@link Settings} and {@link Setting} inside a {@link Realm}.
@@ -122,34 +113,6 @@ public class RealmSettings {
                 return new Tuple<>(id, realmSettings);
             });
         }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-    }
-
-    /**
-     * Returns the domain name that the given realm is assigned to.
-     * Assumes {@code #verifyRealmNameToDomainNameAssociation} successfully verified the configuration.
-     */
-    public static @Nullable String getDomainForRealm(Settings globalSettings, RealmConfig.RealmIdentifier realmIdentifier) {
-        // TODO reserved realm settings need to be pulled into core
-        if (realmIdentifier.equals(new RealmConfig.RealmIdentifier("reserved", "reserved"))
-            || realmIdentifier.equals(
-                new RealmConfig.RealmIdentifier(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE)
-            )
-            || realmIdentifier.equals(new RealmConfig.RealmIdentifier(FALLBACK_REALM_NAME, FALLBACK_REALM_TYPE))
-            || realmIdentifier.equals(new RealmConfig.RealmIdentifier(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE))
-            || realmIdentifier.equals(new RealmConfig.RealmIdentifier(ATTACH_REALM_NAME, ATTACH_REALM_TYPE))
-            || realmIdentifier.equals(
-                new RealmConfig.RealmIdentifier(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE)
-            )) {
-            return null;
-        }
-        // file and native realms can be referred to by their default names too
-        for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
-            Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
-            if (realmsByDomainSetting.get(globalSettings).contains(realmIdentifier.getName())) {
-                return domainName;
-            }
-        }
-        return null;
     }
 
     /**

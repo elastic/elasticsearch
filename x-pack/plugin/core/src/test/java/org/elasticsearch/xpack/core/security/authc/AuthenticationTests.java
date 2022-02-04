@@ -347,7 +347,6 @@ public class AuthenticationTests extends ESTestCase {
             KerberosRealmSettings.TYPE,
             randomAlphaOfLengthBetween(3, 8)
         );
-        RealmDomain domain = null;
         if (underDomain) {
             final Set<RealmConfig.RealmIdentifier> domainRealms = Set.of(
                 randomArray(
@@ -360,9 +359,12 @@ public class AuthenticationTests extends ESTestCase {
                     )
                 )
             );
-            domain = new RealmDomain("domain", domainRealms);
+            RealmDomain domain = new RealmDomain("domain", domainRealms);
+            RealmConfig.RealmIdentifier realmIdentifier = randomFrom(domainRealms);
+            return new RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), randomAlphaOfLengthBetween(3, 8), domain);
+        } else {
+            return new RealmRef(randomAlphaOfLengthBetween(3, 8), randomRealmTypeSupplier.get(), randomAlphaOfLengthBetween(3, 8), null);
         }
-        return new RealmRef(randomAlphaOfLengthBetween(3, 8), randomRealmTypeSupplier.get(), randomAlphaOfLengthBetween(3, 8), domain);
     }
 
     private RealmRef mutateRealm(RealmRef original, String name, String type) {

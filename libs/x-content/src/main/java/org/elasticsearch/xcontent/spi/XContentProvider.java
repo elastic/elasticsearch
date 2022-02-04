@@ -11,6 +11,7 @@ package org.elasticsearch.xcontent.spi;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
@@ -47,6 +48,8 @@ public interface XContentProvider {
     FormatProvider<YamlXContent> getYamlXContent();
 
     XContentParserConfiguration empty();
+
+    JsonStringEncoder getJsonStringEncoder();
 
     static XContentProvider provider() {
         return Holder.INSTANCE;

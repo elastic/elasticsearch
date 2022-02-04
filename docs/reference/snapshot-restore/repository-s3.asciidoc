@@ -276,6 +276,10 @@ bucket naming rules].
     Specifies the path to the repository data within its bucket. Defaults to an
     empty string, meaning that the repository is at the root of the bucket. The
     value of this setting should not start or end with a `/`.
++
+NOTE: Don't set `base_path` when configuring a snapshot repository for {ECE}.
+{ECE} automatically generates the `base_path` for each deployment so that
+multiple deployments may share the same bucket.
 
 `chunk_size`::
 

@@ -745,14 +745,13 @@ public class Docker {
      */
     public static void waitForGreenCluster(String containerId) throws Exception {
         ObjectMapper mapper = new ObjectMapper();
-        assertBusy(
-            () -> assertTrue(getContainerLogs(containerId).stdout().lines().filter(line -> line.startsWith("{")).map(line -> {
-                try {
-                    return mapper.readTree(line);
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
-                }
-            }).anyMatch(json -> json.get("message").textValue().contains("Cluster health status changed from [YELLOW] to [GREEN]"))),
+        assertBusy(() -> assertTrue(getContainerLogs(containerId).stdout().lines().filter(line -> line.startsWith("{")).map(line -> {
+            try {
+                return mapper.readTree(line);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+        }).anyMatch(json -> json.get("message").textValue().contains("Cluster health status changed from [YELLOW] to [GREEN]"))),
             60,
             TimeUnit.SECONDS
         );

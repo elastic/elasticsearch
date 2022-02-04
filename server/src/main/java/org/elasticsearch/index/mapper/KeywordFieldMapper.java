@@ -515,8 +515,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         /**
-         * A simple terms implementation for SortedSetDocValues that only provides access to
-         * {@link #iterator} and {@link #intersect(CompiledAutomaton, BytesRef)} methods
+         * A simple terms implementation for SortedSetDocValues that only provides access to {@link TermsEnum} via
+         * {@link #iterator} and {@link #intersect(CompiledAutomaton, BytesRef)} methods.
+         * We have this custom implementation based on {@link MultiTerms} instead of using
+         * {@link org.apache.lucene.index.MultiDocValues#getSortedSetValues(IndexReader, String)}
+         * because {@link org.apache.lucene.index.MultiDocValues} builds global ordinals up-front whereas
+         * {@link MultiTerms}, which exposes the terms enum via {@link org.apache.lucene.index.MultiTermsEnum},
+         * merges terms on the fly.
          */
         static class SortedSetDocValuesTerms extends Terms {
 

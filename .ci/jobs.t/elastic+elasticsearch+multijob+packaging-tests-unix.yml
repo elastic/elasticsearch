@@ -13,8 +13,6 @@
           type: label-expression
           name: os
           values:
-            - centos-7-packaging
-            - centos-8-packaging
             - debian-10-packaging
             - debian-11-packaging
             - opensuse-15-1-packaging

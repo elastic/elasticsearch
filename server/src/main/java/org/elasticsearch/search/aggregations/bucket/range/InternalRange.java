@@ -163,11 +163,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 out.writeString(key == null ? generateKey(from, to, format) : key);
             }
             out.writeDouble(from);
-            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_17_0) && out.getVersion().before(Version.V_8_2_0)) {
                 out.writeOptionalDouble(from);
             }
             out.writeDouble(to);
-            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_17_0) && out.getVersion().before(Version.V_8_2_0)) {
                 out.writeOptionalDouble(to);
             }
             out.writeVLong(docCount);
@@ -265,11 +265,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < size; i++) {
             String key = in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString() : in.readString();
             double from = in.readDouble();
-            if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_17_0) && in.getVersion().before(Version.V_8_2_0)) {
                 in.readOptionalDouble();
             }
             double to = in.readDouble();
-            if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_17_0) && in.getVersion().before(Version.V_8_2_0)) {
                 in.readOptionalDouble();
             }
             long docCount = in.readVLong();

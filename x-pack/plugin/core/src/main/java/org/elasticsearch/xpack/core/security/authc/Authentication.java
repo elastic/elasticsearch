@@ -58,7 +58,7 @@ public class Authentication implements ToXContentObject {
     private static final Logger logger = LogManager.getLogger(Authentication.class);
 
     public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
-    public static final Version VERSION_REALM_DOMAINS = Version.V_8_1_0;
+    public static final Version VERSION_REALM_DOMAINS = Version.V_8_2_0;
 
     private final User user;
     private final RealmRef authenticatedBy;

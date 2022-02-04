@@ -19,9 +19,6 @@ For example, custom mapping types were supported in URL paths for 7.x, but are n
 includes the custom mapping type to it's non-typed equivalent URL. In this case, requesting compatibility effectively ignores the custom mapping type of the requested URL.
 Additionally, for requests that would have warranted a response that in 7.x that included a type field REST API compatibility will inject a _type field with a hard coded value of _doc as part of the response.
 
-REST API compatibility is not constrained only to the removal of mappings types.  REST API compatibility can be requested for any API and the {es} will attempt to apply the most compatible
-URL, request body, response body, and HTTP parameters. If the API does not have non compatible (breaking) changes then it is no different than a normal request.
-Additionally, there may be some cases where compatibility can not be automatically applied. For those cases an error will still occur.
 
 It is important to note that REST API compatibility does not result in the same behavior as the prior version. Rather REST API compatibility is a best effort by the {es} service to find the best way to automatically resolve any incompatibility introduced in the REST API.
 This level of compatibility may not work for all workflows and use cases. For example, if the custom mapping types are an integral part of a workflow then ignoring the custom type at the REST API will not help.

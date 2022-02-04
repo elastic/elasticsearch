@@ -30,18 +30,15 @@ dependencies {
 
 }
 
-//tasks.named('forbiddenApisMain').configure {
-//  // x-content does not depend on server
-//  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
-//  replaceSignatureFiles 'jdk-signatures'
-//}
-//
-//tasks.named("dependencyLicenses").configure {
-//  mapping from: /jackson-.*/, to: 'jackson'
-//}
-//
-//tasks.named("jarHell").configure { enabled = false }
-//
-//tasks.named("compileJava").configure {
-//  options.compilerArgs.add("-Xlint:-missing-explicit-ctor")
-//}
+tasks.named('forbiddenApisMain').configure {
+  // x-content does not depend on server
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
+tasks.named("jarHell").configure { enabled = false }
+

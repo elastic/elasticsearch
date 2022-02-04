@@ -6,8 +6,7 @@ To help REST clients mitigate the impact of non-compatible (breaking) API change
 {es} REST APIs are generally stable across versions. However, some improvements require changes that are not compatible with previous versions.
 For example, {es} 7.x supported custom mapping types in many URL paths, but {es} 8.0+ does not (see <<removal-of-types>>). Specifying a custom type in a request sent to {es} 8.0+ returns an error. However, if you request REST API compatibility, {es} accepts the request even though mapping types are no longer supported.
 
-All non compatible (breaking) changes to the {es} REST API will be deprecated in the prior major version to where the non compatible (breaking) change occurs.
-For example, if a REST API is removed (or changed in some non compatible way) in 8.x it will be will be deprecated in 7.x and will emit deprecation logs anytime that API is invoked.
+When an API is targeted for removal or is going to be changed in a non-compatible way, the original API is deprecated for one or more releases. Using the original API triggers a deprecation warning in the logs. 
 This provides the opportunity to review the deprecation logs prior to a major version upgrade and take the appropriate actions. However, there are cases where
 identifying all usages of deprecated APIs could be difficult or impossible. This is where REST API compatibility can help.
 

@@ -21,6 +21,7 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -444,5 +445,10 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
             && Objects.equals(zeroTermsQuery, other.zeroTermsQuery)
             && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_13_0;
     }
 }

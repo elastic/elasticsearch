@@ -121,6 +121,8 @@ import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.prefix.InternalIpPrefix;
+import org.elasticsearch.search.aggregations.bucket.prefix.IpPrefixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalBinaryRange;
@@ -173,7 +175,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDevia
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
@@ -186,6 +187,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationB
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
@@ -380,7 +382,7 @@ public class SearchModule {
         );
         registerAggregation(
             new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder.PARSER).addResultReader(
-                InternalSum::new
+                Sum::new
             ).setAggregatorRegistrar(SumAggregationBuilder::registerAggregators),
             builder
         );
@@ -556,6 +558,12 @@ public class SearchModule {
             new AggregationSpec(DateRangeAggregationBuilder.NAME, DateRangeAggregationBuilder::new, DateRangeAggregationBuilder.PARSER)
                 .addResultReader(InternalDateRange::new)
                 .setAggregatorRegistrar(DateRangeAggregationBuilder::registerAggregators),
+            builder
+        );
+        registerAggregation(
+            new AggregationSpec(IpPrefixAggregationBuilder.NAME, IpPrefixAggregationBuilder::new, IpPrefixAggregationBuilder.PARSER)
+                .addResultReader(InternalIpPrefix::new)
+                .setAggregatorRegistrar(IpPrefixAggregationBuilder::registerAggregators),
             builder
         );
         registerAggregation(

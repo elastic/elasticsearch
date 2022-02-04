@@ -330,7 +330,7 @@ public class NestedIT extends ESIntegTestCase {
         Nested level2 = bBucket.getAggregations().get("level2");
         assertThat(level2.getDocCount(), equalTo(1L));
         Sum sum = level2.getAggregations().get("sum");
-        assertThat(sum.getValue(), equalTo(2d));
+        assertThat(sum.value(), equalTo(2d));
 
         a = level1.getAggregations().get("a");
         bBucket = a.getBucketByKey("b");
@@ -339,7 +339,7 @@ public class NestedIT extends ESIntegTestCase {
         level2 = bBucket.getAggregations().get("level2");
         assertThat(level2.getDocCount(), equalTo(1L));
         sum = level2.getAggregations().get("sum");
-        assertThat(sum.getValue(), equalTo(2d));
+        assertThat(sum.value(), equalTo(2d));
     }
 
     public void testEmptyAggregation() throws Exception {

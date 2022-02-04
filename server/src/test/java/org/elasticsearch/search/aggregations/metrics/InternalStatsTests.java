@@ -86,7 +86,6 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         assertEquals(sampled.getSum(), samplingContext.inverseScale(reduced.getSum()), 1e-7);
         assertEquals(sampled.getMin(), reduced.getMin(), 0d);
         assertEquals(sampled.getMax(), reduced.getMax(), 0d);
-        // Nothing to check
     }
 
     public void testSummationAccuracy() {

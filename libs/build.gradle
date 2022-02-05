@@ -17,7 +17,7 @@ configure(subprojects - project('elasticsearch-log4j')) {
    * Subprojects may depend on the "core" lib but may not depend on any
    * other libs. This keeps our dependencies simpler.
    */
-  project.afterEvaluate {
+  /*project.afterEvaluate {
     configurations.all { Configuration conf ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project depProject = dep.dependencyProject
@@ -33,4 +33,5 @@ configure(subprojects - project('elasticsearch-log4j')) {
       }
     }
   }
+*/
 }

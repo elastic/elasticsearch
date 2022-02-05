@@ -41,3 +41,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.fasterxml.jackson.databind.cfg.MapperBuilder'
   )
 }
+
+tasks.named("jar").configure {
+  archiveBaseName = "x-content-impl"
+}

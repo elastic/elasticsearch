@@ -30,7 +30,6 @@ dependencies {
   api project(":libs:elasticsearch-geo")
   api project(":libs:elasticsearch-lz4")
 
-  implementation project(':libs:elasticsearch-x-content-provider')
   implementation project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
@@ -128,16 +127,10 @@ tasks.named("processResources").configure {
     dependsOn generateModulesList, generatePluginsList
 }
 
-// TODO: replace with a relative path, or something much better
-tasks.named("test").configure {
-  systemProperty 'es.x.content.provider', '/Users/chegar/git/es_clean/libs/x-content-provider/build/distributions/'
-}
-
 if (BuildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
         systemProperty 'es.random_sampler_feature_flag_registered', 'true'
-        systemProperty 'es.x.content.provider', '/Users/chegar/git/es_clean/libs/x-content-provider/build/distributions/'
     }
     tasks.named("internalClusterTest").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'

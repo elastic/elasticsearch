@@ -6,20 +6,23 @@
  * Side Public License, v 1.
  */
 
+import java.util.stream.Collectors
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
+
+configurations {
+  providerImpl
+}
 
 dependencies {
   api project(':libs:elasticsearch-core')
 
+  providerImpl project(':libs:x-content:impl')
+
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
   }
-}
-
-// TODO: replace with a relative path, or something much better
-tasks.named("test").configure {
-  systemProperty 'es.x.content.provider', '/Users/chegar/git/es_clean/libs/x-content-provider/build/distributions/'
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -41,3 +44,26 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named("jarHell").configure { enabled = false }
+
+tasks.named("jar").configure {
+  into('org/elasticsearch/xcontent/internal') {
+    from configurations.providerImpl
+  }
+}
+
+
+def generateProviderJarsList = tasks.register("generateProviderJarsList") {
+  File jarsFile = new File(buildDir, 'generated-resources/org/elasticsearch/xcontent/internal/provider-jars.txt')
+  processResources.from(new File(buildDir, 'generated-resources'))
+  inputs.property('jars', configurations.providerImpl)
+  outputs.file(jarsFile)
+  doLast {
+    jarsFile.parentFile.mkdirs()
+    jarsFile.setText(configurations.providerImpl.files.stream()
+      .map(f -> f.name).collect(Collectors.joining('\n')), 'UTF-8')
+  }
+}
+
+tasks.named("processResources").configure {
+  dependsOn generateProviderJarsList
+}

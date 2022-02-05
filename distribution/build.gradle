@@ -286,7 +286,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libs project(':distribution:tools:java-version-checker')
     libs project(':distribution:tools:launchers')
 
-    libsXContentProvider project(':libs:elasticsearch-x-content-provider')
     libsAnsiConsole project(':distribution:tools:ansi-console')
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')

@@ -1816,4 +1816,4 @@ role="exclude",id="archived-settings"]
 If you upgrade an {es} cluster that uses deprecated cluster or index settings
 that are not used in the target version, they are archived and ignored.
 For more information, see 
-{ref}/setup-upgrade.html#archived-settings[Archived settings]. 
+<<archived-settings, Archived settings>>. 

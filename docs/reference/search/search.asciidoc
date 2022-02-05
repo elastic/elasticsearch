@@ -86,6 +86,14 @@ shards in the request can be large. Defaults to `512`.
 coordinating node and the remote clusters are minimized when executing
 {ccs} (CCS) requests. See <<ccs-network-delays>>. Defaults to `true`.
 
+[[ccs-skip-unavailable]]
+`ccs-skip-unavailable`::
+(Optional, Boolean) If `false`, a {ccs} (CCS) request returns an error
+if *any* cluster in the request is unavailable. If `true`, a {ccs} (CCS)
+request skips all unavailable clusters. Defaults to unset, which honors
+the `<<skip-unavailable,`skip_unavailable`>>` cluster setting of each
+remote cluster.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]

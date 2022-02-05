@@ -262,6 +262,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
                             searchRequest.setCcsMinimizeRoundtrips(nodeBooleanValue(value));
+                        } else if ("ccs_skip_unavailable".equals(entry.getKey()) || "ccsSkipUnavailable".equals(entry.getKey())) {
+                            searchRequest.setCcsSkipUnavailable(nodeBooleanValue(value));
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {
@@ -373,6 +375,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         if (request.allowPartialSearchResults() != null) {
             xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
+        }
+        if (request.getCcsSkipUnavailable() != null) {
+            xContentBuilder.field("ccs_skip_unavailable", request.getCcsSkipUnavailable());
         }
         xContentBuilder.endObject();
     }

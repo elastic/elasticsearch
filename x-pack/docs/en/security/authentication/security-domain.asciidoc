@@ -1,0 +1,87 @@
+[role="xpack"]
+[[security-domain]]
+== Security Domain
+
+beta::[]
+
+Security domain is a way to enhance resource sharing and ownership checking
+for the same user across different realms.
+
+A user can create various resources in {es} that have the concept of ownership.
+Examples are <<async-search,async search>>, <<scroll-api,scroll>>, API keys
+and <<user-profile,user profile>>.
+These resources can be accessed and managed by the same user at a later time.
+To determine whether it is the same user, {es} relies on the `username` and
+the <<realms,realm>> the user is from. This means if two authentications with
+the same `username` are from two different realms, {es} treats them as for
+different users and thus does not allow resource sharing between them,
+e.g. the two users will have two different user profiles.
+
+This is not desirable in certain cases where the same end-user can authenticate
+with different realms.
+For example, a <<ldap-realm>> and a <<saml-realm>> can be backed by the same
+directory service. Or a <<saml-realm>> may
+<<configuring-authorization-delegation,delegate authorization>> to a <<native-realm>>.
+In these cases, it is desirable that resources are properly shared between both
+authentications, that is:
+
+* A single <<user-profile>> should be associated with them. So user preference,
+notifications, etc. are shared between them.
+* They should be able to view each other's async search or scroll search results.
+* They should be able to view and manage each other's API keys (assuming they both
+have the necessary privileges).
+
+Security domain allows multiple realms to be grouped together so that they are
+interchangeable when it comes to resource sharing and ownership checking.
+
+=== Configuring a security domain
+
+. Add a security domain configuration to `elasticsearch.yml` under the
+`xpack.security.authc.domains` namespace.
+
+[source, yaml]
+------------------------------------------------------------
+xpack:
+  security:
+    authc:
+      domains:
+        my_domain:
+          realms: [ 'default_native', 'saml1' ]
+------------------------------------------------------------
+
+Above configuration defines a security domain called `my_domain` and
+it contains two realms, `default_native` and `saml1`.
+
+NOTE: The realms for a domain must be either explicitly defined in
+`elasticsearch.yml` or the default <<file-realm>> and <<native-realm>>
+that are added by {es} automatically at start time.
+Specifying either an undefined realm, synthetic realm or the reserved realm
+under a domain is an error that prevents the node from starting up.
+When the realm is defined in `elasticsearch.yml`, it does not
+need to be enabled for it to be listed under a domain.
+--
+
+NOTE: A realm does not have to be part of a domain. But if it is,
+it can only belong to at most one domain. It's a start time
+error to have the same realm in multiple domains.
+--
+
+. Restart {es}.
+
+=== Limitations
+
+* It is likely a wrong but technically possible setup for the same user to
+have different <<roles,roles>> when authenticating with different realms.
+{es} always enforces the user privileges for the authentication it has at the
+moment. <<configuring-authorization-delegation,Authorization delegation>> is
+a good way to ensure the same user getting the same roles from multiple realms.
+** Because <<user-profile,user profile>> always captures the user's roles when
+calling the <<security-api-activiate-user-profile>>, it could also be impacted
+by "flapping roles", i.e. different roles for the same user from different realms
+under the same domain.
+* Security domain does not bypass <<authorization,user authorization>> when the
+resource sharing requires them. For example, managing one's own API Keys requires
+the `manage_own_api_key` privilege. If the user loses this privilege later, it
+will no longer be able to manage the API keys regardless which realm it
+authenticates with.
+

@@ -35,7 +35,6 @@ import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandle
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -98,17 +97,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // Sometimes a system action gets executed like a internal create index request or update mappings request
                 // which means that the user is copied over to system actions so we need to change the user
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-                    securityContext.executeAsUser(
-                        SystemUser.INSTANCE,
-                        (original) -> sendWithUser(
+                    securityContext.executeAsSystemUser(
+                        minVersion,
+                        original -> sendWithUser(
                             connection,
                             action,
                             request,
                             options,
                             new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
                             sender
-                        ),
-                        minVersion
+                        )
                     );
                 } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
                     AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(

@@ -95,7 +95,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         ClusterState.Builder newState;
 
         if (joiningNodes.size() == 1 && joiningNodes.get(0).isFinishElectionTask()) {
-            return results.successes(joiningNodes).build(currentState);
+            final Task task = joiningNodes.get(0);
+            return results.success(task, new LegacyClusterTaskResultActionListener(task, currentState)).build(currentState);
         } else if (currentNodes.getMasterNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeMasterTask)) {
             assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask)
                 : "becoming a master but election is not finished " + joiningNodes;
@@ -148,7 +149,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     continue;
                 }
             }
-            results.success(joinTask);
+            results.success(joinTask, new LegacyClusterTaskResultActionListener(joinTask, currentState));
         }
 
         if (nodesChanged) {

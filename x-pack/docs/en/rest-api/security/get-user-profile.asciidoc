@@ -5,6 +5,6 @@
 <titleabbrev>Get user profile</titleabbrev>
 ++++
 
-Retrieves user profile for the given unique ID
+Retrieves a user's profile given the unique profile ID
 
 coming::[8.1.0]

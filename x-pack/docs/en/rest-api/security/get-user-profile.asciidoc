@@ -7,4 +7,4 @@
 
 Retrieves a user's profile given the unique profile ID
 
-coming::[8.1.0]
+coming::[8.2.0]

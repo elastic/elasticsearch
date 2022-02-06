@@ -7,4 +7,4 @@
 
 Creates or updates the user profile on behalf of another user
 
-coming::[8.1.0]
+coming::[8.2.0]

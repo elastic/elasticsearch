@@ -54,7 +54,7 @@ nodes of an existing cluster
 [discrete]
 === Examples
 
-The following example reconfigures
+The following example reconfigures an installed {es} node so that it can join an existing cluster when it starts for the first time.
 [source,shell]
 --------------------------------------------------
 sudo /usr/share/elasticsearch/elasticsearch-reconfigure-node --enrollment-token eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyIxOTIuMTY4LjEuMTY6OTIwMCJdLCJmZ3IiOiI4NGVhYzkyMzAyMWQ1MjcyMmQxNTFhMTQwZmM2ODI5NmE5OWNiNmU0OGVhZjYwYWMxYzljM2I3ZDJjOTg2YTk3Iiwia2V5IjoiUy0yUjFINEJrNlFTMkNEY1dVV1g6QS0wSmJxM3hTRy1haWxoQTdPWVduZyJ9

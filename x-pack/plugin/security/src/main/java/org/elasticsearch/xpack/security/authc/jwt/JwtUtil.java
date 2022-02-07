@@ -122,7 +122,7 @@ public class JwtUtil {
                         + clientAuthenticationSharedSecretConfigKey
                         + "] value ["
                         + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE
-                        + "] is not recommended for production."
+                        + "] may not be secure. Unauthorized clients may be able to submit JWTs from the same issuer."
                 );
                 break;
         }

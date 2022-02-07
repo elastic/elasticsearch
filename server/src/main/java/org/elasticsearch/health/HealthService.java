@@ -8,8 +8,12 @@
 
 package org.elasticsearch.health;
 
-import java.util.Collection;
 import java.util.List;
+import java.util.TreeMap;
+
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toList;
 
 /**
  * This service collects health indicators from all modules and plugins of elasticsearch
@@ -22,7 +26,29 @@ public class HealthService {
         this.healthIndicatorServices = healthIndicatorServices;
     }
 
-    public Collection<HealthIndicatorResult> getHealthIndicators() {
-        return healthIndicatorServices.stream().map(HealthIndicatorService::calculate).toList();
+    public List<HealthComponentResult> getHealth() {
+        return List.copyOf(
+            healthIndicatorServices.stream()
+                .map(HealthIndicatorService::calculate)
+                .collect(
+                    groupingBy(
+                        HealthIndicatorResult::component,
+                        TreeMap::new,
+                        collectingAndThen(toList(), HealthService::createComponentFromIndicators)
+                    )
+                )
+                .values()
+        );
+    }
+
+    private static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators) {
+        assert indicators.size() > 0 : "Component should not be non empty";
+        assert indicators.stream().map(HealthIndicatorResult::component).distinct().count() == 1L
+            : "Should not mix indicators from different components";
+        return new HealthComponentResult(
+            indicators.get(0).component(),
+            HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)),
+            indicators
+        );
     }
 }

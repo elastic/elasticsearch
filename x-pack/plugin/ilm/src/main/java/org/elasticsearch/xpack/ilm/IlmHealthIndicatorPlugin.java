@@ -52,6 +52,6 @@ public class IlmHealthIndicatorPlugin extends Plugin implements HealthIndicatorP
 
     @Override
     public Collection<HealthIndicatorService> getHealthIndicatorServices() {
-        return List.of(new IlmHealthIndicatorService(null));
+        return List.of(healthIndicatorService.get());
     }
 }

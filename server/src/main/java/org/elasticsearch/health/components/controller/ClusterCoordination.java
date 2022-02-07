@@ -15,7 +15,7 @@ import org.elasticsearch.health.HealthComponentResult;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 
-import java.util.Collections;
+import java.util.List;
 
 public final class ClusterCoordination {
 
@@ -62,6 +62,6 @@ public final class ClusterCoordination {
 
         // Only a single indicator currently so it determines the status
         final HealthStatus status = instanceHasMaster.status();
-        return new HealthComponentResult(NAME, status, Collections.singletonMap(INSTANCE_HAS_MASTER_NAME, instanceHasMaster));
+        return new HealthComponentResult(NAME, status, List.of(instanceHasMaster));
     }
 }

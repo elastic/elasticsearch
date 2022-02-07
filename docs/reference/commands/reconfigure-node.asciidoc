@@ -1,0 +1,61 @@
+[[reconfigure-node]]
+== elasticsearch-reconfigure-node
+
+The `elasticsearch-reconfigure-node` command reconfigures an {es} node that has been installed via
+an RPM or DEB package, so that it can join an existing cluster with security features enabled.
+
+[discrete]
+=== Synopsis
+
+[source,shell]
+-----------------------------------------------------
+bin/elasticsearch-reconfigure-node
+[--enrollment-token] [-h, --help] [-E <KeyValuePair>]
+[-s, --silent] [-v, --verbose]
+-----------------------------------------------------
+
+
+[discrete]
+=== Description
+
+This command is intended for use only for DEB or RPM {es} installations
+and _before_ {es} has been started for the first time.
+
+During DEB/RPM installations, {es} assumes that the current node is the
+first node of a new cluster and configures it accordingly, enabling
+security features, generating a password for the `elastic` superuser
+and configuring TLS for the http and transport layer. However, if your
+plan is to add this node to an existing cluster that has security
+features enabled and auto-configured, the node needs to be
+configured so that it can join the existing cluster with the help of the
+`elasticsearch-reconfigure-node` tool.
+
+You can use an enrollment token that you can generate on any of the
+nodes of your existing cluster with `elasticsearch-create-enrollment-token -s node`
+
+You must run this tool with `sudo` so that it can create/edit the necessary files
+in your {es} installation.
+
+
+[discrete]
+[[reconfigure-node-parameters]]
+
+`--enrollment-token`:: An enrollment token that is generated in any of the
+nodes of an existing cluster
+
+`-E <KeyValuePair>`:: Configures a standard {es} or {xpack} setting.
+
+`-h, --help`:: Shows help information.
+
+`-s, --silent`:: Shows minimal output.
+
+`-v, --verbose`:: Shows verbose output.
+
+[discrete]
+=== Examples
+
+The following example reconfigures
+[source,shell]
+--------------------------------------------------
+sudo /usr/share/elasticsearch/elasticsearch-reconfigure-node --enrollment-token eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyIxOTIuMTY4LjEuMTY6OTIwMCJdLCJmZ3IiOiI4NGVhYzkyMzAyMWQ1MjcyMmQxNTFhMTQwZmM2ODI5NmE5OWNiNmU0OGVhZjYwYWMxYzljM2I3ZDJjOTg2YTk3Iiwia2V5IjoiUy0yUjFINEJrNlFTMkNEY1dVV1g6QS0wSmJxM3hTRy1haWxoQTdPWVduZyJ9
+--------------------------------------------------

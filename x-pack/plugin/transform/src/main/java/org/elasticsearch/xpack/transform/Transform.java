@@ -51,8 +51,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -147,7 +145,6 @@ import static org.elasticsearch.xpack.core.transform.transforms.persistence.Tran
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "transform";
-    public static final String TASK_THREAD_POOL_NAME = "transform_indexing";
 
     private static final Logger logger = LogManager.getLogger(Transform.class);
 
@@ -287,17 +284,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(PreviewTransformActionDeprecated.INSTANCE, TransportPreviewTransformActionDeprecated.class),
             new ActionHandler<>(UpdateTransformActionDeprecated.INSTANCE, TransportUpdateTransformActionDeprecated.class)
         );
-    }
-
-    @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        if (transportClientMode) {
-            return emptyList();
-        }
-
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(settingsToUse, TASK_THREAD_POOL_NAME, 4, 4, "transform.task_thread_pool");
-
-        return Collections.singletonList(indexing);
     }
 
     @Override

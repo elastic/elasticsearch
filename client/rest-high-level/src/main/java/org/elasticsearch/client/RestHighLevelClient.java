@@ -284,7 +284,6 @@ public class RestHighLevelClient implements Closeable {
     private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
-    private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final TransformClient transformClient = new TransformClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
     private final SearchableSnapshotsClient searchableSnapshotsClient = new SearchableSnapshotsClient(this);
@@ -416,17 +415,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public final XPackClient xpack() {
         return xPackClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for
-     * accessing the Elastic Index Lifecycle APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management-api.html"> X-Pack APIs
-     * on elastic.co</a> for more information.
-     */
-    public IndexLifecycleClient indexLifecycle() {
-        return ilmClient;
     }
 
     /**

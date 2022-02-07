@@ -69,10 +69,13 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
                 if (responses.size() < usageActions().size()) {
                     final var childRequest = new XPackUsageRequest();
                     childRequest.setParentTask(request.getParentTask());
-                    client.executeLocally(usageActions.get(responses.size()), childRequest, listener.delegateFailure((delegate, response) -> {
-                        responses.add(response.getUsage());
-                        run(); // XPackUsageFeatureTransportAction always forks to MANAGEMENT so no risk of stack overflow here
-                    }));
+                    client.executeLocally(
+                        usageActions.get(responses.size()),
+                        childRequest,
+                        listener.delegateFailure((delegate, response) -> {
+                            responses.add(response.getUsage());
+                            run(); // XPackUsageFeatureTransportAction always forks to MANAGEMENT so no risk of stack overflow here
+                        }));
                 } else {
                     assert responses.size() == usageActions.size() : responses.size() + " vs " + usageActions.size();
                     listener.onResponse(new XPackUsageResponse(responses));

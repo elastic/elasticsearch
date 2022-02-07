@@ -46,6 +46,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.junit.BeforeClass;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -77,7 +78,12 @@ import static org.hamcrest.Matchers.notNullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchCancellationIT extends ESIntegTestCase {
 
-    boolean lowLevelCancellation = randomBoolean();
+    private static boolean lowLevelCancellation;
+
+    @BeforeClass
+    public static void init() {
+        lowLevelCancellation = randomBoolean();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -594,7 +600,9 @@ public class SearchCancellationIT extends ESIntegTestCase {
             if (runnable != null) {
                 runnable.run();
             }
-            LogManager.getLogger(SearchCancellationIT.class).info("Blocking in reduce");
+            if (shouldBlock.get()) {
+                LogManager.getLogger(SearchCancellationIT.class).info("Blocking in reduce");
+            }
             hits.incrementAndGet();
             try {
                 assertBusy(() -> assertFalse(shouldBlock.get()));
@@ -609,7 +617,9 @@ public class SearchCancellationIT extends ESIntegTestCase {
             if (runnable != null) {
                 runnable.run();
             }
-            LogManager.getLogger(SearchCancellationIT.class).info("Blocking in map");
+            if (shouldBlock.get()) {
+                LogManager.getLogger(SearchCancellationIT.class).info("Blocking in map");
+            }
             hits.incrementAndGet();
             try {
                 assertBusy(() -> assertFalse(shouldBlock.get()));

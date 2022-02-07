@@ -38,13 +38,13 @@ For both `access` and `data`, the data are namespaced by the top level fields.
 The _"update profile data"_ global privilege allows granting privilege for
 updating only the allowed namespaces.
 
-[[security-api-get-user-profile-path-params]]
+[[security-api-update-user-profile-data-path-params]]
 ==== {api-path-parms-title}
 
 `uid`::
 (Required, string) An unique identifier for the user profile.
 
-[[security-api-update-user-profile-query-params]]
+[[security-api-update-user-profile-data-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]

@@ -20,13 +20,6 @@ and prevent them from operating normally.
 Before upgrading to 8.0, review these changes and take the described steps
 to mitigate the impact.
 
-NOTE: Breaking changes introduced in minor versions are
-normally limited to security and bug fixes.
-Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
-To find out if you are using any deprecated functionality,
-enable <<deprecation-logging, deprecation logging>>.
-
 include::migrate_8_0/cluster-node-setting-changes.asciidoc[]
 include::migrate_8_0/command-line-tool-changes.asciidoc[]
 include::migrate_8_0/index-setting-changes.asciidoc[]
@@ -52,8 +45,6 @@ While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code
 after upgrading to 8.0.
 
-NOTE: Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 

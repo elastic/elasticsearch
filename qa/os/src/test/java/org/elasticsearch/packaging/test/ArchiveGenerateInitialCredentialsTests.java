@@ -8,12 +8,14 @@
 
 package org.elasticsearch.packaging.test;
 
+import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,6 +40,8 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         "Fingerprint of the generated CA certificate for HTTP:\n(.+)$",
         Pattern.MULTILINE
     );
+
+    private static final String OUTPUT_MATCH = "Configure other nodes to join this cluster*";
 
     @BeforeClass
     public static void filterDistros() {
@@ -79,7 +83,9 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         // For this and the following tests `installation` points to the new installation
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node1"), getCurrentVersion(), true);
         verifyArchiveInstallation(installation, distribution());
-        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
+        Shell.Result result = awaitElasticsearchStartupWithResult(
+            Archives.startElasticsearchWithTty(null, sh, null, List.of(), OUTPUT_MATCH, true)
+        );
         logger.info("OUTPUT WAS: ");
         logger.info(result.stdout());
         assertThat(parseElasticPassword(result.stdout()), notNullValue());

@@ -210,4 +210,9 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
     public int hashCode() {
         return Objects.hash(super.hashCode(), rateUnit, rateMode);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_10_0;
+    }
 }

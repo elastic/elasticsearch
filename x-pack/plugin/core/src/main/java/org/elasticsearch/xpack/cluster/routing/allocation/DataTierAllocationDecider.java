@@ -104,7 +104,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         return allocation.decision(
             Decision.NO,
             NAME,
-            "index has a preference for tiers [%s], " + "but no nodes for any of those tiers are available in the cluster",
+            "index has a preference for tiers [%s], but no nodes for any of those tiers are available in the cluster",
             String.join(",", tierPreference)
         );
     }

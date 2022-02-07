@@ -2,5 +2,4 @@ pr: 83591
 summary: Compress Cursors
 area: SQL
 type: enhancement
-issues:
- - 83284
+issues: []

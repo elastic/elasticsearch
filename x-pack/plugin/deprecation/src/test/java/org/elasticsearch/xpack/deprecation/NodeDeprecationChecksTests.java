@@ -1860,26 +1860,41 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
-    void monitoringExporterGroupedSetting(String suffix, String value) {
-        String settingKey = "xpack.monitoring.exporters.test." + suffix;
-        String subSettingKey = settingKey + ".subsetting";
-        Settings settings = Settings.builder().put(subSettingKey, value).build();
-        final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+    void monitoringExporterGroupedSetting(String suffix, String value) throws JsonProcessingException {
+        String settingKey1 = "xpack.monitoring.exporters.test1." + suffix;
+        String settingKey2 = "xpack.monitoring.exporters.test2." + suffix;
+        String subSettingKey1 = settingKey1 + ".subsetting1";
+        String subSetting1Key2 = settingKey2 + ".subsetting1";
+        String subSetting2Key2 = settingKey2 + ".subsetting2";
+        Settings nodeSettings = Settings.builder().put(subSettingKey1, value).build();
+        Settings dynamicSettings = Settings.builder().put(subSetting1Key2, value).put(subSetting2Key2, value).build();
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        if (randomBoolean()) {
+            metadataBuilder.persistentSettings(dynamicSettings);
+        } else {
+            metadataBuilder.transientSettings(dynamicSettings);
+        }
+        Metadata metadata = metadataBuilder.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        final XPackLicenseState licenseState = new XPackLicenseState(nodeSettings, () -> 0);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             MONITORING_SETTINGS_CHECKS,
-            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
+            c -> c.apply(nodeSettings, null, clusterState, licenseState)
         );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
+        Map<String, Object> meta = buildMetaObjectForRemovableSettings(subSetting1Key2, subSetting2Key2);
         assertThat(
             issues,
             hasItem(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "The [" + settingKey + ".*] settings are deprecated and will be removed after 8.0",
+                    "The [" + settingKey1 + ".*," + settingKey2 + ".*] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings: [" + subSettingKey + "]",
+                    "Remove the following settings: [" + subSettingKey1 + "," + subSetting1Key2 + "," + subSetting2Key2+ "]",
                     false,
-                    null
+                    meta
                 )
             )
         );
@@ -1975,7 +1990,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         monitoringExporterSecureSetting("auth.secure_password", "abcdef");
     }
 
-    public void testCheckMonitoringSettingExportersSSL() {
+    public void testCheckMonitoringSettingExportersSSL() throws JsonProcessingException {
         monitoringExporterGroupedSetting("ssl", "abcdef");
     }
 
@@ -1987,7 +2002,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         monitoringExporterSetting("sniff.enabled", "true");
     }
 
-    public void testCheckMonitoringSettingExportersHeaders() {
+    public void testCheckMonitoringSettingExportersHeaders() throws JsonProcessingException {
         monitoringExporterGroupedSetting("headers", "abcdef");
     }
 
@@ -2233,8 +2248,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         Collection<Setting<?>> deprecatedSettings = Set.of(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING);
-        String metaString = "{\"actions\": [{\"action_type\": \"remove_settings\", \"objects\":[\"discovery.zen.minimum_master_nodes\"]}]}";
-        Map<String, Object> meta = new ObjectMapper().readValue(metaString, Map.class);
+        Map<String, Object> meta = buildMetaObjectForRemovableSettings("discovery.zen.minimum_master_nodes");
         for (Setting<?> deprecatedSetting : deprecatedSettings) {
             final DeprecationIssue expected = new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
@@ -2246,6 +2260,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             );
             assertThat(issues, hasItem(expected));
         }
+    }
+
+    private Map<String, Object> buildMetaObjectForRemovableSettings(String... settingNames) throws JsonProcessingException {
+        String settingNamesString =
+            Arrays.stream(settingNames).map(settingName -> "\"" + settingName + "\"").collect(Collectors.joining(","));
+        String metaString = "{\"actions\": [{\"action_type\": \"remove_settings\", \"objects\":[" + settingNamesString + "]}]}";
+        return new ObjectMapper().readValue(metaString, Map.class);
     }
 
     public void testAutoImportDanglingIndicesSetting() {

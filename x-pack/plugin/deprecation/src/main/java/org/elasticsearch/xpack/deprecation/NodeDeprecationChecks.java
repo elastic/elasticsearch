@@ -1502,31 +1502,24 @@ class NodeDeprecationChecks {
             .distinct()
             .map(key -> key + "*")
             .collect(Collectors.joining(","));
-        // The actual group setting that are present in the settings object, with full setting name prepended.
-        // String allSubSettings = deprecatedConcreteSettings.stream().map(affixSetting -> {
-        // String groupPrefix = affixSetting.getKey();
-        // Settings groupSettings = affixSetting.get(settings);
-        // Set<String> subSettings = groupSettings.keySet();
-        // return subSettings.stream().map(key -> groupPrefix + key).collect(Collectors.joining(","));
-        // }).collect(Collectors.joining(";"));
-
+        // The actual group setting that are present in the settings objects, with full setting name prepended.
         List<String> allNodeSubSettingKeys = deprecatedConcreteNodeSettings.stream().map(affixSetting -> {
             String groupPrefix = affixSetting.getKey();
             Settings groupSettings = affixSetting.get(nodeSettings);
             Set<String> subSettings = groupSettings.keySet();
             return subSettings.stream().map(key -> groupPrefix + key).collect(Collectors.toList());
-        }).flatMap(List::stream).collect(Collectors.toList());
+        }).flatMap(List::stream).sorted().collect(Collectors.toList());
 
         List<String> allClusterSubSettingKeys = deprecatedConcreteClusterSettings.stream().map(affixSetting -> {
             String groupPrefix = affixSetting.getKey();
             Settings groupSettings = affixSetting.get(clusterSettings);
             Set<String> subSettings = groupSettings.keySet();
             return subSettings.stream().map(key -> groupPrefix + key).collect(Collectors.toList());
-        }).flatMap(List::stream).collect(Collectors.toList());
+        }).flatMap(List::stream).sorted().collect(Collectors.toList());
 
-        // TODO: This used to use commas and semicolons
         final String allSubSettings = Stream.concat(allNodeSubSettingKeys.stream(), allClusterSubSettingKeys.stream())
             .distinct()
+            .sorted()
             .collect(Collectors.joining(","));
 
         final String message = String.format(

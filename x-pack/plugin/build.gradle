@@ -153,6 +153,7 @@ testClusters.configureEach {
 
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    systemProperty 'es.random_sampler_feature_flag_registered', 'true'
     systemProperty 'es.user_profile_feature_flag_enabled', 'true'
   }
 }

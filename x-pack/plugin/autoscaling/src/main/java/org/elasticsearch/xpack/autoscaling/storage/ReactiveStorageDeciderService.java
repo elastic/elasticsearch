@@ -344,7 +344,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 return false;
             }
             IndexMetadata indexMetadata = indexMetadata(shard, allocation);
-            Set<Decision.Type> decisionTypes = StreamSupport.stream(allocation.routingNodes().spliterator(), false)
+            Set<Decision.Type> decisionTypes = allocation.routingNodes()
+                .stream()
                 .map(
                     node -> dataTierAllocationDecider.shouldFilter(
                         indexMetadata,
@@ -369,7 +370,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             allocation.debugDecision(true);
             try {
                 // check that it does not belong on any existing node, i.e., there must be only a tier like reason it cannot be allocated
-                return StreamSupport.stream(allocation.routingNodes().spliterator(), false)
+                return allocation.routingNodes()
+                    .stream()
                     .anyMatch(node -> isFilterTierOnlyDecision(allocationDeciders.canAllocate(shard, node, allocation), indexMetadata));
             } finally {
                 allocation.debugDecision(false);
@@ -568,8 +570,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
-                final Tuple<String, Long> dummyRolledDatastream = dataStream.nextWriteIndexAndGeneration(state.metadata());
-                dataStream = dataStream.rollover(new Index(dummyRolledDatastream.v1(), uuid), dummyRolledDatastream.v2());
+                final Tuple<String, Long> rolledDataStreamInfo = dataStream.unsafeNextWriteIndexAndGeneration(state.metadata());
+                dataStream = dataStream.unsafeRollover(new Index(rolledDataStreamInfo.v1(), uuid), rolledDataStreamInfo.v2());
 
                 // this unintentionally copies the in-sync allocation ids too. This has the fortunate effect of these indices
                 // not being regarded new by the disk threshold decider, thereby respecting the low watermark threshold even for primaries.

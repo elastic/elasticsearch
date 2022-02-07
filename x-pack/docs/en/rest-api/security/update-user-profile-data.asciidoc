@@ -1,0 +1,10 @@
+[role="xpack"]
+[[security-api-update-user-profile-data]]
+=== Activate user profile data API
+++++
+<titleabbrev>Update user profile data</titleabbrev>
+++++
+
+Update application specific data for the user profile of the given unique ID.
+
+coming::[8.2.0]

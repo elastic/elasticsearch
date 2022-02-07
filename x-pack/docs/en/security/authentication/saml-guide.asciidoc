@@ -190,8 +190,8 @@ sp.logout::
     proxies involved, but it will typically be +$\{kibana-url}/logout+ where
     _$\{kibana-url}_ is the base URL for your {kib} instance.
 
-attribute.principal:: See <<saml-attributes-mapping>>.
-attribute.groups:: See <<saml-attributes-mapping>>.
+attributes.principal:: See <<saml-attributes-mapping>>.
+attributes.groups:: See <<saml-attributes-mapping>>.
 
 [[saml-attributes-mapping]]
 ==== Attribute mapping

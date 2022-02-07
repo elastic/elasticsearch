@@ -268,7 +268,7 @@ public class Archives {
             """.formatted(null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started\"" : "\"" + outputStringToMatch + "\"");
         String expectScript = """
             expect - <<EXPECT
-            set timeout 30
+            set timeout 120
             spawn -ignore HUP %s
             %s
             %s

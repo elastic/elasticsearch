@@ -25,16 +25,17 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
 
         // The previous storage format was a base64 encoded string.
         // The new format should parse and decode the string storing the raw bytes.
-        String compressedStringDoc = "{\"doc_type\":\"trained_model_definition_doc\","
-            + "\"model_id\":\"bntHUo\","
-            + "\"doc_num\":6,"
-            + "\"definition_length\":7,"
-            + "\"total_definition_length\":13,"
-            + "\"compression_version\":3,"
-            + "\"definition\":\""
-            + base64
-            + "\","
-            + "\"eos\":false}";
+        String compressedStringDoc = """
+            {
+              "doc_type": "trained_model_definition_doc",
+              "model_id": "bntHUo",
+              "doc_num": 6,
+              "definition_length": 7,
+              "total_definition_length": 13,
+              "compression_version": 3,
+              "definition": "%s",
+              "eos": false
+            }""".formatted(base64);
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, compressedStringDoc)) {
             TrainedModelDefinitionDoc parsed = doParseInstance(parser);

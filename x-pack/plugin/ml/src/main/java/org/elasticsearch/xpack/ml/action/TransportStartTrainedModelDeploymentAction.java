@@ -16,8 +16,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -441,7 +441,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             }
             Set<String> nodesShuttingDown = nodesShuttingDown(clusterState);
             List<DiscoveryNode> nodes = clusterState.nodes()
-                .getAllNodes()
                 .stream()
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
                 .filter(TaskParams::mayAllocateToNode)

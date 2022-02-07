@@ -70,6 +70,30 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
         }
     }
 
+    public void testQueryWithQualifierAndSetCatalog() throws Exception {
+        try (Connection es = esJdbc()) {
+            PreparedStatement ps = es.prepareStatement("SELECT " + INDEX_NAME + ".zero FROM " + INDEX_NAME);
+            es.setCatalog(REMOTE_CLUSTER_NAME);
+            ResultSet rs = ps.executeQuery();
+            assertTrue(rs.next());
+            assertEquals(0, rs.getInt(1));
+            assertFalse(rs.next());
+        }
+    }
+
+    public void testQueryWithQualifiedFieldAndIndex() throws Exception {
+        try (Connection es = esJdbc()) {
+            PreparedStatement ps = es.prepareStatement(
+                "SELECT " + INDEX_NAME + ".zero FROM " + buildRemoteIndexName(REMOTE_CLUSTER_NAME, INDEX_NAME)
+            );
+            es.setCatalog(LOCAL_CLUSTER_NAME); // set, but should be ignored
+            ResultSet rs = ps.executeQuery();
+            assertTrue(rs.next());
+            assertEquals(0, rs.getInt(1));
+            assertFalse(rs.next());
+        }
+    }
+
     public void testCatalogDependentCommands() throws Exception {
         for (String query : List.of(
             "SHOW TABLES \"" + INDEX_NAME + "\"",

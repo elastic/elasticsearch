@@ -88,8 +88,10 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
         );
     }
 
-    public void testSystemIndicesCannotBeSetToHidden() {
-        UpdateSettingsRequest request = new UpdateSettingsRequest(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build());
+    public void testSystemIndicesCannotBeSetToVisible() {
+        UpdateSettingsRequest request = new UpdateSettingsRequest(
+            Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build()
+        );
         request.indices(SYSTEM_INDEX_NAME);
 
         @SuppressWarnings("unchecked")
@@ -102,6 +104,6 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
         verify(mockListener, times(1)).onFailure(exceptionArgumentCaptor.capture());
 
         Exception e = exceptionArgumentCaptor.getValue();
-        assertThat(e.getMessage(), equalTo("Cannot set [index.hidden] to 'true' on system indices: [.my-system]"));
+        assertThat(e.getMessage(), equalTo("Cannot set [index.hidden] to 'false' on system indices: [.my-system]"));
     }
 }

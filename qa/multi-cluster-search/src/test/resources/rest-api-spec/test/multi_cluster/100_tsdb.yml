@@ -60,8 +60,8 @@ setup:
 ---
 teardown:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.delete:
@@ -71,8 +71,8 @@ teardown:
 ---
 aggregate tsid:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:

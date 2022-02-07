@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;

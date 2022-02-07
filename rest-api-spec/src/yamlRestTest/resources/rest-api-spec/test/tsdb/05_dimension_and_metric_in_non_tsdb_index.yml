@@ -183,7 +183,7 @@ can't shadow metrics:
 # Test that _tsid field is not added if an index is not a time-series index
 no _tsid in standard indices:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:

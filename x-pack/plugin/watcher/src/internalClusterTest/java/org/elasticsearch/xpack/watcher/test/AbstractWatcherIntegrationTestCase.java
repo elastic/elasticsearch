@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -28,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -42,8 +45,6 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
-import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
@@ -57,7 +58,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
@@ -567,7 +567,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected void stopWatcher() throws Exception {
         assertBusy(() -> {
-            WatcherStatsResponse watcherStatsResponse = new WatcherStatsRequestBuilder(client()).get();
+
+            WatcherStatsResponse watcherStatsResponse = new WatcherStatsRequestBuilder(client()).setIncludeCurrentWatches(true).get();
             assertThat(watcherStatsResponse.hasFailures(), is(false));
             List<Tuple<String, WatcherState>> currentStatesFromStatsRequest = watcherStatsResponse.getNodes()
                 .stream()
@@ -580,7 +581,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .collect(Collectors.toList());
             List<WatcherState> states = currentStatesFromStatsRequest.stream().map(Tuple::v2).collect(Collectors.toList());
 
-            logger.info("waiting to stop watcher, current states {}", currentStatesFromStatsRequest);
+            long currentWatches = watcherStatsResponse.getNodes().stream().mapToLong(n -> n.getSnapshots().size()).sum();
+            logger.info("waiting to stop watcher, current states {}, current watches [{}]", currentStatesFromStatsRequest, currentWatches);
 
             boolean isAllStateStarted = states.stream().allMatch(w -> w == WatcherState.STARTED);
             if (isAllStateStarted) {
@@ -594,7 +596,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             }
 
             boolean isAllStateStopped = states.stream().allMatch(w -> w == WatcherState.STOPPED);
-            if (isAllStateStopped) {
+            if (isAllStateStopped && currentWatches == 0) {
                 return;
             }
 

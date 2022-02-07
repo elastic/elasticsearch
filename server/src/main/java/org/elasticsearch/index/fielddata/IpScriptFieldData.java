@@ -8,45 +8,39 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
-import org.elasticsearch.index.fielddata.ScriptDocValues.StringsSupplier;
-import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.IpFieldScript;
-import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-
-import java.net.InetAddress;
 
 public class IpScriptFieldData extends BinaryScriptFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final IpFieldScript.LeafFactory leafFactory;
+        private final ToScriptField<SortedBinaryDocValues> toScriptField;
 
-        public Builder(String name, IpFieldScript.LeafFactory leafFactory) {
+        public Builder(String name, IpFieldScript.LeafFactory leafFactory, ToScriptField<SortedBinaryDocValues> toScriptField) {
             this.name = name;
             this.leafFactory = leafFactory;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public IpScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new IpScriptFieldData(name, leafFactory);
+            return new IpScriptFieldData(name, leafFactory, toScriptField);
         }
     }
 
     private final IpFieldScript.LeafFactory leafFactory;
+    private final ToScriptField<SortedBinaryDocValues> toScriptField;
 
-    private IpScriptFieldData(String fieldName, IpFieldScript.LeafFactory leafFactory) {
+    private IpScriptFieldData(String fieldName, IpFieldScript.LeafFactory leafFactory, ToScriptField<SortedBinaryDocValues> toScriptField) {
         super(fieldName);
         this.leafFactory = leafFactory;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -55,7 +49,7 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
         return new BinaryScriptLeafFieldData() {
             @Override
             public DocValuesField<?> getScriptField(String name) {
-                return new DelegateDocValuesField(new Strings(new IpSupplier(getBytesValues())), name);
+                return toScriptField.getScriptField(getBytesValues(), name);
             }
 
             @Override
@@ -68,23 +62,5 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
     @Override
     public ValuesSourceType getValuesSourceType() {
         return CoreValuesSourceType.IP;
-    }
-
-    /**
-     * Doc values supplier implementation for ips. We can't share
-     * {@link IpFieldMapper.IpFieldType.IpScriptDocValues} because it is based
-     * on global ordinals and we don't have those.
-     */
-    public static class IpSupplier extends StringsSupplier {
-
-        public IpSupplier(SortedBinaryDocValues in) {
-            super(in);
-        }
-
-        @Override
-        protected String bytesToString(BytesRef bytesRef) {
-            InetAddress addr = InetAddressPoint.decode(BytesReference.toBytes(new BytesArray(bytesRef)));
-            return InetAddresses.toAddrString(addr);
-        }
     }
 }

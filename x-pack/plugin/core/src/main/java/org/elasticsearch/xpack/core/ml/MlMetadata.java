@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -64,7 +64,7 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion();
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
@@ -175,12 +175,17 @@ public class MlMetadata implements Metadata.Custom {
             return TYPE;
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
+
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(Job::new, in);
+            return SimpleDiffable.readDiffFrom(Job::new, in);
         }
 
         static Diff<DatafeedConfig> readDatafeedDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(DatafeedConfig::new, in);
+            return SimpleDiffable.readDiffFrom(DatafeedConfig::new, in);
         }
     }
 

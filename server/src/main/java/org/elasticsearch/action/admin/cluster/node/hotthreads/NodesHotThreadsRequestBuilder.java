@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 

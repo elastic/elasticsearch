@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.sql.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.cli.LoggingAwareCommand;
 import org.elasticsearch.xpack.sql.cli.command.ClearScreenCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliCommands;
@@ -35,7 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.logging.LogManager;
 
-public class Cli extends LoggingAwareCommand {
+public class Cli extends Command {
     private final OptionSpec<String> keystoreLocation;
     private final OptionSpec<Boolean> checkOption;
     private final OptionSpec<String> connectionString;
@@ -84,7 +84,8 @@ public class Cli extends LoggingAwareCommand {
      * Build the CLI.
      */
     public Cli(CliTerminal cliTerminal) {
-        super("Elasticsearch SQL CLI");
+        super("Elasticsearch SQL CLI", () -> {});
+
         this.cliTerminal = cliTerminal;
         parser.acceptsAll(Arrays.asList("d", "debug"), "Enable debug logging");
         this.binaryCommunication = parser.acceptsAll(

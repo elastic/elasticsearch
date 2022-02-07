@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -119,10 +120,11 @@ public class Recall implements EvaluationMetric {
 
     @Override
     public void process(Aggregations aggs) {
+        final Aggregation byClass = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
+        final Aggregation avgRecall = aggs.get(AVG_RECALL_AGG_NAME);
         if (result.get() == null
-            && aggs.get(BY_ACTUAL_CLASS_AGG_NAME) instanceof Terms
-            && aggs.get(AVG_RECALL_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
-            Terms byActualClassAgg = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
+            && byClass instanceof Terms byActualClassAgg
+            && avgRecall instanceof NumericMetricsAggregation.SingleValue avgRecallAgg) {
             if (byActualClassAgg.getSumOfOtherDocCounts() > 0) {
                 // This means there were more than {@code MAX_CLASSES_CARDINALITY} buckets.
                 // We cannot calculate average recall accurately, so we fail.
@@ -131,7 +133,6 @@ public class Recall implements EvaluationMetric {
                     actualField.get()
                 );
             }
-            NumericMetricsAggregation.SingleValue avgRecallAgg = aggs.get(AVG_RECALL_AGG_NAME);
             List<PerClassSingleValue> classes = new ArrayList<>(byActualClassAgg.getBuckets().size());
             for (Terms.Bucket bucket : byActualClassAgg.getBuckets()) {
                 String className = bucket.getKeyAsString();

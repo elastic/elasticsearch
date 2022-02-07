@@ -21,6 +21,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.cloneWithNewTruncation;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.createTokenizationUpdate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -63,18 +65,13 @@ public class PassThroughConfigUpdateTests extends AbstractBWCSerializationTestCa
         );
 
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
-        Tokenization tokenization = new BertTokenization(
-            originalConfig.getTokenization().doLowerCase(),
-            originalConfig.getTokenization().withSpecialTokens(),
-            originalConfig.getTokenization().maxSequenceLength(),
-            truncate
-        );
+        Tokenization tokenization = cloneWithNewTruncation(originalConfig.getTokenization(), truncate);
         assertThat(
             new PassThroughConfig(originalConfig.getVocabularyConfig(), tokenization, originalConfig.getResultsField()),
             equalTo(
-                new PassThroughConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(truncate))
-                    .build()
-                    .apply(originalConfig)
+                new PassThroughConfigUpdate.Builder().setTokenizationUpdate(
+                    createTokenizationUpdate(originalConfig.getTokenization(), truncate)
+                ).build().apply(originalConfig)
             )
         );
     }

@@ -16,13 +16,15 @@ endif::[]
 {es} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
 process so upgrading does not interrupt service. Rolling upgrades are supported:
 
-* Between minor versions
+// tag::rolling-upgrade-versions[]
+* Between minor versions of the same major version
 * From 5.6 to 6.8
 * From 6.8 to {prev-major-version}
 * From {prev-major-version} to {version}
 ifeval::[ "{bare_version}" != "{minor-version}.0" ]
 * From any version since {minor-version}.0 to {version}
 endif::[]
+// end::rolling-upgrade-versions[]
 
 [TIP]
 ====
@@ -104,6 +106,14 @@ information about upgrading old indices, see <<reindex-upgrade, Reindex to upgra
 When upgrading to a new version of {es}, you need to upgrade each
 of the products in your Elastic Stack. For more information, see the
 {stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
+
+[discrete]
+[[upgrade-rest-api-compatibility]]
+=== REST API compatibility
+
+REST API compatibility in a per-request opt-in feature that can help REST clients
+mitigate non compatible (breaking) changes to the REST API.
+See <<rest-api-compatibility>> for additional information.
 
 [discrete]
 [[upgrade-fips-java17]]

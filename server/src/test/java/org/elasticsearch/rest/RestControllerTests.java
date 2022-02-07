@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -172,10 +172,13 @@ public class RestControllerTests extends ESTestCase {
 
     public void testTraceParentAndTraceId() throws Exception {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition(Task.TRACE_PARENT, false)));
+        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false)));
         final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
-        restHeaders.put(Task.TRACE_PARENT, Collections.singletonList("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"));
+        restHeaders.put(
+            Task.TRACE_PARENT_HTTP_HEADER,
+            Collections.singletonList("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+        );
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestController spyRestController = spy(restController);
         when(spyRestController.getAllHandlers(null, fakeRequest.rawPath())).thenReturn(new Iterator<>() {
@@ -188,7 +191,7 @@ public class RestControllerTests extends ESTestCase {
             public MethodHandlers next() {
                 return new MethodHandlers("/").addMethod(GET, RestApiVersion.current(), (request, channel, client) -> {
                     assertEquals("0af7651916cd43dd8448eb211c80319c", threadContext.getHeader(Task.TRACE_ID));
-                    assertNull(threadContext.getHeader(Task.TRACE_PARENT));
+                    assertNull(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
                 });
             }
         });
@@ -197,7 +200,7 @@ public class RestControllerTests extends ESTestCase {
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
         // context in this test
         assertEquals("0af7651916cd43dd8448eb211c80319c", threadContext.getHeader(Task.TRACE_ID));
-        assertNull(threadContext.getHeader(Task.TRACE_PARENT));
+        assertNull(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
     }
 
     public void testRequestWithDisallowedMultiValuedHeaderButSameValues() {
@@ -769,6 +772,53 @@ public class RestControllerTests extends ESTestCase {
         assertFalse(channel.getSendResponseCalled());
         restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
         assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testCustomMediaTypeValidation() {
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+
+        final String mediaType = "application/x-protobuf";
+        FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+
+        // register handler that handles custom media type validation
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
+            @Override
+            public boolean mediaTypesValid(RestRequest request) {
+                return request.getXContentType() == null
+                    && request.getParsedContentType().mediaTypeWithoutParameters().equals("application/x-protobuf");
+            }
+
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+        });
+
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testBrowserSafelistedContentTypesAreRejected() {
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+
+        final String mediaType = randomFrom(RestController.SAFELISTED_MEDIA_TYPES);
+        FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
+
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
+
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
+        });
+
+        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(
+            channel.getRestResponse().content().utf8ToString(),
+            containsString("Content-Type header [" + mediaType + "] is not supported")
+        );
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {

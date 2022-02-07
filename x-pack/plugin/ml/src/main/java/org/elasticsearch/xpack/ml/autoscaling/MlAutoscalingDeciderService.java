@@ -604,15 +604,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             if (nodeLoads.size() > 1) {
                 long totalAssignedJobs = nodeLoads.stream().mapToLong(NodeLoad::getNumAssignedJobs).sum();
                 // one volatile read
-                long maxOpenJobs = this.maxOpenJobs;
-                if (totalAssignedJobs > maxOpenJobs) {
+                long maxOpenJobsCopy = this.maxOpenJobs;
+                if (totalAssignedJobs > maxOpenJobsCopy) {
                     String msg = String.format(
                         Locale.ROOT,
                         "not scaling down as the total number of jobs [%d] exceeds the setting [%s (%d)]. "
                             + " To allow a scale down [%s] must be increased.",
                         totalAssignedJobs,
                         MAX_OPEN_JOBS_PER_NODE.getKey(),
-                        maxOpenJobs,
+                        maxOpenJobsCopy,
                         MAX_OPEN_JOBS_PER_NODE.getKey()
                     );
                     logger.info(

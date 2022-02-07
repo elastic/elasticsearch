@@ -28,11 +28,12 @@ public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
 
     public void testLenientParser() throws IOException, ParseException {
         ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, true, new StandardAnalyzer());
-        String rules = "s(100000001,1,'&',a,1,0).\n"
-            + "s(100000001,2,'and',a,1,0).\n"
-            + "s(100000002,1,'come',v,1,0).\n"
-            + "s(100000002,2,'advance',v,1,0).\n"
-            + "s(100000002,3,'approach',v,1,0).";
+        String rules = """
+            s(100000001,1,'&',a,1,0).
+            s(100000001,2,'and',a,1,0).
+            s(100000002,1,'come',v,1,0).
+            s(100000002,2,'advance',v,1,0).
+            s(100000002,3,'approach',v,1,0).""";
         StringReader rulesReader = new StringReader(rules);
         parser.parse(rulesReader);
         SynonymMap synonymMap = parser.build();
@@ -46,7 +47,10 @@ public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
         CharArraySet stopSet = new CharArraySet(1, true);
         stopSet.add("bar");
         ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, true, new StandardAnalyzer(stopSet));
-        String rules = "s(100000001,1,'foo',v,1,0).\n" + "s(100000001,2,'bar',v,1,0).\n" + "s(100000001,3,'baz',v,1,0).";
+        String rules = """
+            s(100000001,1,'foo',v,1,0).
+            s(100000001,2,'bar',v,1,0).
+            s(100000001,3,'baz',v,1,0).""";
         StringReader rulesReader = new StringReader(rules);
         parser.parse(rulesReader);
         SynonymMap synonymMap = parser.build();
@@ -58,11 +62,12 @@ public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
 
     public void testNonLenientParser() {
         ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, false, new StandardAnalyzer());
-        String rules = "s(100000001,1,'&',a,1,0).\n"
-            + "s(100000001,2,'and',a,1,0).\n"
-            + "s(100000002,1,'come',v,1,0).\n"
-            + "s(100000002,2,'advance',v,1,0).\n"
-            + "s(100000002,3,'approach',v,1,0).";
+        String rules = """
+            s(100000001,1,'&',a,1,0).
+            s(100000001,2,'and',a,1,0).
+            s(100000002,1,'come',v,1,0).
+            s(100000002,2,'advance',v,1,0).
+            s(100000002,3,'approach',v,1,0).""";
         StringReader rulesReader = new StringReader(rules);
         ParseException ex = expectThrows(ParseException.class, () -> parser.parse(rulesReader));
         assertThat(ex.getMessage(), containsString("Invalid synonym rule at line 1"));

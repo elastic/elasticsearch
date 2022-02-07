@@ -27,7 +27,8 @@ public class FakeOAuth2HttpHandler implements HttpHandler {
         try {
             while (exchange.getRequestBody().read(BUFFER) >= 0) {
             }
-            byte[] response = ("{\"access_token\":\"foo\",\"token_type\":\"Bearer\",\"expires_in\":3600}").getBytes(UTF_8);
+            byte[] response = """
+                {"access_token":"foo","token_type":"Bearer","expires_in":3600}""".getBytes(UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.getResponseHeaders().add("Metadata-Flavor", "Google");
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);

@@ -95,28 +95,26 @@ public class RolloverActionIT extends ESRestTestCase {
         );
 
         Request updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        updateSettingsRequest.setJsonEntity(
-            "{\n" + "  \"settings\": {\n" + "    \"" + LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE + "\": true\n" + "  }\n" + "}"
-        );
+        updateSettingsRequest.setJsonEntity("""
+            {
+              "settings": {
+                "%s": true
+              }
+            }""".formatted(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
         client().performRequest(updateSettingsRequest);
         Request updateAliasRequest = new Request("POST", "/_aliases");
-        updateAliasRequest.setJsonEntity(
-            "{\n"
-                + "  \"actions\": [\n"
-                + "    {\n"
-                + "      \"add\": {\n"
-                + "        \"index\": \""
-                + originalIndex
-                + "\",\n"
-                + "        \"alias\": \""
-                + alias
-                + "\",\n"
-                + "        \"is_write_index\": false\n"
-                + "      }\n"
-                + "    }\n"
-                + "  ]\n"
-                + "}"
-        );
+        updateAliasRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "%s",
+                    "alias": "%s",
+                    "is_write_index": false
+                  }
+                }
+              ]
+            }""".formatted(originalIndex, alias));
         client().performRequest(updateAliasRequest);
 
         // create policy
@@ -188,9 +186,11 @@ public class RolloverActionIT extends ESRestTestCase {
 
         // remove the read only block
         Request allowWritesOnIndexSettingUpdate = new Request("PUT", firstIndex + "/_settings");
-        allowWritesOnIndexSettingUpdate.setJsonEntity(
-            "{" + "  \"index\": {\n" + "     \"blocks.read_only\" : \"false\" \n" + "  }\n" + "}"
-        );
+        allowWritesOnIndexSettingUpdate.setJsonEntity("""
+            {  "index": {
+                 "blocks.read_only" : "false"\s
+              }
+            }""");
         client().performRequest(allowWritesOnIndexSettingUpdate);
 
         // index is not readonly so the ILM should complete successfully
@@ -205,23 +205,16 @@ public class RolloverActionIT extends ESRestTestCase {
         // Set up a policy with rollover
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 2L));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(
-            "{"
-                + "\"index_patterns\": [\""
-                + index
-                + "-*\"], \n"
-                + "  \"settings\": {\n"
-                + "    \"number_of_shards\": 1,\n"
-                + "    \"number_of_replicas\": 0,\n"
-                + "    \"index.lifecycle.name\": \""
-                + policy
-                + "\", \n"
-                + "    \"index.lifecycle.rollover_alias\": \""
-                + alias
-                + "\"\n"
-                + "  }\n"
-                + "}"
-        );
+        createIndexTemplate.setJsonEntity("""
+            {
+              "index_patterns": ["%s-*"],
+              "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0,
+                "index.lifecycle.name": "%s",
+                "index.lifecycle.rollover_alias": "%s"
+              }
+            }""".formatted(index, policy, alias));
         createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
@@ -301,20 +294,19 @@ public class RolloverActionIT extends ESRestTestCase {
         );
 
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": {\n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"check-rollover-ready\"\n"
-                + "  },\n"
-                + "  \"next_step\": {\n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"attempt-rollover\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "check-rollover-ready"
+              },
+              "next_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "attempt-rollover"
+              }
+            }""");
 
         // Using {@link #waitUntil} here as ILM moves back and forth between the {@link WaitForRolloverReadyStep} step and
         // {@link org.elasticsearch.xpack.core.ilm.ErrorStep} in order to retry the failing step. As {@link #assertBusy}
@@ -370,20 +362,19 @@ public class RolloverActionIT extends ESRestTestCase {
         // moving ILM to the "update-rollover-lifecycle-date" without having gone through the actual rollover step
         // the "update-rollover-lifecycle-date" step will fail as the index has no rollover information
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": {\n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"check-rollover-ready\"\n"
-                + "  },\n"
-                + "  \"next_step\": {\n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"update-rollover-lifecycle-date\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "check-rollover-ready"
+              },
+              "next_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "update-rollover-lifecycle-date"
+              }
+            }""");
         client().performRequest(moveToStepRequest);
 
         assertBusy(

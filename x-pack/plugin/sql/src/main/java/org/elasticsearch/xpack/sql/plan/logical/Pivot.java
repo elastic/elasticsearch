@@ -122,8 +122,7 @@ public class Pivot extends UnaryPlan {
             else {
                 for (NamedExpression agg : aggregates) {
                     String name = agg.name();
-                    if (agg instanceof Alias) {
-                        Alias a = (Alias) agg;
+                    if (agg instanceof Alias a) {
                         if (a.child() instanceof Function) {
                             name = ((Function) a.child()).functionName();
                         }

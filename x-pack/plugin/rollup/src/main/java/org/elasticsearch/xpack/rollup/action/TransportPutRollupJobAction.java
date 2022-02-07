@@ -25,7 +25,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHea
 
 public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNodeAction<PutRollupJobAction.Request> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutRollupJobAction.class);
+    private static final Logger LOGGER = LogManager.getLogger(TransportPutRollupJobAction.class);
 
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -114,7 +114,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             }
 
             RollupJob job = createRollupJob(request.getConfig(), threadPool);
-            createIndex(job, l, persistentTasksService, client, logger);
+            createIndex(job, l, persistentTasksService, client, LOGGER);
         }));
     }
 

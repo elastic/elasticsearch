@@ -111,17 +111,18 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
     @Override
     public void testValidOutput() {
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, 10);
-        String expected = "{\n"
-            + "  \"knn\" : {\n"
-            + "    \"field\" : \"vector\",\n"
-            + "    \"vector\" : [\n"
-            + "      1.0,\n"
-            + "      2.0,\n"
-            + "      3.0\n"
-            + "    ],\n"
-            + "    \"num_candidates\" : 10\n"
-            + "  }\n"
-            + "}";
+        String expected = """
+            {
+              "knn" : {
+                "field" : "vector",
+                "vector" : [
+                  1.0,
+                  2.0,
+                  3.0
+                ],
+                "num_candidates" : 10
+              }
+            }""";
         assertEquals(expected, query.toString());
     }
 

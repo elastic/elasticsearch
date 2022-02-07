@@ -15,7 +15,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -217,7 +217,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         validateJobAndId(jobId, job);
         // If we already know that we can't find an ml node because all ml nodes are running at capacity or
         // simply because there are no ml nodes in the cluster then we fail quickly here:
-        PersistentTasksCustomMetadata.Assignment assignment = getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
+        PersistentTasksCustomMetadata.Assignment assignment = getAssignment(params, clusterState.nodes(), clusterState);
         if (assignment.equals(AWAITING_UPGRADE)) {
             throw makeCurrentlyBeingUpgradedException(logger, params.getJobId());
         }

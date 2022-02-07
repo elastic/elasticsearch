@@ -21,7 +21,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -65,6 +66,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -186,7 +188,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return serviceHolder.xContentRegistry;
+        return serviceHolder.parserConfiguration.registry();
     }
 
     protected NamedWriteableRegistry namedWriteableRegistry() {
@@ -335,7 +337,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final IndexFieldDataService indexFieldDataService;
         private final SearchModule searchModule;
         private final NamedWriteableRegistry namedWriteableRegistry;
-        private final NamedXContentRegistry xContentRegistry;
+        private final XContentParserConfiguration parserConfiguration;
         private final ClientInvocationHandler clientInvocationHandler = new ClientInvocationHandler();
         private final IndexSettings idxSettings;
         private final SimilarityService similarityService;
@@ -382,9 +384,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
             namedWriteableRegistry = new NamedWriteableRegistry(entries);
-            xContentRegistry = new NamedXContentRegistry(
-                Stream.of(searchModule.getNamedXContents().stream()).flatMap(Function.identity()).collect(toList())
-            );
+            parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(
+                new NamedXContentRegistry(
+                    Stream.of(searchModule.getNamedXContents().stream()).flatMap(Function.identity()).collect(toList())
+                )
+            ).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
             IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
             AnalysisModule analysisModule = new AnalysisModule(TestEnvironment.newEnvironment(nodeSettings), emptyList());
@@ -395,7 +399,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             mapperService = new MapperService(
                 idxSettings,
                 indexAnalyzers,
-                xContentRegistry,
+                parserConfiguration,
                 similarityService,
                 mapperRegistry,
                 () -> createShardContext(null),
@@ -463,20 +467,22 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     MapperService.MergeReason.MAPPING_UPDATE
                 );
                 // also add mappings for two inner field in the object field
-                mapperService.merge(
-                    "_doc",
-                    new CompressedXContent(
-                        "{\"properties\":{\""
-                            + OBJECT_FIELD_NAME
-                            + "\":{\"type\":\"object\","
-                            + "\"properties\":{\""
-                            + DATE_FIELD_NAME
-                            + "\":{\"type\":\"date\"},\""
-                            + INT_FIELD_NAME
-                            + "\":{\"type\":\"integer\"}}}}}"
-                    ),
-                    MapperService.MergeReason.MAPPING_UPDATE
-                );
+                mapperService.merge("_doc", new CompressedXContent("""
+                    {
+                      "properties": {
+                        "%s": {
+                          "type": "object",
+                          "properties": {
+                            "%s": {
+                              "type": "date"
+                            },
+                            "%s": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }""".formatted(OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME)), MapperService.MergeReason.MAPPING_UPDATE);
                 testCase.initializeAdditionalMappings(mapperService);
             }
         }
@@ -500,7 +506,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 mapperService.mappingLookup(),
                 similarityService,
                 scriptService,
-                xContentRegistry,
+                parserConfiguration,
                 namedWriteableRegistry,
                 this.client,
                 searcher,

@@ -9,7 +9,7 @@
 package org.elasticsearch.indices.memory.breaker;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.sort.SortOrder;

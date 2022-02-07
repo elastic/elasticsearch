@@ -36,42 +36,30 @@ final class NumericField {
     static final String COUNT_METHOD = "count";
 
     static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
-        switch (variable) {
-            case VALUE_VARIABLE:
-                return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
-            case EMPTY_VARIABLE:
-                return new EmptyMemberValueSource(fieldData);
-            case LENGTH_VARIABLE:
-                return new CountMethodValueSource(fieldData);
-            default:
-                throw new IllegalArgumentException(
-                    "Member variable [" + variable + "] does not exist for " + "numeric field [" + fieldName + "]."
-                );
-        }
+        return switch (variable) {
+            case VALUE_VARIABLE -> new FieldDataValueSource(fieldData, MultiValueMode.MIN);
+            case EMPTY_VARIABLE -> new EmptyMemberValueSource(fieldData);
+            case LENGTH_VARIABLE -> new CountMethodValueSource(fieldData);
+            default -> throw new IllegalArgumentException(
+                "Member variable [" + variable + "] does not exist for " + "numeric field [" + fieldName + "]."
+            );
+        };
     }
 
     static DoubleValuesSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
-        switch (method) {
-            case GETVALUE_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
-            case ISEMPTY_METHOD:
-                return new EmptyMemberValueSource(fieldData);
-            case SIZE_METHOD:
-                return new CountMethodValueSource(fieldData);
-            case MINIMUM_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
-            case MAXIMUM_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.MAX);
-            case AVERAGE_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.AVG);
-            case MEDIAN_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.MEDIAN);
-            case SUM_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.SUM);
-            case COUNT_METHOD:
-                return new CountMethodValueSource(fieldData);
-            default:
-                throw new IllegalArgumentException("Member method [" + method + "] does not exist for numeric field [" + fieldName + "].");
-        }
+        return switch (method) {
+            case GETVALUE_METHOD -> new FieldDataValueSource(fieldData, MultiValueMode.MIN);
+            case ISEMPTY_METHOD -> new EmptyMemberValueSource(fieldData);
+            case SIZE_METHOD -> new CountMethodValueSource(fieldData);
+            case MINIMUM_METHOD -> new FieldDataValueSource(fieldData, MultiValueMode.MIN);
+            case MAXIMUM_METHOD -> new FieldDataValueSource(fieldData, MultiValueMode.MAX);
+            case AVERAGE_METHOD -> new FieldDataValueSource(fieldData, MultiValueMode.AVG);
+            case MEDIAN_METHOD -> new FieldDataValueSource(fieldData, MultiValueMode.MEDIAN);
+            case SUM_METHOD -> new FieldDataValueSource(fieldData, MultiValueMode.SUM);
+            case COUNT_METHOD -> new CountMethodValueSource(fieldData);
+            default -> throw new IllegalArgumentException(
+                "Member method [" + method + "] does not exist for numeric field [" + fieldName + "]."
+            );
+        };
     }
 }

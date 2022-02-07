@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
@@ -32,6 +33,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
+@TestLogging(
+    value = "org.elasticsearch.transport.RemoteClusterService:DEBUG,org.elasticsearch.transport.SniffConnectionStrategy:TRACE",
+    reason = "https://github.com/elastic/elasticsearch/issues/81302"
+)
 public class RestartIndexFollowingIT extends CcrIntegTestCase {
 
     @Override
@@ -73,7 +78,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         }
 
         assertBusy(
-            () -> { assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs)); }
+            () -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs))
         );
 
         getFollowerCluster().fullRestart();
@@ -137,5 +142,4 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
             assertThat(infos.size(), equalTo(0));
         });
     }
-
 }

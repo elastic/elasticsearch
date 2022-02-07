@@ -18,8 +18,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

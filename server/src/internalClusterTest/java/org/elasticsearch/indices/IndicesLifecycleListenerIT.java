@@ -35,6 +35,7 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -244,16 +245,11 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         try {
             assertBusy(waitPredicate, 1, TimeUnit.MINUTES);
         } catch (AssertionError ae) {
-            fail(
-                "failed to observe expect shard states\n"
-                    + "expected: ["
-                    + numShards
-                    + "] shards with states: "
-                    + Strings.arrayToCommaDelimitedString(shardStates)
-                    + "\n"
-                    + "observed:\n"
-                    + stateChangeListener
-            );
+            fail(String.format(Locale.ROOT, """
+                failed to observe expect shard states
+                expected: [%d] shards with states: %s
+                observed:
+                %s""", numShards, Strings.arrayToCommaDelimitedString(shardStates), stateChangeListener));
         }
 
         stateChangeListener.shardStates.clear();
@@ -272,12 +268,12 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             IndexShardState newState,
             @Nullable String reason
         ) {
-            List<IndexShardState> shardStates = this.shardStates.putIfAbsent(
+            List<IndexShardState> shardStateList = this.shardStates.putIfAbsent(
                 indexShard.shardId(),
                 new CopyOnWriteArrayList<>(new IndexShardState[] { newState })
             );
-            if (shardStates != null) {
-                shardStates.add(newState);
+            if (shardStateList != null) {
+                shardStateList.add(newState);
             }
         }
 

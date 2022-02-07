@@ -38,12 +38,21 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private static final float DEFAULT_DOCS_PER_SECOND = -1F;
     private static final int DEFAULT_DATES_AS_EPOCH_MILLIS = -1;
     private static final int DEFAULT_ALIGN_CHECKPOINTS = -1;
+    private static final int DEFAULT_USE_PIT = -1;
+    private static final int DEFAULT_DEDUCE_MAPPINGS = -1;
 
     private static ConstructingObjectParser<SettingsConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<SettingsConfig, Void> parser = new ConstructingObjectParser<>(
             "transform_config_settings",
             lenient,
-            args -> new SettingsConfig((Integer) args[0], (Float) args[1], (Integer) args[2], (Integer) args[3])
+            args -> new SettingsConfig(
+                (Integer) args[0],
+                (Float) args[1],
+                (Integer) args[2],
+                (Integer) args[3],
+                (Integer) args[4],
+                (Integer) args[5]
+            )
         );
         parser.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_PAGE_SEARCH_SIZE, TransformField.MAX_PAGE_SEARCH_SIZE);
         parser.declareFloatOrNull(optionalConstructorArg(), DEFAULT_DOCS_PER_SECOND, TransformField.DOCS_PER_SECOND);
@@ -61,6 +70,20 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             TransformField.ALIGN_CHECKPOINTS,
             ValueType.BOOLEAN_OR_NULL
         );
+        // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_USE_PIT : p.booleanValue() ? 1 : 0,
+            TransformField.USE_PIT,
+            ValueType.BOOLEAN_OR_NULL
+        );
+        // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_DEDUCE_MAPPINGS : p.booleanValue() ? 1 : 0,
+            TransformField.DEDUCE_MAPPINGS,
+            ValueType.BOOLEAN_OR_NULL
+        );
         return parser;
     }
 
@@ -68,25 +91,45 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private final Float docsPerSecond;
     private final Integer datesAsEpochMillis;
     private final Integer alignCheckpoints;
+    private final Integer usePit;
+    private final Integer deduceMappings;
 
     public SettingsConfig() {
-        this(null, null, (Integer) null, (Integer) null);
+        this(null, null, (Integer) null, (Integer) null, (Integer) null, (Integer) null);
     }
 
-    public SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Boolean datesAsEpochMillis, Boolean alignCheckpoints) {
+    public SettingsConfig(
+        Integer maxPageSearchSize,
+        Float docsPerSecond,
+        Boolean datesAsEpochMillis,
+        Boolean alignCheckpoints,
+        Boolean usePit,
+        Boolean deduceMappings
+    ) {
         this(
             maxPageSearchSize,
             docsPerSecond,
             datesAsEpochMillis == null ? null : datesAsEpochMillis ? 1 : 0,
-            alignCheckpoints == null ? null : alignCheckpoints ? 1 : 0
+            alignCheckpoints == null ? null : alignCheckpoints ? 1 : 0,
+            usePit == null ? null : usePit ? 1 : 0,
+            deduceMappings == null ? null : deduceMappings ? 1 : 0
         );
     }
 
-    public SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Integer datesAsEpochMillis, Integer alignCheckpoints) {
+    public SettingsConfig(
+        Integer maxPageSearchSize,
+        Float docsPerSecond,
+        Integer datesAsEpochMillis,
+        Integer alignCheckpoints,
+        Integer usePit,
+        Integer deduceMappings
+    ) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
         this.datesAsEpochMillis = datesAsEpochMillis;
         this.alignCheckpoints = alignCheckpoints;
+        this.usePit = usePit;
+        this.deduceMappings = deduceMappings;
     }
 
     public SettingsConfig(final StreamInput in) throws IOException {
@@ -101,6 +144,16 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             this.alignCheckpoints = in.readOptionalInt();
         } else {
             this.alignCheckpoints = DEFAULT_ALIGN_CHECKPOINTS;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_16_1)) {
+            this.usePit = in.readOptionalInt();
+        } else {
+            this.usePit = DEFAULT_USE_PIT;
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            deduceMappings = in.readOptionalInt();
+        } else {
+            deduceMappings = DEFAULT_DEDUCE_MAPPINGS;
         }
     }
 
@@ -126,6 +179,22 @@ public class SettingsConfig implements Writeable, ToXContentObject {
 
     public Integer getAlignCheckpointsForUpdate() {
         return alignCheckpoints;
+    }
+
+    public Boolean getUsePit() {
+        return usePit != null ? (usePit > 0) || (usePit == DEFAULT_USE_PIT) : null;
+    }
+
+    public Integer getUsePitForUpdate() {
+        return usePit;
+    }
+
+    public Boolean getDeduceMappings() {
+        return deduceMappings != null ? (deduceMappings > 0) || (deduceMappings == DEFAULT_DEDUCE_MAPPINGS) : null;
+    }
+
+    public Integer getDeduceMappingsForUpdate() {
+        return deduceMappings;
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
@@ -154,6 +223,12 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
             out.writeOptionalInt(alignCheckpoints);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_16_1)) {
+            out.writeOptionalInt(usePit);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeOptionalInt(deduceMappings);
+        }
     }
 
     @Override
@@ -172,6 +247,12 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (alignCheckpoints != null && (alignCheckpoints.equals(DEFAULT_ALIGN_CHECKPOINTS) == false)) {
             builder.field(TransformField.ALIGN_CHECKPOINTS.getPreferredName(), alignCheckpoints > 0 ? true : false);
         }
+        if (usePit != null && (usePit.equals(DEFAULT_USE_PIT) == false)) {
+            builder.field(TransformField.USE_PIT.getPreferredName(), usePit > 0 ? true : false);
+        }
+        if (deduceMappings != null && (deduceMappings.equals(DEFAULT_DEDUCE_MAPPINGS) == false)) {
+            builder.field(TransformField.DEDUCE_MAPPINGS.getPreferredName(), deduceMappings > 0 ? true : false);
+        }
         builder.endObject();
         return builder;
     }
@@ -189,12 +270,14 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return Objects.equals(maxPageSearchSize, that.maxPageSearchSize)
             && Objects.equals(docsPerSecond, that.docsPerSecond)
             && Objects.equals(datesAsEpochMillis, that.datesAsEpochMillis)
-            && Objects.equals(alignCheckpoints, that.alignCheckpoints);
+            && Objects.equals(alignCheckpoints, that.alignCheckpoints)
+            && Objects.equals(usePit, that.usePit)
+            && Objects.equals(deduceMappings, that.deduceMappings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints);
+        return Objects.hash(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints, usePit, deduceMappings);
     }
 
     @Override
@@ -211,6 +294,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         private Float docsPerSecond;
         private Integer datesAsEpochMillis;
         private Integer alignCheckpoints;
+        private Integer usePit;
+        private Integer deduceMappings;
 
         /**
          * Default builder
@@ -227,6 +312,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             this.docsPerSecond = base.docsPerSecond;
             this.datesAsEpochMillis = base.datesAsEpochMillis;
             this.alignCheckpoints = base.alignCheckpoints;
+            this.usePit = base.usePit;
+            this.deduceMappings = base.deduceMappings;
         }
 
         /**
@@ -287,6 +374,35 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
 
         /**
+         * Whether the point in time API should be used for search.
+         * Point in time is a more resource friendly way to query. It is used per default. In case of problems
+         * you can disable the point in time API usage with this setting.
+         *
+         * An explicit `null` resets to default.
+         *
+         * @param usePit true if the point in time API should be used.
+         * @return the {@link Builder} with usePit set.
+         */
+        public Builder setUsePit(Boolean usePit) {
+            this.usePit = usePit == null ? DEFAULT_USE_PIT : usePit ? 1 : 0;
+            return this;
+        }
+
+        /**
+         * Whether the destination index mappings should be deduced from the transform config.
+         * It is used per default.
+         *
+         * An explicit `null` resets to default.
+         *
+         * @param deduceMappings true if the transform should try deducing mappings from the config.
+         * @return the {@link Builder} with deduceMappings set.
+         */
+        public Builder setDeduceMappings(Boolean deduceMappings) {
+            this.deduceMappings = deduceMappings == null ? DEFAULT_DEDUCE_MAPPINGS : deduceMappings ? 1 : 0;
+            return this;
+        }
+
+        /**
          * Update settings according to given settings config.
          *
          * @param update update settings
@@ -313,12 +429,20 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                     ? null
                     : update.getAlignCheckpointsForUpdate();
             }
+            if (update.getUsePitForUpdate() != null) {
+                this.usePit = update.getUsePitForUpdate().equals(DEFAULT_USE_PIT) ? null : update.getUsePitForUpdate();
+            }
+            if (update.getDeduceMappingsForUpdate() != null) {
+                this.deduceMappings = update.getDeduceMappingsForUpdate().equals(DEFAULT_DEDUCE_MAPPINGS)
+                    ? null
+                    : update.getDeduceMappingsForUpdate();
+            }
 
             return this;
         }
 
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints);
+            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints, usePit, deduceMappings);
         }
     }
 }

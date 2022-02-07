@@ -295,12 +295,22 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         logger.info("--> start data node / non master node");
         internalCluster().startDataOnlyNode();
 
-        assertAcked(
-            prepareCreate("test").setMapping(
-                "{\"properties\" : {\"table_a\" : { \"type\" : \"nested\", "
-                    + "\"properties\" : {\"field_a\" : { \"type\" : \"keyword\" },\"field_b\" :{ \"type\" : \"keyword\" }}}}}"
-            )
-        );
+        assertAcked(prepareCreate("test").setMapping("""
+            {
+              "properties": {
+                "table_a": {
+                  "type": "nested",
+                  "properties": {
+                    "field_a": {
+                      "type": "keyword"
+                    },
+                    "field_b": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }"""));
         client().admin()
             .indices()
             .prepareAliases()

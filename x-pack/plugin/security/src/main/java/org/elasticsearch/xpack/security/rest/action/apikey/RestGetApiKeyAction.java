@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -17,9 +17,9 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;

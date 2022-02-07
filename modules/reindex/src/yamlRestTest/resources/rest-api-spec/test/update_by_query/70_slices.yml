@@ -147,7 +147,8 @@
   - do:
       warnings:
         - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
-      indices.refresh: {}
+      indices.refresh:
+        expand_wildcards: "open,hidden"
   - do:
       warnings:
         - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
@@ -256,7 +257,8 @@
   - do:
       warnings:
         - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
-      indices.refresh: {}
+      indices.refresh:
+        expand_wildcards: "open,hidden"
   - do:
       warnings:
         - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"

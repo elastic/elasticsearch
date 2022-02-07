@@ -420,8 +420,7 @@ public class PublicationTransportHandler {
                 return;
             }
             sendClusterState(destination, bytes, ActionListener.runAfter(listener.delegateResponse((delegate, e) -> {
-                if (e instanceof TransportException) {
-                    final TransportException transportException = (TransportException) e;
+                if (e instanceof final TransportException transportException) {
                     if (transportException.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
                         logger.debug(
                             () -> new ParameterizedMessage(

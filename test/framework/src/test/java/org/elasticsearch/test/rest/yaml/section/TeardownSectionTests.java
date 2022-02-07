@@ -19,21 +19,20 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseTeardownSection() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "  - do:\n"
-                + "      delete:\n"
-                + "        index: foo\n"
-                + "        type: doc\n"
-                + "        id: 1\n"
-                + "        ignore: 404\n"
-                + "  - do:\n"
-                + "      delete2:\n"
-                + "        index: foo\n"
-                + "        type: doc\n"
-                + "        id: 1\n"
-                + "        ignore: 404"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            - do:
+                delete:
+                  index: foo
+                  type: doc
+                  id: 1
+                  ignore: 404
+            - do:
+                delete2:
+                  index: foo
+                  type: doc
+                  id: 1
+                  ignore: 404
+            """);
 
         TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
@@ -44,24 +43,23 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
     }
 
     public void testParseWithSkip() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "  - skip:\n"
-                + "      version:  \"6.0.0 - 6.3.0\"\n"
-                + "      reason:   \"there is a reason\"\n"
-                + "  - do:\n"
-                + "      delete:\n"
-                + "        index: foo\n"
-                + "        type: doc\n"
-                + "        id: 1\n"
-                + "        ignore: 404\n"
-                + "  - do:\n"
-                + "      delete2:\n"
-                + "        index: foo\n"
-                + "        type: doc\n"
-                + "        id: 1\n"
-                + "        ignore: 404"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            - skip:
+                version:  "6.0.0 - 6.3.0"
+                reason:   "there is a reason"
+            - do:
+                delete:
+                  index: foo
+                  type: doc
+                  id: 1
+                  ignore: 404
+            - do:
+                delete2:
+                  index: foo
+                  type: doc
+                  id: 1
+                  ignore: 404
+            """);
 
         TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());

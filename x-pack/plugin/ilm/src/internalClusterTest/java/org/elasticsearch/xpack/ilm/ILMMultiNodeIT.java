@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -15,10 +16,10 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
 
 import java.util.Arrays;

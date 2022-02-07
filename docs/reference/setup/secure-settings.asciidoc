@@ -55,9 +55,9 @@ call instead of reloading after each modification.
 
 There are reloadable secure settings for:
 
-* {plugins}/repository-azure-client-settings.html[The Azure repository plugin]
+* <<repository-azure,The Azure repository plugin>>
 * {plugins}/discovery-ec2-usage.html#_configuring_ec2_discovery[The EC2 discovery plugin]
-* {plugins}/repository-gcs-client.html[The GCS repository plugin]
-* {plugins}/repository-s3-client.html[The S3 repository plugin]
+* <<repository-gcs,The GCS repository plugin>>
+* <<repository-s3,The S3 repository plugin>>
 * <<monitoring-settings>>
 * <<notification-settings>>

@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.extractor;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,7 +40,7 @@ public class ProcessedField {
 
     public Object[] value(SearchHit hit, Function<String, ExtractedField> fieldExtractor) {
         List<String> inputFields = getInputFieldNames();
-        Map<String, Object> inputs = new HashMap<>(inputFields.size(), 1.0f);
+        Map<String, Object> inputs = Maps.newMapWithExpectedSize(inputFields.size());
         for (String field : inputFields) {
             ExtractedField extractedField = fieldExtractor.apply(field);
             if (extractedField == null) {

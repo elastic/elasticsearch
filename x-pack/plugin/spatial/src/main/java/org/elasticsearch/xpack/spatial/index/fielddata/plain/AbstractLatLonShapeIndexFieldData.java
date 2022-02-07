@@ -17,21 +17,25 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
 
 public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShapeFieldData {
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
+    protected final ToScriptField<GeoShapeValues> toScriptField;
 
-    AbstractLatLonShapeIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
+    AbstractLatLonShapeIndexFieldData(String fieldName, ValuesSourceType valuesSourceType, ToScriptField<GeoShapeValues> toScriptField) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -55,8 +59,8 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     }
 
     public static class LatLonShapeIndexFieldData extends AbstractLatLonShapeIndexFieldData {
-        public LatLonShapeIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
-            super(fieldName, valuesSourceType);
+        public LatLonShapeIndexFieldData(String fieldName, ValuesSourceType valuesSourceType, ToScriptField<GeoShapeValues> toScriptField) {
+            super(fieldName, valuesSourceType, toScriptField);
         }
 
         @Override
@@ -66,7 +70,7 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
             if (info != null) {
                 checkCompatible(info);
             }
-            return new LatLonShapeDVAtomicShapeFieldData(reader, fieldName);
+            return new LatLonShapeDVAtomicShapeFieldData(reader, fieldName, toScriptField);
         }
 
         @Override
@@ -108,16 +112,18 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final ValuesSourceType valuesSourceType;
+        private final ToScriptField<GeoShapeValues> toScriptField;
 
-        public Builder(String name, ValuesSourceType valuesSourceType) {
+        public Builder(String name, ValuesSourceType valuesSourceType, ToScriptField<GeoShapeValues> toScriptField) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             // ignore breaker
-            return new LatLonShapeIndexFieldData(name, valuesSourceType);
+            return new LatLonShapeIndexFieldData(name, valuesSourceType, toScriptField);
         }
     }
 }

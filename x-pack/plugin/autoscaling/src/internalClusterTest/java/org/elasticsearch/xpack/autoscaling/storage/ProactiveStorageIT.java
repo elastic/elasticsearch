@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.autoscaling.storage;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -20,8 +22,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.hamcrest.Matchers;
 import org.junit.After;
 

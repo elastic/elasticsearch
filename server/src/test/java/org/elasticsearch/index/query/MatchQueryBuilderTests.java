@@ -33,6 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQueryParser;
@@ -127,15 +128,12 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     protected Map<String, MatchQueryBuilder> getAlternateVersions() {
         Map<String, MatchQueryBuilder> alternateVersions = new HashMap<>();
         MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
-        String contentString = "{\n"
-            + "    \"match\" : {\n"
-            + "        \""
-            + matchQuery.fieldName()
-            + "\" : \""
-            + matchQuery.value()
-            + "\"\n"
-            + "    }\n"
-            + "}";
+        String contentString = """
+            {
+                "match" : {
+                    "%s" : "%s"
+                }
+            }""".formatted(matchQuery.fieldName(), matchQuery.value());
         alternateVersions.put(contentString, matchQuery);
         return alternateVersions;
     }
@@ -159,8 +157,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertEquals(expectedTermQuery, query);
         }
 
-        if (query instanceof BooleanQuery) {
-            BooleanQuery bq = (BooleanQuery) query;
+        if (query instanceof BooleanQuery bq) {
             if (queryBuilder.minimumShouldMatch() != null) {
                 // calculate expected minimumShouldMatch value
                 int optionalClauses = 0;
@@ -177,9 +174,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             }
         }
 
-        if (query instanceof FuzzyQuery) {
+        if (query instanceof FuzzyQuery fuzzyQuery) {
             assertTrue(queryBuilder.fuzziness() != null);
-            FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
             // depending on analyzer being set or not we can have term lowercased along the way, so to simplify test we just
             // compare lowercased terms here
             String originalTermLc = queryBuilder.value().toString().toLowerCase(Locale.ROOT);
@@ -245,21 +241,22 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testSimpleMatchQuery() throws IOException {
-        String json = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message\" : {\n"
-            + "      \"query\" : \"to be or not to be\",\n"
-            + "      \"operator\" : \"AND\",\n"
-            + "      \"prefix_length\" : 0,\n"
-            + "      \"max_expansions\" : 50,\n"
-            + "      \"fuzzy_transpositions\" : true,\n"
-            + "      \"lenient\" : false,\n"
-            + "      \"zero_terms_query\" : \"ALL\",\n"
-            + "      \"auto_generate_synonyms_phrase_query\" : true,\n"
-            + "      \"boost\" : 1.0\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "match" : {
+                "message" : {
+                  "query" : "to be or not to be",
+                  "operator" : "AND",
+                  "prefix_length" : 0,
+                  "max_expansions" : 50,
+                  "fuzzy_transpositions" : true,
+                  "lenient" : false,
+                  "zero_terms_query" : "ALL",
+                  "auto_generate_synonyms_phrase_query" : true,
+                  "boost" : 1.0
+                }
+              }
+            }""";
         MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, qb);
 
@@ -309,40 +306,48 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testParseFailsWithMultipleFields() {
-        String json = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message1\" : {\n"
-            + "      \"query\" : \"this is a test\"\n"
-            + "    },\n"
-            + "    \"message2\" : {\n"
-            + "      \"query\" : \"this is a test\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "match" : {
+                "message1" : {
+                  "query" : "this is a test"
+                },
+                "message2" : {
+                  "query" : "this is a test"
+                }
+              }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
-        String shortJson = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message1\" : \"this is a test\",\n"
-            + "    \"message2\" : \"this is a test\"\n"
-            + "  }\n"
-            + "}";
+        String shortJson = """
+            {
+              "match" : {
+                "message1" : "this is a test",
+                "message2" : "this is a test"
+              }
+            }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
     public void testParseFailsWithTermsArray() {
-        String json1 = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message1\" : {\n"
-            + "      \"query\" : [\"term1\", \"term2\"]\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json1 = """
+            {
+              "match" : {
+                "message1" : {
+                  "query" : ["term1", "term2"]
+                }
+              }
+            }""";
         expectThrows(ParsingException.class, () -> parseQuery(json1));
 
-        String json2 = "{\n" + "  \"match\" : {\n" + "    \"message1\" : [\"term1\", \"term2\"]\n" + "  }\n" + "}";
+        String json2 = """
+            {
+              "match" : {
+                "message1" : ["term1", "term2"]
+              }
+            }""";
         expectThrows(IllegalStateException.class, () -> parseQuery(json2));
     }
 
@@ -569,5 +574,60 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         QueryBuilder rewritten = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewritten.toQuery(context));
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
+
+    public void testRewriteToTermQueries() throws IOException {
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        queryBuilder.boost(2f);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewritten = queryBuilder.rewrite(context);
+        assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
+        assertEquals(KEYWORD_FIELD_NAME, tqb.fieldName);
+        assertEquals(new BytesRef("value"), tqb.value);
+        assertThat(rewritten.boost(), equalTo(2f));
+    }
+
+    public void testRewriteToTermQueryWithAnalyzer() throws IOException {
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(TEXT_FIELD_NAME, "value");
+        queryBuilder.analyzer("keyword");
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewritten = queryBuilder.rewrite(context);
+        assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+        TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
+        assertEquals(TEXT_FIELD_NAME, tqb.fieldName);
+        assertEquals(new BytesRef("value"), tqb.value);
+    }
+
+    public void testRewriteWithFuzziness() throws IOException {
+        // If we've configured fuzziness then we can't rewrite to a term query
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        queryBuilder.fuzziness(Fuzziness.AUTO);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewritten = queryBuilder.rewrite(context);
+        assertEquals(queryBuilder, rewritten);
+    }
+
+    public void testRewriteWithLeniency() throws IOException {
+        // If we've configured leniency then we can't rewrite to a term query
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        queryBuilder.lenient(true);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewritten = queryBuilder.rewrite(context);
+        assertEquals(queryBuilder, rewritten);
+    }
+
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("_index", "does_not_exist");
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("_index", getIndex().getName());
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
     }
 }

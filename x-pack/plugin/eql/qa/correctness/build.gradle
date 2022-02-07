@@ -31,7 +31,6 @@ if (BuildParams.inFipsJvm){
 }
 
 testClusters.configureEach {
-    plugin ':plugins:repository-gcs'
     if (serviceAccountFile) {
       keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
     }

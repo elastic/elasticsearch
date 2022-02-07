@@ -29,8 +29,8 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -321,8 +321,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
     public void testDeleteToken() {
         final AtomicBoolean cacheCleared = new AtomicBoolean(false);
         responseProviderHolder.set((r, l) -> {
-            if (r instanceof DeleteRequest) {
-                final DeleteRequest dr = (DeleteRequest) r;
+            if (r instanceof final DeleteRequest dr) {
                 final boolean found = dr.id().equals(SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-elastic/fleet-server/token1");
                 l.onResponse(
                     new DeleteResponse(

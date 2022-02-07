@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -22,10 +23,11 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
@@ -38,7 +40,7 @@ import static java.util.stream.Collectors.toSet;
  * to be set or not set and by enabling extra fields in the mapping.
  */
 public enum IndexMode {
-    STANDARD {
+    STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
@@ -66,8 +68,8 @@ public enum IndexMode {
         }
 
         @Override
-        public Map<String, Object> getDefaultMapping() {
-            return Collections.emptyMap();
+        public CompressedXContent getDefaultMapping() {
+            return null;
         }
 
         @Override
@@ -75,9 +77,8 @@ public enum IndexMode {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
-
     },
-    TIME_SERIES {
+    TIME_SERIES("time_series") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
@@ -123,7 +124,7 @@ public enum IndexMode {
         }
 
         @Override
-        public Map<String, Object> getDefaultMapping() {
+        public CompressedXContent getDefaultMapping() {
             return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
         }
 
@@ -141,15 +142,26 @@ public enum IndexMode {
         }
     };
 
-    public static final Map<String, Object> DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = Map.of(
-        MapperService.SINGLE_MAPPING_NAME,
-        Map.of(
-            DataStreamTimestampFieldMapper.NAME,
-            Map.of("enabled", true),
-            "properties",
-            Map.of(DataStreamTimestampFieldMapper.DEFAULT_PATH, Map.of("type", DateFieldMapper.CONTENT_TYPE))
-        )
-    );
+    public static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+
+    static {
+        try {
+            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = new CompressedXContent(
+                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .startObject(DataStreamTimestampFieldMapper.NAME)
+                    .field("enabled", true)
+                    .endObject()
+                    .startObject("properties")
+                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                    .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .endObject()
+                    .endObject()
+                    .endObject())
+            );
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     private static final List<Setting<?>> TIME_SERIES_UNSUPPORTED = List.of(
         IndexSortConfig.INDEX_SORT_FIELD_SETTING,
@@ -170,6 +182,16 @@ public enum IndexMode {
         ).collect(toSet())
     );
 
+    private final String name;
+
+    IndexMode(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
     abstract void validateWithOtherSettings(Map<Setting<?>, Object> settings);
 
     /**
@@ -188,10 +210,10 @@ public enum IndexMode {
     public abstract void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException;
 
     /**
-     * get default mapping for this index.
-     * @return
+     * Get default mapping for this index or {@code null} if there is none.
      */
-    public abstract Map<String, Object> getDefaultMapping();
+    @Nullable
+    public abstract CompressedXContent getDefaultMapping();
 
     /**
      * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates
@@ -199,4 +221,23 @@ public enum IndexMode {
      * field mappers for the index.
      */
     public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
+
+    public static IndexMode fromString(String value) {
+        return switch (value) {
+            case "standard" -> IndexMode.STANDARD;
+            case "time_series" -> IndexMode.TIME_SERIES;
+            default -> throw new IllegalArgumentException(
+                "["
+                    + value
+                    + "] is an invalid index mode, valid modes are: ["
+                    + Arrays.stream(IndexMode.values()).map(IndexMode::toString).collect(Collectors.joining())
+                    + "]"
+            );
+        };
+    }
+
+    @Override
+    public String toString() {
+        return getName();
+    }
 }

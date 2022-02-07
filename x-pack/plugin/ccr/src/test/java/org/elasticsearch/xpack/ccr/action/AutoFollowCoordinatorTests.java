@@ -11,7 +11,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -28,6 +28,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
@@ -339,7 +340,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     public void testAutoFollowerWithNoActivePatternsDoesNotStart() {
         final String remoteCluster = randomAlphaOfLength(5);
 
-        final Map<String, AutoFollowPattern> autoFollowPatterns = new HashMap<>(2);
+        final Map<String, AutoFollowPattern> autoFollowPatterns = Maps.newMapWithExpectedSize(2);
         autoFollowPatterns.put(
             "pattern_1",
             new AutoFollowPattern(
@@ -383,11 +384,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             )
         );
 
-        final Map<String, List<String>> followedLeaderIndexUUIDs = new HashMap<>(2);
+        final Map<String, List<String>> followedLeaderIndexUUIDs = Maps.newMapWithExpectedSize(2);
         followedLeaderIndexUUIDs.put("pattern_1", List.of("uuid1", "uuid2"));
         followedLeaderIndexUUIDs.put("pattern_2", Collections.emptyList());
 
-        final Map<String, Map<String, String>> headers = new HashMap<>(2);
+        final Map<String, Map<String, String>> headers = Maps.newMapWithExpectedSize(2);
         headers.put("pattern_1", singletonMap("header", "value"));
         headers.put("pattern_2", emptyMap());
 
@@ -1147,25 +1148,43 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(removedAutoFollower2.removed, is(true));
     }
 
+    public void testUpdateAutoFollowersRevertMetadata() {
+        // given coordinator with some initial patterns
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+
+        // with some initial patterns
+        var pattern1 = createAutoFollowPattern("remote1", "logs-*");
+        var pattern2 = createAutoFollowPattern("remote2", "logs-*");
+        var pattern3 = createAutoFollowPattern("remote2", "metrics-*");// same remote
+        autoFollowCoordinator.updateAutoFollowers(
+            createClusterStateWith(Map.of("pattern1", pattern1, "pattern2", pattern2, "pattern3", pattern3))
+        );
+        var initialAutoFollowers = autoFollowCoordinator.getAutoFollowers();
+
+        // when resetting the state
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(null));
+        var newAutoFollowers = autoFollowCoordinator.getAutoFollowers();
+
+        // then auto-followers are removed
+        assertThat(newAutoFollowers.entrySet(), empty());
+        // and auto-followers are stopped
+        assertThat(initialAutoFollowers.get("remote1").removed, equalTo(true));
+        assertThat(initialAutoFollowers.get("remote2").removed, equalTo(true));
+    }
+
     public void testUpdateAutoFollowersNoPatterns() {
-        AutoFollowCoordinator autoFollowCoordinator = createAutoFollowCoordinator();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        AutoFollowMetadata.TYPE,
-                        new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())
-                    )
-            )
-            .build();
-        autoFollowCoordinator.updateAutoFollowers(clusterState);
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(Map.of()));
+
+        assertThat(autoFollowCoordinator.getAutoFollowers().keySet(), empty());
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
     }
 
     public void testUpdateAutoFollowersNoAutoFollowMetadata() {
-        AutoFollowCoordinator autoFollowCoordinator = createAutoFollowCoordinator();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("remote")).build();
-        autoFollowCoordinator.updateAutoFollowers(clusterState);
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(null));
+
+        assertThat(autoFollowCoordinator.getAutoFollowers().keySet(), empty());
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
     }
 
@@ -2044,9 +2063,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     private ClusterState createClusterStateWith(Map<String, AutoFollowPattern> patterns) {
-        return ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Map.of(), Map.of())))
-            .build();
+        var builder = ClusterState.builder(new ClusterName("remote"));
+        if (patterns != null) {
+            builder.metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Map.of(), Map.of())));
+        }
+        return builder.build();
     }
 
     private AutoFollowPattern createAutoFollowPattern(String remoteCluster, String pattern) {
@@ -2260,7 +2281,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             false,
             false,
             system,
-            false
+            false,
+            null
         );
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().put(indexMetadata, true).put(dataStream).version(0L));

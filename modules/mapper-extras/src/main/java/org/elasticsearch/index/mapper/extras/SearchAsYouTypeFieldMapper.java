@@ -255,7 +255,16 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             }
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
-            return new SearchAsYouTypeFieldMapper(name, ft, copyTo.build(), indexAnalyzers, prefixFieldMapper, shingleFieldMappers, this);
+            return new SearchAsYouTypeFieldMapper(
+                name,
+                ft,
+                copyTo.build(),
+                indexAnalyzers,
+                prefixFieldMapper,
+                shingleFieldMappers,
+                multiFieldsBuilder.build(this, context),
+                this
+            );
         }
     }
 
@@ -428,6 +437,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public Query prefixQuery(
             String value,
             MultiTermQuery.RewriteMethod method,
@@ -561,6 +575,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
@@ -644,9 +663,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         Map<String, NamedAnalyzer> indexAnalyzers,
         PrefixFieldMapper prefixField,
         ShingleFieldMapper[] shingleFields,
+        MultiFields multiFields,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, MultiFields.empty(), copyTo, false, null);
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();

@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -40,6 +40,7 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -91,11 +92,11 @@ import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
@@ -107,6 +108,9 @@ import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAc
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
@@ -163,11 +167,11 @@ import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.security.action.TransportClearSecurityCacheAction;
-import org.elasticsearch.xpack.security.action.TransportCreateApiKeyAction;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
-import org.elasticsearch.xpack.security.action.TransportGetApiKeyAction;
-import org.elasticsearch.xpack.security.action.TransportGrantApiKeyAction;
-import org.elasticsearch.xpack.security.action.TransportInvalidateApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportCreateApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportGetApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportGrantApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction;
 import org.elasticsearch.xpack.security.action.enrollment.TransportKibanaEnrollmentAction;
 import org.elasticsearch.xpack.security.action.enrollment.TransportNodeEnrollmentAction;
@@ -180,6 +184,9 @@ import org.elasticsearch.xpack.security.action.privilege.TransportDeletePrivileg
 import org.elasticsearch.xpack.security.action.privilege.TransportGetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
+import org.elasticsearch.xpack.security.action.profile.TransportActivateProfileAction;
+import org.elasticsearch.xpack.security.action.profile.TransportGetProfileAction;
+import org.elasticsearch.xpack.security.action.profile.TransportUpdateProfileDataAction;
 import org.elasticsearch.xpack.security.action.realm.TransportClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportDeleteRoleAction;
@@ -249,6 +256,7 @@ import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
@@ -270,6 +278,9 @@ import org.elasticsearch.xpack.security.rest.action.privilege.RestDeletePrivileg
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestActivateProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestGetProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestUpdateProfileDataAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestDeleteRoleAction;
@@ -308,7 +319,6 @@ import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTrans
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -327,6 +337,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -436,6 +447,7 @@ public class Security extends Plugin
     private final Settings settings;
     private final boolean enabled;
     private final SecuritySystemIndices systemIndices;
+    private final ListenableFuture<Void> nodeStartedListenable;
 
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
@@ -458,16 +470,17 @@ public class Security extends Plugin
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
 
-    public Security(Settings settings, final Path configPath) {
-        this(settings, configPath, Collections.emptyList());
+    public Security(Settings settings) {
+        this(settings, Collections.emptyList());
     }
 
-    Security(Settings settings, final Path configPath, List<SecurityExtension> extensions) {
+    Security(Settings settings, List<SecurityExtension> extensions) {
         // TODO This is wrong. Settings can change after this. We should use the settings from createComponents
         this.settings = settings;
         // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.systemIndices = new SecuritySystemIndices();
+        this.nodeStartedListenable = new ListenableFuture<>();
         if (enabled) {
             runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
@@ -739,6 +752,15 @@ public class Security extends Plugin
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
+        final ProfileService profileService = new ProfileService(
+            settings,
+            getClock(),
+            client,
+            systemIndices.getProfileIndexManager(),
+            threadPool
+        );
+        components.add(profileService);
+
         // We use the value of the {@code ENROLLMENT_ENABLED} setting to determine if the node is starting up with auto-generated
         // certificates (which have been generated by pre-startup scripts). In this case, and further if the node forms a new cluster by
         // itself, rather than joining an existing one, we complete the auto-configuration by generating and printing credentials and
@@ -749,7 +771,9 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             getSslService(),
             client,
-            environment
+            environment,
+            (runnable -> nodeStartedListenable.addListener(ActionListener.wrap(runnable))),
+            threadPool
         );
 
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
@@ -838,8 +862,7 @@ public class Security extends Plugin
                 authzService,
                 getSslService(),
                 securityContext.get(),
-                destructiveOperations,
-                clusterService
+                destructiveOperations
             )
         );
 
@@ -1133,7 +1156,8 @@ public class Security extends Plugin
         if (enabled == false) {
             return Arrays.asList(usageAction, infoAction);
         }
-        return Arrays.asList(
+
+        final List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actionHandlers = Arrays.asList(
             new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
             new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
             new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
@@ -1185,6 +1209,19 @@ public class Security extends Plugin
             usageAction,
             infoAction
         );
+
+        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
+            return Stream.concat(
+                actionHandlers.stream(),
+                Stream.of(
+                    new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
+                    new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
+                    new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class)
+                )
+            ).toList();
+        } else {
+            return actionHandlers;
+        }
     }
 
     @Override
@@ -1208,7 +1245,7 @@ public class Security extends Plugin
         if (enabled == false) {
             return emptyList();
         }
-        return Arrays.asList(
+        final List<RestHandler> restHandlers = Arrays.asList(
             new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
             new RestClearRealmCacheAction(settings, getLicenseState()),
             new RestClearRolesCacheAction(settings, getLicenseState()),
@@ -1257,6 +1294,19 @@ public class Security extends Plugin
             new RestKibanaEnrollAction(settings, getLicenseState()),
             new RestNodeEnrollmentAction(settings, getLicenseState())
         );
+
+        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
+            return Stream.concat(
+                restHandlers.stream(),
+                Stream.of(
+                    new RestGetProfileAction(settings, getLicenseState()),
+                    new RestActivateProfileAction(settings, getLicenseState()),
+                    new RestUpdateProfileDataAction(settings, getLicenseState())
+                )
+            ).toList();
+        } else {
+            return restHandlers;
+        }
     }
 
     @Override
@@ -1265,6 +1315,11 @@ public class Security extends Plugin
             SetSecurityUserProcessor.TYPE,
             new SetSecurityUserProcessor.Factory(securityContext::get, settings)
         );
+    }
+
+    @Override
+    public void onNodeStarted() {
+        this.nodeStartedListenable.onResponse(null);
     }
 
     /**

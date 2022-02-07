@@ -160,17 +160,9 @@ public class FuzzinessTests extends ESTestCase {
                     Fuzziness fuzziness = Fuzziness.parse(parser);
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
                     switch (intValue) {
-                        case 1:
-                            assertThat(fuzziness, sameInstance(Fuzziness.ONE));
-                            break;
-                        case 2:
-                            assertThat(fuzziness, sameInstance(Fuzziness.TWO));
-                            break;
-                        case 0:
-                            assertThat(fuzziness, sameInstance(Fuzziness.ZERO));
-                            break;
-                        default:
-                            break;
+                        case 1 -> assertThat(fuzziness, sameInstance(Fuzziness.ONE));
+                        case 2 -> assertThat(fuzziness, sameInstance(Fuzziness.TWO));
+                        case 0 -> assertThat(fuzziness, sameInstance(Fuzziness.ZERO));
                     }
                 }
             }

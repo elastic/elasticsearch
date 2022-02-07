@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -149,40 +150,49 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         classes.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
         responseBuilder.endObject();
 
-        String result = "{\"class\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,"
-            + "\"buckets\":["
-            + "{"
-            + "\"key\":\"0\","
-            + "\"doc_count\":4,"
-            + "\"sig_terms\":{"
-            + "\"doc_count\":4,"
-            + "\"bg_count\":7,"
-            + "\"buckets\":["
-            + "{"
-            + "\"key\":"
-            + (type.equals("long") ? "0," : "\"0\",")
-            + "\"doc_count\":4,"
-            + "\"score\":0.39999999999999997,"
-            + "\"bg_count\":5"
-            + "}"
-            + "]"
-            + "}"
-            + "},"
-            + "{"
-            + "\"key\":\"1\","
-            + "\"doc_count\":3,"
-            + "\"sig_terms\":{"
-            + "\"doc_count\":3,"
-            + "\"bg_count\":7,"
-            + "\"buckets\":["
-            + "{"
-            + "\"key\":"
-            + (type.equals("long") ? "1," : "\"1\",")
-            + "\"doc_count\":3,"
-            + "\"score\":0.75,"
-            + "\"bg_count\":4"
-            + "}]}}]}}";
-        assertThat(Strings.toString(responseBuilder), equalTo(result));
+        String result = """
+            {
+              "class": {
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0,
+                "buckets": [
+                  {
+                    "key": "0",
+                    "doc_count": 4,
+                    "sig_terms": {
+                      "doc_count": 4,
+                      "bg_count": 7,
+                      "buckets": [
+                        {
+                          "key": %s,
+                          "doc_count": 4,
+                          "score": 0.39999999999999997,
+                          "bg_count": 5
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "1",
+                    "doc_count": 3,
+                    "sig_terms": {
+                      "doc_count": 3,
+                      "bg_count": 7,
+                      "buckets": [
+                        {
+                          "key":%s,
+                          "doc_count": 3,
+                          "score": 0.75,
+                          "bg_count": 4
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+            """.formatted(type.equals("long") ? "0" : "\"0\"", type.equals("long") ? "1" : "\"1\"");
+        assertThat(Strings.toString(responseBuilder), equalTo(XContentHelper.stripWhitespace(result)));
 
     }
 

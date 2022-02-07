@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -104,7 +104,9 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
     public void testRestValidateQueryAction() throws Exception {
         // GIVEN a valid query
-        final String content = "{\"query\":{\"bool\":{\"must\":{\"term\":{\"user\":\"kimchy\"}}}}}";
+        final String content = """
+            {"query":{"bool":{"must":{"term":{"user":"kimchy"}}}}}
+            """;
 
         final RestRequest request = createRestRequest(content);
         final FakeRestChannel channel = new FakeRestChannel(request, true, 0);

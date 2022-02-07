@@ -30,16 +30,10 @@ import static org.hamcrest.Matchers.not;
 public class IngestMetadataTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        PipelineConfiguration pipeline = new PipelineConfiguration(
-            "1",
-            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
-        );
-        PipelineConfiguration pipeline2 = new PipelineConfiguration(
-            "2",
-            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field1\", \"value\": \"_value1\"}}]}"),
-            XContentType.JSON
-        );
+        PipelineConfiguration pipeline = new PipelineConfiguration("1", new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
+        PipelineConfiguration pipeline2 = new PipelineConfiguration("2", new BytesArray("""
+            {"processors": [{"set" : {"field": "_field1", "value": "_value1"}}]}"""), XContentType.JSON);
         Map<String, PipelineConfiguration> map = new HashMap<>();
         map.put(pipeline.getId(), pipeline);
         map.put(pipeline2.getId(), pipeline2);

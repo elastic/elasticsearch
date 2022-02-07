@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.ql.util;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.isQualified;
-import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.qualifyAndJoinIndices;
-import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.splitQualifiedIndex;
+import static org.elasticsearch.xpack.ql.util.StringUtils.isQualified;
+import static org.elasticsearch.xpack.ql.util.StringUtils.qualifyAndJoinIndices;
+import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 
 public class RemoteClusterUtilsTests extends ESTestCase {
     public void testSplitQualifiedIndex() {

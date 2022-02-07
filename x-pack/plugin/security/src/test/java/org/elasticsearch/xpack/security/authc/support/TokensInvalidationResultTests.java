@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -36,31 +37,30 @@ public class TokensInvalidationResultTests extends ESTestCase {
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertThat(
-                Strings.toString(builder),
-                equalTo(
-                    "{\"invalidated_tokens\":2,"
-                        + "\"previously_invalidated_tokens\":2,"
-                        + "\"error_count\":2,"
-                        + "\"error_details\":["
-                        + "{\"type\":\"exception\","
-                        + "\"reason\":\"foo\","
-                        + "\"caused_by\":{"
-                        + "\"type\":\"illegal_state_exception\","
-                        + "\"reason\":\"bar\""
-                        + "}"
-                        + "},"
-                        + "{\"type\":\"exception\","
-                        + "\"reason\":\"boo\","
-                        + "\"caused_by\":{"
-                        + "\"type\":\"illegal_state_exception\","
-                        + "\"reason\":\"far\""
-                        + "}"
-                        + "}"
-                        + "]"
-                        + "}"
-                )
-            );
+            assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace("""
+                {
+                  "invalidated_tokens": 2,
+                  "previously_invalidated_tokens": 2,
+                  "error_count": 2,
+                  "error_details": [
+                    {
+                      "type": "exception",
+                      "reason": "foo",
+                      "caused_by": {
+                        "type": "illegal_state_exception",
+                        "reason": "bar"
+                      }
+                    },
+                    {
+                      "type": "exception",
+                      "reason": "boo",
+                      "caused_by": {
+                        "type": "illegal_state_exception",
+                        "reason": "far"
+                      }
+                    }
+                  ]
+                }""")));
         }
     }
 
@@ -73,10 +73,8 @@ public class TokensInvalidationResultTests extends ESTestCase {
         );
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertThat(
-                Strings.toString(builder),
-                equalTo("{\"invalidated_tokens\":2," + "\"previously_invalidated_tokens\":0," + "\"error_count\":0" + "}")
-            );
+            assertThat(Strings.toString(builder), equalTo("""
+                {"invalidated_tokens":2,"previously_invalidated_tokens":0,"error_count":0}"""));
         }
     }
 }

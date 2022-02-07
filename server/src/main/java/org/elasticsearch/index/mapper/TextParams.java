@@ -117,7 +117,12 @@ public final class TextParams {
     }
 
     public static Parameter<SimilarityProvider> similarity(Function<FieldMapper, SimilarityProvider> init) {
-        return new Parameter<>("similarity", false, () -> null, (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o), init).setSerializer(
+        return new Parameter<>(
+            "similarity",
+            false,
+            () -> null,
+            (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o),
+            init,
             (b, f, v) -> b.field(f, v == null ? null : v.name()),
             v -> v == null ? null : v.name()
         ).acceptsNull();
@@ -177,36 +182,43 @@ public final class TextParams {
 
     public static void setTermVectorParams(String configuration, FieldType fieldType) {
         switch (configuration) {
-            case "no":
+            case "no" -> {
                 fieldType.setStoreTermVectors(false);
                 return;
-            case "yes":
+            }
+            case "yes" -> {
                 fieldType.setStoreTermVectors(true);
                 return;
-            case "with_positions":
+            }
+            case "with_positions" -> {
                 fieldType.setStoreTermVectors(true);
                 fieldType.setStoreTermVectorPositions(true);
                 return;
-            case "with_offsets":
+            }
+            case "with_offsets" -> {
                 fieldType.setStoreTermVectors(true);
                 fieldType.setStoreTermVectorOffsets(true);
                 return;
-            case "with_positions_offsets":
+            }
+            case "with_positions_offsets" -> {
                 fieldType.setStoreTermVectors(true);
                 fieldType.setStoreTermVectorPositions(true);
                 fieldType.setStoreTermVectorOffsets(true);
                 return;
-            case "with_positions_payloads":
+            }
+            case "with_positions_payloads" -> {
                 fieldType.setStoreTermVectors(true);
                 fieldType.setStoreTermVectorPositions(true);
                 fieldType.setStoreTermVectorPayloads(true);
                 return;
-            case "with_positions_offsets_payloads":
+            }
+            case "with_positions_offsets_payloads" -> {
                 fieldType.setStoreTermVectors(true);
                 fieldType.setStoreTermVectorPositions(true);
                 fieldType.setStoreTermVectorOffsets(true);
                 fieldType.setStoreTermVectorPayloads(true);
                 return;
+            }
         }
         throw new IllegalArgumentException("Unknown [term_vector] setting: [" + configuration + "]");
     }

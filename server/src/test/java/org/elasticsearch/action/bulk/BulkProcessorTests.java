@@ -234,7 +234,10 @@ public class BulkProcessorTests extends ESTestCase {
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
 
             IndexRequest indexRequest = new IndexRequest();
-            String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
+            String bulkRequest = """
+                { "index" : { "_index" : "test", "_id" : "1" } }
+                { "field1" : "value1" }
+                """;
             BytesReference bytesReference = BytesReference.fromByteBuffers(
                 new ByteBuffer[] { ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) }
             );
@@ -274,31 +277,28 @@ public class BulkProcessorTests extends ESTestCase {
                 if (exceptionRef.get() != null) {
                     logger.error("exception(s) caught during test", exceptionRef.get());
                 }
+                String message = """
+
+                    Expected Bulks: %s
+                    Requested Bulks: %s
+                    Successful Bulks: %s
+                    Failed Bulks: %ds
+                    Max Documents: %s
+                    Max Batch Size: %s
+                    Concurrent Clients: %s
+                    Concurrent Bulk Requests: %s
+                    """;
                 fail(
-                    "\nExpected Bulks: "
-                        + expectedExecutions
-                        + "\n"
-                        + "Requested Bulks: "
-                        + requestCount.get()
-                        + "\n"
-                        + "Successful Bulks: "
-                        + successCount.get()
-                        + "\n"
-                        + "Failed Bulks: "
-                        + failureCount.get()
-                        + "\n"
-                        + "Max Documents: "
-                        + maxDocuments
-                        + "\n"
-                        + "Max Batch Size: "
-                        + maxBatchSize
-                        + "\n"
-                        + "Concurrent Clients: "
-                        + concurrentClients
-                        + "\n"
-                        + "Concurrent Bulk Requests: "
-                        + concurrentBulkRequests
-                        + "\n"
+                    message.formatted(
+                        expectedExecutions,
+                        requestCount.get(),
+                        successCount.get(),
+                        failureCount.get(),
+                        maxDocuments,
+                        maxBatchSize,
+                        concurrentClients,
+                        concurrentBulkRequests
+                    )
                 );
             }
         }
@@ -362,7 +362,10 @@ public class BulkProcessorTests extends ESTestCase {
 
             ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
             IndexRequest indexRequest = new IndexRequest();
-            String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
+            String bulkRequest = """
+                { "index" : { "_index" : "test", "_id" : "1" } }
+                { "field1" : "value1" }
+                """;
             BytesReference bytesReference = BytesReference.fromByteBuffers(
                 new ByteBuffer[] { ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) }
             );
@@ -404,31 +407,28 @@ public class BulkProcessorTests extends ESTestCase {
             if (exceptionRef.get() != null) {
                 logger.error("exception(s) caught during test", exceptionRef.get());
             }
+            String message = """
+
+                Requested Bulks: %d
+                Successful Bulks: %d
+                Failed Bulks: %d
+                Total Documents: %d
+                Max Documents: %d
+                Max Batch Size: %d
+                Concurrent Clients: %d
+                Concurrent Bulk Requests: %d
+                """;
             fail(
-                "\nRequested Bulks: "
-                    + requestCount.get()
-                    + "\n"
-                    + "Successful Bulks: "
-                    + successCount.get()
-                    + "\n"
-                    + "Failed Bulks: "
-                    + failureCount.get()
-                    + "\n"
-                    + "Total Documents: "
-                    + docCount.get()
-                    + "\n"
-                    + "Max Documents: "
-                    + maxDocuments
-                    + "\n"
-                    + "Max Batch Size: "
-                    + maxBatchSize
-                    + "\n"
-                    + "Concurrent Clients: "
-                    + concurrentClients
-                    + "\n"
-                    + "Concurrent Bulk Requests: "
-                    + concurrentBulkRequests
-                    + "\n"
+                message.formatted(
+                    requestCount.get(),
+                    successCount.get(),
+                    failureCount.get(),
+                    docCount.get(),
+                    maxDocuments,
+                    maxBatchSize,
+                    concurrentClients,
+                    concurrentBulkRequests
+                )
             );
         }
     }

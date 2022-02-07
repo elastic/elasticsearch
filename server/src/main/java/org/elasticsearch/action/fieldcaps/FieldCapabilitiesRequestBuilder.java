@@ -9,7 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.Map;

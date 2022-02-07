@@ -552,8 +552,7 @@ public class QueryContainer {
         // resolve it Expression
         Expression expression = aliases.resolve(attr, attr);
 
-        if (expression instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) expression;
+        if (expression instanceof FieldAttribute fa) {
             if (fa.isNested()) {
                 return nestedHitFieldRef(fa);
             } else {

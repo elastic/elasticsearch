@@ -6,13 +6,15 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -58,6 +60,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Performs the watch execution operation.
  */
 public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteWatchRequest, ExecuteWatchResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportExecuteWatchAction.class);
 
     private final ThreadPool threadPool;
     private final ExecutionService executionService;

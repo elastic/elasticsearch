@@ -77,193 +77,193 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         return createRandomBuilder(randomFrom(TargetType.values()));
     }
 
-    public static final String ENSEMBLE_MODEL = ""
-        + "{\n"
-        + "  \"preprocessors\": [\n"
-        + "    {\n"
-        + "      \"one_hot_encoding\": {\n"
-        + "        \"field\": \"col1\",\n"
-        + "        \"hot_map\": {\n"
-        + "          \"male\": \"col1_male\",\n"
-        + "          \"female\": \"col1_female\"\n"
-        + "        }\n"
-        + "      }\n"
-        + "    },\n"
-        + "    {\n"
-        + "      \"target_mean_encoding\": {\n"
-        + "        \"field\": \"col2\",\n"
-        + "        \"feature_name\": \"col2_encoded\",\n"
-        + "        \"target_map\": {\n"
-        + "          \"S\": 5.0,\n"
-        + "          \"M\": 10.0,\n"
-        + "          \"L\": 20\n"
-        + "        },\n"
-        + "        \"default_value\": 5.0\n"
-        + "      }\n"
-        + "    },\n"
-        + "    {\n"
-        + "      \"frequency_encoding\": {\n"
-        + "        \"field\": \"col3\",\n"
-        + "        \"feature_name\": \"col3_encoded\",\n"
-        + "        \"frequency_map\": {\n"
-        + "          \"none\": 0.75,\n"
-        + "          \"true\": 0.10,\n"
-        + "          \"false\": 0.15\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  ],\n"
-        + "  \"trained_model\": {\n"
-        + "    \"ensemble\": {\n"
-        + "      \"feature_names\": [\n"
-        + "        \"col1_male\",\n"
-        + "        \"col1_female\",\n"
-        + "        \"col2_encoded\",\n"
-        + "        \"col3_encoded\",\n"
-        + "        \"col4\"\n"
-        + "      ],\n"
-        + "      \"aggregate_output\": {\n"
-        + "        \"weighted_sum\": {\n"
-        + "          \"weights\": [\n"
-        + "            0.5,\n"
-        + "            0.5\n"
-        + "          ]\n"
-        + "        }\n"
-        + "      },\n"
-        + "      \"target_type\": \"regression\",\n"
-        + "      \"trained_models\": [\n"
-        + "        {\n"
-        + "          \"tree\": {\n"
-        + "            \"feature_names\": [\n"
-        + "              \"col1_male\",\n"
-        + "              \"col1_female\",\n"
-        + "              \"col4\"\n"
-        + "            ],\n"
-        + "            \"tree_structure\": [\n"
-        + "              {\n"
-        + "                \"node_index\": 0,\n"
-        + "                \"split_feature\": 0,\n"
-        + "                \"split_gain\": 12.0,\n"
-        + "                \"threshold\": 10.0,\n"
-        + "                \"decision_type\": \"lte\",\n"
-        + "                \"default_left\": true,\n"
-        + "                \"left_child\": 1,\n"
-        + "                \"right_child\": 2\n"
-        + "              },\n"
-        + "              {\n"
-        + "                \"node_index\": 1,\n"
-        + "                \"leaf_value\": 1\n"
-        + "              },\n"
-        + "              {\n"
-        + "                \"node_index\": 2,\n"
-        + "                \"leaf_value\": 2\n"
-        + "              }\n"
-        + "            ],\n"
-        + "            \"target_type\": \"regression\"\n"
-        + "          }\n"
-        + "        },\n"
-        + "        {\n"
-        + "          \"tree\": {\n"
-        + "            \"feature_names\": [\n"
-        + "              \"col2_encoded\",\n"
-        + "              \"col3_encoded\",\n"
-        + "              \"col4\"\n"
-        + "            ],\n"
-        + "            \"tree_structure\": [\n"
-        + "              {\n"
-        + "                \"node_index\": 0,\n"
-        + "                \"split_feature\": 0,\n"
-        + "                \"split_gain\": 12.0,\n"
-        + "                \"threshold\": 10.0,\n"
-        + "                \"decision_type\": \"lte\",\n"
-        + "                \"default_left\": true,\n"
-        + "                \"left_child\": 1,\n"
-        + "                \"right_child\": 2\n"
-        + "              },\n"
-        + "              {\n"
-        + "                \"node_index\": 1,\n"
-        + "                \"leaf_value\": 1\n"
-        + "              },\n"
-        + "              {\n"
-        + "                \"node_index\": 2,\n"
-        + "                \"leaf_value\": 2\n"
-        + "              }\n"
-        + "            ],\n"
-        + "            \"target_type\": \"regression\"\n"
-        + "          }\n"
-        + "        }\n"
-        + "      ]\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    public static final String ENSEMBLE_MODEL = """
+        {
+          "preprocessors": [
+            {
+              "one_hot_encoding": {
+                "field": "col1",
+                "hot_map": {
+                  "male": "col1_male",
+                  "female": "col1_female"
+                }
+              }
+            },
+            {
+              "target_mean_encoding": {
+                "field": "col2",
+                "feature_name": "col2_encoded",
+                "target_map": {
+                  "S": 5.0,
+                  "M": 10.0,
+                  "L": 20
+                },
+                "default_value": 5.0
+              }
+            },
+            {
+              "frequency_encoding": {
+                "field": "col3",
+                "feature_name": "col3_encoded",
+                "frequency_map": {
+                  "none": 0.75,
+                  "true": 0.10,
+                  "false": 0.15
+                }
+              }
+            }
+          ],
+          "trained_model": {
+            "ensemble": {
+              "feature_names": [
+                "col1_male",
+                "col1_female",
+                "col2_encoded",
+                "col3_encoded",
+                "col4"
+              ],
+              "aggregate_output": {
+                "weighted_sum": {
+                  "weights": [
+                    0.5,
+                    0.5
+                  ]
+                }
+              },
+              "target_type": "regression",
+              "trained_models": [
+                {
+                  "tree": {
+                    "feature_names": [
+                      "col1_male",
+                      "col1_female",
+                      "col4"
+                    ],
+                    "tree_structure": [
+                      {
+                        "node_index": 0,
+                        "split_feature": 0,
+                        "split_gain": 12.0,
+                        "threshold": 10.0,
+                        "decision_type": "lte",
+                        "default_left": true,
+                        "left_child": 1,
+                        "right_child": 2
+                      },
+                      {
+                        "node_index": 1,
+                        "leaf_value": 1
+                      },
+                      {
+                        "node_index": 2,
+                        "leaf_value": 2
+                      }
+                    ],
+                    "target_type": "regression"
+                  }
+                },
+                {
+                  "tree": {
+                    "feature_names": [
+                      "col2_encoded",
+                      "col3_encoded",
+                      "col4"
+                    ],
+                    "tree_structure": [
+                      {
+                        "node_index": 0,
+                        "split_feature": 0,
+                        "split_gain": 12.0,
+                        "threshold": 10.0,
+                        "decision_type": "lte",
+                        "default_left": true,
+                        "left_child": 1,
+                        "right_child": 2
+                      },
+                      {
+                        "node_index": 1,
+                        "leaf_value": 1
+                      },
+                      {
+                        "node_index": 2,
+                        "leaf_value": 2
+                      }
+                    ],
+                    "target_type": "regression"
+                  }
+                }
+              ]
+            }
+          }
+        }""";
 
-    public static final String TREE_MODEL = ""
-        + "{\n"
-        + "  \"preprocessors\": [\n"
-        + "    {\n"
-        + "      \"one_hot_encoding\": {\n"
-        + "        \"field\": \"col1\",\n"
-        + "        \"hot_map\": {\n"
-        + "          \"male\": \"col1_male\",\n"
-        + "          \"female\": \"col1_female\"\n"
-        + "        }\n"
-        + "      }\n"
-        + "    },\n"
-        + "    {\n"
-        + "      \"target_mean_encoding\": {\n"
-        + "        \"field\": \"col2\",\n"
-        + "        \"feature_name\": \"col2_encoded\",\n"
-        + "        \"target_map\": {\n"
-        + "          \"S\": 5.0,\n"
-        + "          \"M\": 10.0,\n"
-        + "          \"L\": 20\n"
-        + "        },\n"
-        + "        \"default_value\": 5.0\n"
-        + "      }\n"
-        + "    },\n"
-        + "    {\n"
-        + "      \"frequency_encoding\": {\n"
-        + "        \"field\": \"col3\",\n"
-        + "        \"feature_name\": \"col3_encoded\",\n"
-        + "        \"frequency_map\": {\n"
-        + "          \"none\": 0.75,\n"
-        + "          \"true\": 0.10,\n"
-        + "          \"false\": 0.15\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  ],\n"
-        + "  \"trained_model\": {\n"
-        + "    \"tree\": {\n"
-        + "      \"feature_names\": [\n"
-        + "        \"col1_male\",\n"
-        + "        \"col1_female\",\n"
-        + "        \"col4\"\n"
-        + "      ],\n"
-        + "      \"tree_structure\": [\n"
-        + "        {\n"
-        + "          \"node_index\": 0,\n"
-        + "          \"split_feature\": 0,\n"
-        + "          \"split_gain\": 12.0,\n"
-        + "          \"threshold\": 10.0,\n"
-        + "          \"decision_type\": \"lte\",\n"
-        + "          \"default_left\": true,\n"
-        + "          \"left_child\": 1,\n"
-        + "          \"right_child\": 2\n"
-        + "        },\n"
-        + "        {\n"
-        + "          \"node_index\": 1,\n"
-        + "          \"leaf_value\": 1\n"
-        + "        },\n"
-        + "        {\n"
-        + "          \"node_index\": 2,\n"
-        + "          \"leaf_value\": 2\n"
-        + "        }\n"
-        + "      ],\n"
-        + "      \"target_type\": \"regression\"\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    public static final String TREE_MODEL = """
+        {
+          "preprocessors": [
+            {
+              "one_hot_encoding": {
+                "field": "col1",
+                "hot_map": {
+                  "male": "col1_male",
+                  "female": "col1_female"
+                }
+              }
+            },
+            {
+              "target_mean_encoding": {
+                "field": "col2",
+                "feature_name": "col2_encoded",
+                "target_map": {
+                  "S": 5.0,
+                  "M": 10.0,
+                  "L": 20
+                },
+                "default_value": 5.0
+              }
+            },
+            {
+              "frequency_encoding": {
+                "field": "col3",
+                "feature_name": "col3_encoded",
+                "frequency_map": {
+                  "none": 0.75,
+                  "true": 0.10,
+                  "false": 0.15
+                }
+              }
+            }
+          ],
+          "trained_model": {
+            "tree": {
+              "feature_names": [
+                "col1_male",
+                "col1_female",
+                "col4"
+              ],
+              "tree_structure": [
+                {
+                  "node_index": 0,
+                  "split_feature": 0,
+                  "split_gain": 12.0,
+                  "threshold": 10.0,
+                  "decision_type": "lte",
+                  "default_left": true,
+                  "left_child": 1,
+                  "right_child": 2
+                },
+                {
+                  "node_index": 1,
+                  "leaf_value": 1
+                },
+                {
+                  "node_index": 2,
+                  "leaf_value": 2
+                }
+              ],
+              "target_type": "regression"
+            }
+          }
+        }""";
 
     public void testEnsembleSchemaDeserialization() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)

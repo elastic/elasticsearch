@@ -33,9 +33,9 @@ public class TokenizationResult {
         return tokenizations;
     }
 
-    public void addTokenization(String input, boolean isTruncated, String[] tokens, int[] tokenIds, int[] tokenMap) {
+    public void addTokenization(String input, boolean isTruncated, List<DelimitedToken> tokens, int[] tokenIds, int[] tokenMap) {
         maxLength = Math.max(maxLength, tokenIds.length);
-        tokenizations.add(new Tokenization(input, isTruncated, tokens, tokenIds, tokenMap));
+        tokenizations.add(new Tokenization(input, tokens, isTruncated, tokenIds, tokenMap));
     }
 
     public void addTokenization(Tokenization tokenization) {
@@ -49,16 +49,15 @@ public class TokenizationResult {
 
     public static class Tokenization {
 
-        private final String inputSeqs;
-        private final String[] tokens;
+        private final String input;
+        private final List<DelimitedToken> tokens;
         private final int[] tokenIds;
         private final int[] tokenMap;
         private final boolean truncated;
 
-        public Tokenization(String input, boolean truncated, String[] tokens, int[] tokenIds, int[] tokenMap) {
-            assert tokens.length == tokenIds.length;
+        public Tokenization(String input, List<DelimitedToken> tokens, boolean truncated, int[] tokenIds, int[] tokenMap) {
             assert tokenIds.length == tokenMap.length;
-            this.inputSeqs = input;
+            this.input = input;
             this.tokens = tokens;
             this.tokenIds = tokenIds;
             this.tokenMap = tokenMap;
@@ -66,16 +65,7 @@ public class TokenizationResult {
         }
 
         /**
-         * The token strings from the tokenization process
-         *
-         * @return A list of tokens
-         */
-        public String[] getTokens() {
-            return tokens;
-        }
-
-        /**
-         * The integer values of the tokens in {@link #getTokens()}
+         * The integer values of the tokens}
          *
          * @return A list of token Ids
          */
@@ -95,7 +85,11 @@ public class TokenizationResult {
         }
 
         public String getInput() {
-            return inputSeqs;
+            return input;
+        }
+
+        public List<DelimitedToken> getTokens() {
+            return tokens;
         }
 
         public boolean isTruncated() {

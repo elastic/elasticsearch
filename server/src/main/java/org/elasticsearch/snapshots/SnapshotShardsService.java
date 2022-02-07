@@ -8,8 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -212,10 +210,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 Map<ShardId, IndexShardSnapshotStatus> startedShards = null;
                 final Snapshot snapshot = entry.snapshot();
                 Map<ShardId, IndexShardSnapshotStatus> snapshotShards = shardSnapshots.getOrDefault(snapshot, emptyMap());
-                for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
+                for (Map.Entry<ShardId, ShardSnapshotStatus> shard : entry.shards().entrySet()) {
                     // Add all new shards to start processing on
-                    final ShardId shardId = shard.key;
-                    final ShardSnapshotStatus shardSnapshotStatus = shard.value;
+                    final ShardId shardId = shard.getKey();
+                    final ShardSnapshotStatus shardSnapshotStatus = shard.getValue();
                     if (shardSnapshotStatus.state() == ShardState.INIT
                         && localNodeId.equals(shardSnapshotStatus.nodeId())
                         && snapshotShards.containsKey(shardId) == false) {
@@ -234,14 +232,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // Abort all running shards for this snapshot
                 final Snapshot snapshot = entry.snapshot();
                 Map<ShardId, IndexShardSnapshotStatus> snapshotShards = shardSnapshots.getOrDefault(snapshot, emptyMap());
-                for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardsByRepoShardId()) {
-                    final ShardId sid = entry.shardId(shard.key);
+                for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardsByRepoShardId().entrySet()) {
+                    final ShardId sid = entry.shardId(shard.getKey());
                     final IndexShardSnapshotStatus snapshotStatus = snapshotShards.get(sid);
                     if (snapshotStatus == null) {
                         // due to CS batching we might have missed the INIT state and straight went into ABORTED
                         // notify master that abort has completed by moving to FAILED
-                        if (shard.value.state() == ShardState.ABORTED && localNodeId.equals(shard.value.nodeId())) {
-                            notifyFailedSnapshotShard(snapshot, sid, shard.value.reason(), shard.value.generation());
+                        if (shard.getValue().state() == ShardState.ABORTED && localNodeId.equals(shard.getValue().nodeId())) {
+                            notifyFailedSnapshotShard(snapshot, sid, shard.getValue().reason(), shard.getValue().generation());
                         }
                     } else {
                         snapshotStatus.abortIfNotCompleted("snapshot has been aborted");

@@ -133,7 +133,9 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         final String kerberosTicket = callbackHandler.getBase64EncodedTokenForSpnegoHeader(host);
 
         final Request request = new Request("POST", "/_security/oauth2/token");
-        String json = "{" + "  \"grant_type\" : \"_kerberos\", " + "  \"kerberos_ticket\" : \"" + kerberosTicket + "\"" + "}";
+        String json = """
+            { "grant_type" : "_kerberos", "kerberos_ticket" : "%s"}
+            """.formatted(kerberosTicket);
         request.setJsonEntity(json);
 
         try (RestClient client = buildClientForUser("test_kibana_user")) {

@@ -285,7 +285,7 @@ public class QueryStringQueryParser extends QueryParser {
         } else {
             extractedFields = fieldsAndWeights;
         }
-        checkForTooManyFields(extractedFields.size(), this.context, field);
+        checkForTooManyFields(extractedFields.size(), field);
         return extractedFields;
     }
 

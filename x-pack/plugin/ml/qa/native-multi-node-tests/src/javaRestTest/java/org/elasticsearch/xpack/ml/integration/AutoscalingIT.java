@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.junit.After;
 import org.junit.Before;
 
@@ -278,7 +279,10 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         ).actionGet();
         client().execute(
             PutTrainedModelVocabularyAction.INSTANCE,
-            new PutTrainedModelVocabularyAction.Request(modelId, List.of("these", "are", "my", "words"))
+            new PutTrainedModelVocabularyAction.Request(
+                modelId,
+                List.of("these", "are", "my", "words", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN)
+            )
         ).actionGet();
         client().execute(
             StartTrainedModelDeploymentAction.INSTANCE,

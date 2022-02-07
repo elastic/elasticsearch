@@ -101,8 +101,8 @@ public class QueryContainer {
         return new QueryContainer(q, fields, attributes, sort, trackHits, includeFrozen, limit);
     }
 
-    public QueryContainer with(Limit limitValue) {
-        return new QueryContainer(query, fields, attributes, sort, trackHits, includeFrozen, limitValue);
+    public QueryContainer with(Limit limit) {
+        return new QueryContainer(query, fields, attributes, sort, trackHits, includeFrozen, limit);
     }
 
     public QueryContainer addColumn(Attribute attr) {
@@ -115,8 +115,7 @@ public class QueryContainer {
         // resolve it Expression
         Expression expression = attributes.getOrDefault(attr, attr);
 
-        if (expression instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) expression;
+        if (expression instanceof FieldAttribute fa) {
             if (fa.isNested()) {
                 throw new UnsupportedOperationException("Nested not yet supported");
             }

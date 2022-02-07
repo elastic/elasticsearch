@@ -36,9 +36,11 @@ include::migrate_8_0/logging-changes.asciidoc[]
 include::migrate_8_0/mapping-changes.asciidoc[]
 include::migrate_8_0/packaging-changes.asciidoc[]
 include::migrate_8_0/painless-changes.asciidoc[]
+include::migrate_8_0/plugin-changes.asciidoc[]
 include::migrate_8_0/rest-api-changes.asciidoc[]
 include::migrate_8_0/system-req-changes.asciidoc[]
 include::migrate_8_0/transform.asciidoc[]
+include::migrate_8_0/sql-jdbc-changes.asciidoc[]
 
 [discrete]
 [[deprecated-8.0]]
@@ -93,7 +95,7 @@ The `elasticsearch-setup-passwords` tool is deprecated in 8.0. To
 manually reset the password for built-in users (including the `elastic` user), use
 the {ref}/reset-password.html[`elasticsearch-reset-password`] tool, the {es}
 {ref}/security-api-change-password.html[change passwords API], or the
-User Management features in {kib}. 
+User Management features in {kib}.
 `elasticsearch-setup-passwords` will be removed in a future release.
 
 *Impact* +
@@ -102,6 +104,34 @@ starting {es}, it will fail because the `elastic`
 user password is already configured.
 ====
 //end::notable-breaking-changes[]
+
+
+[[deprecate-max-merge-at-once-explicit-setting]]
+.The setting `max_merge_at_once_explicit` is deprecated.
+[%collapsible]
+====
+*Details* +
+The setting `max_merge_at_once_explicit` is removed in Lucene 9.
+
+
+*Impact* +
+Remove the setting `max_merge_at_once_explicit` from your
+configuration.
+====
+
+[[deprecate-indices-query-bool-max-clause-count-setting]]
+.The setting `indices.query.bool.max_clause_count` is deprecated.
+[%collapsible]
+====
+*Details* +
+The setting `indices.query.bool.max_clause_count` is deprecated. Instead,
+{es} configures the maximum clause count for Lucene based on the available
+heap and the size of the thread pool.
+
+*Impact* +
+Remove the setting `indices.query.bool.max_clause_count` from
+your configuration.
+====
 
 include::migrate_8_0/migrate_to_java_time.asciidoc[]
 include::transient-settings-migration-guide.asciidoc[]

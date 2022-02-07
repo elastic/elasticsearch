@@ -13,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -59,9 +59,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
+    /**
+     * list of browser safelisted media types - not allowed on Content-Type header
+     * https://fetch.spec.whatwg.org/#cors-safelisted-request-header
+     */
+    static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
+
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
-    private static final String ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -335,15 +340,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
-            final XContentType xContentType = request.getXContentType();
-            if (xContentType == null) {
+            if (isContentTypeDisallowed(request) || handler.mediaTypesValid(request) == false) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
+            final XContentType xContentType = request.getXContentType();
             // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
             if (handler.supportsContentStream()
-                && xContentType.canonical() != XContentType.JSON
-                && xContentType.canonical() != XContentType.SMILE) {
+                && XContentType.JSON != xContentType.canonical()
+                && XContentType.SMILE != xContentType.canonical()) {
                 channel.sendResponse(
                     BytesRestResponse.createSimpleErrorResponse(
                         channel,
@@ -372,7 +377,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
                 // therefore we should allow a subset of external system index access.
                 // This header is intended for internal use only.
-                final String prodOriginValue = request.header(ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+                final String prodOriginValue = request.header(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
                 if (prodOriginValue != null) {
                     threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
                     threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, prodOriginValue);
@@ -387,6 +392,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
         } catch (Exception e) {
             responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
         }
+    }
+
+    /**
+     * in order to prevent CSRF we have to reject all media types that are from a browser safelist
+     * see https://fetch.spec.whatwg.org/#cors-safelisted-request-header
+     * see https://www.elastic.co/blog/strict-content-type-checking-for-elasticsearch-rest-requests
+     * @param request
+     */
+    private boolean isContentTypeDisallowed(RestRequest request) {
+        return request.getParsedContentType() != null
+            && SAFELISTED_MEDIA_TYPES.contains(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
     private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
@@ -479,7 +495,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
                 if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
-                } else if (name.equals(Task.TRACE_PARENT)) {
+                } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
                     String traceparent = distinctHeaderValues.get(0);
                     if (traceparent.length() >= 55) {
                         threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));

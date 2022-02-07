@@ -45,8 +45,8 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
-    private volatile TimeValue pollInterval;
-    private volatile Scheduler.Cancellable job;
+    volatile TimeValue pollInterval;
+    volatile Scheduler.Cancellable job;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     UpdateTimeSeriesRangeService(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
@@ -92,6 +92,12 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             newValue
         );
         this.pollInterval = newValue;
+
+        // Only re-schedule if we've been scheduled, this should only be the case on elected master node.
+        if (job != null) {
+            unschedule();
+            scheduleTask();
+        }
     }
 
     ClusterState updateTimeSeriesTemporalRange(ClusterState current, Instant now) {

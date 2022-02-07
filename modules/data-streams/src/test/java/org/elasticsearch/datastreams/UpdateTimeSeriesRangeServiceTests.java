@@ -18,6 +18,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 
 import java.time.Duration;
@@ -27,14 +30,18 @@ import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
 
+    private ThreadPool threadPool;
     private UpdateTimeSeriesRangeService instance;
 
     @Before
@@ -42,7 +49,14 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         ClusterService mockClusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL));
         when(mockClusterService.getClusterSettings()).thenReturn(clusterSettings);
-        instance = new UpdateTimeSeriesRangeService(Settings.EMPTY, null, mockClusterService);
+        threadPool = new TestThreadPool(getTestName());
+        instance = new UpdateTimeSeriesRangeService(Settings.EMPTY, threadPool, mockClusterService);
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        instance.doClose();
+        terminate(threadPool);
     }
 
     public void testUpdateTimeSeriesTemporalRange() {
@@ -177,6 +191,23 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         assertThat(getEndTime(result, dataStreamName1, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
         assertThat(getEndTime(result, dataStreamName2, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
         assertThat(getEndTime(result, dataStreamName3, 0), equalTo(start));
+    }
+
+    public void testUpdatePollInterval() {
+        instance.scheduleTask();
+        assertThat(instance.pollInterval, equalTo(TimeValue.timeValueMinutes(5)));
+        assertThat(instance.job.toString(), containsString("5m"));
+        instance.setPollInterval(TimeValue.timeValueMinutes(1));
+        assertThat(instance.pollInterval, equalTo(TimeValue.timeValueMinutes(1)));
+        assertThat(instance.job.toString(), containsString("1m"));
+    }
+
+    public void testUpdatePollIntervalUnscheduled() {
+        assertThat(instance.pollInterval, equalTo(TimeValue.timeValueMinutes(5)));
+        assertThat(instance.job, nullValue());
+        instance.setPollInterval(TimeValue.timeValueMinutes(1));
+        assertThat(instance.pollInterval, equalTo(TimeValue.timeValueMinutes(1)));
+        assertThat(instance.job, nullValue());
     }
 
     static Instant getEndTime(ClusterState state, String dataStreamName, int index) {

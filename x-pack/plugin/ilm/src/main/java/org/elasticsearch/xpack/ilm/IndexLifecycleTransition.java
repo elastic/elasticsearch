@@ -77,10 +77,10 @@ public final class IndexLifecycleTransition {
     ) {
         String indexName = idxMeta.getIndex().getName();
         Settings indexSettings = idxMeta.getSettings();
-        String indexPolicySetting = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
+        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
 
         // policy could be updated in-between execution
-        if (Strings.isNullOrEmpty(indexPolicySetting)) {
+        if (Strings.isNullOrEmpty(policyName)) {
             throw new IllegalArgumentException("index [" + indexName + "] is not associated with an Index Lifecycle Policy");
         }
 
@@ -100,15 +100,9 @@ public final class IndexLifecycleTransition {
 
         // Always allow moving to the terminal step or to a step that's present in the cached phase, even if it doesn't exist in the policy
         if (isNewStepCached == false
-            && (stepRegistry.stepExists(indexPolicySetting, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false)) {
+            && (stepRegistry.stepExists(policyName, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false)) {
             throw new IllegalArgumentException(
-                "step ["
-                    + newStepKey
-                    + "] for index ["
-                    + idxMeta.getIndex().getName()
-                    + "] with policy ["
-                    + indexPolicySetting
-                    + "] does not exist"
+                "step [" + newStepKey + "] for index [" + idxMeta.getIndex().getName() + "] with policy [" + policyName + "] does not exist"
             );
         }
     }
@@ -138,8 +132,8 @@ public final class IndexLifecycleTransition {
         validateTransition(idxMeta, currentStepKey, newStepKey, stepRegistry);
 
         Settings indexSettings = idxMeta.getSettings();
-        String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
-        logger.info("moving index [{}] from [{}] to [{}] in policy [{}]", index.getName(), currentStepKey, newStepKey, policy);
+        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
+        logger.info("moving index [{}] from [{}] to [{}] in policy [{}]", index.getName(), currentStepKey, newStepKey, policyName);
 
         IndexLifecycleMetadata ilmMeta = state.metadata().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()

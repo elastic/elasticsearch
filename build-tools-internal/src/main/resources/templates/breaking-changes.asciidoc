@@ -23,13 +23,6 @@ and prevent them from operating normally.
 Before upgrading to ${majorDotMinor} review these changes and take the described steps
 to mitigate the impact.
 
-NOTE: Breaking changes introduced in minor versions are
-normally limited to security and bug fixes.
-Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
-To find out if you are using any deprecated functionality,
-enable <<deprecation-logging, deprecation logging>>.
-
 <%
   for (include in breakingIncludeList) {
       print "include::migrate_${version.major}_${version.minor}/${include}.asciidoc[]\n";
@@ -49,8 +42,6 @@ While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code
 after upgrading to ${majorDotMinor}.
 
-NOTE: Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>."
 

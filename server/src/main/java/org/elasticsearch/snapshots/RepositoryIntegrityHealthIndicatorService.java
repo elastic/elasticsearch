@@ -35,7 +35,7 @@ import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
  */
 public class RepositoryIntegrityHealthIndicatorService implements HealthIndicatorService {
 
-    public static final String NAME = "repository integrity";
+    public static final String NAME = "repository_integrity";
 
     private final ClusterService clusterService;
 
@@ -74,7 +74,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             return createIndicator(
                 GREEN,
                 "No corrupted repositories",
-                new SimpleHealthIndicatorDetails(Map.of("total-repositories", totalRepositories))
+                new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories))
             );
         }
 
@@ -83,9 +83,9 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             createCorruptedRepositorySummary(corrupted),
             new SimpleHealthIndicatorDetails(
                 Map.of(
-                    "total-repositories",
+                    "total_repositories",
                     totalRepositories,
-                    "corrupted-repositories",
+                    "corrupted_repositories",
                     corruptedRepositories,
                     "corrupted",
                     corrupted.stream().limit(10).toList()

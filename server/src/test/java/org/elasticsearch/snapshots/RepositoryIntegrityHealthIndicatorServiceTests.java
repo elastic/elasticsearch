@@ -49,7 +49,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     GREEN,
                     "No corrupted repositories",
-                    new SimpleHealthIndicatorDetails(Map.of("total-repositories", repos.size()))
+                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size()))
                 )
             )
         );
@@ -72,7 +72,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     RED,
                     "Detected [1] corrupted repositories [corrupted-repo]",
                     new SimpleHealthIndicatorDetails(
-                        Map.of("total-repositories", repos.size(), "corrupted-repositories", 1, "corrupted", List.of("corrupted-repo"))
+                        Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
                     )
                 )
             )

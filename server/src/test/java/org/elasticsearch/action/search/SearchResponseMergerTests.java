@@ -20,11 +20,14 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -451,15 +454,18 @@ public class SearchResponseMergerTests extends ESTestCase {
     }
 
     public void testMergeAggs() throws InterruptedException {
+        String maxAggName = randomAlphaOfLengthBetween(5, 8);
+        String rangeAggName = randomAlphaOfLengthBetween(5, 8);
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
             0,
             0,
             0,
             new SearchTimeProvider(0, 0, () -> 0),
-            emptyReduceContextBuilder()
+            emptyReduceContextBuilder(
+                new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
+                    .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
+            )
         );
-        String maxAggName = randomAlphaOfLengthBetween(5, 8);
-        String rangeAggName = randomAlphaOfLengthBetween(5, 8);
         int totalCount = 0;
         double maxValue = Double.MIN_VALUE;
         for (int i = 0; i < numResponses; i++) {
@@ -472,8 +478,6 @@ public class SearchResponseMergerTests extends ESTestCase {
             InternalDateRange.Bucket bucket = factory.createBucket(
                 "bucket",
                 0D,
-                0D,
-                10000D,
                 10000D,
                 count,
                 InternalAggregations.EMPTY,

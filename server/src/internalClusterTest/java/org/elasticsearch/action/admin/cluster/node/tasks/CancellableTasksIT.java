@@ -63,7 +63,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
@@ -159,7 +158,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         if (randomBoolean()) {
             internalCluster().startNodes(randomIntBetween(1, 3));
         }
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 4));
         ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         Set<TestRequest> pendingRequests = allowPartialRequest(rootRequest);
@@ -212,7 +211,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
     }
 
     public void testCancelTaskMultipleTimes() throws Exception {
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         TestRequest rootRequest = generateTestRequest(nodes, 0, randomIntBetween(1, 3));
         ActionFuture<TestResponse> mainTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         TaskId taskId = getRootTaskId(rootRequest);
@@ -244,7 +243,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
     }
 
     public void testDoNotWaitForCompletion() throws Exception {
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
         ActionFuture<TestResponse> mainTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         TaskId taskId = getRootTaskId(rootRequest);
@@ -270,7 +269,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
     }
 
     public void testFailedToStartChildTaskAfterCancelled() throws Exception {
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
         ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         TaskId taskId = getRootTaskId(rootRequest);
@@ -290,7 +289,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
     public void testCancelOrphanedTasks() throws Exception {
         final String nodeWithRootTask = internalCluster().startDataOnlyNode();
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
         client(nodeWithRootTask).execute(TransportTestAction.ACTION, rootRequest);
         allowPartialRequest(rootRequest);
@@ -315,7 +314,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
     }
 
     public void testRemoveBanParentsOnDisconnect() throws Exception {
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
         final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 4));
         client().execute(TransportTestAction.ACTION, rootRequest);
         Set<TestRequest> pendingRequests = allowPartialRequest(rootRequest);

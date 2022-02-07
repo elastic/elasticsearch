@@ -115,7 +115,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("buckets_path must reference a cardinality aggregation, " + "got: [InternalSum] at aggregation [the_sum]")
+            equalTo("buckets_path must reference a cardinality aggregation, " + "got: [Sum] at aggregation [the_sum]")
         );
     }
 

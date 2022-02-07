@@ -765,6 +765,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return tierPreference;
     }
 
+    /**
+     * Return the name of the Index Lifecycle Policy associated with this index, or null if it is not managed by ILM.
+     */
+    @Nullable
     public String getLifecyclePolicyName() {
         return lifecyclePolicyName;
     }
@@ -1656,7 +1660,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
                 tierPreference,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings),
-                settings.get(IndexMetadata.LIFECYCLE_NAME),
+                settings.get(IndexMetadata.LIFECYCLE_NAME), // n.b. lookup by name to get null-if-not-present semantics
                 lifecycleExecutionState,
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,

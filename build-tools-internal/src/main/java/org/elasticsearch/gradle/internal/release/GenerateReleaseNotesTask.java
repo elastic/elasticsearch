@@ -14,8 +14,6 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
-import org.gradle.api.file.Directory;
-import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
@@ -24,7 +22,6 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
@@ -37,13 +34,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import javax.inject.Inject;
 
 import static java.util.Comparator.naturalOrder;
-import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
 /**
@@ -58,13 +55,11 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseNotesTemplate;
     private final RegularFileProperty releaseHighlightsTemplate;
     private final RegularFileProperty breakingChangesTemplate;
-    private final RegularFileProperty breakingChangesAreaTemplate;
 
     private final RegularFileProperty releaseNotesIndexFile;
     private final RegularFileProperty releaseNotesFile;
     private final RegularFileProperty releaseHighlightsFile;
-    private final RegularFileProperty breakingChangesIndexFile;
-    private final DirectoryProperty breakingChangesDirectory;
+    private final RegularFileProperty breakingChangesMigrationFile;
 
     private final GitWrapper gitWrapper;
 
@@ -76,13 +71,11 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         releaseNotesTemplate = objectFactory.fileProperty();
         releaseHighlightsTemplate = objectFactory.fileProperty();
         breakingChangesTemplate = objectFactory.fileProperty();
-        breakingChangesAreaTemplate = objectFactory.fileProperty();
 
         releaseNotesIndexFile = objectFactory.fileProperty();
         releaseNotesFile = objectFactory.fileProperty();
         releaseHighlightsFile = objectFactory.fileProperty();
-        breakingChangesIndexFile = objectFactory.fileProperty();
-        breakingChangesDirectory = objectFactory.directoryProperty();
+        breakingChangesMigrationFile = objectFactory.fileProperty();
 
         gitWrapper = new GitWrapper(execOperations);
     }
@@ -136,15 +129,13 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         LOGGER.info("Generating breaking changes / deprecations notes...");
         BreakingChangesGenerator.update(
             this.breakingChangesTemplate.get().getAsFile(),
-            this.breakingChangesIndexFile.get().getAsFile(),
-            this.breakingChangesDirectory.get().getAsFile(),
-            this.breakingChangesAreaTemplate.get().getAsFile(),
+            this.breakingChangesMigrationFile.get().getAsFile(),
             entries
         );
     }
 
     /**
-     * Find all tags in the `major.minor` series for the supplied version
+     * Find all tags in the major series for the supplied version
      * @param gitWrapper used to call `git`
      * @param currentVersion the version to base the query upon
      * @return all versions in the series
@@ -152,7 +143,8 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     @VisibleForTesting
     static Set<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
         QualifiedVersion v = QualifiedVersion.of(currentVersion);
-        Set<QualifiedVersion> versions = gitWrapper.listVersions("v" + v.major() + '.' + v.minor() + ".*").collect(toSet());
+        final String pattern = "v" + v.major() + ".*";
+        Set<QualifiedVersion> versions = gitWrapper.listVersions(pattern).collect(toSet());
         versions.add(v);
         return versions;
     }
@@ -183,13 +175,13 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         QualifiedVersion currentVersion = QualifiedVersion.of(versionString);
 
         // Find all tags for this minor series, using a wildcard tag pattern.
-        String tagWildcard = "v%d.%d*".formatted(currentVersion.major(), currentVersion.minor());
+        String tagWildcard = String.format(Locale.ROOT, "v%d.%d*", currentVersion.major(), currentVersion.minor());
 
         final List<QualifiedVersion> earlierVersions = gitWrapper.listVersions(tagWildcard)
             // Only keep earlier versions, and if `currentVersion` is a prerelease, then only prereleases too.
             .filter(each -> each.isBefore(currentVersion) && (currentVersion.hasQualifier() == each.hasQualifier()))
             .sorted(naturalOrder())
-            .collect(toList());
+            .toList();
 
         if (earlierVersions.isEmpty()) {
             throw new GradleException("Failed to find git tags prior to [v" + currentVersion + "]");
@@ -348,29 +340,11 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     }
 
     @OutputFile
-    public RegularFileProperty getBreakingChangesIndexFile() {
-        return breakingChangesIndexFile;
+    public RegularFileProperty getBreakingChangesMigrationFile() {
+        return breakingChangesMigrationFile;
     }
 
-    public void setBreakingChangesIndexFile(RegularFile file) {
-        this.breakingChangesIndexFile.set(file);
-    }
-
-    public void setBreakingChangesDirectory(Directory breakingChangesDirectory) {
-        this.breakingChangesDirectory.set(breakingChangesDirectory);
-    }
-
-    @OutputDirectory
-    public DirectoryProperty getBreakingChangesDirectory() {
-        return breakingChangesDirectory;
-    }
-
-    @InputFile
-    public RegularFileProperty getBreakingChangesAreaTemplate() {
-        return breakingChangesAreaTemplate;
-    }
-
-    public void setBreakingChangesAreaTemplate(RegularFile file) {
-        this.breakingChangesAreaTemplate.set(file);
+    public void setBreakingChangesMigrationFile(RegularFile file) {
+        this.breakingChangesMigrationFile.set(file);
     }
 }

@@ -79,8 +79,6 @@ subprojects {
           //there is something wrong when using dotted document syntax here, passes in main yaml tests
           'search/330_fetch_fields/Test nested field inside object structure',
 
-          // AwaitsFix: https://github.com/elastic/elasticsearch/issues/83431
-          'search.aggregation/450_time_series/Basic test',
           /////// TO FIX ///////
 
           /////// NOT SUPPORTED ///////
@@ -101,7 +99,6 @@ subprojects {
           'search/330_fetch_fields/error includes glob pattern',
           // we need a @timestamp field to be defined in index mapping
           'search/380_sort_segments_on_timestamp/*',
-          'field_caps/40_time_series/*',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

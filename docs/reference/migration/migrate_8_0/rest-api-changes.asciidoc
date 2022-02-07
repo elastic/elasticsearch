@@ -20,9 +20,10 @@ Use the replacement REST API endpoints. Requests submitted to the `_xpack`
 API endpoints will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
-any requests that include the`_xpack` prefix are rerouted to the corresponding
-URL without the `_xpack` prefix.
+When {ref}/rest-api-compatibility.html[rest-api-compatibility] is
+{ref}/rest-api-compatibility.html[requested], any requests that include
+the`_xpack` prefix are rerouted to the corresponding URL without the `_xpack`
+prefix.
 ====
 
 [[remove-mapping-type-api-endpoints]]
@@ -168,9 +169,12 @@ Update your application to use typeless REST API endpoints. Requests to
 endpoints that contain a mapping type will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>, if a request includes a custom mapping type it is ignored. The request is rerouted to the corresponding typeless URL.
-Custom mapping types in request bodies and type related HTTP
-parameters are ignored, and responses, where warranted, include `_type` : `_doc`.
+When {ref}/rest-api-compatibility.html[rest-api-compatibility] is
+{ref}/rest-api-compatibility.html[requested], if a request includes a custom
+mapping type it is ignored. The request is rerouted to the corresponding
+typeless URL. Custom mapping types in request bodies and type related HTTP
+parameters are ignored, and responses, where warranted, include `_type` :
+`_doc`.
 
 ====
 
@@ -227,8 +231,9 @@ Discontinue use of the `_term` order key. Requests that include a `_term` order
 key will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
-the `_term` order is ignored and `key` is used instead.
+When {ref}/rest-api-compatibility.html[rest-api-compatibility] is
+{ref}/rest-api-compatibility.html[requested], the `_term` order is ignored and
+`key` is used instead.
 ====
 
 [[remove-time-order-key]]
@@ -244,8 +249,9 @@ Discontinue use of the `_time` order key. Requests that include a `_time` order
 key will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
-the `_time` order is ignored and `_key` is used instead.
+When {ref}/rest-api-compatibility.html[rest-api-compatibility] is
+{ref}/rest-api-compatibility.html[requested], the `_time` order is ignored and
+`_key` is used instead.
 ====
 
 [[remove-moving-avg-agg]]
@@ -300,8 +306,9 @@ please use the more specific `fixed_interval` or `calendar_interval`
 parameters.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
-the `interval` parameter is adapted to either a fixed or calendar interval.
+When {ref}/rest-api-compatibility.html[rest-api-compatibility] is
+{ref}/rest-api-compatibility.html[requested], the `interval` parameter is
+adapted to either a fixed or calendar interval.
 ====
 
 [[ngram-edgengram-filter-names-removed]]
@@ -464,9 +471,9 @@ Use the {ref}/indices-templates-v1.html[create or update index template API]'s
 return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
-the `template` parameter is mapped to `index_patterns`.
-
+When {ref}/rest-api-compatibility.html[rest-api-compatibility] is
+{ref}/rest-api-compatibility.html[requested], the `template` parameter is mapped
+to `index_patterns`.
 ====
 
 .Synced flush has been removed.
@@ -481,8 +488,9 @@ Use the {ref}/indices-flush.html[flush API]. Requests to the
 `/<index>/flush/synced` or `/flush/synced` endpoints will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
-the request to synced flush is routed to the equivalent non-synced flush URL.
+When {ref}/rest-api-compatibility.html[rest-api-compatibility] is
+{ref}/rest-api-compatibility.html[requested], the request to synced flush is
+routed to the equivalent non-synced flush URL.
 ====
 
 .The default for the `?wait_for_active_shards` parameter on the close index API has changed.
@@ -514,8 +522,9 @@ Discontinue use of the `types` query parameter. Requests that include the
 parameter will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
-the `types` query parameter is ignored and stats are returned for the entire index.
+When {ref}/rest-api-compatibility.html[rest-api-compatibility] is
+{ref}/rest-api-compatibility.html[requested], the `types` query parameter is
+ignored and stats are returned for the entire index.
 ====
 
 .The `user_agent` ingest processor's `ecs` parameter has no effect.
@@ -545,9 +554,9 @@ Discontinue use of the `include_type_name` query parameter. Requests that
 include the parameter will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
-the `include_type_name` query parameter is ignored and any custom mapping types
-in the request are removed.
+When {ref}/rest-api-compatibility.html[rest-api-compatibility] is
+{ref}/rest-api-compatibility.html[requested], the `include_type_name` query
+parameter is ignored and any custom mapping types in the request are removed.
 ====
 
 .Reindex from remote now re-encodes URL-encoded index names.
@@ -583,9 +592,9 @@ Use the replacement parameters. Requests containing the `size` parameter will
 return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
-the `size` parameter is mapped to the `max_docs` parameter.
-
+When {ref}/rest-api-compatibility.html[rest-api-compatibility] is
+{ref}/rest-api-compatibility.html[requested], the `size` parameter is mapped to
+the `max_docs` parameter.
 ====
 
 .The update by query API now rejects unsupported `script` fields.
@@ -926,9 +935,9 @@ Discontinue use of the `use_field_mapping` request body parameter. Requests
 containing this parameter will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
-the `use_field_mapping` parameter is ignored.
-
+When {ref}/rest-api-compatibility.html[rest-api-compatibility] is
+{ref}/rest-api-compatibility.html[requested], the `use_field_mapping` parameter
+is ignored.
 ====
 
 .The search API's `from` request body and url parameter cannot be negative.

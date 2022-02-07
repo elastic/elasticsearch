@@ -172,6 +172,12 @@ public class ElectionSchedulerFactory {
             final long maxDelayMillis = Math.min(maxTimeout.millis(), initialTimeout.millis() + thisAttempt * backoffTime.millis());
             final long delayMillis = toPositiveLongAtMost(random.nextLong(), maxDelayMillis) + gracePeriod.millis();
             final Runnable runnable = new AbstractRunnable() {
+
+                @Override
+                public void onRejection(Exception e) {
+                    logger.debug("threadpool was shut down", e);
+                }
+
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug(new ParameterizedMessage("unexpected exception in wakeup of {}", this), e);

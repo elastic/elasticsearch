@@ -220,7 +220,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
         );
         builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1, false));
-        builders.put(Names.COORDINATION, new ScalingExecutorBuilder(Names.COORDINATION, 1, 1, TimeValue.timeValueSeconds(30), false));
+        builders.put(Names.COORDINATION, new FixedExecutorBuilder(settings, Names.COORDINATION, 1, -1, false));
         builders.put(
             Names.FETCH_SHARD_STORE,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)

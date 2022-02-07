@@ -48,7 +48,6 @@ public class HealthServiceTests extends ESTestCase {
                 )
             )
         );
-
     }
 
     private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result) {

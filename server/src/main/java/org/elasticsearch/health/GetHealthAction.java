@@ -104,11 +104,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         public String toString() {
-            return "Response{" +
-                "clusterName=" + clusterName +
-                ", status=" + status +
-                ", components=" + components +
-                '}';
+            return "Response{clusterName=" + clusterName + ", status=" + status + ", components=" + components + '}';
         }
     }
 

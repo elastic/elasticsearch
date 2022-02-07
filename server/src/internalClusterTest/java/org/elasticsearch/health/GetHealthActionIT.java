@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.HealthIndicatorPlugin;
@@ -114,42 +113,32 @@ public class GetHealthActionIT extends ESIntegTestCase {
         var client = client();
         var status = randomFrom(HealthStatus.values());
 
-        try {
-            client.admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(TEST_HEALTH_STATUS.getKey(), status))
-                .execute()
-                .actionGet();
-
+        try (var ignored = setTestSetting(TEST_HEALTH_STATUS, (builder, setting) -> builder.put(setting.getKey(), status))) {
             var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
 
-            GetHealthAction.Response expected = new GetHealthAction.Response(
-                new ClusterName(cluster().getClusterName()),
-                List.of(
-                    new HealthComponentResult(
-                        "test_component",
-                        status,
+            assertThat(
+                response,
+                equalTo(
+                    new GetHealthAction.Response(
+                        new ClusterName(cluster().getClusterName()),
                         List.of(
-                            new HealthIndicatorResult(
-                                "test_indicator",
+                            new HealthComponentResult(
                                 "test_component",
                                 status,
-                                "Health is set to [" + status + "] by test plugin",
-                                HealthIndicatorDetails.EMPTY
+                                List.of(
+                                    new HealthIndicatorResult(
+                                        "test_indicator",
+                                        "test_component",
+                                        status,
+                                        "Health is set to [" + status + "] by test plugin",
+                                        HealthIndicatorDetails.EMPTY
+                                    )
+                                )
                             )
                         )
                     )
                 )
             );
-            assertThat(response, equalTo(expected));
-        } finally {
-            client.admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(TEST_HEALTH_STATUS.getKey()))
-                .execute()
-                .actionGet();
         }
     }
 }

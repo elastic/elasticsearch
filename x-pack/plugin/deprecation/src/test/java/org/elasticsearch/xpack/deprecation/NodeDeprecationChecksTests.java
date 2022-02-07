@@ -2233,7 +2233,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         Collection<Setting<?>> deprecatedSettings = Set.of(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING);
-        String metaString = "{\"actions\":{\"remove_settings\":{\"settings\":[\"discovery.zen.minimum_master_nodes\"]}}}";
+        String metaString = "{\"actions\": [{\"action_type\": \"remove_settings\", \"objects\":[\"discovery.zen.minimum_master_nodes\"]}]}";
         Map<String, Object> meta = new ObjectMapper().readValue(metaString, Map.class);
         for (Setting<?> deprecatedSetting : deprecatedSettings) {
             final DeprecationIssue expected = new DeprecationIssue(

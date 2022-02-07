@@ -32,7 +32,6 @@ public class MapXContentParser extends AbstractXContentParser {
     private TokenIterator iterator;
     private boolean closed;
 
-    // TODO who uses this?
     public static XContentParser wrapObject(Object sourceMap) throws IOException {
         XContentParser parser = new MapXContentParser(
             NamedXContentRegistry.EMPTY,

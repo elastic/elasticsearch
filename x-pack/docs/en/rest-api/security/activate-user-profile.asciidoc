@@ -10,7 +10,6 @@ beta::[]
 
 Creates or updates the user profile on behalf of another user
 
-
 [[security-api-activate-user-profile-request]]
 ==== {api-request-title}
 
@@ -120,4 +119,3 @@ control numbers.
 // TESTRESPONSE[s/1642650651037/$body.last_synchronized/]
 // TESTRESPONSE[s/88/$body._doc._primary_term/]
 // TESTRESPONSE[s/66/$body._doc._seq_no/]
-

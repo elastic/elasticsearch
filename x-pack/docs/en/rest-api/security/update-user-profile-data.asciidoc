@@ -10,7 +10,6 @@ beta::[]
 
 Update application specific data for the user profile of the given unique ID.
 
-
 [[security-api-update-user-profile-data-request]]
 ==== {api-request-title}
 

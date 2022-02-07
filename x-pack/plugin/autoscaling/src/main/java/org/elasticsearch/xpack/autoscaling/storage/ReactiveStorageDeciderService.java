@@ -344,7 +344,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 return false;
             }
             IndexMetadata indexMetadata = indexMetadata(shard, allocation);
-            Set<Decision.Type> decisionTypes = StreamSupport.stream(allocation.routingNodes().spliterator(), false)
+            Set<Decision.Type> decisionTypes = allocation.routingNodes()
+                .stream()
                 .map(
                     node -> dataTierAllocationDecider.shouldFilter(
                         indexMetadata,
@@ -369,7 +370,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             allocation.debugDecision(true);
             try {
                 // check that it does not belong on any existing node, i.e., there must be only a tier like reason it cannot be allocated
-                return StreamSupport.stream(allocation.routingNodes().spliterator(), false)
+                return allocation.routingNodes()
+                    .stream()
                     .anyMatch(node -> isFilterTierOnlyDecision(allocationDeciders.canAllocate(shard, node, allocation), indexMetadata));
             } finally {
                 allocation.debugDecision(false);

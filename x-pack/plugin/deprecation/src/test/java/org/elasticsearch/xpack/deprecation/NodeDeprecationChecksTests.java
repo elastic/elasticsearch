@@ -2224,7 +2224,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testDynamicSettings() throws JsonProcessingException {
         Settings clusterSettings = Settings.builder()
             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), randomInt())
@@ -2262,6 +2261,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, Object> buildMetaObjectForRemovableSettings(String... settingNames) throws JsonProcessingException {
         String settingNamesString = Arrays.stream(settingNames)
             .map(settingName -> "\"" + settingName + "\"")

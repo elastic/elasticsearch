@@ -60,26 +60,27 @@ following requirements:
 
 *  Management features visible in the {kib} space, including
 `Data View Management` and `Stack Monitoring`,
-* `transform_admin` built-in role or `manage_transform` cluster privileges,
-* `kibana_admin` built-in role or a custom role with `all` {kib} privileges
-for the Data View Management feature,
 * `monitoring_user` built-in role,
-* data views for your source indices, 
+* `transform_admin` built-in role or `manage_transform` cluster privileges,
+* `kibana_admin` built-in role or a custom role with `read` or `all` {kib}
+privileges for the `Data View Management` feature (dependent on whether data
+views already exist for your destination indices),
+* data views for your source indices,
 * `read` and `view_index_metadata` index privileges on source indices, and
 * `create_index`, `index`, `manage`, and `read` index privileges on destination
-indices
+indices 
 
 Within a {kib} space, for read-only access to {transforms}, you must meet all of
 the following requirements:
 
 * Management features visible in the {kib} space, including `Stack Monitoring`,
-* `transform_user` built-in role or `monitor_transform` cluster privileges,
 * `monitoring_user` built-in role,
+* `transform_user` built-in role or `monitor_transform` cluster privileges,
 * `kibana_admin` built-in role or a custom role with `read` {kib} privileges
 for at least one feature in the space,
 * data views for your source and destination indices, and
 * `read`, and `view_index_metadata` index privileges on source indices and
-destination indices
+destination indices 
 
 For more information and {kib} security features, see
 {kibana-ref}/kibana-role-management.html[{kib} role management] and
@@ -96,4 +97,5 @@ that belong to your space. However, this limited scope does not apply to
 {transforms}; they are visible in all spaces.
 
 To successfully create {transforms} in {kib}, you must be logged into a space
-where the source indices are visible.
+where the source indices are visible and the `Data View Management` and
+`Stack Monitoring` features are visible.

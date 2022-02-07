@@ -72,4 +72,13 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     public int size() {
         return dvSupplier.getInternal() == null ? 0 : 1;
     }
+
+    public interface DenseVectorSupplier extends Supplier<BytesRef> {
+        @Override
+        default BytesRef getInternal(int index) {
+            throw new UnsupportedOperationException();
+        }
+
+        DenseVector getInternal();
+    }
 }

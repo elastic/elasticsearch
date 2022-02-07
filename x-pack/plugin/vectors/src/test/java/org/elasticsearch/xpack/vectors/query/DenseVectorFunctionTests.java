@@ -51,7 +51,17 @@ public class DenseVectorFunctionTests extends ESTestCase {
             assertDimensionMismatch(() -> new CosineSimilarity(scoreScript, invalidQueryVector, fieldName));
             assertDimensionMismatch(() -> new L1Norm(scoreScript, invalidQueryVector, fieldName));
             assertDimensionMismatch(() -> new L2Norm(scoreScript, invalidQueryVector, fieldName));
+
+            // Check scripting infrastructure integration
+            DotProduct dotProduct = new DotProduct(scoreScript, queryVector, fieldName);
+            assertEquals(65425.6249, dotProduct.dotProduct(), 0.001);
+            assertEquals(485.1837, new L1Norm(scoreScript, queryVector, fieldName).l1norm(), 0.001);
+            assertEquals(301.3614, new L2Norm(scoreScript, queryVector, fieldName).l2norm(), 0.001);
+            when(scoreScript._getDocId()).thenReturn(1);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, dotProduct::dotProduct);
+            assertEquals("A document doesn't have a value for a vector field!", e.getMessage());
         }
+
     }
 
     private void assertDimensionMismatch(Supplier<ScoreScriptUtils.DenseVectorFunction> supplier) {

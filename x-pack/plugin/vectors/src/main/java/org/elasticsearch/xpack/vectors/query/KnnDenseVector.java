@@ -10,15 +10,14 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.util.VectorUtil;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
 public class KnnDenseVector implements DenseVector {
-    protected final int dims;
     protected final float[] vector;
 
-    public KnnDenseVector(float[] vector, int dims) {
-        this.dims = dims;
+    public KnnDenseVector(float[] vector) {
         this.vector = vector;
     }
 
@@ -46,6 +45,20 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
+    public double l1Norm(List<?> queryVector) {
+        double result = 0.0;
+        for (int i = 0; i < queryVector.size(); i++) {
+            Object element = queryVector.get(i);
+            if (element instanceof Number number) {
+                result += Math.abs(vector[i] - number.floatValue());
+            } else {
+                throw new IllegalArgumentException(DenseVector.badElement(element, i));
+            }
+        }
+        return result;
+    }
+
+    @Override
     public double l2Norm(float[] queryVector) {
         return Math.sqrt(VectorUtil.squareDistance(vector, queryVector));
     }
@@ -63,8 +76,8 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
-    public int dims() {
-        return dims;
+    public int getDims() {
+        return vector.length;
     }
 
     @Override

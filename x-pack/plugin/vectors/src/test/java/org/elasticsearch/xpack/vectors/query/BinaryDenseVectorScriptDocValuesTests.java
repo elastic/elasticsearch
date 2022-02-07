@@ -38,6 +38,38 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         }
     }
 
+    public void testMetadataAndIterator() throws IOException {
+        int dims = 3;
+        Version indexVersion = Version.CURRENT;
+        float[][] vectors = fill(new float[randomIntBetween(1, 5)][dims]);
+        BinaryDocValues docValues = wrap(vectors, indexVersion);
+        BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, indexVersion);
+        for (int i = 0; i < vectors.length; i++) {
+            field.setNextDocId(i);
+            DenseVector dv = field.get();
+            assertEquals(1, dv.size());
+            assertFalse(dv.isEmpty());
+            assertEquals(dims, dv.getDims());
+            int j = 0;
+            for (double d : field) {
+                assertEquals(d, vectors[i][j], 0.1);
+                j++;
+            }
+        }
+        field.setNextDocId(vectors.length);
+        DenseVector dv = field.get();
+        assertEquals(dv, DenseVector.EMPTY);
+    }
+
+    protected float[][] fill(float[][] vectors) {
+        for (float[] vector : vectors) {
+            for (int i = 0; i < vector.length; i++) {
+                vector[i] = randomFloat();
+            }
+        }
+        return vectors;
+    }
+
     public void testMissingValues() throws IOException {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };

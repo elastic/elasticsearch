@@ -35,12 +35,12 @@ public class ScoreScriptUtils {
             this.scoreScript = scoreScript;
             this.field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
 
-            if (field.get().dims() != queryVector.size()) {
+            if (field.get().getDims() != queryVector.size()) {
                 throw new IllegalArgumentException(
                     "The query vector has a different number of dimensions ["
                         + queryVector.size()
                         + "] than the document vectors ["
-                        + field.get().dims()
+                        + field.get().getDims()
                         + "]."
                 );
             }

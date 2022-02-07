@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
@@ -49,12 +50,42 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
+    public double dotProduct(List<?> queryVector) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
+
+        double dotProduct = 0;
+        for (Object queryValue : queryVector) {
+            if (queryValue instanceof Number number) {
+                dotProduct += number.floatValue() * byteBuffer.getFloat();
+            } else {
+                throw new IllegalArgumentException(DenseVector.badElement(queryValue));
+            }
+        }
+        return dotProduct;
+    }
+
+    @Override
     public double l1Norm(float[] queryVector) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
 
         double l1norm = 0;
         for (float queryValue : queryVector) {
             l1norm += Math.abs(queryValue - byteBuffer.getFloat());
+        }
+        return l1norm;
+    }
+
+    @Override
+    public double l1Norm(List<?> queryVector) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
+
+        double l1norm = 0;
+        for (Object queryValue : queryVector) {
+            if (queryValue instanceof Number number) {
+                l1norm += Math.abs(number.floatValue() - byteBuffer.getFloat());
+            } else {
+                throw new IllegalArgumentException(DenseVector.badElement(queryValue));
+            }
         }
         return l1norm;
     }
@@ -71,6 +102,21 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
+    public double l2Norm(List<?> queryVector) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
+        double l2norm = 0;
+        for (Object queryValue : queryVector) {
+            if (queryValue instanceof Number number) {
+                double diff = number.floatValue() - byteBuffer.getFloat();
+                l2norm += diff * diff;
+            } else {
+                throw new IllegalArgumentException(DenseVector.badElement(queryValue));
+            }
+        }
+        return Math.sqrt(l2norm);
+    }
+
+    @Override
     public int size() {
         return 1;
     }
@@ -81,7 +127,7 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public int dims() {
+    public int getDims() {
         return vector.length;
     }
 
@@ -102,7 +148,7 @@ public class BinaryDenseVector implements DenseVector {
 
             @Override
             public boolean hasNext() {
-                return index < value.length;
+                return index < vector.length;
             }
         };
     }

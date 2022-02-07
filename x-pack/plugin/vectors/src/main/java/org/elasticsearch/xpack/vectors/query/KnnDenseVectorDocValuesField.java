@@ -57,7 +57,7 @@ public class KnnDenseVectorDocValuesField extends DenseVectorDocValuesField {
             return DenseVector.EMPTY;
         }
 
-        return new KnnDenseVector(vector, dims);
+        return new KnnDenseVector(vector);
     }
 
     @Override
@@ -66,7 +66,7 @@ public class KnnDenseVectorDocValuesField extends DenseVectorDocValuesField {
             return defaultValue;
         }
 
-        return new KnnDenseVector(vector, dims);
+        return new KnnDenseVector(vector);
     }
 
     @Override

@@ -163,7 +163,7 @@ public class ProfileServiceTests extends ESTestCase {
                         "foo",
                         List.of("role1", "role2"),
                         "realm_name_1",
-                        null,
+                        "domainA",
                         "foo@example.com",
                         "User Foo",
                         "Curious Foo",

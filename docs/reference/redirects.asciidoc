@@ -3,6 +3,15 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="java-clients"]
+=== Java transport client and security
+
+The Java transport client has been removed. Use the
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high.html[Java
+high-level REST client] instead. For migration steps, refer to the
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high-level-migration.html[migration
+guide].
+
 // [START] Snapshot and restore
 
 [role="exclude",id="snapshot-lifecycle-management"]
@@ -1808,12 +1817,4 @@ role="exclude",id="rolling-upgrade"]
 When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
 whether you opt to perform a rolling upgrade (upgrade one node at a time) or a full-cluster restart upgrade.
 For more information about upgrading, see 
-{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}]. 
-
-role="exclude",id="archived-settings"]
-=== Archived settings
-
-If you upgrade an {es} cluster that uses deprecated cluster or index settings
-that are not used in the target version, they are archived and ignored.
-For more information, see 
-<<archived-settings, Archived settings>>. 
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].

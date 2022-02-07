@@ -278,16 +278,14 @@ public abstract class TransportNodesAction<
         }
 
         private void onOperation(int idx, NodeResponse nodeResponse) {
-            nodeResponseTracker.maybeAddResponse(idx, nodeResponse);
-            if (nodeResponseTracker.allNodesResponded()) {
+            if (nodeResponseTracker.trackResponseAndCheckIfLast(idx, nodeResponse)) {
                 finishHim();
             }
         }
 
         private void onFailure(int idx, String nodeId, Throwable t) {
             logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
-            nodeResponseTracker.maybeAddResponse(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
-            if (nodeResponseTracker.allNodesResponded()) {
+            if (nodeResponseTracker.trackResponseAndCheckIfLast(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t))) {
                 finishHim();
             }
         }

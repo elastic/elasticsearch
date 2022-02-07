@@ -379,8 +379,7 @@ public abstract class TransportBroadcastByNodeAction<
                 logger.trace("received response for [{}] from node [{}]", actionName, node.getId());
             }
 
-            nodeResponseTracker.maybeAddResponse(nodeIndex, response);
-            if (nodeResponseTracker.allNodesResponded()) {
+            if (nodeResponseTracker.trackResponseAndCheckIfLast(nodeIndex, response)) {
                 onCompletion();
             }
         }
@@ -388,8 +387,10 @@ public abstract class TransportBroadcastByNodeAction<
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
             String nodeId = node.getId();
             logger.debug(new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
-            nodeResponseTracker.maybeAddResponse(nodeIndex, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
-            if (nodeResponseTracker.allNodesResponded()) {
+            if (nodeResponseTracker.trackResponseAndCheckIfLast(
+                nodeIndex,
+                new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t)
+            )) {
                 onCompletion();
             }
         }

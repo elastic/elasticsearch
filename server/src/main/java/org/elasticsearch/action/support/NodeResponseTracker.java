@@ -45,10 +45,6 @@ public class NodeResponseTracker {
         }
     }
 
-    public boolean allNodesResponded() {
-        return counter.get() == expectedResponseCount();
-    }
-
     public boolean responsesDiscarded() {
         return responses == null;
     }
@@ -59,20 +55,19 @@ public class NodeResponseTracker {
      * protect against the possibility of double invocation.
      * @param nodeIndex, the index that represents a single node of the cluster
      * @param response, a response can be either a NodeResponse or an error
-     * @return true if it was successfully stored, else false
+     * @return true if this was the first encounter of the last expected response, else false
      */
-    public boolean maybeAddResponse(int nodeIndex, Object response) {
+    public boolean trackResponseAndCheckIfLast(int nodeIndex, Object response) {
         AtomicReferenceArray<Object> responses = this.responses;
         boolean firstEncounter = receivedResponseFromNode.compareAndSet(nodeIndex, null, true);
-        if (firstEncounter) {
-            counter.incrementAndGet();
-        }
-        if (responsesDiscarded() || firstEncounter == false) {
+        if (firstEncounter == false) {
             return false;
         }
 
-        responses.set(nodeIndex, response);
-        return true;
+        if (responsesDiscarded() == false) {
+            responses.set(nodeIndex, response);
+        }
+        return counter.incrementAndGet() == expectedResponseCount();
     }
 
     /**

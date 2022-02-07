@@ -16,10 +16,13 @@ public class NodeResponseTrackerTests extends ESTestCase {
         int nodes = randomIntBetween(1, 10);
         NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(nodes);
         for (int i = 0; i < nodes; i++) {
-            assertTrue(intermediateNodeResponses.maybeAddResponse(i, randomBoolean() ? i : new Exception("from node " + i)));
+            boolean isLast = i == nodes - 1;
+            assertEquals(
+                isLast,
+                intermediateNodeResponses.trackResponseAndCheckIfLast(i, randomBoolean() ? i : new Exception("from node " + i))
+            );
         }
 
-        assertTrue(intermediateNodeResponses.allNodesResponded());
         assertFalse(intermediateNodeResponses.responsesDiscarded());
         assertEquals(nodes, intermediateNodeResponses.expectedResponseCount());
         for (int i = 0; i < nodes; i++) {
@@ -38,24 +41,22 @@ public class NodeResponseTrackerTests extends ESTestCase {
             if (i == cancelAt) {
                 intermediateNodeResponses.discardIntermediateResponses(new Exception("simulated"));
             }
-            boolean added = intermediateNodeResponses.maybeAddResponse(i, randomBoolean() ? i : new Exception("from node " + i));
-            if (i < cancelAt) {
-                assertTrue(added);
-            } else {
-                assertFalse(added);
-            }
+            boolean isLast = i == nodes - 1;
+            assertEquals(
+                isLast,
+                intermediateNodeResponses.trackResponseAndCheckIfLast(i, randomBoolean() ? i : new Exception("from node " + i))
+            );
         }
 
         assertTrue(intermediateNodeResponses.responsesDiscarded());
-        assertTrue(intermediateNodeResponses.allNodesResponded());
         assertEquals(nodes, intermediateNodeResponses.expectedResponseCount());
         expectThrows(NodeResponseTracker.DiscardedResponsesException.class, () -> intermediateNodeResponses.getResponse(0));
     }
 
     public void testResponseIsRegisteredOnlyOnce() throws Exception {
-        NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(2);
-        assertTrue(intermediateNodeResponses.maybeAddResponse(0, "response1"));
-        assertFalse(intermediateNodeResponses.maybeAddResponse(0, "response2"));
+        NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(1);
+        assertTrue(intermediateNodeResponses.trackResponseAndCheckIfLast(0, "response1"));
+        assertFalse(intermediateNodeResponses.trackResponseAndCheckIfLast(0, "response2"));
         assertEquals("response1", intermediateNodeResponses.getResponse(0));
     }
 }

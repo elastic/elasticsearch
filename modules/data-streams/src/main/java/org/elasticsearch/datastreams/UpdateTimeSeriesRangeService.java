@@ -125,9 +125,8 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                         mBuilder = Metadata.builder(current.metadata());
                     }
                     mBuilder.updateSettings(settings, head.getName());
-                    Metadata.Builder finalMBuilder = mBuilder;
                     // Verify that all temporal ranges of each backing index is still valid:
-                    dataStream.validate(finalMBuilder::get);
+                    dataStream.validate(mBuilder::get);
                 } catch (Exception e) {
                     LOGGER.error(
                         "unable to update [{}] for data stream [{}] and backing index [{}]",

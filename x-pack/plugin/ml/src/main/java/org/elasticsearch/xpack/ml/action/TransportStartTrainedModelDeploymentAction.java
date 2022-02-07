@@ -441,7 +441,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             }
             Set<String> nodesShuttingDown = nodesShuttingDown(clusterState);
             List<DiscoveryNode> nodes = clusterState.nodes()
-                .getAllNodes()
                 .stream()
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
                 .filter(TaskParams::mayAllocateToNode)

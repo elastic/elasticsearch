@@ -45,4 +45,26 @@ If you run {es} using Docker and you are managing plugins using a
 they already installed. If any of these plugins are specified in your
 configuration file, {es} will ignore them and emit a warning log message.
 ====
+
+.Third party plugins can no longer intercept REST requests (RestHandlerWrapper)
+[%collapsible]
+====
+*Details* +
+In previous versions of {es}, plugins were able to implement the 
+`getRestHandlerWrapper` method which would allow the plugin to intercept all
+REST requests to the node.  One of the common uses of this feature was to
+implement custom security plugins that replaced the built-in
+{security-features}. This extension point is no longer available to 
+third-party plugins.
+
+*Impact* +
+Some third party plugins that existed for earlier versions of {es} may not be
+compatible with {es} version 8.0 or higher.
+
+If you depend on any third-party plugins (that is, plugins that are not
+produced and supported by Elastic) then you should check with the plugin author
+and ensure that the plugin is available for your target version of {es} before
+you upgrade.
+====
+
 //end::notable-breaking-changes[]

@@ -44,7 +44,7 @@ non-frozen node will result in an error on startup.
 ====
 
 [[max_clause_count_change]]
-.The `indices.query.bool.max_clause_count` setting has been deprecated, and no longer has any effect.
+.`indices.query.bool.max_clause_count` is deprecated and has no effect.
 [%collapsible]
 ====
 *Details* +
@@ -66,6 +66,10 @@ In previous versions of Lucene you could get around this limit by nesting
 boolean queries within each other, but the limit is now based on the total
 number of leaf queries within the query as a whole and this workaround will
 no longer help.
+
+Specifying `indices.query.bool.max_clause_count` will have no effect
+but will generate deprecation warnings. To avoid these warnings, remove the
+setting from `elasticsearch.yml` during an upgrade or node restart.
 ====
 
 [[ilm-poll-interval-limit]]

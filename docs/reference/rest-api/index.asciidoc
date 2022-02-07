@@ -12,6 +12,7 @@ not be included yet.
 
 * <<api-conventions, API conventions>>
 * <<common-options, Common Options>>
+* <<rest-api-compatibility, REST API Compatibility>>
 * <<autoscaling-apis, Autoscaling APIs>>
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
@@ -52,6 +53,7 @@ not be included yet.
 
 include::{es-repo-dir}/api-conventions.asciidoc[]
 include::{es-repo-dir}/rest-api/common-options.asciidoc[]
+include::{es-repo-dir}/rest-api/rest-api-compatibility.asciidoc[]
 include::{es-repo-dir}/autoscaling/apis/autoscaling-apis.asciidoc[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]

@@ -485,7 +485,10 @@ setup:
               range:
                 field: "long"
                 ranges:
-                  { from: -9223372036854775808, to: 9223372036854775807 }
+                  -
+                    from: -9223372036854775808
+                    to: 9223372036854775807
+
   - match: { hits.total.relation: "eq" }
   - match: { hits.total.value: 1 }
   - length: { aggregations.long_range.buckets: 1 }

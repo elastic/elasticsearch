@@ -503,6 +503,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final int shardsPerNodeLimit;
 
+    @Nullable // if an index isn't managed by ilm, it won't have a policy
     private final String lifecyclePolicyName;
 
     private final LifecycleExecutionState lifecycleExecutionState;

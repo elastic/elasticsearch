@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.sql.common.io;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Base64;
@@ -30,7 +33,10 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
     }
 
     public SqlStreamInput(byte[] input, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
-        super(StreamInput.wrap(input), namedWriteableRegistry);
+        super(
+            new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(new ByteArrayInputStream(input))),
+            namedWriteableRegistry
+        );
 
         // version check first
         Version ver = Version.readVersion(delegate);

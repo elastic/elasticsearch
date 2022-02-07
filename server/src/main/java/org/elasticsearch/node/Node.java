@@ -900,7 +900,7 @@ public class Node implements Closeable {
             final HealthService healthService = new HealthService(
                 pluginsService.filterPlugins(HealthIndicatorPlugin.class)
                     .stream()
-                    .flatMap(HealthIndicatorPlugin::getHealthIndicatorServices)
+                    .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
                     .toList()
             );
 

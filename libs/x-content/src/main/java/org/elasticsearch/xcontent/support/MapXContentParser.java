@@ -28,10 +28,11 @@ import java.util.Map;
  */
 public class MapXContentParser extends AbstractXContentParser {
 
-    private XContentType xContentType;
+    private final XContentType xContentType;
     private TokenIterator iterator;
     private boolean closed;
 
+    // TODO who uses this?
     public static XContentParser wrapObject(Object sourceMap) throws IOException {
         XContentParser parser = new MapXContentParser(
             NamedXContentRegistry.EMPTY,

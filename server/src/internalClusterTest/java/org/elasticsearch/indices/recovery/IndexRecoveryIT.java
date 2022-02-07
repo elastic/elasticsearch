@@ -71,6 +71,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -1812,21 +1813,23 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     private long getLocalCheckpointOfSafeCommit(IndexCommit safeIndexCommit) throws IOException {
-        final long localCheckpoint = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+        final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             safeIndexCommit.getUserData().entrySet()
-        ).localCheckpoint;
+        );
+        final long commitLocalCheckpoint = commitInfo.localCheckpoint;
+        final long maxSeqNo = commitInfo.maxSeqNo;
+        final LocalCheckpointTracker localCheckpointTracker = new LocalCheckpointTracker(maxSeqNo, commitLocalCheckpoint);
 
         // In certain scenarios it is possible that the local checkpoint captured during commit lags behind,
         // meaning that it's possible that there are operations stored in the safe commit that have > seqNo
         // than the captured local checkpoint. When a shard is recovered locally, the local checkpoint can
         // be > than the safe commit local checkpoint, since that's checked and updated in
         // InternalEngine#restoreVersionMapAndCheckpointTracker
-        long persistedLocalCheckpoint = localCheckpoint;
         try (DirectoryReader directoryReader = DirectoryReader.open(safeIndexCommit)) {
             final IndexSearcher searcher = new IndexSearcher(directoryReader);
             searcher.setQueryCache(null);
             final Query query = new BooleanQuery.Builder().add(
-                LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, localCheckpoint + 1, Long.MAX_VALUE),
+                LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, commitLocalCheckpoint + 1, Long.MAX_VALUE),
                 BooleanClause.Occur.MUST
             ).add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST).build();
             final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
@@ -1843,12 +1846,13 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         throw new IllegalStateException();
                     }
                     final long docSeqNo = seqNoDocValue.longValue();
-                    assertThat(docSeqNo, is(greaterThan(persistedLocalCheckpoint)));
-                    persistedLocalCheckpoint = docSeqNo;
+                    assertThat(docSeqNo, is(greaterThan(commitLocalCheckpoint)));
+                    localCheckpointTracker.markSeqNoAsProcessed(docSeqNo);
+                    localCheckpointTracker.markSeqNoAsPersisted(docSeqNo);
                 }
             }
-            assertThat(persistedLocalCheckpoint, is(greaterThanOrEqualTo(localCheckpoint)));
-            return persistedLocalCheckpoint;
+            assertThat(localCheckpointTracker.getPersistedCheckpoint(), is(greaterThanOrEqualTo(commitLocalCheckpoint)));
+            return localCheckpointTracker.getPersistedCheckpoint();
         }
     }
 }

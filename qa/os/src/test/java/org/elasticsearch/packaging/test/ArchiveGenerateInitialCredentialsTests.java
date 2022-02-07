@@ -84,7 +84,7 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node1"), getCurrentVersion(), true);
         verifyArchiveInstallation(installation, distribution());
         Shell.Result result = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(null, sh, null, List.of(), OUTPUT_MATCH, true)
+            Archives.startElasticsearchWithTty(installation, sh, null, List.of(), OUTPUT_MATCH, false)
         );
         logger.info("OUTPUT WAS: ");
         logger.info(result.stdout());

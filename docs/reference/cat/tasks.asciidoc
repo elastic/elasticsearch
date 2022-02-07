@@ -6,6 +6,13 @@
 
 beta::["The cat task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{es-issue}51628]
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<tasks,task management API>>.
+====
+
 Returns information about tasks currently executing in the cluster,
 similar to the <<tasks,task management>> API.
 

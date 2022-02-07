@@ -105,5 +105,33 @@ user password is already configured.
 ====
 //end::notable-breaking-changes[]
 
+
+[[deprecate-max-merge-at-once-explicit-setting]]
+.The setting `max_merge_at_once_explicit` is deprecated.
+[%collapsible]
+====
+*Details* +
+The setting `max_merge_at_once_explicit` is removed in Lucene 9.
+
+
+*Impact* +
+Remove the setting `max_merge_at_once_explicit` from your
+configuration.
+====
+
+[[deprecate-indices-query-bool-max-clause-count-setting]]
+.The setting `indices.query.bool.max_clause_count` is deprecated.
+[%collapsible]
+====
+*Details* +
+The setting `indices.query.bool.max_clause_count` is deprecated. Instead,
+{es} configures the maximum clause count for Lucene based on the available
+heap and the size of the thread pool.
+
+*Impact* +
+Remove the setting `indices.query.bool.max_clause_count` from
+your configuration.
+====
+
 include::migrate_8_0/migrate_to_java_time.asciidoc[]
 include::transient-settings-migration-guide.asciidoc[]

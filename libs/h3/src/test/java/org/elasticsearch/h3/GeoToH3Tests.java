@@ -19,38 +19,39 @@
 package org.elasticsearch.h3;
 
 import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.spatial3d.geom.GeoPoint;
+import org.apache.lucene.spatial3d.geom.GeoPolygon;
+import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
+import org.apache.lucene.spatial3d.geom.PlanetModel;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class GeoToH3Tests extends ESTestCase {
 
     public void testRandomPoints() {
         for (int i = 0; i < 50; i++) {
-            // avoid points close to the poles
-            double lat = randomValueOtherThanMany(d -> d > 60 || d < -60, GeoTestUtil::nextLatitude);
-            // avoid points close to the dateline
-            double lon = randomValueOtherThanMany(d -> d > 150 || d < -150, GeoTestUtil::nextLongitude);
-            testPoint(lat, lon);
+            testPoint(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude());
         }
     }
 
     private void testPoint(double lat, double lon) {
+        GeoPoint point = new GeoPoint(PlanetModel.SPHERE, Math.toRadians(lat), Math.toRadians(lon));
         for (int i = 0; i < Constants.MAX_H3_RES; i++) {
             String h3Address = H3.geoToH3Address(lat, lon, i);
-            CellBoundary cellBoundary = H3.h3ToGeoBoundary(h3Address);
-            double minLat = cellBoundary.getLatLon(0).getLatDeg();
-            double maxLat = cellBoundary.getLatLon(0).getLatDeg();
-            double minLon = cellBoundary.getLatLon(0).getLonDeg();
-            double maxLon = cellBoundary.getLatLon(0).getLonDeg();
-            for (int j = 0; j < cellBoundary.numPoints(); j++) {
-                minLat = Math.min(minLat, cellBoundary.getLatLon(j).getLatDeg());
-                maxLat = Math.max(maxLat, cellBoundary.getLatLon(j).getLatDeg());
-                minLon = Math.min(minLon, cellBoundary.getLatLon(j).getLonDeg());
-                maxLon = Math.max(maxLon, cellBoundary.getLatLon(j).getLonDeg());
-            }
-            assertTrue(minLat <= lat);
-            assertTrue(maxLat >= lat);
-            assertTrue(minLon <= lon);
-            assertTrue(maxLon >= lon);
+            GeoPolygon polygon = getGeoPolygon(h3Address);
+            assertTrue(polygon.isWithin(point));
         }
+    }
+
+    private GeoPolygon getGeoPolygon(String h3Address) {
+        CellBoundary cellBoundary = H3.h3ToGeoBoundary(h3Address);
+        List<GeoPoint> points = new ArrayList<>(cellBoundary.numPoints());
+        for (int i = 0; i < cellBoundary.numPoints(); i++) {
+            LatLng latLng = cellBoundary.getLatLon(i);
+            points.add(new GeoPoint(PlanetModel.SPHERE, latLng.getLatRad(), latLng.getLonRad()));
+        }
+        return GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
     }
 }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,7 +28,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class TransformDestIndexSettings extends AbstractDiffable<TransformDestIndexSettings> implements Writeable, ToXContentObject {
+public class TransformDestIndexSettings implements SimpleDiffable<TransformDestIndexSettings>, Writeable, ToXContentObject {
 
     public static final ParseField MAPPINGS = new ParseField("mappings");
     public static final ParseField SETTINGS = new ParseField("settings");

@@ -31,11 +31,13 @@ import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
@@ -60,6 +62,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -67,6 +70,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83034")
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
 
@@ -345,6 +349,15 @@ public class NodeTests extends ESTestCase {
         plugins.add(MockRecoveryPlannerPlugin.class);
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new MockNode(baseSettings().build(), plugins));
         assertThat(exception.getMessage(), containsString("A single RecoveryPlannerPlugin was expected but got:"));
+    }
+
+    public void testHeadersToCopyInTaskManagerAreTheSameAsDeclaredInTask() throws IOException {
+        Settings.Builder settings = baseSettings();
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
+            final TransportService transportService = node.injector().getInstance(TransportService.class);
+            final List<String> taskHeaders = transportService.getTaskManager().getTaskHeaders();
+            assertThat(taskHeaders, containsInAnyOrder(Task.HEADERS_TO_COPY.toArray(new String[] {})));
+        }
     }
 
     public static class MockRecoveryPlannerPlugin extends Plugin implements RecoveryPlannerPlugin {

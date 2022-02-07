@@ -9,8 +9,8 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +22,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -34,15 +35,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
  */
-public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
+public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements SimpleDiffable<DiscoveryNodes> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
@@ -82,6 +81,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     @Override
     public Iterator<DiscoveryNode> iterator() {
         return nodes.valuesIt();
+    }
+
+    @Override
+    public int size() {
+        return nodes.size();
     }
 
     /**
@@ -167,17 +171,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      * @return
      */
     public Collection<DiscoveryNode> getAllNodes() {
-        return StreamSupport.stream(this.spliterator(), false).collect(Collectors.toUnmodifiableList());
+        return this;
     }
 
     /**
      * Returns a stream of all nodes, with master nodes at the front
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
-        return Stream.concat(
-            masterNodes.stream().map(Map.Entry::getValue),
-            StreamSupport.stream(this.spliterator(), false).filter(n -> n.isMasterNode() == false)
-        );
+        return Stream.concat(masterNodes.stream().map(Map.Entry::getValue), stream().filter(n -> n.isMasterNode() == false));
     }
 
     /**
@@ -339,7 +340,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      */
     public String[] resolveNodes(String... nodes) {
         if (nodes == null || nodes.length == 0) {
-            return StreamSupport.stream(this.spliterator(), false).map(DiscoveryNode::getId).toArray(String[]::new);
+            return stream().map(DiscoveryNode::getId).toArray(String[]::new);
         } else {
             Set<String> resolvedNodesIds = new HashSet<>(nodes.length);
             for (String nodeId : nodes) {
@@ -610,7 +611,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     public static Diff<DiscoveryNodes> readDiffFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
-        return AbstractDiffable.readDiffFrom(in1 -> readFrom(in1, localNode), in);
+        return SimpleDiffable.readDiffFrom(in1 -> readFrom(in1, localNode), in);
     }
 
     public static Builder builder() {

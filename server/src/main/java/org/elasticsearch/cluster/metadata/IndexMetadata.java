@@ -44,6 +44,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,6 +74,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
 
@@ -505,6 +507,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final AutoExpandReplicas autoExpandReplicas;
 
+    private final boolean isSearchableSnapshot;
+
+    private final boolean isPartialSearchableSnapshot;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -539,7 +545,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable final List<String> tierPreference,
         final int shardsPerNodeLimit,
         final LifecycleExecutionState lifecycleExecutionState,
-        final AutoExpandReplicas autoExpandReplicas
+        final AutoExpandReplicas autoExpandReplicas,
+        final boolean isSearchableSnapshot,
+        final boolean isPartialSearchableSnapshot
     ) {
         this.index = index;
         this.version = version;
@@ -582,6 +590,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.shardsPerNodeLimit = shardsPerNodeLimit;
         this.lifecycleExecutionState = lifecycleExecutionState;
         this.autoExpandReplicas = autoExpandReplicas;
+        this.isSearchableSnapshot = isSearchableSnapshot;
+        this.isPartialSearchableSnapshot = isPartialSearchableSnapshot;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -623,7 +633,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.tierPreference,
             this.shardsPerNodeLimit,
             this.lifecycleExecutionState,
-            this.autoExpandReplicas
+            this.autoExpandReplicas,
+            this.isSearchableSnapshot,
+            this.isPartialSearchableSnapshot
         );
     }
 
@@ -753,6 +765,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public AutoExpandReplicas getAutoExpandReplicas() {
         return autoExpandReplicas;
+    }
+
+    public boolean isSearchableSnapshot() {
+        return isSearchableSnapshot;
+    }
+
+    public boolean isPartialSearchableSnapshot() {
+        return isPartialSearchableSnapshot;
     }
 
     /**
@@ -1588,6 +1608,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 lifecycleExecutionState = LifecycleExecutionState.EMPTY_STATE;
             }
 
+            final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -1622,7 +1643,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 tierPreference,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings),
                 lifecycleExecutionState,
-                AutoExpandReplicas.SETTING.get(settings)
+                AutoExpandReplicas.SETTING.get(settings),
+                isSearchableSnapshot,
+                isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false)
             );
         }
 
@@ -1909,8 +1932,19 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         }
                         builder.settings(settings);
                     } else if ("mappings".equals(currentFieldName)) {
-                        // don't try to parse these for now
-                        parser.skipChildren();
+                        MapBuilder<String, Object> mappingSourceBuilder = MapBuilder.<String, Object>newMapBuilder();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                String mappingType = currentFieldName;
+                                mappingSourceBuilder.put(mappingType, parser.mapOrdered());
+                            } else {
+                                throw new IllegalArgumentException("Unexpected token: " + token);
+                            }
+                        }
+                        Map<String, Object> mapping = mappingSourceBuilder.map();
+                        handleLegacyMapping(builder, mapping);
                     } else if ("in_sync_allocations".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
@@ -1934,8 +1968,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("mappings".equals(currentFieldName)) {
-                        // don't try to parse these for now
-                        parser.skipChildren();
+                        MapBuilder<String, Object> mappingSourceBuilder = MapBuilder.<String, Object>newMapBuilder();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            Map<String, Object> mapping;
+                            if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                                CompressedXContent compressedXContent = new CompressedXContent(parser.binaryValue());
+                                mapping = XContentHelper.convertToMap(compressedXContent.compressedReference(), true).v2();
+                            } else {
+                                mapping = parser.mapOrdered();
+                            }
+                            mappingSourceBuilder.putAll(mapping);
+                        }
+                        handleLegacyMapping(builder, mappingSourceBuilder.map());
                     } else {
                         parser.skipChildren();
                     }
@@ -1959,11 +2003,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
 
-            builder.putMapping(MappingMetadata.EMPTY_MAPPINGS); // just make sure it's not empty so that _source can be read
+            if (builder.mapping() == null) {
+                builder.putMapping(MappingMetadata.EMPTY_MAPPINGS); // just make sure it's not empty so that _source can be read
+            }
 
             IndexMetadata indexMetadata = builder.build();
             assert indexMetadata.getCreationVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion());
             return indexMetadata;
+        }
+
+        private static void handleLegacyMapping(Builder builder, Map<String, Object> mapping) {
+            if (mapping.size() == 1) {
+                String mappingType = mapping.keySet().iterator().next();
+                builder.putMapping(new MappingMetadata(mappingType, mapping));
+            } else if (mapping.size() > 1) {
+                builder.putMapping(new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mapping));
+            }
         }
     }
 

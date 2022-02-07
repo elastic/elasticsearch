@@ -6,38 +6,59 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalAttachRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalFallbackRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newServiceAccountRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
 public class Authentication implements ToXContentObject {
 
+    private static final Logger logger = LogManager.getLogger(Authentication.class);
+
     public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
+    public static final Version VERSION_REALM_DOMAINS = Version.V_8_2_0;
 
     private final User user;
     private final RealmRef authenticatedBy;
@@ -47,11 +68,7 @@ public class Authentication implements ToXContentObject {
     private final Map<String, Object> metadata; // authentication contains metadata, includes api_key details (including api_key metadata)
 
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
-        this(user, authenticatedBy, lookedUpBy, Version.CURRENT);
-    }
-
-    public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy, Version version) {
-        this(user, authenticatedBy, lookedUpBy, version, AuthenticationType.REALM, Collections.emptyMap());
+        this(user, authenticatedBy, lookedUpBy, Version.CURRENT, AuthenticationType.REALM, Collections.emptyMap());
     }
 
     public Authentication(
@@ -69,6 +86,7 @@ public class Authentication implements ToXContentObject {
         this.type = type;
         this.metadata = metadata;
         this.assertApiKeyMetadata();
+        this.assertDomainAssignment();
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -83,6 +101,7 @@ public class Authentication implements ToXContentObject {
         type = AuthenticationType.values()[in.readVInt()];
         metadata = in.readMap();
         this.assertApiKeyMetadata();
+        this.assertDomainAssignment();
     }
 
     public User getUser() {
@@ -105,6 +124,14 @@ public class Authentication implements ToXContentObject {
         return lookedUpBy == null ? authenticatedBy : lookedUpBy;
     }
 
+    /**
+     * Returns the authentication version.
+     * Nodes can only interpret authentications from current or older versions as the node's.
+     *
+     * Authentication is serialized and travels across the cluster nodes as the sub-requests are handled,
+     * and can also be cached by long-running jobs that continue to act on behalf of the user, beyond
+     * the lifetime of the original request.
+     */
     public Version getVersion() {
         return version;
     }
@@ -117,12 +144,95 @@ public class Authentication implements ToXContentObject {
         return metadata;
     }
 
+    /**
+     * Returns a new {@code Authentication}, like this one, but which is compatible with older version nodes.
+     * This is commonly employed when the {@code Authentication} is serialized across cluster nodes with mixed versions.
+     */
+    public Authentication maybeRewriteForOlderVersion(Version olderVersion) {
+        // TODO how can this not be true
+        // assert olderVersion.onOrBefore(getVersion());
+        Authentication newAuthentication = new Authentication(
+            getUser(),
+            maybeRewriteRealmRef(olderVersion, getAuthenticatedBy()),
+            maybeRewriteRealmRef(olderVersion, getLookedUpBy()),
+            olderVersion,
+            getAuthenticationType(),
+            maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, this)
+        );
+        if (isAssignedToDomain() && false == newAuthentication.isAssignedToDomain()) {
+            logger.info("Rewriting authentication [" + this + "] without domain");
+        }
+        return newAuthentication;
+    }
+
+    /**
+     * Returns a new {@code Authentication} that reflects a "run as another user" action under the current {@code Authentication}.
+     * The security {@code RealmRef#Domain} of the resulting {@code Authentication} is that of the run-as user's realm.
+     */
+    public Authentication runAs(User runAs, @Nullable RealmRef lookupRealmRef) {
+        Objects.requireNonNull(runAs);
+        assert false == runAs.isRunAs();
+        assert false == getUser().isRunAs();
+        return new Authentication(
+            new User(runAs, getUser()),
+            getAuthenticatedBy(),
+            lookupRealmRef,
+            getVersion(),
+            getAuthenticationType(),
+            getMetadata()
+        );
+    }
+
+    /** Returns a new {@code Authentication} for tokens created by the current {@code Authentication}, which is used when
+     * authenticating using the token credential.
+     */
+    public Authentication token() {
+        assert false == isServiceAccount();
+        final Authentication newTokenAuthentication = new Authentication(
+            getUser(),
+            getAuthenticatedBy(),
+            getLookedUpBy(),
+            Version.CURRENT,
+            AuthenticationType.TOKEN,
+            getMetadata()
+        );
+        assert Objects.equals(getDomain(), newTokenAuthentication.getDomain());
+        return newTokenAuthentication;
+    }
+
+    /**
+     * Returns {@code true} if the effective user belongs to a realm under a domain.
+     * See also {@link #getDomain()} and {@link #getSourceRealm()}.
+     */
+    public boolean isAssignedToDomain() {
+        return getDomain() != null;
+    }
+
+    /**
+     * Returns the {@link RealmDomain} that the effective user belongs to.
+     * A user belongs to a realm which in turn belongs to a domain.
+     *
+     * The same username can be authenticated by different realms (e.g. with different credential types),
+     * but resources created across realms cannot be accessed unless the realms are also part of the same domain.
+     */
+    public @Nullable RealmDomain getDomain() {
+        return getSourceRealm().getDomain();
+    }
+
     public boolean isAuthenticatedWithServiceAccount() {
         return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType());
     }
 
     public boolean isAuthenticatedWithApiKey() {
         return AuthenticationType.API_KEY.equals(getAuthenticationType());
+    }
+
+    public boolean isAuthenticatedAnonymously() {
+        return AuthenticationType.ANONYMOUS.equals(getAuthenticationType());
+    }
+
+    public boolean isAuthenticatedInternally() {
+        return AuthenticationType.INTERNAL.equals(getAuthenticationType());
     }
 
     /**
@@ -268,14 +378,25 @@ public class Authentication implements ToXContentObject {
         builder.startObject(User.Fields.AUTHENTICATION_REALM.getPreferredName());
         builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
         builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        // domain name is generally ambiguous, because it can change during the lifetime of the authentication,
+        // but it is good enough for display purposes (including auditing)
+        if (getAuthenticatedBy().getDomain() != null) {
+            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+        }
         builder.endObject();
         builder.startObject(User.Fields.LOOKUP_REALM.getPreferredName());
         if (getLookedUpBy() != null) {
             builder.field(User.Fields.REALM_NAME.getPreferredName(), getLookedUpBy().getName());
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getLookedUpBy().getType());
+            if (getLookedUpBy().getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getLookedUpBy().getDomain().name());
+            }
         } else {
             builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+            if (getAuthenticatedBy().getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+            }
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
@@ -296,6 +417,17 @@ public class Authentication implements ToXContentObject {
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
     }
 
+    private void assertDomainAssignment() {
+        if (Assertions.ENABLED) {
+            if (isAssignedToDomain()) {
+                assert false == isApiKey();
+                assert false == isServiceAccount();
+                assert false == isAuthenticatedAnonymously();
+                assert false == isAuthenticatedInternally();
+            }
+        }
+    }
+
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder("Authentication[").append(user)
@@ -310,28 +442,43 @@ public class Authentication implements ToXContentObject {
         return builder.toString();
     }
 
-    public static class RealmRef {
+    public static class RealmRef implements Writeable {
 
         private final String nodeName;
         private final String name;
         private final String type;
+        private final @Nullable RealmDomain domain;
 
         public RealmRef(String name, String type, String nodeName) {
-            this.nodeName = nodeName;
-            this.name = name;
-            this.type = type;
+            this(name, type, nodeName, null);
+        }
+
+        public RealmRef(String name, String type, String nodeName, @Nullable RealmDomain domain) {
+            this.nodeName = Objects.requireNonNull(nodeName, "node name cannot be null");
+            this.name = Objects.requireNonNull(name, "realm name cannot be null");
+            this.type = Objects.requireNonNull(type, "realm type cannot be null");
+            this.domain = domain;
         }
 
         public RealmRef(StreamInput in) throws IOException {
             this.nodeName = in.readString();
             this.name = in.readString();
             this.type = in.readString();
+            if (in.getVersion().onOrAfter(VERSION_REALM_DOMAINS)) {
+                this.domain = in.readOptionalWriteable(RealmDomain::readFrom);
+            } else {
+                this.domain = null;
+            }
         }
 
-        void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeName);
             out.writeString(name);
             out.writeString(type);
+            if (out.getVersion().onOrAfter(VERSION_REALM_DOMAINS)) {
+                out.writeOptionalWriteable(domain);
+            }
         }
 
         public String getNodeName() {
@@ -346,6 +493,14 @@ public class Authentication implements ToXContentObject {
             return type;
         }
 
+        /**
+         * Returns the domain assignment for the realm, if one assigned, or {@code null} otherwise, as per the
+         * {@code RealmSettings#DOMAIN_TO_REALM_ASSOC_SETTING} setting.
+         */
+        public @Nullable RealmDomain getDomain() {
+            return domain;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -354,8 +509,8 @@ public class Authentication implements ToXContentObject {
             RealmRef realmRef = (RealmRef) o;
 
             if (nodeName.equals(realmRef.nodeName) == false) return false;
-            if (name.equals(realmRef.name) == false) return false;
-            return type.equals(realmRef.type);
+            if (type.equals(realmRef.type) == false) return false;
+            return Objects.equals(domain, realmRef.domain);
         }
 
         @Override
@@ -363,25 +518,203 @@ public class Authentication implements ToXContentObject {
             int result = nodeName.hashCode();
             result = 31 * result + name.hashCode();
             result = 31 * result + type.hashCode();
+            if (domain != null) {
+                result = 31 * result + domain.hashCode();
+            }
             return result;
         }
 
         @Override
         public String toString() {
-            return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
+            if (domain != null) {
+                return "{Realm[" + type + "." + name + "] under Domain[" + domain.name() + "] on Node[" + nodeName + "]}";
+            } else {
+                return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
+            }
+        }
+
+        static RealmRef newInternalAttachRealmRef(String nodeName) {
+            // the "attach" internal realm is not part of any realm domain
+            return new Authentication.RealmRef(ATTACH_REALM_NAME, ATTACH_REALM_TYPE, nodeName, null);
+        }
+
+        static RealmRef newInternalFallbackRealmRef(String nodeName) {
+            // the "fallback" internal realm is not part of any realm domain
+            RealmRef realmRef = new RealmRef(FALLBACK_REALM_NAME, FALLBACK_REALM_TYPE, nodeName, null);
+            return realmRef;
+        }
+
+        static RealmRef newAnonymousRealmRef(String nodeName) {
+            // the "anonymous" internal realm is not part of any realm domain
+            return new Authentication.RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName, null);
+        }
+
+        static RealmRef newServiceAccountRealmRef(String nodeName) {
+            // no domain for service account tokens
+            return new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName, null);
+        }
+
+        static RealmRef newApiKeyRealmRef(String nodeName) {
+            // no domain for API Key tokens
+            return new RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, nodeName, null);
         }
     }
 
-    public static ConstructingObjectParser<RealmRef, Void> REALM_REF_PARSER = new ConstructingObjectParser<>(
-        "realm_ref",
-        false,
-        (args, v) -> new RealmRef((String) args[0], (String) args[1], (String) args[2])
-    );
+    // TODO is a newer version than the node's a valid value?
+    public static Authentication newInternalAuthentication(User internalUser, Version version, String nodeName) {
+        // TODO create a system user class, so that the type system guarantees that this is only invoked for internal users
+        assert User.isInternal(internalUser);
+        final Authentication.RealmRef authenticatedBy = newInternalAttachRealmRef(nodeName);
+        Authentication authentication = new Authentication(
+            internalUser,
+            authenticatedBy,
+            null,
+            version,
+            AuthenticationType.INTERNAL,
+            Collections.emptyMap()
+        );
+        assert false == authentication.isAssignedToDomain();
+        return authentication;
+    }
 
-    static {
-        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("name"));
-        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("type"));
-        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("node_name"));
+    public static Authentication newInternalFallbackAuthentication(User fallbackUser, String nodeName) {
+        // TODO assert SystemUser.is(fallbackUser);
+        final Authentication.RealmRef authenticatedBy = newInternalFallbackRealmRef(nodeName);
+        Authentication authentication = new Authentication(
+            fallbackUser,
+            authenticatedBy,
+            null,
+            Version.CURRENT,
+            Authentication.AuthenticationType.INTERNAL,
+            Collections.emptyMap()
+        );
+        assert false == authentication.isAssignedToDomain();
+        return authentication;
+    }
+
+    public static Authentication newAnonymousAuthentication(AnonymousUser anonymousUser, String nodeName) {
+        final Authentication.RealmRef authenticatedBy = newAnonymousRealmRef(nodeName);
+        Authentication authentication = new Authentication(
+            anonymousUser,
+            authenticatedBy,
+            null,
+            Version.CURRENT,
+            Authentication.AuthenticationType.ANONYMOUS,
+            Collections.emptyMap()
+        );
+        assert false == authentication.isAssignedToDomain();
+        return authentication;
+    }
+
+    public static Authentication newServiceAccountAuthentication(User serviceAccountUser, String nodeName, Map<String, Object> metadata) {
+        // TODO make the service account user a separate class/interface
+        assert false == serviceAccountUser.isRunAs();
+        final Authentication.RealmRef authenticatedBy = newServiceAccountRealmRef(nodeName);
+        Authentication authentication = new Authentication(
+            serviceAccountUser,
+            authenticatedBy,
+            null,
+            Version.CURRENT,
+            AuthenticationType.TOKEN,
+            metadata
+        );
+        assert false == authentication.isAssignedToDomain();
+        return authentication;
+    }
+
+    public static Authentication newRealmAuthentication(User user, RealmRef realmRef) {
+        // TODO make the type system ensure that this is not a run-as user
+        assert false == user.isRunAs();
+        Authentication authentication = new Authentication(user, realmRef, null, Version.CURRENT, AuthenticationType.REALM, Map.of());
+        assert false == authentication.isServiceAccount();
+        assert false == authentication.isApiKey();
+        assert false == authentication.isAuthenticatedInternally();
+        assert false == authentication.isAuthenticatedAnonymously();
+        return authentication;
+    }
+
+    public static Authentication newApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
+        assert authResult.isAuthenticated() : "API Key authn result must be successful";
+        final User apiKeyUser = authResult.getValue();
+        assert false == apiKeyUser.isRunAs();
+        final Authentication.RealmRef authenticatedBy = newApiKeyRealmRef(nodeName);
+        Authentication authentication = new Authentication(
+            apiKeyUser,
+            authenticatedBy,
+            null,
+            Version.CURRENT,
+            AuthenticationType.API_KEY,
+            authResult.getMetadata()
+        );
+        assert false == authentication.isAssignedToDomain();
+        return authentication;
+    }
+
+    private static RealmRef maybeRewriteRealmRef(Version streamVersion, RealmRef realmRef) {
+        if (realmRef != null && realmRef.getDomain() != null && streamVersion.before(VERSION_REALM_DOMAINS)) {
+            // security domain erasure
+            new RealmRef(realmRef.getName(), realmRef.getType(), realmRef.getNodeName(), null);
+        }
+        return realmRef;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> maybeRewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
+        Map<String, Object> metadata = authentication.getMetadata();
+        // If authentication type is API key, regardless whether it has run-as, the metadata must contain API key role descriptors
+        if (authentication.isAuthenticatedWithApiKey()) {
+            if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
+                && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
+                metadata = new HashMap<>(metadata);
+                if (metadata.containsKey(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)) {
+                    metadata.put(
+                        AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                        convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY))
+                    );
+                }
+                if (metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)) {
+                    metadata.put(
+                        AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                        convertRoleDescriptorsBytesToMap(
+                            (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                        )
+                    );
+                }
+            } else if (authentication.getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
+                && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
+                    metadata = new HashMap<>(metadata);
+                    if (metadata.containsKey(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)) {
+                        metadata.put(
+                            AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                            convertRoleDescriptorsMapToBytes(
+                                (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
+                            )
+                        );
+                    }
+                    if (metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)) {
+                        metadata.put(
+                            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                            convertRoleDescriptorsMapToBytes(
+                                (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                            )
+                        );
+                    }
+                }
+        }
+        return metadata;
+    }
+
+    private static Map<String, Object> convertRoleDescriptorsBytesToMap(BytesReference roleDescriptorsBytes) {
+        return XContentHelper.convertToMap(roleDescriptorsBytes, false, XContentType.JSON).v2();
+    }
+
+    private static BytesReference convertRoleDescriptorsMapToBytes(Map<String, Object> roleDescriptorsMap) {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.map(roleDescriptorsMap);
+            return BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public enum AuthenticationType {

@@ -388,10 +388,10 @@ of the above metadata fields, this field will also be retrievable using either
 the alias name or via wildcard patterns that match the alias.
 
 [discrete]
-[[Ignored-field values]]
+[[ignored-field-values]]
 ==== Ignored field values
 The `fields` section of the response only returns values that were valid when indexed.
-If your search request asks for values from a field that ignored certain
+If your search request asks for values from a field that ignored certain values 
 because they were malformed or too large these values are returned
 separately in an `ignored_field_values` section.
 

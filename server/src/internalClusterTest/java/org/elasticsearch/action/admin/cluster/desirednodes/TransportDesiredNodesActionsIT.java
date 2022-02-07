@@ -265,7 +265,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
                 desiredNodes.version(),
                 desiredNodes.nodes()
             );
-            updateDesiredNodesFutures.add(client().execute(UpdateDesiredNodesAction.INSTANCE, request));
+            // Use the master client to ensure the same updates ordering as in proposedDesiredNodesList
+            updateDesiredNodesFutures.add(internalCluster().masterClient().execute(UpdateDesiredNodesAction.INSTANCE, request));
         }
 
         for (ActionFuture<UpdateDesiredNodesResponse> future : updateDesiredNodesFutures) {

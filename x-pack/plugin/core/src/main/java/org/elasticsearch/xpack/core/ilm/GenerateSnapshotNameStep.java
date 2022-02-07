@@ -59,7 +59,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             return clusterState;
         }
 
-        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = indexMetadata.getLifecyclePolicyName();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         // validate that the snapshot repository exists -- because policies are refreshed on later retries, and because

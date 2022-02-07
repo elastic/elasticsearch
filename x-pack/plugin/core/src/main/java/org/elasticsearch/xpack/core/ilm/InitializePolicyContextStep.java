@@ -59,7 +59,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
                     );
             }
         } catch (Exception e) {
-            String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+            String policyName = indexMetadata.getLifecyclePolicyName();
             throw new InitializePolicyException(policyName, index.getName(), e);
         }
 

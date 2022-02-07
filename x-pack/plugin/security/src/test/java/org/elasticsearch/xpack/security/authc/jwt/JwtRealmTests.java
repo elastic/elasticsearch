@@ -177,10 +177,12 @@ public class JwtRealmTests extends JwtTestCase {
                     + jwtRealm.allowedIssuer
                     + "], aud="
                     + jwtRealm.allowedAudiences
-                    + ", alg="
-                    + jwtRealm.allowedSignatureAlgorithms
+                    + ", HMAC alg="
+                    + jwtRealm.algorithmsHmac
+                    + ", PKC alg="
+                    + jwtRealm.algorithmsPkc
                     + ", client=["
-                    + jwtRealm.clientAuthorizationType
+                    + jwtRealm.clientAuthenticationType
                     + "], meta=["
                     + jwtRealm.populateUserMetadata
                     + "], jwkSetPath=["
@@ -189,8 +191,8 @@ public class JwtRealmTests extends JwtTestCase {
                     + jwtRealm.claimParserPrincipal.getClaimName()
                     + "], claimGroups=["
                     + jwtRealm.claimParserGroups.getClaimName()
-                    + "], clientAuthorizationSharedSecret=["
-                    + jwtRealm.clientAuthorizationSharedSecret
+                    + "], clientAuthenticationSharedSecret=["
+                    + jwtRealm.clientAuthenticationSharedSecret
                     + "], authz=["
                     + jwtRealm.delegatedAuthorizationSupport
                     + "]"
@@ -220,27 +222,27 @@ public class JwtRealmTests extends JwtTestCase {
                     List.of(expectedUser.roles()),
                     Map.of("metadata", randomAlphaOfLength(10))
                 );
-                final SignedJWT signedJWT = JwtValidateUtil.signSignedJwt(
+                final SignedJWT signedJWT = JwtValidateUtil.signJwt(
                     jwsSigner,
                     jwsHeaderAndJwtClaimsSet.v1(),
                     jwsHeaderAndJwtClaimsSet.v2()
                 );
                 final JWSVerifier jwkVerifier = JwtValidateUtil.createJwsVerifier(jwk);
-                assertThat(JwtValidateUtil.verifySignedJWT(jwkVerifier, signedJWT), is(equalTo(true)));
+                assertThat(JwtValidateUtil.verifyJWT(jwkVerifier, signedJWT), is(equalTo(true)));
 
                 // Create request with headers set
                 final SecureString headerJwt = new SecureString(signedJWT.serialize().toCharArray());
-                final SecureString headerSecret = jwtRealm.clientAuthorizationSharedSecret;
+                final SecureString headerSecret = jwtRealm.clientAuthenticationSharedSecret;
                 LOGGER.info("HEADERS: jwt=[" + headerJwt + "], secret=[" + headerSecret + "].");
                 final ThreadContext requestThreadContext = new ThreadContext(this.globalSettings);
                 requestThreadContext.putHeader(
-                    JwtRealm.HEADER_END_USER_AUTHORIZATION,
-                    JwtRealm.HEADER_END_USER_AUTHORIZATION_SCHEME + " " + headerJwt
+                    JwtRealm.HEADER_END_USER_AUTHENTICATION,
+                    JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + headerJwt
                 );
                 if (headerSecret != null) {
                     requestThreadContext.putHeader(
-                        JwtRealm.HEADER_CLIENT_AUTHORIZATION,
-                        JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET + " " + headerSecret
+                        JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+                        JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET + " " + headerSecret
                     );
                 }
 
@@ -257,7 +259,7 @@ public class JwtRealmTests extends JwtTestCase {
                 assertThat(jwtAuthenticationToken, is(notNullValue()));
                 final String tokenPrincipal = jwtAuthenticationToken.principal();
                 final SecureString tokenJwt = jwtAuthenticationToken.getEndUserSignedJwt();
-                final SecureString tokenSecret = jwtAuthenticationToken.getClientAuthorizationSharedSecret();
+                final SecureString tokenSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
                 assertThat(tokenPrincipal, is(notNullValue()));
                 if (tokenJwt.equals(headerJwt) == false) {
                     assertThat(tokenJwt, is(equalTo(headerJwt)));
@@ -381,7 +383,7 @@ public class JwtRealmTests extends JwtTestCase {
         final String authcRealmName = "jwt" + (allRealms.size() + 1) + randomIntBetween(0, 9);
         final String[] authzRealmNames = IntStream.range(0, authzCount).mapToObj(z -> authcRealmName + "_authz" + z).toArray(String[]::new);
 
-        final String clientAuthorizationType = randomFrom(JwtRealmSettings.CLIENT_AUTHORIZATION_TYPES);
+        final String clientAuthenticationType = randomFrom(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPES);
         final Settings.Builder authcSettings = Settings.builder()
             .put(this.globalSettings)
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.getIssuer())
@@ -398,7 +400,7 @@ public class JwtRealmTests extends JwtTestCase {
                 writeJwkSetTempFile(jwtIssuer.getJwkSetPkc(), true)
             )
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_AUDIENCES), randomFrom(jwtIssuer.getAudiences()))
-            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE), clientAuthorizationType)
+            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE), clientAuthenticationType)
             .put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()),
                 randomBoolean() ? "sub" : authcRealmName + "_sub"
@@ -428,11 +430,11 @@ public class JwtRealmTests extends JwtTestCase {
         // RealmSettings.getFullSettingKey(authcRealmName, SSLConfigurationSettings.TRUSTSTORE_PASSWORD.realm(JwtRealmSettings.TYPE)),
         // randomAlphaOfLengthBetween(10, 10)
         // );
-        if (clientAuthorizationType.equals(JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET)) {
-            final String clientAuthorizationSharedSecret = Base64.getUrlEncoder().encodeToString(randomByteArrayOfLength(32));
+        if (clientAuthenticationType.equals(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET)) {
+            final String clientAuthenticationSharedSecret = Base64.getUrlEncoder().encodeToString(randomByteArrayOfLength(32));
             secureSettings.setString(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET),
-                clientAuthorizationSharedSecret
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
+                clientAuthenticationSharedSecret
             );
         }
         authcSettings.setSecureSettings(secureSettings);

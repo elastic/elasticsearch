@@ -82,63 +82,63 @@ public class JwtUtil {
     }
 
     // Static method for unit testing. No need to construct a complete RealmConfig with all settings.
-    public static void validateClientAuthorizationSettings(
-        final String clientAuthorizationTypeConfigKey,
-        final String clientAuthorizationType,
-        final String clientAuthorizationSharedSecretConfigKey,
-        final SecureString clientAuthorizationSharedSecret
+    public static void validateClientAuthenticationSettings(
+        final String clientAuthenticationTypeConfigKey,
+        final String clientAuthenticationType,
+        final String clientAuthenticationSharedSecretConfigKey,
+        final SecureString clientAuthenticationSharedSecret
     ) throws SettingsException {
-        switch (clientAuthorizationType) {
-            case JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
+        switch (clientAuthenticationType) {
+            case JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET:
                 // If type is "SharedSecret", the shared secret value must be set
-                if (Strings.hasText(clientAuthorizationSharedSecret) == false) {
+                if (Strings.hasText(clientAuthenticationSharedSecret) == false) {
                     throw new SettingsException(
                         "Missing setting for ["
-                            + clientAuthorizationSharedSecretConfigKey
+                            + clientAuthenticationSharedSecretConfigKey
                             + "]. It is required when setting ["
-                            + clientAuthorizationTypeConfigKey
+                            + clientAuthenticationTypeConfigKey
                             + "] is ["
-                            + JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET
+                            + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET
                             + "]"
                     );
                 }
                 break;
-            case JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE:
+            case JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE:
             default:
                 // If type is "None", the shared secret value must not be set
-                if (Strings.hasText(clientAuthorizationSharedSecret)) {
+                if (Strings.hasText(clientAuthenticationSharedSecret)) {
                     throw new SettingsException(
                         "Setting ["
-                            + clientAuthorizationSharedSecretConfigKey
+                            + clientAuthenticationSharedSecretConfigKey
                             + "] is not supported, because setting ["
-                            + clientAuthorizationTypeConfigKey
+                            + clientAuthenticationTypeConfigKey
                             + "] is ["
-                            + JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE
+                            + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE
                             + "]"
                     );
                 }
                 LOGGER.warn(
                     "Setting ["
-                        + clientAuthorizationSharedSecretConfigKey
+                        + clientAuthenticationSharedSecretConfigKey
                         + "] value ["
-                        + JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE
+                        + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE
                         + "] is not recommended for production."
                 );
                 break;
         }
     }
 
-    public static void validateClientAuthorization(final String type, final SecureString expectedSecret, final SecureString actualSecret)
+    public static void validateClientAuthentication(final String type, final SecureString expectedSecret, final SecureString actualSecret)
         throws Exception {
         switch (type) {
-            case JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
+            case JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET:
                 if (Strings.hasText(actualSecret) == false) {
                     throw new Exception("Rejected client authentication for type [" + type + "] due to no secret.");
                 } else if (expectedSecret.equals(actualSecret) == false) {
                     throw new Exception("Rejected client authentication for type [" + type + "] due to secret mismatch.");
                 }
                 break;
-            case JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE:
+            case JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE:
             default:
                 if (Strings.hasText(actualSecret)) {
                     throw new Exception("Rejected client authentication for type [" + type + "] due to present secret.");
@@ -166,7 +166,7 @@ public class JwtUtil {
         final CloseableHttpAsyncClient httpClient
     ) throws SettingsException {
         try {
-            return JwtUtil.readBytes(httpClient, jwkSetPathPkcUri, Integer.MAX_VALUE);
+            return JwtUtil.readBytes(httpClient, jwkSetPathPkcUri);
         } catch (Exception e) {
             throw new SettingsException("Can't get contents for setting [" + jwkSetConfigKeyPkc + "] value [" + jwkSetPathPkcUri + "].", e);
         }
@@ -174,9 +174,6 @@ public class JwtUtil {
 
     public static byte[] readFileContents(final String jwkSetConfigKeyPkc, final String jwkSetPathPkc, final Environment environment)
         throws SettingsException {
-        if (Strings.hasText(jwkSetPathPkc) == false) {
-            return null;
-        }
         try {
             final Path path = JwtUtil.resolvePath(environment, jwkSetPathPkc);
             return Files.readAllBytes(path);
@@ -227,10 +224,6 @@ public class JwtUtil {
                     requestConfigBuilder.setProxy(new HttpHost(proxyAddress, proxyPort, proxyScheme));
                 }
                 final RegistryBuilder<SchemeIOSessionStrategy> sessionStrategyBuilder = RegistryBuilder.create();
-                //// final String realmConfigPrefixSslSettings = RealmSettings.realmSslPrefix(realmIdentifier);
-                // final SSLContext sslContext = sslService.sslContext(elasticsearchSslConfig);
-                // final HostnameVerifier hostnameVerifier = SSLService.getHostnameVerifier(elasticsearchSslConfig);
-                // final SSLIOSessionStrategy sslIOSessionStrategy = new SSLIOSessionStrategy(sslContext, hostnameVerifier);
                 final SSLIOSessionStrategy sslIOSessionStrategy = sslService.sslIOSessionStrategy(elasticsearchSslConfig);
                 sessionStrategyBuilder.register("https", sslIOSessionStrategy);
 
@@ -257,12 +250,10 @@ public class JwtUtil {
      * Use the HTTP Client to get URL content bytes up to N max bytes.
      * @param httpClient Configured HTTP/HTTPS client.
      * @param uri URI to download.
-     * @param maxBytes Max bytes to read for the URI. Use Integer.MAX_VALUE to read all.
      * @return Byte array of the URI contents up to N max bytes.
-     * @throws Exception Security exception or HTTP/HTTPS failure exception.
      */
-    @SuppressWarnings({ "removal", "unusedThrown" })
-    public static byte[] readBytes(final CloseableHttpAsyncClient httpClient, final URI uri, final int maxBytes) throws Exception {
+    @SuppressWarnings({ "removal" })
+    public static byte[] readBytes(final CloseableHttpAsyncClient httpClient, final URI uri) {
         final PlainActionFuture<byte[]> plainActionFuture = PlainActionFuture.newFuture();
         try {
             java.security.AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -271,7 +262,7 @@ public class JwtUtil {
                     public void completed(final HttpResponse result) {
                         final HttpEntity entity = result.getEntity();
                         try (InputStream inputStream = entity.getContent()) {
-                            plainActionFuture.onResponse(inputStream.readNBytes(maxBytes));
+                            plainActionFuture.onResponse(inputStream.readAllBytes());
                         } catch (Exception e) {
                             plainActionFuture.onFailure(e);
                         }

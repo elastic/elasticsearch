@@ -11,17 +11,16 @@ import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -111,29 +110,29 @@ public class JwtUtilTests extends JwtTestCase {
         final JWSVerifier jwkVerifier = JwtValidateUtil.createJwsVerifier(jwk);
         final String serializedJWTOriginal = JwtUtilTests.randomValidSignedJWT(jwsSigner, signatureAlgorithm).serialize();
         final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal);
-        return JwtValidateUtil.verifySignedJWT(jwkVerifier, parsedSignedJWT);
+        return JwtValidateUtil.verifyJWT(jwkVerifier, parsedSignedJWT);
     }
 
-    public void testClientAuthorizationTypeValidation() {
-        final String clientAuthorizationTypeKey = JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE.getKey();
-        final String clientAuthorizationSharedSecretKey = JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET.getKey();
+    public void testClientAuthenticationTypeValidation() {
+        final String clientAuthenticationTypeKey = JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE.getKey();
+        final String clientAuthenticationSharedSecretKey = JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET.getKey();
         final SecureString sharedSecretNonEmpty = new SecureString(randomAlphaOfLengthBetween(1, 32).toCharArray());
         final SecureString sharedSecretNullOrEmpty = randomBoolean() ? new SecureString("".toCharArray()) : null;
 
         // If type is None, verify null or empty is accepted
-        JwtUtil.validateClientAuthorizationSettings(
-            clientAuthorizationTypeKey,
-            JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE,
-            clientAuthorizationSharedSecretKey,
+        JwtUtil.validateClientAuthenticationSettings(
+            clientAuthenticationTypeKey,
+            JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE,
+            clientAuthenticationSharedSecretKey,
             sharedSecretNullOrEmpty
         );
         // If type is None, verify non-empty is rejected
         final Exception exception1 = expectThrows(
             SettingsException.class,
-            () -> JwtUtil.validateClientAuthorizationSettings(
-                clientAuthorizationTypeKey,
-                JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE,
-                clientAuthorizationSharedSecretKey,
+            () -> JwtUtil.validateClientAuthenticationSettings(
+                clientAuthenticationTypeKey,
+                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE,
+                clientAuthenticationSharedSecretKey,
                 sharedSecretNonEmpty
             )
         );
@@ -142,30 +141,30 @@ public class JwtUtilTests extends JwtTestCase {
             is(
                 equalTo(
                     "Setting ["
-                        + clientAuthorizationSharedSecretKey
+                        + clientAuthenticationSharedSecretKey
                         + "] is not supported, because setting ["
-                        + clientAuthorizationTypeKey
+                        + clientAuthenticationTypeKey
                         + "] is ["
-                        + JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE
+                        + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE
                         + "]"
                 )
             )
         );
 
         // If type is SharedSecret, verify non-empty is accepted
-        JwtUtil.validateClientAuthorizationSettings(
-            clientAuthorizationTypeKey,
-            JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
-            clientAuthorizationSharedSecretKey,
+        JwtUtil.validateClientAuthenticationSettings(
+            clientAuthenticationTypeKey,
+            JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET,
+            clientAuthenticationSharedSecretKey,
             sharedSecretNonEmpty
         );
         // If type is SharedSecret, verify null or empty is rejected
         final Exception exception2 = expectThrows(
             SettingsException.class,
-            () -> JwtUtil.validateClientAuthorizationSettings(
-                clientAuthorizationTypeKey,
-                JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
-                clientAuthorizationSharedSecretKey,
+            () -> JwtUtil.validateClientAuthenticationSettings(
+                clientAuthenticationTypeKey,
+                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET,
+                clientAuthenticationSharedSecretKey,
                 sharedSecretNullOrEmpty
             )
         );
@@ -174,58 +173,35 @@ public class JwtUtilTests extends JwtTestCase {
             is(
                 equalTo(
                     "Missing setting for ["
-                        + clientAuthorizationSharedSecretKey
+                        + clientAuthenticationSharedSecretKey
                         + "]. It is required when setting ["
-                        + clientAuthorizationTypeKey
+                        + clientAuthenticationTypeKey
                         + "] is ["
-                        + JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET
+                        + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET
                         + "]"
                 )
             )
         );
     }
 
-    public void testValidateJwkSets() throws Exception {
-        final List<String> algsHmac = randomOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC);
-        final Map<String, List<JWK>> jwksHmac = JwtTestCase.randomJwks(algsHmac);
-        final JWKSet jwkSetHmac = new JWKSet(jwksHmac.values().stream().flatMap(List::stream).toList());
-        final String contentsHmac = JwtUtil.serializeJwkSet(jwkSetHmac, false);
-
-        final List<String> algsPkc = randomOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
-        final Map<String, List<JWK>> jwksPkc = JwtTestCase.randomJwks(algsPkc);
-        final JWKSet jwkSetPkc = new JWKSet(jwksPkc.values().stream().flatMap(List::stream).toList());
-        final String contentsPkc = JwtUtil.serializeJwkSet(jwkSetPkc, true);
-
-        final List<String> algorithmsBoth = new ArrayList<>(algsHmac);
-        algorithmsBoth.addAll(algsPkc);
-
+    public void testValidateAlgsJwksHmac() throws Exception {
+        final List<String> algs = randomOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC);
+        final Map<String, List<JWK>> algsToJwks = JwtTestCase.randomJwks(algs);
+        final List<JWK> jwks = algsToJwks.values().stream().flatMap(List::stream).toList();
         // If HMAC JWKSet and algorithms are present, verify they are accepted
-        JwkValidateUtil.validateAndLoadJwkSetsSettings(
-            JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS.getKey(),
-            algsHmac,
-            JwtRealmSettings.JWKSET_HMAC_CONTENTS.getKey(),
-            contentsHmac,
-            JwtRealmSettings.JWKSET_PKC_PATH.getKey(),
-            null
-        );
+        final Tuple<List<String>, List<JWK>> filtered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algs);
+        assertThat(algs.size(), equalTo(filtered.v1().size()));
+        assertThat(jwks.size(), equalTo(filtered.v2().size()));
+    }
+
+    public void testValidateAlgsJwksPkc() throws Exception {
+        final List<String> algs = randomOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
+        final Map<String, List<JWK>> algsToJwks = JwtTestCase.randomJwks(algs);
+        final List<JWK> jwks = algsToJwks.values().stream().flatMap(List::stream).toList();
         // If RSA/EC JWKSet and algorithms are present, verify they are accepted
-        JwkValidateUtil.validateAndLoadJwkSetsSettings(
-            JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS.getKey(),
-            algsPkc,
-            JwtRealmSettings.JWKSET_HMAC_CONTENTS.getKey(),
-            null,
-            JwtRealmSettings.JWKSET_PKC_PATH.getKey(),
-            contentsPkc
-        );
-        // If both valid credentials present and both algorithms present, verify they are accepted
-        JwkValidateUtil.validateAndLoadJwkSetsSettings(
-            JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS.getKey(),
-            algorithmsBoth,
-            JwtRealmSettings.JWKSET_HMAC_CONTENTS.getKey(),
-            contentsHmac,
-            JwtRealmSettings.JWKSET_PKC_PATH.getKey(),
-            contentsPkc
-        );
+        final Tuple<List<String>, List<JWK>> filtered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algs);
+        assertThat(algs.size(), equalTo(filtered.v1().size()));
+        assertThat(jwks.size(), equalTo(filtered.v2().size()));
     }
 
     public void testParseHttpsUri() {

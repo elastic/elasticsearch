@@ -105,7 +105,7 @@ public abstract class JwtTestCase extends ESTestCase {
         if (jwkSetPath.equals("https://op.example.com/jwkset.json") == false) {
             Files.writeString(PathUtils.get(jwkSetPath), "Non-empty JWK Set Path contents");
         }
-        final String clientAuthorizationType = randomFrom(JwtRealmSettings.CLIENT_AUTHORIZATION_TYPES);
+        final String clientAuthenticationType = randomFrom(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPES);
 
         final List<String> allowedSignatureAlgorithmsList = new ArrayList<>();
         if (includeRsa) {
@@ -155,8 +155,8 @@ public abstract class JwtTestCase extends ESTestCase {
             )
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.POPULATE_USER_METADATA), populateUserMetadata)
             // Client settings for incoming connections
-            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE), clientAuthorizationType)
-            // Delegated authorization settings
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE), clientAuthenticationType)
+            // Delegated authentication settings
             .put(
                 RealmSettings.getFullSettingKey(name, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
                 randomBoolean() ? "" : "authz1, authz2"
@@ -202,9 +202,9 @@ public abstract class JwtTestCase extends ESTestCase {
                 randomAlphaOfLengthBetween(10, 20)
             );
         }
-        if (JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET.equals(clientAuthorizationType)) {
+        if (JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET.equals(clientAuthenticationType)) {
             secureSettings.setString(
-                RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET),
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
                 randomAlphaOfLengthBetween(8, 12)
             );
         }
@@ -353,7 +353,7 @@ public abstract class JwtTestCase extends ESTestCase {
             groups,
             Map.of("metadata", randomAlphaOfLength(10))
         );
-        return JwtValidateUtil.signSignedJwt(jwsSigner, headerAndBody.v1(), headerAndBody.v2());
+        return JwtValidateUtil.signJwt(jwsSigner, headerAndBody.v1(), headerAndBody.v2());
     }
 
     public static Tuple<JWSHeader, JWTClaimsSet> randomValidJwsHeaderAndJwtClaimsSet(

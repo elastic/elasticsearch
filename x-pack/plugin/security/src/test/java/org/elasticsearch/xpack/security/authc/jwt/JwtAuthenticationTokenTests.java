@@ -31,19 +31,20 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
 
         final JwtAuthenticationToken jwtAuthenticationToken = new JwtAuthenticationToken(jwt, clientSharedSecret);
         final SecureString endUserSignedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
-        final SecureString clientAuthorizationSharedSecret = jwtAuthenticationToken.getClientAuthorizationSharedSecret();
+        final SecureString clientAuthenticationSharedSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
 
         Assert.assertEquals(serializedJWTOriginal, endUserSignedJwt.toString());
-        Assert.assertEquals(serializedJWTOriginal, jwtAuthenticationToken.getSignedJwt().serialize());
-        Assert.assertEquals(clientSharedSecret, clientAuthorizationSharedSecret);
+        Assert.assertEquals(clientSharedSecret, clientAuthenticationSharedSecret);
 
         jwtAuthenticationToken.clearCredentials();
 
         // verify references to SecureString throw exception when calling their methods
+        @SuppressWarnings("ResultOfMethodCallIgnored")
         final Exception exception1 = expectThrows(IllegalStateException.class, endUserSignedJwt::length);
         assertThat(exception1.getMessage(), equalTo("SecureString has already been closed"));
-        if (clientAuthorizationSharedSecret != null) {
-            final Exception exception2 = expectThrows(IllegalStateException.class, clientAuthorizationSharedSecret::length);
+        if (clientAuthenticationSharedSecret != null) {
+            @SuppressWarnings("ResultOfMethodCallIgnored")
+            final Exception exception2 = expectThrows(IllegalStateException.class, clientAuthenticationSharedSecret::length);
             assertThat(exception2.getMessage(), equalTo("SecureString has already been closed"));
         }
 
@@ -51,13 +52,6 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         assertThat(jwtAuthenticationToken.principal(), is(nullValue()));
         assertThat(jwtAuthenticationToken.credentials(), is(nullValue()));
         assertThat(jwtAuthenticationToken.getEndUserSignedJwt(), is(nullValue()));
-        assertThat(jwtAuthenticationToken.getClientAuthorizationSharedSecret(), is(nullValue()));
-        assertThat(jwtAuthenticationToken.getSignedJwt(), is(nullValue()));
-        assertThat(jwtAuthenticationToken.getJwsHeader(), is(nullValue()));
-        assertThat(jwtAuthenticationToken.getJwtClaimsSet(), is(nullValue()));
-        assertThat(jwtAuthenticationToken.getJwtSignature(), is(nullValue()));
-        assertThat(jwtAuthenticationToken.getIssuerClaim(), is(nullValue()));
-        assertThat(jwtAuthenticationToken.getAudiencesClaim(), is(nullValue()));
-        assertThat(jwtAuthenticationToken.getSubjectClaim(), is(nullValue()));
+        assertThat(jwtAuthenticationToken.getClientAuthenticationSharedSecret(), is(nullValue()));
     }
 }

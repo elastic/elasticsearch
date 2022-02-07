@@ -49,11 +49,11 @@ public class JwtRealmSettings {
     ).flatMap(Collection::stream).toList();
 
     // Header names
-    public static final String CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET = "SharedSecret";
-    public static final String CLIENT_AUTHORIZATION_TYPE_NONE = "None";
-    public static final List<String> CLIENT_AUTHORIZATION_TYPES = List.of(
-        CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
-        CLIENT_AUTHORIZATION_TYPE_NONE
+    public static final String CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET = "SharedSecret";
+    public static final String CLIENT_AUTHENTICATION_TYPE_NONE = "None";
+    public static final List<String> CLIENT_AUTHENTICATION_TYPES = List.of(
+        CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET,
+        CLIENT_AUTHENTICATION_TYPE_NONE
     );
 
     // Default values and min/max constraints
@@ -61,7 +61,7 @@ public class JwtRealmSettings {
     private static final TimeValue DEFAULT_ALLOWED_CLOCK_SKEW = TimeValue.timeValueSeconds(60);
     private static final List<String> DEFAULT_ALLOWED_SIGNATURE_ALGORITHMS = Collections.singletonList("RS256");
     private static final boolean DEFAULT_POPULATE_USER_METADATA = true;
-    private static final String DEFAULT_CLIENT_AUTHORIZATION_TYPE = CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET;
+    private static final String DEFAULT_CLIENT_AUTHENTICATION_TYPE = CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET;
     private static final TimeValue DEFAULT_CACHE_TTL = TimeValue.timeValueMinutes(20);
     private static final int DEFAULT_CACHE_MAX_USERS = 100_000;
     private static final String DEFAULT_CACHE_HASH_ALGO = "ssha256";
@@ -114,7 +114,7 @@ public class JwtRealmSettings {
             )
         );
         // JWT Client settings
-        set.addAll(List.of(CLIENT_AUTHORIZATION_TYPE));
+        set.addAll(List.of(CLIENT_AUTHENTICATION_TYPE));
         // JWT Cache settings
         set.addAll(List.of(CACHE_TTL, CACHE_MAX_USERS, CACHE_HASH_ALGO));
         // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
@@ -141,7 +141,7 @@ public class JwtRealmSettings {
      * @return All secure settings.
      */
     public static List<Setting.AffixSetting<SecureString>> getSecureSettings() {
-        return List.of(JWKSET_HMAC_CONTENTS, CLIENT_AUTHORIZATION_SHARED_SECRET);
+        return List.of(JWKSET_HMAC_CONTENTS, CLIENT_AUTHENTICATION_SHARED_SECRET);
     }
 
     // JWT issuer settings
@@ -197,19 +197,19 @@ public class JwtRealmSettings {
 
     // Client authentication settings for incoming connections
 
-    public static final Setting.AffixSetting<String> CLIENT_AUTHORIZATION_TYPE = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<String> CLIENT_AUTHENTICATION_TYPE = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "client_authentication.type",
-        key -> Setting.simpleString(key, DEFAULT_CLIENT_AUTHORIZATION_TYPE, value -> {
-            if (CLIENT_AUTHORIZATION_TYPES.contains(value) == false) {
+        key -> Setting.simpleString(key, DEFAULT_CLIENT_AUTHENTICATION_TYPE, value -> {
+            if (CLIENT_AUTHENTICATION_TYPES.contains(value) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + CLIENT_AUTHORIZATION_TYPES + "."
+                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + CLIENT_AUTHENTICATION_TYPES + "."
                 );
             }
         }, Setting.Property.NodeScope)
     );
 
-    public static final Setting.AffixSetting<SecureString> CLIENT_AUTHORIZATION_SHARED_SECRET = RealmSettings.secureString(
+    public static final Setting.AffixSetting<SecureString> CLIENT_AUTHENTICATION_SHARED_SECRET = RealmSettings.secureString(
         TYPE,
         "client_authentication.shared_secret"
     );

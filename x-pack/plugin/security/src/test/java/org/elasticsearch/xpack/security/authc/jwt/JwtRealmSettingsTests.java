@@ -221,9 +221,9 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         }
     }
 
-    public void testClientAuthorizationType() {
+    public void testClientAuthenticationType() {
         final String realmName = "jwt" + randomIntBetween(1, 9);
-        final Setting.AffixSetting<String> setting = JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE;
+        final Setting.AffixSetting<String> setting = JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String rejectedValue : new String[] { "", "unknown" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
@@ -241,7 +241,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
                         + settingKey
                         + "]."
                         + " Allowed values are "
-                        + JwtRealmSettings.CLIENT_AUTHORIZATION_TYPES
+                        + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPES
                         + "."
                 )
             );
@@ -260,7 +260,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         }
     }
 
-    public void testAuthorizationRealms() {
+    public void testAuthenticationRealms() {
         final String realmName = "jwt" + randomIntBetween(1, 9);
         final Setting.AffixSetting<List<String>> setting = DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE);
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
@@ -281,7 +281,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     public void testSecureStrings() {
         for (final Setting.AffixSetting<SecureString> setting : List.of(
             JwtRealmSettings.JWKSET_HMAC_CONTENTS,
-            JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET
+            JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET
         )) {
             final String realmName = "jwt" + randomIntBetween(1, 9);
             final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);

@@ -800,6 +800,27 @@ public class RestControllerTests extends ESTestCase {
         assertTrue(channel.getSendResponseCalled());
     }
 
+    public void testBrowserSafelistedContentTypesAreRejected() {
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+
+        final String mediaType = randomFrom(RestController.SAFELISTED_MEDIA_TYPES);
+        FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
+
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
+
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
+        });
+
+        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(
+            channel.getRestResponse().content().utf8ToString(),
+            containsString("Content-Type header [" + mediaType + "] is not supported")
+        );
+    }
+
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
         TestHttpServerTransport() {}

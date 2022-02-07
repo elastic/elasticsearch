@@ -8,6 +8,7 @@
 
 package org.elasticsearch.packaging.util.docker;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -37,10 +38,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.test.PackagingTestCase.assertBusy;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.p444;
 import static org.elasticsearch.packaging.util.FileMatcher.p555;
@@ -677,6 +680,10 @@ public class Docker {
     }
 
     public static Shell.Result getContainerLogs() {
+        return getContainerLogs(containerId);
+    }
+
+    public static Shell.Result getContainerLogs(String containerId) {
         return sh.run("docker logs " + containerId);
     }
 
@@ -721,7 +728,34 @@ public class Docker {
         return dockerShell.run("ls -1 --color=never " + path).stdout().lines().collect(Collectors.toList());
     }
 
+    /**
+     * Returns a list of the file contents of the supplied path.
+     * @param path the path to list
+     * @return the listing
+     */
     public static List<String> listContents(Path path) {
         return listContents(path.toString());
+    }
+
+    /**
+     * Waits for an Elasticsearch node start by looking at the cluster logs. This is useful if the
+     * container is not available on an external port, or authentication is in force and credentials
+     * are not available.
+     * @param containerId the container to check
+     */
+    public static void waitForNodeStarted(String containerId) throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        // Some lines are not JSON, filter those out
+        assertBusy(() -> assertTrue(getContainerLogs(containerId).stdout().lines().filter(line -> line.startsWith("{")).map(line -> {
+            try {
+                return mapper.readTree(line);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+        })
+            .anyMatch(
+                json -> json.get("message").textValue().contains("started")
+                    && json.get("log.logger").textValue().equals("org.elasticsearch.node.Node")
+            )), 60, TimeUnit.SECONDS);
     }
 }

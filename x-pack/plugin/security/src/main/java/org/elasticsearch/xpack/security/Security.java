@@ -319,7 +319,6 @@ import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTrans
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -338,6 +337,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -470,11 +470,11 @@ public class Security extends Plugin
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
 
-    public Security(Settings settings, final Path configPath) {
-        this(settings, configPath, Collections.emptyList());
+    public Security(Settings settings) {
+        this(settings, Collections.emptyList());
     }
 
-    Security(Settings settings, final Path configPath, List<SecurityExtension> extensions) {
+    Security(Settings settings, List<SecurityExtension> extensions) {
         // TODO This is wrong. Settings can change after this. We should use the settings from createComponents
         this.settings = settings;
         // TODO this is wrong, we should only use the environment that is provided to createComponents
@@ -862,8 +862,7 @@ public class Security extends Plugin
                 authzService,
                 getSslService(),
                 securityContext.get(),
-                destructiveOperations,
-                clusterService
+                destructiveOperations
             )
         );
 
@@ -1157,7 +1156,8 @@ public class Security extends Plugin
         if (enabled == false) {
             return Arrays.asList(usageAction, infoAction);
         }
-        return Arrays.asList(
+
+        final List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actionHandlers = Arrays.asList(
             new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
             new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
             new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
@@ -1206,12 +1206,22 @@ public class Security extends Plugin
             new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
             new ActionHandler<>(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
             new ActionHandler<>(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
-            new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
-            new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
-            new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
             usageAction,
             infoAction
         );
+
+        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
+            return Stream.concat(
+                actionHandlers.stream(),
+                Stream.of(
+                    new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
+                    new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
+                    new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class)
+                )
+            ).toList();
+        } else {
+            return actionHandlers;
+        }
     }
 
     @Override
@@ -1235,7 +1245,7 @@ public class Security extends Plugin
         if (enabled == false) {
             return emptyList();
         }
-        return Arrays.asList(
+        final List<RestHandler> restHandlers = Arrays.asList(
             new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
             new RestClearRealmCacheAction(settings, getLicenseState()),
             new RestClearRolesCacheAction(settings, getLicenseState()),
@@ -1282,11 +1292,21 @@ public class Security extends Plugin
             new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
             new RestGetServiceAccountAction(settings, getLicenseState()),
             new RestKibanaEnrollAction(settings, getLicenseState()),
-            new RestNodeEnrollmentAction(settings, getLicenseState()),
-            new RestGetProfileAction(settings, getLicenseState()),
-            new RestActivateProfileAction(settings, getLicenseState()),
-            new RestUpdateProfileDataAction(settings, getLicenseState())
+            new RestNodeEnrollmentAction(settings, getLicenseState())
         );
+
+        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
+            return Stream.concat(
+                restHandlers.stream(),
+                Stream.of(
+                    new RestGetProfileAction(settings, getLicenseState()),
+                    new RestActivateProfileAction(settings, getLicenseState()),
+                    new RestUpdateProfileDataAction(settings, getLicenseState())
+                )
+            ).toList();
+        } else {
+            return restHandlers;
+        }
     }
 
     @Override

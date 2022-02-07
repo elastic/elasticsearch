@@ -96,7 +96,7 @@ public class Constants {
         "cluster:admin/transform/upgrade",
         "cluster:admin/transform/validate",
         "cluster:admin/transform/checkpoint",
-        "cluster:admin/transform/checkpoint[s]",
+        "cluster:internal/transform/checkpoint[s]",
         // "cluster:admin/voting_config/add_exclusions",
         // "cluster:admin/voting_config/clear_exclusions",
         "cluster:admin/xpack/ccr/auto_follow_pattern/activate",

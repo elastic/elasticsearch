@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Random;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
@@ -29,6 +30,9 @@ public class MathProcessor implements Processor {
             }
             if (l instanceof Float) {
                 return Math.abs(((Float) l).floatValue());
+            }
+            if (l instanceof BigInteger) {
+                return ((BigInteger) l).abs();
             }
 
             // fallback to integer
@@ -80,6 +84,9 @@ public class MathProcessor implements Processor {
             }
             if (l instanceof Float) {
                 return (int) Math.signum((Float) l);
+            }
+            if (l instanceof BigInteger) {
+                return ((BigInteger) l).signum();
             }
 
             return Long.signum(((Number) l).longValue());

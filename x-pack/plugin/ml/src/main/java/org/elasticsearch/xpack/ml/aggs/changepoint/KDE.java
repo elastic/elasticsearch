@@ -102,8 +102,9 @@ final class KDE {
         if (b < 0) {
             b = -1 - b;
         }
-        return IntStream.range(a, b).mapToDouble(i -> new NormalDistribution(orderedValues[i], bandwidth).cumulativeProbability(x)).sum()
-            / orderedValues.length;
+        return IntStream.range(a, Math.min(Math.max(b, a + 1), orderedValues.length))
+            .mapToDouble(i -> new NormalDistribution(orderedValues[i], bandwidth).cumulativeProbability(x))
+            .sum() / orderedValues.length;
     }
 
     double sf(double x) {
@@ -115,7 +116,8 @@ final class KDE {
         if (b < 0) {
             b = -1 - b;
         }
-        return IntStream.range(a, b).mapToDouble(i -> normSf(orderedValues[i], bandwidth, x)).sum() / orderedValues.length;
+        return IntStream.range(Math.max(Math.min(a, b - 1), 0), b).mapToDouble(i -> normSf(orderedValues[i], bandwidth, x)).sum()
+            / orderedValues.length;
     }
 
     static double normSf(double mean, double standardDeviation, double x) {

@@ -11,7 +11,7 @@
             "minProperties": 1,
             "maxProperties": 1,
             "patternProperties": {
-                "^[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?$": {
+                "^(?:[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?|_internal\\.[a-z]+?(_[a-z]+)*)$": {
                     "$ref": "#/definitions/Components"
                 }
             },

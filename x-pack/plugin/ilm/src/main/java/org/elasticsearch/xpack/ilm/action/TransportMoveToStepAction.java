@@ -69,7 +69,9 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
 
         final String policyName = indexMetadata.getLifecyclePolicyName();
         if (policyName == null) {
-            listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] is not managed by ILM"));
+            listener.onFailure(
+                new IllegalArgumentException("index [" + request.getIndex() + "] is not associated with an Index Lifecycle Policy")
+            );
             return;
         }
 

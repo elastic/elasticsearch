@@ -848,8 +848,7 @@ public class Node implements Closeable {
                 searchModule.getFetchPhase(),
                 responseCollectorService,
                 circuitBreakerService,
-                executorSelector,
-                transportService
+                executorSelector
             );
 
             final SystemIndexMigrationExecutor systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
@@ -1485,8 +1484,7 @@ public class Node implements Closeable {
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        ExecutorSelector executorSelector,
-        TransportService transportService
+        ExecutorSelector executorSelector
     ) {
         return new SearchService(
             clusterService,
@@ -1497,8 +1495,7 @@ public class Node implements Closeable {
             fetchPhase,
             responseCollectorService,
             circuitBreakerService,
-            executorSelector,
-            transportService
+            executorSelector
         );
     }
 

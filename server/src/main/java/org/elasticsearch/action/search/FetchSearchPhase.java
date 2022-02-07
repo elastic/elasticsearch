@@ -56,7 +56,11 @@ final class FetchSearchPhase extends SearchPhase {
             searchPhaseController,
             aggregatedDfs,
             context,
-            (response, queryPhaseResults) -> new ExpandSearchPhase(context, response, queryPhaseResults)
+            (response, queryPhaseResults) -> new ExpandSearchPhase(
+                context,
+                response,
+                () -> new FetchLookupFieldsPhase(context, response, queryPhaseResults)
+            )
         );
     }
 

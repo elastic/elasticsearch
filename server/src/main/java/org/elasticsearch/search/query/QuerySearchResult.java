@@ -18,20 +18,16 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
@@ -425,26 +421,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public TotalHits getTotalHits() {
         return totalHits;
-    }
-
-    /**
-     * This method must be called only on data nodes to collect search hits of the top hits aggregations in this query result.
-     */
-    public List<SearchHit> getTopHitsFromAggregations() {
-        if (aggregations == null) {
-            return List.of();
-        }
-        if (aggregations.isSerialized()) {
-            assert false : "Aggregations on data nodes must not be serialized";
-            throw new IllegalStateException("Aggregations on data nodes must not be serialized");
-        }
-        final List<SearchHit> hits = new ArrayList<>();
-        aggregations.expand().visit(agg -> {
-            if (agg instanceof TopHits topHits) {
-                topHits.getHits().forEach(hits::add);
-            }
-        });
-        return hits;
     }
 
     public float getMaxScore() {

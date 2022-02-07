@@ -248,9 +248,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
     }
 
     /**
-     * Makes sure that lookup fields are resolved on each cluster
+     * Makes sure that lookup fields are resolved using the lookup index on each cluster.
      */
-    public void testResolveLookupFieldsOnEachCluster() throws Exception {
+    public void testLookupFields() throws Exception {
         cluster("cluster_a").client()
             .admin()
             .indices()

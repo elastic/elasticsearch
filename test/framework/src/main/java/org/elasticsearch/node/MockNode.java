@@ -129,8 +129,7 @@ public class MockNode extends Node {
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        ExecutorSelector executorSelector,
-        TransportService transportService
+        ExecutorSelector executorSelector
     ) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(
@@ -142,8 +141,7 @@ public class MockNode extends Node {
                 fetchPhase,
                 responseCollectorService,
                 circuitBreakerService,
-                executorSelector,
-                transportService
+                executorSelector
             );
         }
         return new MockSearchService(
@@ -155,8 +153,7 @@ public class MockNode extends Node {
             fetchPhase,
             responseCollectorService,
             circuitBreakerService,
-            executorSelector,
-            transportService
+            executorSelector
         );
     }
 

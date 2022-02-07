@@ -8,16 +8,14 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
-import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -29,11 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 
 public class LookupRuntimeFieldIT extends ESIntegTestCase {
 
@@ -256,79 +250,32 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         assertThat(hit0.field("author").getValues(), equalTo(List.of(Map.of("first_name", List.of("John"), "joined", List.of("03/2020")))));
     }
 
-    public void testTopHitsAggregation() {
-        int iters = iterations(5, 10);
-        int requestSize = between(0, 1);
-        boolean hasAggs = randomBoolean();
-        for (int i = 0; i < iters; i++) {
-            if (randomBoolean()) {
-                requestSize = between(0, 1);
-                hasAggs = randomBoolean();
-            }
-            SearchRequestBuilder request = client().prepareSearch("books")
-                .addSort("published_date", SortOrder.ASC)
+    public void testLookupIndexNotFound() throws IOException {
+        Exception failure = expectThrows(
+            Exception.class,
+            () -> client().prepareSearch("books")
+                .setRuntimeMappings(parseMapping("""
+                    {
+                        "another_author": {
+                            "type": "lookup",
+                            "lookup_index": "book_author",
+                            "query_type": "term",
+                            "query_input_field": "author_id",
+                            "query_target_field": "another_field",
+                            "fetch_fields": ["name*"]
+                        }
+                    }
+                    """))
+                .setFetchSource(false)
+                .setQuery(new TermQueryBuilder("title", "second"))
                 .addFetchField("title")
-                .addFetchField("author")
-                .setSize(requestSize);
-            if (hasAggs) {
-                TermsAggregationBuilder aggs = new TermsAggregationBuilder("aggs").field("genre")
-                    .subAggregation(
-                        new TopHitsAggregationBuilder("recent_books").size(1)
-                            .fetchField("title")
-                            .fetchField("author")
-                            .sort("published_date", SortOrder.DESC)
-                    );
-                request.addAggregation(aggs);
-            }
-            SearchResponse resp = request.get();
-            ElasticsearchAssertions.assertNoFailures(resp);
-            if (hasAggs) {
-                List<Aggregation> aggs = resp.getAggregations().asList();
-                assertThat(aggs, hasSize(1));
-                StringTerms termsAggs = (StringTerms) aggs.get(0);
-                assertThat(termsAggs.getBuckets(), hasSize(2));
-                {
-                    StringTerms.Bucket bucket = termsAggs.getBuckets().get(0);
-                    assertThat(bucket.getKeyAsString(), equalTo("science"));
-                    assertThat(bucket.getAggregations().asList(), hasSize(1));
-                    InternalTopHits hits = (InternalTopHits) bucket.getAggregations().asList().get(0);
-                    assertThat(hits.getHits().getHits(), arrayWithSize(1));
-                    SearchHit hit = hits.getHits().getHits()[0];
-                    assertThat(hit.field("title").getValues(), contains("the fifth book"));
-                    assertThat(
-                        hit.field("author").getValues(),
-                        contains(Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston")))
-                    );
-                }
-                {
-                    StringTerms.Bucket bucket = termsAggs.getBuckets().get(1);
-                    assertThat(bucket.getKeyAsString(), equalTo("fiction"));
-                    assertThat(bucket.getAggregations().asList(), hasSize(1));
-                    InternalTopHits hits = (InternalTopHits) bucket.getAggregations().asList().get(0);
-                    assertThat(hits.getHits().getHits(), arrayWithSize(1));
-                    SearchHit hit = hits.getHits().getHits()[0];
-                    assertThat(hit.field("title").getValues(), contains("the forth book"));
-                    assertThat(
-                        hit.field("author").getValues(),
-                        contains(
-                            Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston")),
-                            Map.of("first_name", List.of("Jack"), "last_name", List.of("Austin"))
-                        )
-                    );
-                }
-            } else {
-                assertThat(resp.getAggregations(), nullValue());
-            }
-            assertThat(resp.getHits().getHits(), arrayWithSize(requestSize));
-            if (requestSize > 0) {
-                SearchHit hit0 = resp.getHits().getHits()[0];
-                assertThat(hit0.field("title").getValues(), contains("the first book"));
-                assertThat(
-                    hit0.field("author").getValues(),
-                    contains(Map.of("first_name", List.of("John"), "last_name", List.of("New York")))
-                );
-            }
-        }
+                .addFetchField("another_author")
+                .get()
+        );
+        assertThat(failure.getMessage(), equalTo("failed to fetch lookup fields"));
+        Throwable indexNotFoundEx = ExceptionsHelper.unwrap(failure, IndexNotFoundException.class);
+        assertNotNull(indexNotFoundEx);
+        assertThat(indexNotFoundEx.getMessage(), equalTo("no such index [book_author]"));
     }
 
     private Map<String, Object> parseMapping(String mapping) throws IOException {

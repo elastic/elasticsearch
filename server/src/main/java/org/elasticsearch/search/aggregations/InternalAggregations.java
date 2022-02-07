@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -161,17 +160,5 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         }
 
         return from(reducedAggregations);
-    }
-
-    /**
-     * Visits the set of internal aggregations and their children recursively in this holder
-     *
-     * @param consumer is called whenever an internal aggregation is visited
-     */
-    public void visit(Consumer<InternalAggregation> consumer) {
-        for (InternalAggregation agg : getInternalAggregations()) {
-            consumer.accept(agg);
-            agg.forEachBucket(bucket -> bucket.visit(consumer));
-        }
     }
 }

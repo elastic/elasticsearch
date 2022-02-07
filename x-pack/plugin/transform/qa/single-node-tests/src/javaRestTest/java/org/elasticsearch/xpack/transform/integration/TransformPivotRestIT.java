@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -1012,7 +1010,6 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     /**
      * This test case makes sure that deprecation warnings from _search API are propagated to _preview API.
      */
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83529")
     public void testPreviewTransformWithScriptedMetricUsingDeprecatedSyntax() throws Exception {
         testTransformUsingScriptsUsingDeprecatedSyntax("POST", getTransformEndpoint() + "_preview");
     }
@@ -1020,7 +1017,6 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     /**
      * This test case makes sure that deprecation warnings from _search API are propagated to PUT API.
      */
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83529")
     public void testCreateTransformWithScriptedMetricUsingDeprecatedSyntax() throws Exception {
         testTransformUsingScriptsUsingDeprecatedSyntax("PUT", getTransformEndpoint() + "script_deprecated_syntax");
     }
@@ -1075,9 +1071,9 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "}";
 
         final Request request = new Request(method, endpoint);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         request.setJsonEntity(config);
-        WarningFailureException e = expectThrows(WarningFailureException.class, () -> client().performRequest(request));
-        Response response = e.getResponse();
+        final Response response = client().performRequest(request);
         assertThat(
             "Warnings were: " + response.getWarnings(),
             response.getWarnings(),

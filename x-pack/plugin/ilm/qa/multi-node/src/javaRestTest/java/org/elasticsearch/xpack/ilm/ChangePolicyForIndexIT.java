@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettin
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 
-public class ChangePolicyforIndexIT extends ESRestTestCase {
+public class ChangePolicyForIndexIT extends ESRestTestCase {
 
     /**
      * This test aims to prove that an index will finish the current phase on an

@@ -11,14 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
@@ -57,8 +55,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final Settings settings;
     private final SecurityContext securityContext;
 
-    private volatile boolean isStateNotRecovered = true;
-
     public SecurityServerTransportInterceptor(
         Settings settings,
         ThreadPool threadPool,
@@ -66,8 +62,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         AuthorizationService authzService,
         SSLService sslService,
         SecurityContext securityContext,
-        DestructiveOperations destructiveOperations,
-        ClusterService clusterService
+        DestructiveOperations destructiveOperations
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -76,7 +71,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
-        clusterService.addListener(e -> isStateNotRecovered = e.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
     }
 
     @Override
@@ -176,16 +170,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         boolean forceExecution,
         TransportRequestHandler<T> actualHandler
     ) {
-        return new ProfileSecuredRequestHandler<>(
-            logger,
-            action,
-            forceExecution,
-            executor,
-            actualHandler,
-            profileFilters,
-            settings,
-            threadPool
-        );
+        return new ProfileSecuredRequestHandler<>(logger, action, forceExecution, executor, actualHandler, profileFilters, threadPool);
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
@@ -232,7 +217,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             String executorName,
             TransportRequestHandler<T> handler,
             Map<String, ServerTransportFilter> profileFilters,
-            Settings settings,
             ThreadPool threadPool
         ) {
             this.logger = logger;

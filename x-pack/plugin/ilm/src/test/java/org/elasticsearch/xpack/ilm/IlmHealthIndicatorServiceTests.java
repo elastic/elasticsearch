@@ -45,7 +45,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     DATA,
                     GREEN,
                     "ILM is running",
-                    new SimpleHealthIndicatorDetails(Map.of("ilm-status", RUNNING, "policies", 1))
+                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 1))
                 )
             )
         );
@@ -64,7 +64,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     DATA,
                     YELLOW,
                     "ILM is not running",
-                    new SimpleHealthIndicatorDetails(Map.of("ilm-status", status, "policies", 1))
+                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1))
                 )
             )
         );
@@ -83,7 +83,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     DATA,
                     GREEN,
                     "No policies configured",
-                    new SimpleHealthIndicatorDetails(Map.of("ilm-status", status, "policies", 0))
+                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 0))
                 )
             )
         );
@@ -101,7 +101,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     DATA,
                     GREEN,
                     "No policies configured",
-                    new SimpleHealthIndicatorDetails(Map.of("ilm-status", RUNNING, "policies", 0))
+                    new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 0))
                 )
             )
         );

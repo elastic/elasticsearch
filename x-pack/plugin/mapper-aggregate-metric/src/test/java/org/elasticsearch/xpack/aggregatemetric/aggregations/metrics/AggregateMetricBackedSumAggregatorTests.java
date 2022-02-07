@@ -20,7 +20,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -57,7 +57,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
                 )
             );
         }, sum -> {
-            assertEquals(60, sum.getValue(), 0d);
+            assertEquals(60, sum.value(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(sum));
         });
     }
@@ -66,7 +66,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, sum -> {
-            assertEquals(0L, sum.getValue(), 0d);
+            assertEquals(0L, sum.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(sum));
         });
     }
@@ -76,7 +76,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
         }, sum -> {
-            assertEquals(0L, sum.getValue(), 0d);
+            assertEquals(0L, sum.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(sum));
         });
     }
@@ -105,7 +105,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
                 )
             );
         }, sum -> {
-            assertEquals(30L, sum.getValue(), 0d);
+            assertEquals(30L, sum.value(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(sum));
         });
     }
@@ -131,7 +131,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
         return fieldType;
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalSum> verify)
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Sum> verify)
         throws IOException {
         MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);

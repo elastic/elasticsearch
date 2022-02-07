@@ -15,6 +15,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -450,7 +451,7 @@ public class EmailActionTests extends ESTestCase {
         String attachmentId = "my_attachment";
 
         // setup mock response
-        Map<String, String[]> headers = new HashMap<>(1);
+        Map<String, String[]> headers = Maps.newMapWithExpectedSize(1);
         headers.put(HttpHeaders.Names.CONTENT_TYPE, new String[] { "plain/text" });
         String content = "My wonderful text";
         HttpResponse mockResponse = new HttpResponse(200, content, headers);
@@ -539,7 +540,7 @@ public class EmailActionTests extends ESTestCase {
         HttpClient httpClient = mock(HttpClient.class);
 
         // setup mock response, second one is an error
-        Map<String, String[]> headers = new HashMap<>(1);
+        Map<String, String[]> headers = Maps.newMapWithExpectedSize(1);
         headers.put(HttpHeaders.Names.CONTENT_TYPE, new String[] { "plain/text" });
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(new HttpResponse(200, "body", headers))
             .thenReturn(new HttpResponse(403));
@@ -623,7 +624,7 @@ public class EmailActionTests extends ESTestCase {
 
         String attachmentType = randomFrom("http", "data", null);
         if ("http".equals(attachmentType)) {
-            Map<String, String[]> headers = new HashMap<>(1);
+            Map<String, String[]> headers = Maps.newMapWithExpectedSize(1);
             headers.put(HttpHeaders.Names.CONTENT_TYPE, new String[] { "plain/text" });
             String content = "My wonderful text";
             HttpResponse mockResponse = new HttpResponse(200, content, headers);

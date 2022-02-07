@@ -928,9 +928,10 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     new AggregationReduceContext.ForFinal(
                         context.bigArrays(),
                         null,
+                        () -> false,
+                        builder,
                         context.multiBucketConsumer(),
-                        PipelineTree.EMPTY,
-                        () -> false
+                        PipelineTree.EMPTY
                     )
                 );
                 assertThat(

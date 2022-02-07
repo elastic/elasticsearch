@@ -142,7 +142,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
             SocketChannelContext context;
             if (sslEnabled) {
                 SSLEngine sslEngine;
-                boolean hostnameVerificationEnabled = sslConfiguration.getVerificationMode().isHostnameVerificationEnabled();
+                boolean hostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
                 if (hostnameVerificationEnabled) {
                     InetSocketAddress address = (InetSocketAddress) channel.getRemoteAddress();
                     // we create the socket based on the name given. don't reverse DNS

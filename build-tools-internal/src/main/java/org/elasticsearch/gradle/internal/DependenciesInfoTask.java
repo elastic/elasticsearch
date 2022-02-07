@@ -181,20 +181,20 @@ public class DependenciesInfoTask extends ConventionTask {
         String licenseType;
 
         final LicenseAnalyzer.LicenseInfo licenseInfo = LicenseAnalyzer.licenseType(license);
-        if (licenseInfo.isSpdxLicense() == false) {
+        if (licenseInfo.spdxLicense() == false) {
             // License has not be identified as SPDX.
             // As we have the license file, we create a Custom entry with the URL to this license file.
             final String gitBranch = System.getProperty("build.branch", "master");
             final String githubBaseURL = "https://raw.githubusercontent.com/elastic/elasticsearch/" + gitBranch + "/";
-            licenseType = licenseInfo.getIdentifier()
+            licenseType = licenseInfo.identifier()
                 + ";"
                 + license.getCanonicalPath().replaceFirst(".*/elasticsearch/", githubBaseURL)
                 + ",";
         } else {
-            licenseType = licenseInfo.getIdentifier() + ",";
+            licenseType = licenseInfo.identifier() + ",";
         }
 
-        if (licenseInfo.isSourceRedistributionRequired()) {
+        if (licenseInfo.sourceRedistributionRequired()) {
             final File sources = getDependencyInfoFile(group, name, "SOURCES");
             licenseType += Files.readString(sources.toPath()).trim();
         }

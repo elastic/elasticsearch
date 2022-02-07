@@ -38,13 +38,13 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         final String indexName = indexMetadata.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
-        final String repositoryName = lifecycleState.getSnapshotRepository();
+        final String repositoryName = lifecycleState.snapshotRepository();
         // if the snapshot information is missing from the ILM execution state there is nothing to delete so we move on
         if (Strings.hasText(repositoryName) == false) {
             listener.onResponse(null);
             return;
         }
-        final String snapshotName = lifecycleState.getSnapshotName();
+        final String snapshotName = lifecycleState.snapshotName();
         if (Strings.hasText(snapshotName) == false) {
             listener.onResponse(null);
             return;

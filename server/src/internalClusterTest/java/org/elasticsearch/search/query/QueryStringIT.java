@@ -8,18 +8,14 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
@@ -31,10 +27,8 @@ import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -232,90 +226,6 @@ public class QueryStringIT extends ESIntegTestCase {
             () -> client().prepareSearch("test").setQuery(queryStringQuery("f_date:[now-2D TO now]").lenient(false)).get()
         );
         assertThat(e.getCause().getMessage(), containsString("unit [D] not supported for date math [-2D]"));
-    }
-
-    public void testLimitOnExpandedFields() throws Exception {
-
-        final int maxClauseCount = randomIntBetween(50, 100);
-
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        {
-            builder.startObject("_doc");
-            {
-                builder.startObject("properties");
-                {
-                    for (int i = 0; i < maxClauseCount; i++) {
-                        builder.startObject("field_A" + i).field("type", "text").endObject();
-                        builder.startObject("field_B" + i).field("type", "text").endObject();
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-        }
-
-        assertAcked(
-            prepareCreate("testindex").setSettings(
-                Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), maxClauseCount + 100)
-            ).setMapping(builder)
-        );
-
-        client().prepareIndex("testindex").setId("1").setSource("field_A0", "foo bar baz").get();
-        refresh();
-
-        int originalMaxClauses = IndexSearcher.getMaxClauseCount();
-        try {
-
-            IndexSearcher.setMaxClauseCount(maxClauseCount);
-
-            // single field shouldn't trigger the limit
-            doAssertOneHitForQueryString("field_A0:foo");
-            // expanding to the limit should work
-            doAssertOneHitForQueryString("field_A\\*:foo");
-
-            // adding a non-existing field on top shouldn't overshoot the limit
-            doAssertOneHitForQueryString("field_A\\*:foo unmapped:something");
-
-            // the following should exceed the limit
-            doAssertLimitExceededException("foo", IndexSearcher.getMaxClauseCount() * 2, "*");
-            doAssertLimitExceededException("*:foo", IndexSearcher.getMaxClauseCount() * 2, "*");
-            doAssertLimitExceededException("field_\\*:foo", IndexSearcher.getMaxClauseCount() * 2, "field_*");
-
-        } finally {
-            IndexSearcher.setMaxClauseCount(originalMaxClauses);
-        }
-    }
-
-    private void doAssertOneHitForQueryString(String queryString) {
-        QueryStringQueryBuilder qb = queryStringQuery(queryString);
-        if (randomBoolean()) {
-            qb.defaultField("*");
-        }
-        SearchResponse response = client().prepareSearch("testindex").setQuery(qb).get();
-        assertHitCount(response, 1);
-    }
-
-    private void doAssertLimitExceededException(String queryString, int exceedingFieldCount, String inputFieldPattern) {
-        Exception e = expectThrows(Exception.class, () -> {
-            QueryStringQueryBuilder qb = queryStringQuery(queryString);
-            if (randomBoolean()) {
-                qb.defaultField("*");
-            }
-            client().prepareSearch("testindex").setQuery(qb).get();
-        });
-        assertThat(
-            ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
-            containsString(
-                "field expansion for ["
-                    + inputFieldPattern
-                    + "] matches too many fields, limit: "
-                    + IndexSearcher.getMaxClauseCount()
-                    + ", got: "
-                    + exceedingFieldCount
-            )
-        );
     }
 
     public void testFieldAlias() throws Exception {

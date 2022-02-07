@@ -627,7 +627,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         // Now that we have a bunch of tasks that need to be assigned, let's
         // mark half the nodes as shut down and make sure they do not have any
         // tasks assigned
-        Collection<DiscoveryNode> allNodes = clusterState.nodes().getAllNodes();
+        Collection<DiscoveryNode> allNodes = clusterState.nodes();
         Map<String, SingleNodeShutdownMetadata> shutdownMetadataMap = new HashMap<>();
         allNodes.stream()
             .limit(Math.floorDiv(allNodes.size(), 2))
@@ -736,7 +736,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 task.onFailure(new RuntimeException("foo"));
             } else {
                 state.set(after);
-                task.clusterStateProcessed("test", before, after);
+                task.clusterStateProcessed(before, after);
             }
             return null;
         }).when(recheckTestClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
@@ -814,10 +814,6 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             return NO_NODE_FOUND;
         }
         return Optional.ofNullable(randomFrom(nodes)).map(node -> new Assignment(node.getId(), "test assignment")).orElse(NO_NODE_FOUND);
-    }
-
-    private Assignment randomNodeAssignment(DiscoveryNodes nodes) {
-        return randomNodeAssignment(nodes.getAllNodes());
     }
 
     private String dumpEvent(ClusterChangedEvent event) {

@@ -32,8 +32,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
     /**
      * Return settings that could be used to start a node that has the given zipped home directory.
      */
-    private Settings prepareBackwardsDataDir(Path backwardsIndex) throws IOException {
-        Path indexDir = createTempDir();
+    private Settings prepareBackwardsDataDir(Path indexDir, Path backwardsIndex) throws IOException {
         Path dataDir = indexDir.resolve("data");
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, indexDir);
@@ -73,8 +72,9 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
     public void testUpgradeStartClusterOn_2_4_5() throws Exception {
         String indexName = "unsupported-2.4.5";
 
+        Path indexDir = createTempDir();
         logger.info("Checking static index {}", indexName);
-        Settings nodeSettings = prepareBackwardsDataDir(getDataPath("/indices/bwc").resolve(indexName + ".zip"));
+        Settings nodeSettings = prepareBackwardsDataDir(indexDir, getDataPath("/indices/bwc").resolve(indexName + ".zip"));
         assertThat(
             ExceptionsHelper.unwrap(
                 expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings)),

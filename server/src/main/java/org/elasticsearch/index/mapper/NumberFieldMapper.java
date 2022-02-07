@@ -53,6 +53,7 @@ import org.elasticsearch.script.field.ShortDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
@@ -138,7 +139,9 @@ public class NumberFieldMapper extends FieldMapper {
                 false,
                 () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false),
-                m -> toType(m).nullValue
+                m -> toType(m).nullValue,
+                XContentBuilder::field,
+                Objects::toString
             ).acceptsNull();
 
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
@@ -230,6 +233,11 @@ public class NumberFieldMapper extends FieldMapper {
                 final float result = parseToFloat(value);
                 // Reduce the precision to what we actually index
                 return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(result));
+            }
+
+            @Override
+            public double reduceToStoredPrecision(double value) {
+                return parse(value, false).doubleValue();
             }
 
             /**
@@ -374,6 +382,11 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 validateParsed(result);
                 return result;
+            }
+
+            @Override
+            public double reduceToStoredPrecision(double value) {
+                return parse(value, false).doubleValue();
             }
 
             @Override
@@ -1164,6 +1177,18 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public abstract IndexFieldData.Builder getFieldDataBuilder(String name);
+
+        /**
+         * Adjusts a value to the value it would have been had it been parsed by that mapper
+         * and then cast up to a double. This is meant to be an entry point to manipulate values
+         * before the actual value is parsed.
+         *
+         * @param value the value to reduce to the field stored value
+         * @return the double value
+         */
+        public double reduceToStoredPrecision(double value) {
+            return ((Number) value).doubleValue();
+        }
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -1238,7 +1263,7 @@ public class NumberFieldMapper extends FieldMapper {
                 // Trying to parse infinite values into ints/longs throws. Understandably.
                 return value;
             }
-            return type.parse(value, false).doubleValue();
+            return type.reduceToStoredPrecision(value);
         }
 
         public NumericType numericType() {
@@ -1246,6 +1271,10 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(this.name());
+        }
+
         public boolean isSearchable() {
             return isIndexed() || hasDocValues();
         }

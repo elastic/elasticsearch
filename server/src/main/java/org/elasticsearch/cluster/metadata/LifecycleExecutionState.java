@@ -13,14 +13,32 @@ import org.elasticsearch.ElasticsearchException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Contains information about the execution of a lifecycle policy for a single
  * index, and serializes/deserializes this information to and from custom
  * index metadata.
  */
-public class LifecycleExecutionState {
+public record LifecycleExecutionState(
+    String phase,
+    String action,
+    String step,
+    String failedStep,
+    Boolean isAutoRetryableError,
+    Integer failedStepRetryCount,
+    String stepInfo,
+    String phaseDefinition,
+    Long lifecycleDate,
+    Long phaseTime,
+    Long actionTime,
+    Long stepTime,
+    String snapshotRepository,
+    String snapshotName,
+    String shrinkIndexName,
+    String snapshotIndexName,
+    String rollupIndexName
+) {
+
     public static final String ILM_CUSTOM_METADATA_KEY = "ilm";
 
     private static final String PHASE = "phase";
@@ -42,62 +60,6 @@ public class LifecycleExecutionState {
     private static final String ROLLUP_INDEX_NAME = "rollup_index_name";
 
     public static final LifecycleExecutionState EMPTY_STATE = LifecycleExecutionState.builder().build();
-
-    private final String phase;
-    private final String action;
-    private final String step;
-    private final String failedStep;
-    private final Boolean isAutoRetryableError;
-    private final Integer failedStepRetryCount;
-    private final String stepInfo;
-    private final String phaseDefinition;
-    private final Long lifecycleDate;
-    private final Long phaseTime;
-    private final Long actionTime;
-    private final Long stepTime;
-    private final String snapshotName;
-    private final String snapshotRepository;
-    private final String shrinkIndexName;
-    private final String snapshotIndexName;
-    private final String rollupIndexName;
-
-    private LifecycleExecutionState(
-        String phase,
-        String action,
-        String step,
-        String failedStep,
-        Boolean isAutoRetryableError,
-        Integer failedStepRetryCount,
-        String stepInfo,
-        String phaseDefinition,
-        Long lifecycleDate,
-        Long phaseTime,
-        Long actionTime,
-        Long stepTime,
-        String snapshotRepository,
-        String snapshotName,
-        String shrinkIndexName,
-        String snapshotIndexName,
-        String rollupIndexName
-    ) {
-        this.phase = phase;
-        this.action = action;
-        this.step = step;
-        this.failedStep = failedStep;
-        this.isAutoRetryableError = isAutoRetryableError;
-        this.failedStepRetryCount = failedStepRetryCount;
-        this.stepInfo = stepInfo;
-        this.phaseDefinition = phaseDefinition;
-        this.lifecycleDate = lifecycleDate;
-        this.phaseTime = phaseTime;
-        this.actionTime = actionTime;
-        this.stepTime = stepTime;
-        this.snapshotRepository = snapshotRepository;
-        this.snapshotName = snapshotName;
-        this.shrinkIndexName = shrinkIndexName;
-        this.snapshotIndexName = snapshotIndexName;
-        this.rollupIndexName = rollupIndexName;
-    }
 
     public static Builder builder() {
         return new Builder();
@@ -235,6 +197,7 @@ public class LifecycleExecutionState {
     /**
      * Converts this object to an immutable map representation for use with
      * {@link IndexMetadata.Builder#putCustom(String, Map)}.
+     *
      * @return An immutable Map representation of this execution state.
      */
     public Map<String, String> asMap() {
@@ -291,126 +254,6 @@ public class LifecycleExecutionState {
             result.put(ROLLUP_INDEX_NAME, rollupIndexName);
         }
         return Collections.unmodifiableMap(result);
-    }
-
-    public String getPhase() {
-        return phase;
-    }
-
-    public String getAction() {
-        return action;
-    }
-
-    public String getStep() {
-        return step;
-    }
-
-    public String getFailedStep() {
-        return failedStep;
-    }
-
-    public Boolean isAutoRetryableError() {
-        return isAutoRetryableError;
-    }
-
-    public Integer getFailedStepRetryCount() {
-        return failedStepRetryCount;
-    }
-
-    public String getStepInfo() {
-        return stepInfo;
-    }
-
-    public String getPhaseDefinition() {
-        return phaseDefinition;
-    }
-
-    public Long getLifecycleDate() {
-        return lifecycleDate;
-    }
-
-    public Long getPhaseTime() {
-        return phaseTime;
-    }
-
-    public Long getActionTime() {
-        return actionTime;
-    }
-
-    public Long getStepTime() {
-        return stepTime;
-    }
-
-    public String getSnapshotName() {
-        return snapshotName;
-    }
-
-    public String getSnapshotRepository() {
-        return snapshotRepository;
-    }
-
-    public String getShrinkIndexName() {
-        return shrinkIndexName;
-    }
-
-    public String getSnapshotIndexName() {
-        return snapshotIndexName;
-    }
-
-    public String getRollupIndexName() {
-        return rollupIndexName;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        LifecycleExecutionState that = (LifecycleExecutionState) o;
-        return Objects.equals(getLifecycleDate(), that.getLifecycleDate())
-            && Objects.equals(getPhaseTime(), that.getPhaseTime())
-            && Objects.equals(getActionTime(), that.getActionTime())
-            && Objects.equals(getStepTime(), that.getStepTime())
-            && Objects.equals(getPhase(), that.getPhase())
-            && Objects.equals(getAction(), that.getAction())
-            && Objects.equals(getStep(), that.getStep())
-            && Objects.equals(getFailedStep(), that.getFailedStep())
-            && Objects.equals(isAutoRetryableError(), that.isAutoRetryableError())
-            && Objects.equals(getFailedStepRetryCount(), that.getFailedStepRetryCount())
-            && Objects.equals(getStepInfo(), that.getStepInfo())
-            && Objects.equals(getSnapshotRepository(), that.getSnapshotRepository())
-            && Objects.equals(getSnapshotName(), that.getSnapshotName())
-            && Objects.equals(getSnapshotIndexName(), that.getSnapshotIndexName())
-            && Objects.equals(getShrinkIndexName(), that.getShrinkIndexName())
-            && Objects.equals(getRollupIndexName(), that.getRollupIndexName())
-            && Objects.equals(getPhaseDefinition(), that.getPhaseDefinition());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(
-            getPhase(),
-            getAction(),
-            getStep(),
-            getFailedStep(),
-            isAutoRetryableError(),
-            getFailedStepRetryCount(),
-            getStepInfo(),
-            getPhaseDefinition(),
-            getLifecycleDate(),
-            getPhaseTime(),
-            getActionTime(),
-            getStepTime(),
-            getSnapshotRepository(),
-            getSnapshotName(),
-            getSnapshotIndexName(),
-            getShrinkIndexName(),
-            getRollupIndexName()
-        );
-    }
-
-    @Override
-    public String toString() {
-        return asMap().toString();
     }
 
     public static class Builder {

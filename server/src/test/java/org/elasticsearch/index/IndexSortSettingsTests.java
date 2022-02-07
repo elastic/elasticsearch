@@ -13,6 +13,7 @@ import org.apache.lucene.search.Sort;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -30,7 +31,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -203,7 +203,7 @@ public class IndexSortSettingsTests extends ESTestCase {
     }
 
     private Sort buildIndexSort(IndexSettings indexSettings, MappedFieldType... mfts) {
-        Map<String, MappedFieldType> lookup = new HashMap<>(mfts.length);
+        Map<String, MappedFieldType> lookup = Maps.newMapWithExpectedSize(mfts.length);
         for (MappedFieldType mft : mfts) {
             assertNull(lookup.put(mft.name(), mft));
         }

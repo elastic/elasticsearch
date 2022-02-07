@@ -11,9 +11,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -25,6 +27,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
 
 public class InternalTTestTests extends InternalAggregationTestCase<InternalTTest> {
 
@@ -41,7 +45,7 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
     }
 
     @Override
-    protected List<InternalTTest> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalTTest> randomResultsToReduce(String name, int size) {
         TTestType type = randomFrom(TTestType.values());
         int tails = randomIntBetween(1, 2);
         List<InternalTTest> inputs = new ArrayList<>(size);
@@ -51,7 +55,7 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
             DocValueFormat formatter = randomNumericDocValueFormat();
             inputs.add(new InternalTTest(name, state, formatter, null));
         }
-        return inputs;
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), inputs);
     }
 
     private TTestState randomState(long maxCount, TTestType type, int tails) {
@@ -97,7 +101,7 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
             case 1 -> state = randomState(Long.MAX_VALUE, randomFrom(TTestType.values()), randomIntBetween(1, 2));
             case 2 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

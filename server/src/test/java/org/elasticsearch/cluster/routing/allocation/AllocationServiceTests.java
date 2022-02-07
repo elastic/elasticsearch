@@ -260,7 +260,6 @@ public class AllocationServiceTests extends ESTestCase {
 
         final RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.emptyList()),
-            clusterState.getRoutingNodes(),
             clusterState,
             ClusterInfo.EMPTY,
             null,

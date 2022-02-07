@@ -22,8 +22,8 @@ For detailed information about this release, see the <<es-release-notes>> and
 important to update your application to account for these changes, finding and
 updating every API call in a single upgrade can be painful and error-prone. To
 make this process easier, we've added support for 7.x compatibility headers to
-our REST APIs. These optional headers let you make 7.x-compatible
-requests to an 8.0 cluster and receive 7.x-compatible responses.
+our REST APIs. In many cases, these optional headers let you make
+7.x-compatible requests to an 8.0 cluster and receive 7.x-compatible responses.
 
 While we still recommend you update your application to use native 8.0 requests
 and responses, the 7.x API compatibility headers let you safely make these

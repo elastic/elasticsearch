@@ -11,8 +11,8 @@ package org.elasticsearch.search.aggregations.timeseries;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -64,11 +64,11 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
             assertThat(ts.getBuckets(), hasSize(3));
 
             assertThat(ts.getBucketByKey("{dim1=aaa, dim2=xxx}").docCount, equalTo(2L));
-            assertThat(((Sum) ts.getBucketByKey("{dim1=aaa, dim2=xxx}").getAggregations().get("sum")).getValue(), equalTo(6.0));
+            assertThat(((Sum) ts.getBucketByKey("{dim1=aaa, dim2=xxx}").getAggregations().get("sum")).value(), equalTo(6.0));
             assertThat(ts.getBucketByKey("{dim1=aaa, dim2=yyy}").docCount, equalTo(2L));
-            assertThat(((Sum) ts.getBucketByKey("{dim1=aaa, dim2=yyy}").getAggregations().get("sum")).getValue(), equalTo(8.0));
+            assertThat(((Sum) ts.getBucketByKey("{dim1=aaa, dim2=yyy}").getAggregations().get("sum")).value(), equalTo(8.0));
             assertThat(ts.getBucketByKey("{dim1=bbb, dim2=zzz}").docCount, equalTo(4L));
-            assertThat(((Sum) ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("sum")).getValue(), equalTo(22.0));
+            assertThat(((Sum) ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("sum")).value(), equalTo(22.0));
 
         },
             new KeywordFieldMapper.KeywordFieldType("dim1"),
@@ -102,7 +102,7 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             TimeSeriesIdFieldMapper.encodeTsid(out, dimensionFields);
             BytesReference timeSeriesId = out.bytes();
-            fields.add(new SortedSetDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId.toBytesRef()));
+            fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId.toBytesRef()));
         }
         // TODO: Handle metrics
         iw.addDocument(fields.stream().toList());

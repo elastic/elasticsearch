@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -242,15 +243,17 @@ public class MetadataRolloverService {
             );
         }
 
+        final ComposableIndexTemplate templateV2;
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+            templateV2 = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {
                 throw new IllegalArgumentException("no system data stream descriptor found for data stream [" + dataStreamName + "]");
             }
+            templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
         final DataStream ds = dataStream.getDataStream();
@@ -270,6 +273,7 @@ public class MetadataRolloverService {
             systemDataStreamDescriptor,
             now
         );
+        createIndexClusterStateRequest.setMatchingTemplate(templateV2);
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
             createIndexClusterStateRequest,

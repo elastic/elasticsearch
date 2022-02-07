@@ -1,6 +1,0 @@
-pr: 78197
-summary: Upgrade bundled JDK to Java 17
-area: Packaging
-type: upgrade
-issues:
- - 78168

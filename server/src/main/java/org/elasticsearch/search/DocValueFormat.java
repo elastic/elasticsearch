@@ -447,14 +447,14 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat IP = IpDocValueFormat.INSTANCE;
+    IpDocValueFormat IP = IpDocValueFormat.INSTANCE;
 
     /**
      * Stateless, singleton formatter for IP address data
      */
     class IpDocValueFormat implements DocValueFormat {
 
-        public static final DocValueFormat INSTANCE = new IpDocValueFormat();
+        public static final IpDocValueFormat INSTANCE = new IpDocValueFormat();
 
         private IpDocValueFormat() {}
 

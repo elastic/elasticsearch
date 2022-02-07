@@ -81,7 +81,9 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         dimensions = new String[numberOfDimensions][];
         int dimCardinality = 1;
         for (int i = 0; i < dimensions.length; i++) {
-            dimensions[i] = randomUnique(() -> randomAlphaOfLength(10), randomIntBetween(1, 30 / numberOfMetrics)).toArray(new String[0]);
+            dimensions[i] = randomUnique(() -> randomAlphaOfLength(10), randomIntBetween(1, 20 / numberOfDimensions)).toArray(
+                new String[0]
+            );
             dimCardinality *= dimensions[i].length;
         }
 
@@ -315,7 +317,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
 
         Global global = aggregations.get("everything");
         Sum allSum = global.getAggregations().get("all_sum");
-        assertThat(allSum.getValue(), closeTo(sumByMetric(data, "metric_" + metric), allSum.getValue() * 0.0001));
+        assertThat(allSum.value(), closeTo(sumByMetric(data, "metric_" + metric), allSum.value() * 0.0001));
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,

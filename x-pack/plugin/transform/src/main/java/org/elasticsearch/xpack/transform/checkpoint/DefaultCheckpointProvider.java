@@ -62,7 +62,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     protected final TransformAuditor transformAuditor;
     protected final TransformConfig transformConfig;
 
-    // set of clusters that do not support 8.1+ checkpoint actions
+    // set of clusters that do not support 8.2+ checkpoint actions
     private final Set<String> fallbackToBWC = new HashSet<>();
 
     DefaultCheckpointProvider(
@@ -194,7 +194,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     /**
-     * BWC fallback for nodes/cluster older than 8.1
+     * BWC fallback for nodes/cluster older than 8.2
      */
     private static void getCheckpointsFromOneClusterBWC(
         Client client,

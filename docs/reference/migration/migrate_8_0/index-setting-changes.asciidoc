@@ -23,7 +23,7 @@ Discontinue use of the `index.max_adjacency_matrix_filters` index setting.
 
 Requests that include the index setting will return an error. If you upgrade a
 cluster with a 7.x index that already contains the setting, {es} will
-{ref}/setup-upgrade.html#archived-settings[archive the setting].
+{ref}/archived-settings.html#archived-index-settings[archive the setting].
 
 Remove the index setting from index and component templates. Attempts to use a
 template that contains the setting will fail and return an error. This includes

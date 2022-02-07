@@ -265,7 +265,7 @@ public class Archives {
               eof { send_user "\\nFailed to determine if startup succeeded\\n"; exit 1 }
               %s
             }
-            """.formatted(null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started" : "\"" + outputStringToMatch + "\"");
+            """.formatted(null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started\"" : "\"" + outputStringToMatch + "\"");
         String expectScript = """
             expect - <<EXPECT
             set timeout 30

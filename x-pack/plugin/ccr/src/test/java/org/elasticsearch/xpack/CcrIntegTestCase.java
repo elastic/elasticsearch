@@ -187,7 +187,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         assertBusy(() -> {
             ClusterService clusterService = leaderCluster.getInstance(ClusterService.class);
             assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
-        });
+        }, 60, TimeUnit.SECONDS);
 
         String address = leaderCluster.getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         InternalTestCluster followerCluster = new InternalTestCluster(
@@ -211,7 +211,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         assertBusy(() -> {
             ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
             assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
-        });
+        }, 60, TimeUnit.SECONDS);
         setupMasterNodeRequestsValidatorOnFollowerCluster();
     }
 
@@ -536,7 +536,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             ListTasksResponse listTasksResponse = followerClient().admin().cluster().listTasks(listTasksRequest).get();
             int numNodeTasks = 0;
             for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                if (taskInfo.getAction().startsWith(ListTasksAction.NAME) == false) {
+                if (taskInfo.action().startsWith(ListTasksAction.NAME) == false) {
                     numNodeTasks++;
                 }
             }

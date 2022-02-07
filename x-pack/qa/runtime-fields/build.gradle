@@ -78,6 +78,9 @@ subprojects {
 
           //there is something wrong when using dotted document syntax here, passes in main yaml tests
           'search/330_fetch_fields/Test nested field inside object structure',
+
+          // AwaitsFix: https://github.com/elastic/elasticsearch/issues/83431
+          'search.aggregation/450_time_series/Basic test',
           /////// TO FIX ///////
 
           /////// NOT SUPPORTED ///////

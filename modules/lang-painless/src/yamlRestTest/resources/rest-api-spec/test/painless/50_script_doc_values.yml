@@ -265,6 +265,94 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "doc.date.get(0).getMillis()"
+    - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "doc.date.value.getMillis()"
+    - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('date').get(null).getMillis()"
+    - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('date', null).getMillis()"
+    - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "doc.date.get(0).millis"
+    - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "doc.date.value.millis"
+    - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('date').get(null).millis"
+    - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('date', null).millis"
+    - match: { hits.hits.0.fields.field.0: 1483272672000 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
             query: { term: { _id: 2 } }
             script_fields:
               field:
@@ -1696,3 +1784,357 @@ setup:
   - match: { hits.hits.1.fields.f_list.0: "dne" }
   - match: { hits.hits.1.fields.f_list2.0: "789" }
   - match: { hits.hits.1.fields.all.0: "10111213789876deflmnrstwyz" }
+
+---
+"unsupported date methods":
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getCenturyOfEra()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getCenturyOfEra] is no longer available; use [get(ChronoField.YEAR_OF_ERA) / 100] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).get(ChronoField.YEAR_OF_ERA) / 100"
+  - match: { hits.hits.0.fields.field.0: 20 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getEra()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getEra] is no longer available; use [get(ChronoField.ERA)] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).get(ChronoField.ERA)"
+  - match: { hits.hits.0.fields.field.0: 1 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getHourOfDay()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getHourOfDay] is no longer available; use [getHour()] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getHour()"
+  - match: { hits.hits.0.fields.field.0: 12 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getMillisOfDay()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getMillisOfDay] is no longer available; use [get(ChronoField.MILLI_OF_DAY)] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).get(ChronoField.MILLI_OF_DAY)"
+  - match: { hits.hits.0.fields.field.0: 43872000 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getMillisOfSecond()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getMillisOfSecond] is no longer available; use [get(ChronoField.MILLI_OF_SECOND)] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).get(ChronoField.MILLI_OF_SECOND)"
+  - match: { hits.hits.0.fields.field.0: 0 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getMinuteOfDay()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getMinuteOfDay] is no longer available; use [get(ChronoField.MINUTE_OF_DAY)] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).get(ChronoField.MINUTE_OF_DAY)"
+  - match: { hits.hits.0.fields.field.0: 731 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getMinuteOfHour()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getMinuteOfHour] is no longer available; use [getMinute()] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getMinute()"
+  - match: { hits.hits.0.fields.field.0: 11 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getMonthOfYear()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getMonthOfYear] is no longer available; use [getMonthValue()] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getMonthValue()"
+  - match: { hits.hits.0.fields.field.0: 1 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getSecondOfDay()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getSecondOfDay] is no longer available; use [get(ChronoField.SECOND_OF_DAY)] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).get(ChronoField.SECOND_OF_DAY)"
+  - match: { hits.hits.0.fields.field.0: 43872 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getSecondOfMinute()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getSecondOfMinute] is no longer available; use [getSecond()] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getSecond()"
+  - match: { hits.hits.0.fields.field.0: 12 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getWeekOfWeekyear()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getWeekOfWeekyear] is no longer available; use [get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)"
+  - match: { hits.hits.0.fields.field.0: 52 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getWeekyear()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getWeekyear] is no longer available; use [get(IsoFields.WEEK_BASED_YEAR)] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).get(IsoFields.WEEK_BASED_YEAR)"
+  - match: { hits.hits.0.fields.field.0: 2016 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getYearOfCentury()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getYearOfCentury] is no longer available; use [get(ChronoField.YEAR_OF_ERA) % 100] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).get(ChronoField.YEAR_OF_ERA) % 100"
+  - match: { hits.hits.0.fields.field.0: 17 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).getYearOfEra()"
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason:
+               "[getYearOfEra] is no longer available; use [get(ChronoField.YEAR_OF_ERA)] instead" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid stash */ $('date', null).get(ChronoField.YEAR_OF_ERA)"
+  - match: { hits.hits.0.fields.field.0: 2017 }
+

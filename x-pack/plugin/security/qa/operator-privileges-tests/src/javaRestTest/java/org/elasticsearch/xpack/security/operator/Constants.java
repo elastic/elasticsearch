@@ -20,6 +20,10 @@ public class Constants {
         "cluster:admin/component_template/get",
         "cluster:admin/component_template/put",
         "cluster:admin/deprecation/cache/reset",
+        // Desired nodes APIs
+        "cluster:admin/desired_nodes/get",
+        "cluster:admin/desired_nodes/update",
+        "cluster:admin/desired_nodes/delete",
         "cluster:admin/ilm/_move/post",
         "cluster:admin/ilm/delete",
         "cluster:admin/ilm/get",
@@ -246,6 +250,7 @@ public class Constants {
         "cluster:monitor/ccr/stats",
         "cluster:monitor/eql/async/status",
         "cluster:monitor/health",
+        "cluster:monitor/health_api",
         "cluster:monitor/ingest/geoip/stats",
         "cluster:monitor/main",
         "cluster:monitor/nodes/hot_threads",

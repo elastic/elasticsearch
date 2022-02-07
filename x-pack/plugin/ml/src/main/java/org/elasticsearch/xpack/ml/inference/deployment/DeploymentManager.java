@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -63,6 +64,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -101,25 +103,32 @@ public class DeploymentManager {
     }
 
     public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
-        return Optional.ofNullable(processContextByAllocation.get(task.getId()))
-            .map(
-                processContext -> new ModelStats(
-                    processContext.startTime,
-                    processContext.getResultProcessor().getTimingStats(),
-                    processContext.getResultProcessor().getLastUsed(),
-                    processContext.executorService.queueSize() + processContext.getResultProcessor().numberOfPendingResults(),
-                    processContext.inferenceThreads,
-                    processContext.modelThreads
-                )
+        return Optional.ofNullable(processContextByAllocation.get(task.getId())).map(processContext -> {
+            var stats = processContext.getResultProcessor().getResultStats();
+            return new ModelStats(
+                processContext.startTime,
+                stats.timingStats(),
+                stats.lastUsed(),
+                processContext.executorService.queueSize() + stats.numberOfPendingResults(),
+                stats.errorCount(),
+                processContext.rejectedExecutionCount.intValue(),
+                processContext.timeoutCount.intValue(),
+                processContext.inferenceThreads,
+                processContext.modelThreads
             );
+        });
+    }
+
+    // function exposed for testing
+    ProcessContext addProcessContext(Long id, ProcessContext processContext) {
+        return processContextByAllocation.putIfAbsent(id, processContext);
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
         logger.info("[{}] Starting model deployment", task.getModelId());
 
         ProcessContext processContext = new ProcessContext(task, executorServiceForProcess);
-
-        if (processContextByAllocation.putIfAbsent(task.getId(), processContext) != null) {
+        if (addProcessContext(task.getId(), processContext) != null) {
             finalListener.onFailure(
                 ExceptionsHelper.serverError("[{}] Could not create inference process as one already exists", task.getModelId())
             );
@@ -259,7 +268,10 @@ public class DeploymentManager {
             listener
         );
         try {
-            processContext.executorService.execute(inferenceAction);
+            processContext.getExecutorService().execute(inferenceAction);
+        } catch (EsRejectedExecutionException e) {
+            processContext.getRejectedExecutionCount().incrementAndGet();
+            inferenceAction.onFailure(e);
         } catch (Exception e) {
             inferenceAction.onFailure(e);
         }
@@ -302,6 +314,7 @@ public class DeploymentManager {
 
         void onTimeout() {
             if (notified.compareAndSet(false, true)) {
+                processContext.getTimeoutCount().incrementAndGet();
                 processContext.getResultProcessor().ignoreResponseWithoutNotifying(String.valueOf(requestId));
                 listener.onFailure(
                     new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.REQUEST_TIMEOUT, timeout)
@@ -435,6 +448,8 @@ public class DeploymentManager {
         private volatile Instant startTime;
         private volatile Integer inferenceThreads;
         private volatile Integer modelThreads;
+        private AtomicInteger rejectedExecutionCount = new AtomicInteger();
+        private AtomicInteger timeoutCount = new AtomicInteger();
 
         ProcessContext(TrainedModelDeploymentTask task, ExecutorService executorService) {
             this.task = Objects.requireNonNull(task);
@@ -491,6 +506,21 @@ public class DeploymentManager {
             } else {
                 throw new IllegalStateException("unsupported trained model location [" + modelLocation.getClass().getSimpleName() + "]");
             }
+        }
+
+        // accessor used for mocking in tests
+        AtomicInteger getTimeoutCount() {
+            return timeoutCount;
+        }
+
+        // accessor used for mocking in tests
+        ExecutorService getExecutorService() {
+            return executorService;
+        }
+
+        // accessor used for mocking in tests
+        AtomicInteger getRejectedExecutionCount() {
+            return rejectedExecutionCount;
         }
     }
 }

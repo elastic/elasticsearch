@@ -62,7 +62,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
-        this.shards = Collections.unmodifiableList(shards);
+        this.shards = List.copyOf(shards);
 
         ShardRouting primary = null;
         List<ShardRouting> replicas = new ArrayList<>();
@@ -529,24 +529,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return allAllocationIds;
     }
 
-    static class AttributesKey {
-
-        final List<String> attributes;
-
-        AttributesKey(List<String> attributes) {
-            this.attributes = attributes;
-        }
-
-        @Override
-        public int hashCode() {
-            return attributes.hashCode();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return obj instanceof AttributesKey && attributes.equals(((AttributesKey) obj).attributes);
-        }
-    }
+    record AttributesKey(List<String> attributes) {}
 
     public ShardRouting primaryShard() {
         return primary;
@@ -583,7 +566,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     public static class Builder {
 
-        private ShardId shardId;
+        private final ShardId shardId;
         private final List<ShardRouting> shards;
 
         public Builder(IndexShardRoutingTable indexShard) {
@@ -609,7 +592,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         public IndexShardRoutingTable build() {
             // don't allow more than one shard copy with same id to be allocated to same node
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
-            return new IndexShardRoutingTable(shardId, List.copyOf(shards));
+            return new IndexShardRoutingTable(shardId, shards);
         }
 
         static boolean distinctNodes(List<ShardRouting> shards) {

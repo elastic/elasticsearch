@@ -76,17 +76,16 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
-import org.elasticsearch.xpack.core.security.action.ApiKey;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -430,26 +429,6 @@ public class ApiKeyService {
             credentials.close();
             listener.onFailure(e);
         }));
-    }
-
-    public Authentication createApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
-        if (false == authResult.isAuthenticated()) {
-            throw new IllegalArgumentException("API Key authn result must be successful");
-        }
-        final User user = authResult.getValue();
-        final RealmRef authenticatedBy = new RealmRef(
-            AuthenticationField.API_KEY_REALM_NAME,
-            AuthenticationField.API_KEY_REALM_TYPE,
-            nodeName
-        );
-        return new Authentication(
-            user,
-            authenticatedBy,
-            null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.API_KEY,
-            authResult.getMetadata()
-        );
     }
 
     void loadApiKeyAndValidateCredentials(

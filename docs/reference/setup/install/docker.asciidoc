@@ -141,10 +141,10 @@ start the new node with the generated enrollment token.
 --
 .Generating enrollment tokens
 ****
-The enrollment token is valid for 30 minutes. If you need to generate a 
+The enrollment token is valid for 30 minutes. If you need to generate a
 new enrollment token, run the
 <<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool on your
-existing node. This tool is available in the {es} `bin` directory of the Docker 
+existing node. This tool is available in the {es} `bin` directory of the Docker
 container.
 
 For example, run the following command on the existing `es01` node to
@@ -158,7 +158,7 @@ docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollmen
 --
 
 . In the terminal where you started your first node, copy the generated
-enrollment token for adding new {es} nodes. 
+enrollment token for adding new {es} nodes.
 
 . On your new node, start {es} and include the generated enrollment token.
 +
@@ -356,12 +356,12 @@ The following requirements and recommendations apply when running {es} in Docker
 
 The `vm.max_map_count` kernel setting must be set to at least `262144` for production use.
 
-How you set `vm.max_map_count` depends on your platform:
+How you set `vm.max_map_count` depends on your platform.
 
-* Linux
-+
---
-The `vm.max_map_count` setting should be set permanently in `/etc/sysctl.conf`:
+====== Linux
+
+To view the current value for the `vm.max_map_count` setting, run:
+
 [source,sh]
 --------------------------------------------
 grep vm.max_map_count /etc/sysctl.conf
@@ -374,11 +374,12 @@ To apply the setting on a live system, run:
 --------------------------------------------
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
---
 
-* macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
-+
---
+To permanently change the value for the `vm.max_map_count` setting, update the
+value in `/etc/sysctl.conf`.
+
+====== macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
+
 The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 
 . From the command line, run:
@@ -388,7 +389,7 @@ The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 --------------------------------------------
 
-. Press enter and use`sysctl` to configure `vm.max_map_count`:
+. Press enter and use `sysctl` to configure `vm.max_map_count`:
 +
 [source,sh]
 --------------------------------------------
@@ -396,11 +397,9 @@ sysctl -w vm.max_map_count=262144
 --------------------------------------------
 
 . To exit the `screen` session, type `Ctrl a d`.
---
 
-* Windows and macOS with https://www.docker.com/products/docker-desktop[Docker Desktop]
-+
---
+====== Windows and macOS with https://www.docker.com/products/docker-desktop[Docker Desktop]
+
 The `vm.max_map_count` setting must be set via docker-machine:
 
 [source,sh]
@@ -408,11 +407,9 @@ The `vm.max_map_count` setting must be set via docker-machine:
 docker-machine ssh
 sudo sysctl -w vm.max_map_count=262144
 --------------------------------------------
---
 
-* Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
-+
---
+====== Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
+
 The `vm.max_map_count` setting must be set in the docker-desktop container:
 
 [source,sh]
@@ -420,7 +417,7 @@ The `vm.max_map_count` setting must be set in the docker-desktop container:
 wsl -d docker-desktop
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
---
+
 
 ===== Configuration files must be readable by the `elasticsearch` user
 
@@ -445,11 +442,17 @@ chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
 
-You can also run an {es} container using both a custom UID and GID. Unless you
-bind-mount each of the `config`, `data` and `logs` directories, you must pass
-the command line option `--group-add 0` to `docker run`. This ensures that the user
-under which {es} is running is also a member of the `root` (GID 0) group inside the
-container.
+You can also run an {es} container using both a custom UID and GID. You
+must ensure that file permissions will not prevent {es} from executing. You
+can use one of two options:
+
+* Bind-mount the `config`, `data` and `logs`
+  directories. If you intend to install plugins and prefer not to
+  <<_c_customized_image, create a custom Docker image>>, you must also
+  bind-mount the `plugins` directory.
+* Pass the `--group-add 0` command line option to `docker run`. This
+  ensures that the user under which {es} is running is also a member of the
+  `root` (GID 0) group inside the container.
 
 ===== Increase ulimits for nofile and nproc
 

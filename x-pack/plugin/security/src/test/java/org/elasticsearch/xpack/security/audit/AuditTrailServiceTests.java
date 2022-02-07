@@ -217,8 +217,8 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testAccessGranted() throws Exception {
         Authentication authentication = new Authentication(
             new User("_username", "r1"),
-            new RealmRef(null, null, null),
-            new RealmRef(null, null, null)
+            new RealmRef("_realm", "_type", "node", null),
+            new RealmRef("_look", "_type", "node", null)
         );
         AuthorizationInfo authzInfo = () -> Collections.singletonMap(
             PRINCIPAL_ROLES_FIELD_NAME,
@@ -239,8 +239,8 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testAccessDenied() throws Exception {
         Authentication authentication = new Authentication(
             new User("_username", "r1"),
-            new RealmRef(null, null, null),
-            new RealmRef(null, null, null)
+            new RealmRef("_realm", "_type", "node", null),
+            new RealmRef("_look", "_type", "node", null)
         );
         AuthorizationInfo authzInfo = () -> Collections.singletonMap(
             PRINCIPAL_ROLES_FIELD_NAME,
@@ -289,8 +289,8 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testAuthenticationSuccessRest() throws Exception {
         Authentication authentication = new Authentication(
             new User("_username", "r1"),
-            new RealmRef("_realm", null, null),
-            new RealmRef(null, null, null)
+            new RealmRef("_realm", "_type", "node", null),
+            new RealmRef("_look", "_type", "node", null)
         );
         final String requestId = randomAlphaOfLengthBetween(6, 12);
         service.get().authenticationSuccess(requestId, authentication, restRequest);
@@ -307,8 +307,8 @@ public class AuditTrailServiceTests extends ESTestCase {
     public void testAuthenticationSuccessTransport() throws Exception {
         Authentication authentication = new Authentication(
             new User("_username", "r1"),
-            new RealmRef("_realm", null, null),
-            new RealmRef(null, null, null)
+            new RealmRef("_realm", "_type", "node", null),
+            new RealmRef("_look", "_type", "node", null)
         );
         final String requestId = randomAlphaOfLengthBetween(6, 12);
         service.get().authenticationSuccess(requestId, authentication, "_action", request);

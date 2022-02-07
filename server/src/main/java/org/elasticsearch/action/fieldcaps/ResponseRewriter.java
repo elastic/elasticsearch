@@ -59,9 +59,6 @@ final class ResponseRewriter {
             if ("+metadata".equals(filter)) {
                 test = test.and(IndexFieldCapabilities::isMetadatafield);
             }
-            if ("+timeseries".equals(filter)) {
-                test = test.and(ifc -> ifc.isDimension() || ifc.getMetricType() != null);
-            }
             if ("-nested".equals(filter)) {
                 if (nestedObjects == null) {
                     nestedObjects = findTypes("nested", input);

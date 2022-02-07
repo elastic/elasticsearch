@@ -49,38 +49,6 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNull(response.getField("field2.field3"));
     }
 
-    public void testTimeSeriesFieldsOnly() throws IOException {
-        MapperService mapperService = createMapperService("""
-            { "_doc" : {
-              "properties" : {
-                "field1" : { "type" : "keyword" },
-                "field2" : {
-                  "type" : "keyword",
-                  "time_series_dimension" : "true"
-                },
-                "field3" : {
-                  "type" : "long",
-                  "time_series_metric" : "counter"
-                }
-              }
-            } }
-            """);
-        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
-
-        FieldCapabilitiesIndexResponse response = FieldCapabilitiesFetcher.retrieveFieldCaps(
-            "index",
-            sec,
-            new String[] { "*" },
-            new String[] { "+timeseries" },
-            f -> true
-        );
-
-        assertNull(response.getField("field1"));
-        assertNotNull(response.getField("field2"));
-        assertNotNull(response.getField("field3"));
-        assertNull(response.getField("_index"));
-    }
-
     public void testMetadataFilters() throws IOException {
         MapperService mapperService = createMapperService("""
             { "_doc" : {

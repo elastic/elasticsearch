@@ -1437,20 +1437,22 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     public void testCompressCursor() throws IOException {
-        String doc = IntStream.range(0, 1000).mapToObj(i -> String.format("\"field%d\": %d", i, i)).collect(Collectors.joining(","));
+        String doc = IntStream.range(0, 1000)
+            .mapToObj(i -> String.format(Locale.ROOT, "\"field%d\": %d", i, i))
+            .collect(Collectors.joining(","));
         index("{" + doc + "}");
 
         String mode = randomMode();
-        Map<String, Object> resp = toMap(runSql(query("SHOW COLUMNS FROM test").fetchSize(1).mode(mode)), mode);
+        Map<String, Object> resp = toMap(runSql(query("SHOW COLUMNS FROM " + indexPattern("test")).fetchSize(1).mode(mode)), mode);
 
-        // without compression, the cursor is at least <avg. fieldname length> * 1000 bytes (effectively ~35kb)
+        // without compression, the cursor is at least <avg. fieldname length> * 1000 bytes (in fact it is ~35kb)
         assertThat(resp.get("cursor").toString().length(), lessThan(5000));
     }
 
     static Map<String, Object> runSql(RequestObjectBuilder builder, String mode) throws IOException {
         return toMap(runSql(builder.mode(mode)), mode);
     }
- 
+
     static Response runSql(RequestObjectBuilder builder) throws IOException {
         return runSqlAsTextWithFormat(builder, null);
     }

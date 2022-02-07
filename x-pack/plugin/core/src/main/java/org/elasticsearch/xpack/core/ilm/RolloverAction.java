@@ -116,7 +116,7 @@ public class RolloverAction implements LifecycleAction {
         }
         maxAge = in.readOptionalTimeValue();
         maxDocs = in.readOptionalVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
             maxPrimaryShardDocs = in.readOptionalVLong();
         } else {
             maxPrimaryShardDocs = null;
@@ -137,7 +137,7 @@ public class RolloverAction implements LifecycleAction {
         }
         out.writeOptionalTimeValue(maxAge);
         out.writeOptionalVLong(maxDocs);
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
             out.writeOptionalVLong(maxPrimaryShardDocs);
         }
     }

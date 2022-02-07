@@ -369,7 +369,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             this.setPriorityPriority = in.readOptionalVInt();
             this.shrinkMaxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
             this.shrinkNumberOfShards = in.readOptionalVInt();
-            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
                 this.rolloverMaxPrimaryShardDocs = in.readOptionalVLong();
             } else {
                 this.rolloverMaxPrimaryShardDocs = null;
@@ -387,7 +387,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             out.writeOptionalVInt(setPriorityPriority);
             out.writeOptionalWriteable(shrinkMaxPrimaryShardSize);
             out.writeOptionalVInt(shrinkNumberOfShards);
-            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
                 out.writeOptionalVLong(rolloverMaxPrimaryShardDocs);
             }
         }

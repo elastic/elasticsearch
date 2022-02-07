@@ -130,12 +130,12 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
     public void testBwcSerializationWithMaxPrimaryShardDocs() throws Exception {
         // In case of serializing to node with older version, replace maxPrimaryShardDocs with maxDocs.
         RolloverAction instance = new RolloverAction(null, null, null, null, 1L);
-        RolloverAction deserializedInstance = copyInstance(instance, Version.V_8_0_0);
+        RolloverAction deserializedInstance = copyInstance(instance, Version.V_8_1_0);
         assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());
 
         // But not if maxSize is also specified:
         instance = new RolloverAction(null, null, null, 2L, 1L);
-        deserializedInstance = copyInstance(instance, Version.V_8_0_0);
+        deserializedInstance = copyInstance(instance, Version.V_8_1_0);
         assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());
         assertThat(deserializedInstance.getMaxDocs(), equalTo(instance.getMaxDocs()));
     }

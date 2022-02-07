@@ -1,8 +1,8 @@
 ---
 "Rollover with max_primary_shard_docs condition":
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
 
   # create index with alias and replica
   - do:

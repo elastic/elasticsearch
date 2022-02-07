@@ -296,7 +296,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version."
+                + "in a future release."
         );
     }
 
@@ -367,7 +367,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version."
+                + "in a future release."
         );
     }
 
@@ -432,7 +432,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.cluster.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version."
+                + "in a future release."
         );
     }
 

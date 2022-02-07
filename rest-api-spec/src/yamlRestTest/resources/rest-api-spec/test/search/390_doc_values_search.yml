@@ -290,6 +290,60 @@ setup:
   - length:   { hits.hits: 2  }
 
 ---
+"Test fuzzy query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { fuzzy: { keyword: { value: "kay1", fuzziness: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test prefix query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { prefix: { keyword: { value: "key" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test case insensitive term query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { term: { keyword: { value: "KeY1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test wildcard query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "k*1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test case insensitive wildcard query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "K*1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test regexp query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { regexp: { keyword: { value: "k.*1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
 "Test match query on boolean field where only doc values are enabled":
 
   - do:

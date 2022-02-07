@@ -1085,7 +1085,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // ... and also automatically exclude the node IDs of master-ineligible nodes that were previously master-eligible and are still in
         // the voting config. We could exclude all the master-ineligible nodes here, but there could be quite a few of them and that makes
         // the logging much harder to follow.
-        final Stream<String> masterIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+        final Stream<String> masterIneligibleNodeIdsInVotingConfig = clusterState.nodes()
+            .stream()
             .filter(
                 n -> n.isMasterNode() == false
                     && (clusterState.getLastAcceptedConfiguration().getNodeIds().contains(n.getId())
@@ -1093,7 +1094,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             )
             .map(DiscoveryNode::getId);
 
-        final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+        final Set<DiscoveryNode> liveNodes = clusterState.nodes()
+            .stream()
             .filter(DiscoveryNode::isMasterNode)
             .filter(coordinationState.get()::containsJoinVoteFor)
             .collect(Collectors.toSet());

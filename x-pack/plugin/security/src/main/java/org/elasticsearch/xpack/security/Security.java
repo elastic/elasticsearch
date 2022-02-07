@@ -319,7 +319,6 @@ import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTrans
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -471,11 +470,11 @@ public class Security extends Plugin
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
 
-    public Security(Settings settings, final Path configPath) {
-        this(settings, configPath, Collections.emptyList());
+    public Security(Settings settings) {
+        this(settings, Collections.emptyList());
     }
 
-    Security(Settings settings, final Path configPath, List<SecurityExtension> extensions) {
+    Security(Settings settings, List<SecurityExtension> extensions) {
         // TODO This is wrong. Settings can change after this. We should use the settings from createComponents
         this.settings = settings;
         // TODO this is wrong, we should only use the environment that is provided to createComponents
@@ -863,8 +862,7 @@ public class Security extends Plugin
                 authzService,
                 getSslService(),
                 securityContext.get(),
-                destructiveOperations,
-                clusterService
+                destructiveOperations
             )
         );
 

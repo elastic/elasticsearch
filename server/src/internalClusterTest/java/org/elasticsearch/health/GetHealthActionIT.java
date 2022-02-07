@@ -63,7 +63,8 @@ public class GetHealthActionIT extends ESIntegTestCase {
     }
 
     public void testGetHealthInstanceNoMaster() throws Exception {
-        Client client = internalCluster().coordOnlyNodeClient();
+        // builds the coordinating-only client before disrupting all nodes
+        final Client client = internalCluster().coordOnlyNodeClient();
 
         final NetworkDisruption disruptionScheme = new NetworkDisruption(
             new NetworkDisruption.IsolateAllNodes(new HashSet<>(Arrays.asList(internalCluster().getNodeNames()))),
@@ -78,7 +79,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
-                GetHealthAction.Response response = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
+                GetHealthAction.Response response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
                 assertEquals(HealthStatus.RED, response.getStatus());
                 assertEquals(2, response.getComponents().size());
                 HealthComponentResult controller = response.getComponents()

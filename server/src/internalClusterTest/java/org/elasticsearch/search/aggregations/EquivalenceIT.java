@@ -457,7 +457,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
         assertThat(bucket.getDocCount(), equalTo(value < 6 ? 1L : 0L));
         Sum sum = bucket.getAggregations().get("sum");
-        assertEquals(value < 6 ? value : 0, sum.getValue(), 0d);
+        assertEquals(value < 6 ? value : 0, sum.value(), 0d);
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -466,7 +466,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(bucket.getDocCount(), equalTo(value >= 6 ? 1L : 0L));
         sum = bucket.getAggregations().get("sum");
-        assertEquals(value >= 6 ? value : 0, sum.getValue(), 0d);
+        assertEquals(value >= 6 ? value : 0, sum.value(), 0d);
     }
 
     private void assertEquals(Terms t1, Terms t2) {

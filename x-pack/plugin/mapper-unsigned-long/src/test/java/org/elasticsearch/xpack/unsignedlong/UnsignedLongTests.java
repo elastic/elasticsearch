@@ -284,7 +284,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
             assertSearchResponse(response);
             Sum sum = response.getAggregations().get("ul_sum");
             double expectedSum = Arrays.stream(values).mapToDouble(Number::doubleValue).sum();
-            assertEquals(expectedSum, sum.getValue(), 0.001);
+            assertEquals(expectedSum, sum.value(), 0.001);
         }
         // max agg
         {

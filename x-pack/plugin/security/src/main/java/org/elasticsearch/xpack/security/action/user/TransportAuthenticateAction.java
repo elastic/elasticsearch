@@ -62,6 +62,8 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
                     .toArray(String[]::new);
                 listener.onResponse(
                     new AuthenticateResponse(
+                        // TODO do not rebuild the authentication for display purposes, instead make the authentication service construct
+                        // the user so it includes the anonymous roles as well
                         new Authentication(
                             new User(
                                 new User(user.principal(), allRoleNames, user.fullName(), user.email(), user.metadata(), user.enabled()),

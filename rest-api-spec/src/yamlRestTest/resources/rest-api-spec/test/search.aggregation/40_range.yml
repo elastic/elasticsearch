@@ -29,6 +29,17 @@ setup:
                 format: strict_date_time||strict_date
 
   - do:
+      indices.create:
+        index: long_value_test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              long:
+                type: long
+
+  - do:
       cluster.health:
         wait_for_status: yellow
 
@@ -37,15 +48,22 @@ setup:
         index: test
         refresh: true
         body:
-         - {"index": {}}
-         - { "double" : 42.1, "long": 25, "float": 0.01, "half_float": 0.01 }
-         - {"index": {}}
-         - { "double" : 100.7, "long": 80, "float": 0.03, "half_float": 0.0152 }
-         - {"index": {}}
-         - { "double" : 50.5, "long":  75, "float": 0.04, "half_float": 0.04 }
-# For testing missing values
-         - {"index": {}}
-         - {}
+          - {"index": {}}
+          - { "double" : 42.1, "long": 25, "float": 0.01, "half_float": 0.01 }
+          - {"index": {}}
+          - { "double" : 100.7, "long": 80, "float": 0.03, "half_float": 0.0152 }
+          - {"index": {}}
+          - { "double" : 50.5, "long":  75, "float": 0.04, "half_float": 0.04 }
+          # For testing missing values
+          - {"index": {}}
+          - {}
+  - do:
+      bulk:
+        index: long_value_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "long": -9223372036854775808 }
 
   - do:
       bulk:
@@ -198,6 +216,46 @@ setup:
   - match: { aggregations.float_range.buckets.2.from: 10.6 }
   - is_false:  aggregations.float_range.buckets.2.to
   - match: { aggregations.float_range.buckets.2.doc_count: 3 }
+
+---
+"Double range on long field":
+  - skip:
+      version: " - 8.0.99"
+      reason: Bug fixed in 8.1.0
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            double_range:
+              range:
+                field: "long"
+                ranges:
+                  -
+                    to: 24.9
+                  -
+                    from: 24.9
+                    to: 79.9
+                  -
+                    from: 79.9
+
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.double_range.buckets: 3 }
+  - match: { aggregations.double_range.buckets.0.key: "*-24.9" }
+  - is_false: aggregations.double_range.buckets.0.from
+  - match: { aggregations.double_range.buckets.0.to: 24.9 }
+  - match: { aggregations.double_range.buckets.0.doc_count: 0 }
+  - match: { aggregations.double_range.buckets.1.key: "24.9-79.9" }
+  - match: { aggregations.double_range.buckets.1.from: 24.9 }
+  - match: { aggregations.double_range.buckets.1.to: 79.9 }
+  - match: { aggregations.double_range.buckets.1.doc_count: 2 }
+  - match: { aggregations.double_range.buckets.2.key: "79.9-*" }
+  - match: { aggregations.double_range.buckets.2.from: 79.9 }
+  - is_false:  aggregations.double_range.buckets.2.to
+  - match: { aggregations.double_range.buckets.2.doc_count: 1 }
+
 
 ---
 "Double range no decimal":
@@ -399,7 +457,9 @@ setup:
               range:
                 field: date
                 ranges:
-                  { from: 2021-05-01T00:00:00Z, to: 2021-05-05T00:00:00Z }
+                 -
+                   from: 2021-05-01T00:00:00Z
+                   to: 2021-05-05T00:00:00Z
 
   - match: { hits.total.value: 5 }
   - length: { aggregations.date_range.buckets: 1 }
@@ -409,3 +469,30 @@ setup:
   - match: { aggregations.date_range.buckets.0.from_as_string: "2021-05-01T00:00:00.000Z" }
   - match: { aggregations.date_range.buckets.0.to: 1620172800000 }
   - match: { aggregations.date_range.buckets.0.to_as_string: "2021-05-05T00:00:00.000Z" }
+
+---
+"Min and max long range bounds":
+  - skip:
+      version: " - 8.0.99"
+      reason: Bug fixed in 8.1.0
+  - do:
+      search:
+        index: long_value_test
+        body:
+          size: 0
+          aggs:
+            long_range:
+              range:
+                field: "long"
+                ranges:
+                  -
+                    from: -9223372036854775808
+                    to: 9223372036854775807
+
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.long_range.buckets: 1 }
+  - match: { aggregations.long_range.buckets.0.key: "-9.223372036854776E18-9.223372036854776E18" }
+  - match: { aggregations.long_range.buckets.0.from: -9.223372036854776E18 }
+  - match: { aggregations.long_range.buckets.0.to: 9.223372036854776E18 }
+  - match: { aggregations.long_range.buckets.0.doc_count: 1 }

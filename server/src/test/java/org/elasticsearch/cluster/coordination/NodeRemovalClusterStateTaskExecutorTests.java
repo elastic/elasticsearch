@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,7 +44,8 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         for (int i = nodes; i < nodes + randomIntBetween(1, 16); i++) {
             removeBuilder.add(node(i));
         }
-        final List<NodeRemovalClusterStateTaskExecutor.Task> tasks = StreamSupport.stream(removeBuilder.build().spliterator(), false)
+        final List<NodeRemovalClusterStateTaskExecutor.Task> tasks = removeBuilder.build()
+            .stream()
             .map(node -> new NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed", () -> {}))
             .collect(Collectors.toList());
 

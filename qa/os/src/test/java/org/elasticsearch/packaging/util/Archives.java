@@ -237,6 +237,7 @@ public class Archives {
         Shell sh,
         String keystorePassword,
         List<String> parameters,
+        String outputStringToMatch,
         boolean daemonize
     ) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
@@ -265,17 +266,20 @@ public class Archives {
               -re "o\\.e\\.n\\.Node.*] started"
             }
             """;
+        String matchOutputScript = null == outputStringToMatch ? "" : "expect " + outputStringToMatch;
         String expectScript = """
             expect - <<EXPECT
             set timeout 30
             spawn -ignore HUP %s
             %s
             %s
+            %s
             EXPECT
             """.formatted(
             String.join(" ", command).formatted(ARCHIVE_OWNER, bin.elasticsearch, pidFile),
             keystoreScript,
-            checkStartupScript
+            checkStartupScript,
+            matchOutputScript
         );
         sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
         return sh.runIgnoreExitCode(expectScript);

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.ServerUtils;

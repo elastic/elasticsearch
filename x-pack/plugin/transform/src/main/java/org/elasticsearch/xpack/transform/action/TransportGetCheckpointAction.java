@@ -27,6 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -185,10 +186,12 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 }
 
                 logger.trace("get checkpoints from node {}", node);
-                transportService.sendRequest(
+                transportService.sendChildRequest(
                     node,
                     GetCheckpointNodeAction.NAME,
                     nodeCheckpointsRequest,
+                    task,
+                    TransportRequestOptions.EMPTY,
                     new TransportResponseHandler<GetCheckpointNodeAction.Response>() {
 
                         @Override

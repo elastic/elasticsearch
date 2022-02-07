@@ -87,7 +87,8 @@ connections to the remote cluster. Proxy mode does not require remote cluster
 nodes to have accessible publish addresses.
 
 The proxy mode is not the default connection mode and must be configured.
-Proxy mode has the same <<gateway-nodes-selection, version compatibility requirements>> as Sniff mode. 
+Proxy mode has the same <<gateway-nodes-selection, version compatibility
+requirements>> as sniff mode. 
 
 [%collapsible]
 [[proxy-mode-version-compatibility]]

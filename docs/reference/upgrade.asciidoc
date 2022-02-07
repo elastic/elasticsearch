@@ -108,6 +108,14 @@ of the products in your Elastic Stack. For more information, see the
 {stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
 
 [discrete]
+[[upgrade-rest-api-compatibility]]
+=== REST API compatibility
+
+REST API compatibility in a per-request opt-in feature that can help REST clients
+mitigate non compatible (breaking) changes to the REST API.
+See <<rest-api-compatibility>> for additional information.
+
+[discrete]
 [[upgrade-fips-java17]]
 === FIPS Compliance and Java 17
 

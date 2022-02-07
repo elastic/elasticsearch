@@ -13,5 +13,13 @@ package org.elasticsearch.health;
  */
 public interface HealthIndicatorService {
 
+    String name();
+
+    String component();
+
     HealthIndicatorResult calculate();
+
+    default HealthIndicatorResult createIndicator(HealthStatus status, String summary, HealthIndicatorDetails details) {
+        return new HealthIndicatorResult(name(), component(), status, summary, details);
+    }
 }

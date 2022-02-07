@@ -18,6 +18,11 @@ is replaced with a new endpoint that does not contain `_xpack`. As an example,
 *Impact* +
 Use the replacement REST API endpoints. Requests submitted to the `_xpack`
 API endpoints will return an error.
+
+*Compatibility* +
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+any requests that include the`_xpack` prefix are rerouted to the corresponding
+URL without the `_xpack` prefix.
 ====
 
 [[remove-mapping-type-api-endpoints]]
@@ -161,6 +166,12 @@ also been removed. Use a typeless endpoint instead.
 *Impact* +
 Update your application to use typeless REST API endpoints. Requests to
 endpoints that contain a mapping type will return an error.
+
+*Compatibility* +
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>, if a request includes a custom mapping type it is ignored. The request is rerouted to the corresponding typeless URL.
+Custom mapping types in request bodies and type related HTTP
+parameters are ignored, and responses, where warranted, include `_type` : `_doc`.
+
 ====
 
 .{ccs-cap} ({ccs-init}) is now only backward-compatible with the previous minor version.
@@ -179,7 +190,7 @@ matrix].
 IMPORTANT: For the {ref}/eql-search-api.html[EQL search API], the local and
 remote clusters must use the same {es} version.
 
-For example, a local 8.0 cluster can search a remote 7.7, 8.0, or
+For example, a local 8.0 cluster can search a remote {prev-major-last}, 8.0, or
 8.1 cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8
 cluster is not supported.
 
@@ -214,6 +225,10 @@ sort buckets by their term, use `_key` instead.
 *Impact* +
 Discontinue use of the `_term` order key. Requests that include a `_term` order
 key will return an error.
+
+*Compatibility* +
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `_term` order is ignored and `key` is used instead.
 ====
 
 [[remove-time-order-key]]
@@ -227,6 +242,10 @@ values. To sort buckets by their key, use `_key` instead.
 *Impact* +
 Discontinue use of the `_time` order key. Requests that include a `_time` order
 key will return an error.
+
+*Compatibility* +
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `_time` order is ignored and `_key` is used instead.
 ====
 
 [[remove-moving-avg-agg]]
@@ -242,6 +261,8 @@ aggregation] instead.
 *Impact* +
 Discontinue use of the `moving_avg` aggregation. Requests that include the
 `moving_avg` aggregation will return an error.
+
+
 ====
 
 [[percentile-duplication]]
@@ -257,6 +278,7 @@ its values must be unique. Otherwise, an exception occurs.
 Use unique values in the `percents` parameter of the `percentiles` aggregation.
 Requests containing duplicate values in the `percents` parameter will return
 an error.
+
 ====
 
 [[date-histogram-interval]]
@@ -276,6 +298,10 @@ Uses of the `interval` parameter in either the `date_histogram` aggregation or
 the `date_histogram` composite source will now generate an error.  Instead
 please use the more specific `fixed_interval` or `calendar_interval`
 parameters.
+
+*Compatibility* +
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `interval` parameter is adapted to either a fixed or calendar interval.
 ====
 
 [[ngram-edgengram-filter-names-removed]]
@@ -436,6 +462,11 @@ parameter is now removed in 8.0.
 Use the {ref}/indices-templates-v1.html[create or update index template API]'s
 `index_patterns` parameter. Requests that include the `template` parameter will
 return an error.
+
+*Compatibility* +
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `template` parameter is mapped to `index_patterns`.
+
 ====
 
 .Synced flush has been removed.
@@ -448,6 +479,10 @@ instead as it has the same effect as a synced flush in 7.6 and later.
 *Impact* +
 Use the {ref}/indices-flush.html[flush API]. Requests to the
 `/<index>/flush/synced` or `/flush/synced` endpoints will return an error.
+
+*Compatibility* +
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the request to synced flush is routed to the equivalent non-synced flush URL.
 ====
 
 .The default for the `?wait_for_active_shards` parameter on the close index API has changed.
@@ -477,6 +512,10 @@ stats for specific mapping types. Mapping types have been removed in 8.0.
 *Impact* +
 Discontinue use of the `types` query parameter. Requests that include the
 parameter will return an error.
+
+*Compatibility* +
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `types` query parameter is ignored and stats are returned for the entire index.
 ====
 
 .The `user_agent` ingest processor's `ecs` parameter has no effect.
@@ -504,6 +543,11 @@ include a mapping type name. Mapping types have been removed in 8.x.
 *Impact* +
 Discontinue use of the `include_type_name` query parameter. Requests that
 include the parameter will return an error.
+
+*Compatibility* +
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `include_type_name` query parameter is ignored and any custom mapping types
+in the request are removed.
 ====
 
 .Reindex from remote now re-encodes URL-encoded index names.
@@ -537,6 +581,11 @@ Similarly, the `size` parameter has been renamed to `max_docs` for
 *Impact* +
 Use the replacement parameters. Requests containing the `size` parameter will
 return an error.
+
+*Compatibility* +
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `size` parameter is mapped to the `max_docs` parameter.
+
 ====
 
 .The update by query API now rejects unsupported `script` fields.
@@ -875,6 +924,11 @@ removed in 8.0.
 *Impact* +
 Discontinue use of the `use_field_mapping` request body parameter. Requests
 containing this parameter will return an error.
+
+*Compatibility* +
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `use_field_mapping` parameter is ignored.
+
 ====
 
 .The search API's `from` request body and url parameter cannot be negative.
@@ -929,6 +983,7 @@ The `type` query has been removed. Mapping types have been removed in 8.0.
 *Impact* +
 Discontinue use of the `type` query. Requests that include the `type` query
 will return an error.
+
 ====
 
 .The `kibana_user` role has been renamed `kibana_admin`.

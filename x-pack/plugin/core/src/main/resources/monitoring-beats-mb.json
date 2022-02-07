@@ -1509,6 +1509,49 @@
                           }
                         }
                       }
+                    },
+                    "sampling": {
+                      "properties": {
+                        "transactions_dropped": {
+                          "type": "long"
+                        },
+                        "tail": {
+                          "properties": {
+                            "dynamic_service_groups": {
+                              "type": "long"
+                            },
+                            "storage": {
+                              "properties": {
+                                "lsm_size": {
+                                  "type": "long"
+                                },
+                                "value_log_size": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "events": {
+                              "properties": {
+                                "processed": {
+                                  "type": "long"
+                                },
+                                "dropped": {
+                                  "type": "long"
+                                },
+                                "stored": {
+                                  "type": "long"
+                                },
+                                "sampled": {
+                                  "type": "long"
+                                },
+                                "head_unsampled": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 },

@@ -1892,7 +1892,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [" + settingKey1 + ".*," + settingKey2 + ".*] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings: [" + subSettingKey1 + "," + subSetting1Key2 + "," + subSetting2Key2+ "]",
+                    "Remove the following settings: [" + subSettingKey1 + "," + subSetting1Key2 + "," + subSetting2Key2 + "]",
                     false,
                     meta
                 )
@@ -2263,8 +2263,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     private Map<String, Object> buildMetaObjectForRemovableSettings(String... settingNames) throws JsonProcessingException {
-        String settingNamesString =
-            Arrays.stream(settingNames).map(settingName -> "\"" + settingName + "\"").collect(Collectors.joining(","));
+        String settingNamesString = Arrays.stream(settingNames)
+            .map(settingName -> "\"" + settingName + "\"")
+            .collect(Collectors.joining(","));
         String metaString = "{\"actions\": [{\"action_type\": \"remove_settings\", \"objects\":[" + settingNamesString + "]}]}";
         return new ObjectMapper().readValue(metaString, Map.class);
     }

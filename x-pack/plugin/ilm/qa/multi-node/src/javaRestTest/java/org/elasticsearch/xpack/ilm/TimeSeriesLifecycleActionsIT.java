@@ -652,14 +652,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             managedIndex1,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), originalPolicy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, originalPolicy)
         );
         createIndexWithSettings(
             client(),
             managedIndex2,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), originalPolicy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, originalPolicy)
         );
         createIndexWithSettings(
             client(),
@@ -671,7 +671,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             managedByOtherPolicyIndex,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), otherPolicy)
+                .put(LifecycleSettings.LIFECYCLE_NAME, otherPolicy)
         );
 
         Request deleteRequest = new Request("DELETE", "_ilm/policy/" + originalPolicy);
@@ -739,7 +739,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(5, 15))
+                .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLengthBetween(5, 15))
         );
 
         Request stopILMRequest = new Request("POST", "_ilm/stop");

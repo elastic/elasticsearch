@@ -263,9 +263,9 @@ public class Archives {
               "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
               timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }
               eof { send_user "\\nFailed to determine if startup succeeded\\n"; exit 1 }
-              "%s"
+              %s
             }
-            """.formatted(null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started" : outputStringToMatch);
+            """.formatted(null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started" : "\"" + outputStringToMatch + "\"");
         String expectScript = """
             expect - <<EXPECT
             set timeout 30

@@ -13,7 +13,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -1072,14 +1071,9 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "}";
 
         final Request request = new Request(method, endpoint);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         request.setJsonEntity(config);
-        final Response response;
-        if (useDeprecatedEndpoints()) {
-            response = client().performRequest(request);
-        } else {
-            WarningFailureException e = expectThrows(WarningFailureException.class, () -> client().performRequest(request));
-            response = e.getResponse();
-        }
+        final Response response = client().performRequest(request);
         assertThat(
             "Warnings were: " + response.getWarnings(),
             response.getWarnings(),

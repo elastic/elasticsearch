@@ -122,7 +122,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         indexDocs.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : Arrays.asList("{\"int\":1,\"kw\":\"foo\"}", "{\"int\":2,\"kw\":\"bar\"}", "{\"kw\":\"bar\"}")) {
-            bulk.append("{\"index\":{}\n").append(doc).append("\n");
+            bulk.append("{\"index\":{}}\n").append(doc).append("\n");
         }
         indexDocs.setJsonEntity(bulk.toString());
         client().performRequest(indexDocs);

@@ -1518,7 +1518,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             authenticationContextSerializer.writeToContext(
-                apiKeyService.createApiKeyAuthentication(authenticationResult, "node01"),
+                Authentication.newApiKeyAuthentication(authenticationResult, "node01"),
                 threadContext
             );
             final CompletableFuture<Authentication> authFuture = new CompletableFuture<>();

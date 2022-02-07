@@ -22,6 +22,24 @@ import static org.junit.Assert.assertThat;
 public class ReleaseHighlightsGeneratorTest {
 
     /**
+     * Check that the release highlights can be correctly generated when there are no highlights.
+     */
+    @Test
+    public void generateFile_withNoHighlights_rendersCorrectMarkup() throws Exception {
+        // given:
+        final String template = getResource("/templates/release-highlights.asciidoc");
+        final String expectedOutput = getResource(
+            "/org/elasticsearch/gradle/internal/release/ReleaseHighlightsGeneratorTest.noHighlights.generateFile.asciidoc"
+        );
+
+        // when:
+        final String actualOutput = ReleaseHighlightsGenerator.generateFile(QualifiedVersion.of("8.4.0-SNAPSHOT"), template, List.of());
+
+        // then:
+        assertThat(actualOutput, equalTo(expectedOutput));
+    }
+
+    /**
      * Check that the release highlights can be correctly generated.
      */
     @Test

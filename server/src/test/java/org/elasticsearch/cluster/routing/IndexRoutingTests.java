@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.RoutingMissingException;
@@ -524,7 +526,7 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(
             routing,
             Map.of("foo", Map.of("bar", "cat"), "baz", "dog"),
-            Math.floorMod(hash(List.of("foo", List.of("bar", "cat"))), shards)
+            Math.floorMod(hash(List.of("foo.bar", "cat")), shards)
         );
     }
 
@@ -534,8 +536,14 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(
             routing,
             Map.of("foo", Map.of("a", "cat"), "bar", Map.of("thing", "yay", "this", "too")),
-            Math.floorMod(hash(List.of("bar", List.of("thing", "yay", "this", "too"), "foo", List.of("a", "cat"))), shards)
+            Math.floorMod(hash(List.of("bar.thing", "yay", "bar.this", "too", "foo.a", "cat")), shards)
         );
+    }
+
+    public void testRoutingPathDotInName() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = indexRoutingForPath(shards, "foo.bar");
+        assertIndexShard(routing, Map.of("foo.bar", "cat", "baz", "dog"), Math.floorMod(hash(List.of("foo.bar", "cat")), shards));
     }
 
     public void testRoutingPathBwc() throws IOException {
@@ -549,12 +557,13 @@ public class IndexRoutingTests extends ESTestCase {
          * versions of Elasticsearch must continue to route based on the
          * version on the index.
          */
-        assertIndexShard(routing, Map.of("dim", Map.of("a", "a")), 0, equalTo("-MVn8A"));
-        assertIndexShard(routing, Map.of("dim", Map.of("a", "b")), 5, equalTo("Zfrrww"));
-        assertIndexShard(routing, Map.of("dim", Map.of("c", "d")), 4, equalTo("fKxedg"));
-        assertIndexShard(routing, Map.of("other", Map.of("a", "a")), 5, equalTo("RY76Nw"));
-        assertIndexShard(routing, Map.of("top", "a"), 3, equalTo("YxcvZg"));
-        assertIndexShard(routing, Map.of("dim", Map.of("c", "d"), "top", "b"), 2, equalTo("Agwaqw"));
+        assertIndexShard(routing, Map.of("dim", Map.of("a", "a")), 4);
+        assertIndexShard(routing, Map.of("dim", Map.of("a", "b")), 5);
+        assertIndexShard(routing, Map.of("dim", Map.of("c", "d")), 4);
+        assertIndexShard(routing, Map.of("other", Map.of("a", "a")), 7);
+        assertIndexShard(routing, Map.of("top", "a"), 5);
+        assertIndexShard(routing, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
+        assertIndexShard(routing, Map.of("dim.a", "a"), 4);
     }
 
     public void testRoutingPathReadWithoutRouting() throws IOException {
@@ -632,23 +641,14 @@ public class IndexRoutingTests extends ESTestCase {
     /**
      * Build the hash we expect from the extracter.
      */
-    private int hash(List<?> keysAndValues) {
+    private int hash(List<String> keysAndValues) {
         assertThat(keysAndValues.size() % 2, equalTo(0));
         int hash = 0;
         for (int i = 0; i < keysAndValues.size(); i += 2) {
-            int thisHash = Murmur3HashFunction.hash(keysAndValues.get(i).toString()) ^ expectedValueHash(keysAndValues.get(i + 1));
-            hash = hash * 31 + thisHash;
+            int keyHash = StringHelper.murmurhash3_x86_32(new BytesRef(keysAndValues.get(i)), 0);
+            int valueHash = StringHelper.murmurhash3_x86_32(new BytesRef(keysAndValues.get(i + 1)), 0);
+            hash = hash * 31 + (keyHash ^ valueHash);
         }
         return hash;
-    }
-
-    private int expectedValueHash(Object value) {
-        if (value instanceof List) {
-            return hash((List<?>) value);
-        }
-        if (value instanceof String) {
-            return Murmur3HashFunction.hash((String) value);
-        }
-        throw new IllegalArgumentException("Unsupported value: " + value);
     }
 }

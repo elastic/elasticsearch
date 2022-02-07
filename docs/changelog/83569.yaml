@@ -1,0 +1,5 @@
+pr: 83569
+summary: rename ChangePolicyforIndexIT to ChangePolicyForIndexIT
+area: ILM+SLM
+type: bug
+issues: []

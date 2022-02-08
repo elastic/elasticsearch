@@ -71,12 +71,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static final String NAME = "reactive_storage";
 
     private final DiskThresholdSettings diskThresholdSettings;
-    private final DataTierAllocationDecider dataTierAllocationDecider;
     private final AllocationDeciders allocationDeciders;
 
     public ReactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings, AllocationDeciders allocationDeciders) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        this.dataTierAllocationDecider = new DataTierAllocationDecider();
         this.allocationDeciders = allocationDeciders;
     }
 
@@ -108,12 +106,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return new AutoscalingDeciderResult(null, new ReactiveReason("current capacity not available", -1, -1));
         }
 
-        AllocationState allocationState = new AllocationState(
-            context,
-            diskThresholdSettings,
-            allocationDeciders,
-            dataTierAllocationDecider
-        );
+        AllocationState allocationState = new AllocationState(context, diskThresholdSettings, allocationDeciders);
         long unassignedBytes = allocationState.storagePreventsAllocation();
         long assignedBytes = allocationState.storagePreventsRemainOrMove();
         long maxShardSize = allocationState.maxShardSize();
@@ -177,7 +170,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static class AllocationState {
         private final ClusterState state;
         private final AllocationDeciders allocationDeciders;
-        private final DataTierAllocationDecider dataTierAllocationDecider;
         private final DiskThresholdSettings diskThresholdSettings;
         private final ClusterInfo info;
         private final SnapshotShardSizeInfo shardSizeInfo;
@@ -189,13 +181,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         AllocationState(
             AutoscalingDeciderContext context,
             DiskThresholdSettings diskThresholdSettings,
-            AllocationDeciders allocationDeciders,
-            DataTierAllocationDecider dataTierAllocationDecider
+            AllocationDeciders allocationDeciders
         ) {
             this(
                 context.state(),
                 allocationDeciders,
-                dataTierAllocationDecider,
                 diskThresholdSettings,
                 context.info(),
                 context.snapshotShardSizeInfo(),
@@ -207,7 +197,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         AllocationState(
             ClusterState state,
             AllocationDeciders allocationDeciders,
-            DataTierAllocationDecider dataTierAllocationDecider,
             DiskThresholdSettings diskThresholdSettings,
             ClusterInfo info,
             SnapshotShardSizeInfo shardSizeInfo,
@@ -216,7 +205,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         ) {
             this.state = state;
             this.allocationDeciders = allocationDeciders;
-            this.dataTierAllocationDecider = dataTierAllocationDecider;
             this.diskThresholdSettings = diskThresholdSettings;
             this.info = info;
             this.shardSizeInfo = shardSizeInfo;
@@ -347,7 +335,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             Set<Decision.Type> decisionTypes = allocation.routingNodes()
                 .stream()
                 .map(
-                    node -> dataTierAllocationDecider.shouldFilter(
+                    node -> DataTierAllocationDecider.shouldFilter(
                         indexMetadata,
                         node.node().getRoles(),
                         this::highestPreferenceTier,
@@ -380,7 +368,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         private boolean isAssignedToTier(ShardRouting shard, RoutingAllocation allocation) {
             IndexMetadata indexMetadata = indexMetadata(shard, allocation);
-            return dataTierAllocationDecider.shouldFilter(indexMetadata, roles, this::highestPreferenceTier, allocation) != Decision.NO;
+            return DataTierAllocationDecider.shouldFilter(indexMetadata, roles, this::highestPreferenceTier, allocation) != Decision.NO;
         }
 
         private IndexMetadata indexMetadata(ShardRouting shard, RoutingAllocation allocation) {
@@ -504,7 +492,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return new AllocationState(
                 forecastClusterState,
                 allocationDeciders,
-                dataTierAllocationDecider,
                 diskThresholdSettings,
                 forecastInfo,
                 shardSizeInfo,

@@ -455,7 +455,7 @@ public class XPackPlugin extends XPackClientPlugin
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        return Collections.singleton(new DataTierAllocationDecider());
+        return Collections.singleton(DataTierAllocationDecider.INSTANCE);
     }
 
     @Override

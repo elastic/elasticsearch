@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -92,7 +93,8 @@ public class IndexMetadataTests extends ESTestCase {
                         new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
                         new MaxDocsCondition(randomNonNegativeLong()),
                         new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-                        new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong()))
+                        new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                        new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
                     ),
                     randomNonNegativeLong()
                 )
@@ -116,6 +118,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
         assertEquals(metadata.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
+        assertEquals(metadata.getCompatibilityVersion(), fromXContentMeta.getCompatibilityVersion());
         assertEquals(metadata.getRoutingNumShards(), fromXContentMeta.getRoutingNumShards());
         assertEquals(metadata.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
@@ -137,6 +140,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getNumberOfReplicas(), deserialized.getNumberOfReplicas());
             assertEquals(metadata.getNumberOfShards(), deserialized.getNumberOfShards());
             assertEquals(metadata.getCreationVersion(), deserialized.getCreationVersion());
+            assertEquals(metadata.getCompatibilityVersion(), deserialized.getCompatibilityVersion());
             assertEquals(metadata.getRoutingNumShards(), deserialized.getRoutingNumShards());
             assertEquals(metadata.getCreationDate(), deserialized.getCreationDate());
             assertEquals(metadata.getRoutingFactor(), deserialized.getRoutingFactor());

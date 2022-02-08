@@ -138,6 +138,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)
         );
         assertMap(tsid, matchesMap().entry(coffee, "good").entry(fire, "hot"));
+        // Also make sure the keys are in order
         assertThat(List.copyOf(tsid.keySet()), equalTo(List.of(coffee, fire)));
     }
 

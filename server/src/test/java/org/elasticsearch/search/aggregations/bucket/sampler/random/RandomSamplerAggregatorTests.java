@@ -9,8 +9,8 @@
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.Avg;

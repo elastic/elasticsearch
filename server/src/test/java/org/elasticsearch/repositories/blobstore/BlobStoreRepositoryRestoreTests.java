@@ -9,7 +9,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.Metadata;

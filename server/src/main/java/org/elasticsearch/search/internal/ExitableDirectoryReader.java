@@ -15,6 +15,7 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
@@ -187,15 +188,9 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void intersect(IntersectVisitor visitor) throws IOException {
+        public PointTree getPointTree() throws IOException {
             queryCancellation.checkCancelled();
-            in.intersect(new ExitableIntersectVisitor(visitor, queryCancellation));
-        }
-
-        @Override
-        public long estimatePointCount(IntersectVisitor visitor) {
-            queryCancellation.checkCancelled();
-            return in.estimatePointCount(visitor);
+            return new ExitablePointTree(in, in.getPointTree(), queryCancellation);
         }
 
         @Override
@@ -241,17 +236,102 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    private static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
+    private static class ExitablePointTree implements PointValues.PointTree {
 
-        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 13) - 1; // 8191
-
-        private final PointValues.IntersectVisitor in;
+        private final PointValues pointValues;
+        private final PointValues.PointTree in;
+        private final ExitableIntersectVisitor exitableIntersectVisitor;
         private final QueryCancellation queryCancellation;
         private int calls;
 
-        private ExitableIntersectVisitor(PointValues.IntersectVisitor in, QueryCancellation queryCancellation) {
+        private ExitablePointTree(PointValues pointValues, PointValues.PointTree in, QueryCancellation queryCancellation) {
+            this.pointValues = pointValues;
             this.in = in;
             this.queryCancellation = queryCancellation;
+            this.exitableIntersectVisitor = new ExitableIntersectVisitor(queryCancellation);
+        }
+
+        /**
+         * Throws {@link org.apache.lucene.index.ExitableDirectoryReader.ExitingReaderException}
+         * if {@link QueryTimeout#shouldExit()} returns true, or
+         * if {@link Thread#interrupted()} returns true.
+         */
+        private void checkAndThrowWithSampling() {
+            if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
+                queryCancellation.checkCancelled();
+            }
+        }
+
+        @Override
+        public PointValues.PointTree clone() {
+            queryCancellation.checkCancelled();
+            return new ExitablePointTree(pointValues, in.clone(), queryCancellation);
+        }
+
+        @Override
+        public boolean moveToChild() throws IOException {
+            checkAndThrowWithSampling();
+            return in.moveToChild();
+        }
+
+        @Override
+        public boolean moveToSibling() throws IOException {
+            checkAndThrowWithSampling();
+            return in.moveToSibling();
+        }
+
+        @Override
+        public boolean moveToParent() throws IOException {
+            checkAndThrowWithSampling();
+            return in.moveToParent();
+        }
+
+        @Override
+        public byte[] getMinPackedValue() {
+            checkAndThrowWithSampling();
+            return in.getMinPackedValue();
+        }
+
+        @Override
+        public byte[] getMaxPackedValue() {
+            checkAndThrowWithSampling();
+            return in.getMaxPackedValue();
+        }
+
+        @Override
+        public long size() {
+            queryCancellation.checkCancelled();
+            return in.size();
+        }
+
+        @Override
+        public void visitDocIDs(PointValues.IntersectVisitor visitor) throws IOException {
+            queryCancellation.checkCancelled();
+            in.visitDocIDs(visitor);
+        }
+
+        @Override
+        public void visitDocValues(PointValues.IntersectVisitor visitor) throws IOException {
+            queryCancellation.checkCancelled();
+            exitableIntersectVisitor.setIntersectVisitor(visitor);
+            in.visitDocValues(exitableIntersectVisitor);
+        }
+    }
+
+    private static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
+
+        static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 13) - 1; // 8191
+
+        private final QueryCancellation queryCancellation;
+        private PointValues.IntersectVisitor in;
+        private int calls;
+
+        private ExitableIntersectVisitor(QueryCancellation queryCancellation) {
+            this.queryCancellation = queryCancellation;
+        }
+
+        private void setIntersectVisitor(PointValues.IntersectVisitor in) {
+            this.in = in;
         }
 
         private void checkAndThrowWithSampling() {

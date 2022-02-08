@@ -135,8 +135,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
-import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.tests.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;

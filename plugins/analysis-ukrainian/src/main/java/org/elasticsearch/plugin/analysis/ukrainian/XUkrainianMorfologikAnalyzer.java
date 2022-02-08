@@ -38,82 +38,21 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.nio.charset.StandardCharsets;
+import java.io.UncheckedIOException;
 
 /**
  * A dictionary-based {@link Analyzer} for Ukrainian.
  *
- * Modified from lucene 8.8.0 sources to incorporate a bugfix for
- * https://issues.apache.org/jira/browse/LUCENE-9930
+ * A copy of UkrainianMorfologikAnalyzer from lucene 9.1.0 sources
+ * with an added public method getDefaultStopSet.
  */
 public final class XUkrainianMorfologikAnalyzer extends StopwordAnalyzerBase {
+    private final Dictionary dictionary;
     private final CharArraySet stemExclusionSet;
 
-    /** File containing default Ukrainian stopwords. */
-    public static final String DEFAULT_STOPWORD_FILE = "stopwords.txt";
+    private static final NormalizeCharMap NORMALIZER_MAP;
 
-    /**
-     * Returns an unmodifiable instance of the default stop words set.
-     * @return default stop words set.
-     */
-    public static CharArraySet getDefaultStopSet() {
-        return DefaultSetHolder.DEFAULT_STOP_SET;
-    }
-
-    /**
-     * Atomically loads the DEFAULT_STOP_SET and DICTIONARY in a lazy fashion once the outer class
-     * accesses the static final set the first time.;
-     */
-    @SuppressForbidden(reason = "Lucene uses IOUtils")
-    private static class DefaultSetHolder {
-        static final CharArraySet DEFAULT_STOP_SET;
-        static final Dictionary DICTIONARY;
-
-        static {
-            try {
-                DEFAULT_STOP_SET = WordlistLoader.getSnowballWordSet(
-                    IOUtils.getDecodingReader(UkrainianMorfologikAnalyzer.class, DEFAULT_STOPWORD_FILE, StandardCharsets.UTF_8)
-                );
-                DICTIONARY = Dictionary.read(UkrainianMorfologikAnalyzer.class.getClassLoader().getResource("ua/net/nlp/ukrainian.dict"));
-            } catch (IOException ex) {
-                // default set should always be present as it is part of the
-                // distribution (JAR)
-                throw new RuntimeException("Unable to load resources", ex);
-            }
-        }
-    }
-
-    /**
-     * Builds an analyzer with the default stop words: {@link #DEFAULT_STOPWORD_FILE}.
-     */
-    public XUkrainianMorfologikAnalyzer() {
-        this(DefaultSetHolder.DEFAULT_STOP_SET);
-    }
-
-    /**
-     * Builds an analyzer with the given stop words.
-     *
-     * @param stopwords a stopword set
-     */
-    public XUkrainianMorfologikAnalyzer(CharArraySet stopwords) {
-        this(stopwords, CharArraySet.EMPTY_SET);
-    }
-
-    /**
-     * Builds an analyzer with the given stop words. If a non-empty stem exclusion set is
-     * provided this analyzer will add a {@link SetKeywordMarkerFilter} before
-     * stemming.
-     *
-     * @param stopwords a stopword set
-     * @param stemExclusionSet a set of terms not to be stemmed
-     */
-    public XUkrainianMorfologikAnalyzer(CharArraySet stopwords, CharArraySet stemExclusionSet) {
-        super(stopwords);
-        this.stemExclusionSet = CharArraySet.unmodifiableSet(CharArraySet.copy(stemExclusionSet));
-    }
-
-    @Override
-    protected Reader initReader(String fieldName, Reader reader) {
+    static {
         NormalizeCharMap.Builder builder = new NormalizeCharMap.Builder();
         // different apostrophes
         builder.add("\u2019", "'");
@@ -127,22 +66,104 @@ public final class XUkrainianMorfologikAnalyzer extends StopwordAnalyzerBase {
         builder.add("ґ", "г");
         builder.add("Ґ", "Г");
 
-        NormalizeCharMap normMap = builder.build();
-        reader = new MappingCharFilter(normMap, reader);
-        return reader;
+        NORMALIZER_MAP = builder.build();
+    }
+
+    /** Returns a lazy singleton with the default Ukrainian resources. */
+    private static volatile DefaultResources defaultResources;
+
+    @SuppressForbidden(reason = "Lucene uses IOUtils")
+    private static DefaultResources getDefaultResources() {
+        if (defaultResources == null) {
+            synchronized (DefaultResources.class) {
+                try {
+                    CharArraySet wordList;
+                    try (var is = UkrainianMorfologikAnalyzer.class.getResourceAsStream("stopwords.txt")) {
+                        if (is == null) {
+                            throw new IOException("Could not locate the required stopwords resource.");
+                        }
+                        wordList = WordlistLoader.getSnowballWordSet(is);
+                    }
+
+                    // First, try to look up the resource module by name.
+                    Dictionary dictionary;
+                    Module ourModule = DefaultResources.class.getModule();
+                    if (ourModule.isNamed() && ourModule.getLayer() != null) {
+                        var module = ourModule.getLayer()
+                            .findModule("morfologik.ukrainian.search")
+                            .orElseThrow(() -> new IOException("Can't find the resource module: morfologik.ukrainian.search"));
+
+                        try (
+                            var fsaStream = module.getResourceAsStream("ua/net/nlp/ukrainian.dict");
+                            var metaStream = module.getResourceAsStream("ua/net/nlp/ukrainian.info")
+                        ) {
+                            dictionary = Dictionary.read(fsaStream, metaStream);
+                        }
+                    } else {
+                        var name = "ua/net/nlp/ukrainian.dict";
+                        dictionary = Dictionary.read(
+                            IOUtils.requireResourceNonNull(UkrainianMorfologikAnalyzer.class.getClassLoader().getResource(name), name)
+                        );
+                    }
+                    defaultResources = new DefaultResources(wordList, dictionary);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Could not load the required resources for the Ukrainian analyzer.", e);
+                }
+            }
+        }
+        return defaultResources;
+    }
+
+    private static class DefaultResources {
+        final CharArraySet stopSet;
+        final Dictionary dictionary;
+
+        private DefaultResources(CharArraySet stopSet, Dictionary dictionary) {
+            this.stopSet = stopSet;
+            this.dictionary = dictionary;
+        }
+    }
+
+    /** Builds an analyzer with the default stop words. */
+    public XUkrainianMorfologikAnalyzer() {
+        this(getDefaultResources().stopSet);
     }
 
     /**
-     * Creates a
-     * {@link org.apache.lucene.analysis.Analyzer.TokenStreamComponents}
-     * which tokenizes all the text in the provided {@link Reader}.
+     * Builds an analyzer with the given stop words.
      *
-     * @return A
-     *         {@link org.apache.lucene.analysis.Analyzer.TokenStreamComponents}
-     *         built from an {@link StandardTokenizer} filtered with
-     *         {@link LowerCaseFilter}, {@link StopFilter}
-     *         , {@link SetKeywordMarkerFilter} if a stem exclusion set is
-     *         provided and {@link MorfologikFilter} on the Ukrainian dictionary.
+     * @param stopwords a stopword set
+     */
+    public XUkrainianMorfologikAnalyzer(CharArraySet stopwords) {
+        this(stopwords, CharArraySet.EMPTY_SET);
+    }
+
+    /**
+     * Builds an analyzer with the given stop words. If a non-empty stem exclusion set is provided
+     * this analyzer will add a {@link SetKeywordMarkerFilter} before stemming.
+     *
+     * @param stopwords a stopword set
+     * @param stemExclusionSet a set of terms not to be stemmed
+     */
+    public XUkrainianMorfologikAnalyzer(CharArraySet stopwords, CharArraySet stemExclusionSet) {
+        super(stopwords);
+        this.stemExclusionSet = CharArraySet.unmodifiableSet(CharArraySet.copy(stemExclusionSet));
+        this.dictionary = getDefaultResources().dictionary;
+    }
+
+    @Override
+    protected Reader initReader(String fieldName, Reader reader) {
+        return new MappingCharFilter(NORMALIZER_MAP, reader);
+    }
+
+    /**
+     * Creates a {@link org.apache.lucene.analysis.Analyzer.TokenStreamComponents} which tokenizes all
+     * the text in the provided {@link Reader}.
+     *
+     * @return A {@link org.apache.lucene.analysis.Analyzer.TokenStreamComponents} built from an
+     *     {@link StandardTokenizer} filtered with {@link LowerCaseFilter}, {@link StopFilter} ,
+     *     {@link SetKeywordMarkerFilter} if a stem exclusion set is provided and {@link
+     *     MorfologikFilter} on the Ukrainian dictionary.
      */
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
@@ -154,8 +175,11 @@ public final class XUkrainianMorfologikAnalyzer extends StopwordAnalyzerBase {
             result = new SetKeywordMarkerFilter(result, stemExclusionSet);
         }
 
-        result = new MorfologikFilter(result, DefaultSetHolder.DICTIONARY);
+        result = new MorfologikFilter(result, dictionary);
         return new TokenStreamComponents(source, result);
     }
 
+    public static CharArraySet getDefaultStopSet() {
+        return getDefaultResources().stopSet;
+    }
 }

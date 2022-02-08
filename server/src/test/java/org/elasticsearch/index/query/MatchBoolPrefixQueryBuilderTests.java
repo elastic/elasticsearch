@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -17,6 +16,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.MatchQueryParser;

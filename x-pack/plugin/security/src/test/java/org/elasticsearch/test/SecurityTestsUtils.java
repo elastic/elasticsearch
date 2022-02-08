@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.test;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matcher;
 
-import static org.apache.lucene.util.LuceneTestCase.expectThrows;
+import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.elasticsearch.xpack.core.security.test.SecurityAssertions.assertContainsWWWAuthenticateHeader;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.either;

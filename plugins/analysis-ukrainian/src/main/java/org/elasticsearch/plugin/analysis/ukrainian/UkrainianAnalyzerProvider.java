@@ -9,7 +9,6 @@
 package org.elasticsearch.plugin.analysis.ukrainian;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.uk.UkrainianMorfologikAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -23,7 +22,7 @@ public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<XUk
     public UkrainianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new XUkrainianMorfologikAnalyzer(
-            Analysis.parseStopWords(env, settings, UkrainianMorfologikAnalyzer.getDefaultStopSet()),
+            Analysis.parseStopWords(env, settings, XUkrainianMorfologikAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
     }

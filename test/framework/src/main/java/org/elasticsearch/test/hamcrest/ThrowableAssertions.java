@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.test.hamcrest;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.hamcrest.Matcher;
 
 import static org.hamcrest.MatcherAssert.assertThat;

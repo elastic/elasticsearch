@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;

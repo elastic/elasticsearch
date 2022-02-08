@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.h3;
 
-import org.apache.lucene.geo.GeoTestUtil;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
 import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

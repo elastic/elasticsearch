@@ -65,7 +65,6 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     @Before
     public void setupForTests() throws Exception {
         waitForTemplates();
-        waitForLicense();
     }
 
     /**
@@ -94,7 +93,7 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     /**
      * Waits for the cluster's self-generated license to be created and installed
      */
-    private void waitForLicense() {
+    protected void waitForLicense() {
         // GET _licence returns a 404 status up until the license exists
         awaitCallApi(
             "license.get",

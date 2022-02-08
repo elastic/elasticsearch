@@ -47,7 +47,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         parser.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, allowDuplicateKeys == false);
     }
 
-    private static final XContentParseException newXContentParseException(JsonProcessingException e) {
+    private static XContentParseException newXContentParseException(JsonProcessingException e) {
         JsonLocation loc = e.getLocation();
         throw new XContentParseException(new XContentLocation(loc.getLineNr(), loc.getColumnNr()), e.getMessage(), e);
     }

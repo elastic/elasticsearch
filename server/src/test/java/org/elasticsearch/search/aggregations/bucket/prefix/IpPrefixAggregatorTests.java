@@ -44,6 +44,10 @@ import static java.util.Collections.singleton;
 
 public class IpPrefixAggregatorTests extends AggregatorTestCase {
 
+    public static final Comparator<InternalIpPrefix.Bucket> IP_ADDRESS_KEY_COMPARATOR = Comparator.comparing(
+        InternalIpPrefix.Bucket::getKeyAsString
+    );
+
     private static final class TestIpDataHolder {
         private final String ipAddressAsString;
         private final InetAddress ipAddress;
@@ -214,11 +218,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
             assertEquals(
-                ipPrefix.getBuckets()
-                    .stream()
-                    .sorted(Comparator.comparing(InternalIpPrefix.Bucket::getKeyAsString))
-                    .map(InternalIpPrefix.Bucket::getDocCount)
-                    .toList(),
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(1L, 1L, 4L, 1L)
             );
         }, fieldType);
@@ -271,11 +271,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
             assertEquals(
-                ipPrefix.getBuckets()
-                    .stream()
-                    .sorted(Comparator.comparing(InternalIpPrefix.Bucket::getKeyAsString))
-                    .map(InternalIpPrefix.Bucket::getDocCount)
-                    .toList(),
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(2L, 1L, 2L)
             );
         }, fieldType);
@@ -331,11 +327,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
             assertEquals(
-                ipPrefix.getBuckets()
-                    .stream()
-                    .sorted(Comparator.comparing(InternalIpPrefix.Bucket::getKeyAsString))
-                    .map(InternalIpPrefix.Bucket::getDocCount)
-                    .toList(),
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of((long) ipAddresses.size())
             );
         }, fieldType);
@@ -391,11 +383,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
             assertEquals(
-                ipPrefix.getBuckets()
-                    .stream()
-                    .sorted(Comparator.comparing(InternalIpPrefix.Bucket::getKeyAsString))
-                    .map(InternalIpPrefix.Bucket::getDocCount)
-                    .toList(),
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(1L, 1L, 1L, 2L, 1L, 1L)
             );
         }, fieldType);
@@ -448,11 +436,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
             assertEquals(
-                ipPrefix.getBuckets()
-                    .stream()
-                    .sorted(Comparator.comparing(InternalIpPrefix.Bucket::getKeyAsString))
-                    .map(InternalIpPrefix.Bucket::getDocCount)
-                    .toList(),
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(1L, 1L, 1L, 1L, 1L)
             );
         }, fieldType);
@@ -513,11 +497,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
             assertEquals(
-                ipPrefix.getBuckets()
-                    .stream()
-                    .sorted(Comparator.comparing(InternalIpPrefix.Bucket::getKeyAsString))
-                    .map(InternalIpPrefix.Bucket::getDocCount)
-                    .toList(),
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(1L, 1L, 4L, 1L)
             );
         }, fieldTypes);
@@ -575,11 +555,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
             assertEquals(
-                ipPrefix.getBuckets()
-                    .stream()
-                    .sorted(Comparator.comparing(InternalIpPrefix.Bucket::getKeyAsString))
-                    .map(InternalIpPrefix.Bucket::getDocCount)
-                    .toList(),
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(2L, 1L, 2L)
             );
         }, fieldTypes);
@@ -1003,11 +979,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 ipPrefix.getBuckets().stream().map(InternalIpPrefix.Bucket::getDocCount).allMatch(docCount -> docCount >= minDocCount)
             );
             assertEquals(
-                ipPrefix.getBuckets()
-                    .stream()
-                    .sorted(Comparator.comparing(InternalIpPrefix.Bucket::getKeyAsString))
-                    .map(InternalIpPrefix.Bucket::getDocCount)
-                    .toList(),
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(4L)
             );
         }, fieldType);
@@ -1072,11 +1044,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
             assertEquals(
-                ipPrefix.getBuckets()
-                    .stream()
-                    .sorted(Comparator.comparing(InternalIpPrefix.Bucket::getKeyAsString))
-                    .map(InternalIpPrefix.Bucket::getDocCount)
-                    .toList(),
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(4L)
             );
         }, fieldType);

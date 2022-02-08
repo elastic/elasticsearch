@@ -15,10 +15,12 @@ public interface DenseVector extends Iterable<Float> {
 
     // The implementations of these vector operations
     double dotProduct(QueryVector queryVector);
+
     double l1Norm(QueryVector queryVector);
+
     double l2Norm(QueryVector queryVector);
 
-    // Take an Object to provide a consistent API if called with a float array or a list of numbers.  These
+    // Take an Object to provide a consistent API if called with a float array or a list of numbers. These
     // all call into the implementations above.
     default double dotProduct(Object queryVector) {
         if (queryVector instanceof QueryVector qv) {

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.PrimitiveIterator;
 
 public class BinaryDenseVector implements DenseVector {
     protected BytesRef value;

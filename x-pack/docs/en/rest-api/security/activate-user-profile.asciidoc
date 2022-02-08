@@ -27,7 +27,7 @@ The activate user profile API creates or updates a profile document for end
 users with information that is extracted from the user's authentication object,
 including `username`, `full_name`, `roles`, and the authentication realm.
 
-When updating a profile document, the API enables the document if it was 
+When updating a profile document, the API enables the document if it was
 disabled. Any updates do not change existing content for either the `access` or
 `data` fields.
 
@@ -51,7 +51,7 @@ parameter is required. It is not valid with other grant types.
 
 `grant_type`::
 (Required, string)
-The type of grant. 
+The type of grant.
 +
 .Valid values for `grant_type`
 [%collapsible%open]
@@ -63,7 +63,7 @@ In this type of grant, you must supply an access token that was created by the
 <<security-api-get-token>> and <<token-service-settings>>.
 
 `password`:::
-In this type of grant, you must supply the user ID and password for the 
+In this type of grant, you must supply the user ID and password for the
 user that you want to create the API key for.
 ====
 `password`::
@@ -76,7 +76,17 @@ required. It is not valid with other grant types.
 The username that identifies the user. If you specify the `password` grant type,
 this parameter is required. It is not valid with other grant types.
 
+--
 *Indicates that the setting is required in some, but not all situations.
+--
+
+[[security-api-activate-user-profile-response-body]]
+==== {api-response-body-title}
+
+A successful activate user profile API call returns a JSON structure that contains
+the profile unique ID, user information, timestamp for the operation and version
+control numbers.
+
 [[security-api-activate-user-profile-example]]
 ==== {api-examples-title}
 
@@ -90,10 +100,6 @@ POST /_security/profile/_activate
 }
 ------------------------------------------------------------
 // TEST[setup:jacknich_user]
-
-A successful activate user profile API call returns a JSON structure that contains
-the profile unique ID, user information, timestamp for the operation and version
-control numbers.
 
 [source,console-result]
 ----

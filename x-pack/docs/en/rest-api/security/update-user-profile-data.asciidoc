@@ -32,8 +32,6 @@ existing user profile document with JSON objects. New keys and their values are
 added to the profile document, and conflicting keys are replaced by data that's
 included in the request.
 
-
-
 For both `access` and `data`, the data are namespaced by the top level fields.
 The _"update profile data"_ global privilege allows granting privilege for
 updating only the allowed namespaces.
@@ -78,12 +76,24 @@ The `data` object is not searchable, but can be retrieved with <<security-api-ge
 *Indicates that the setting is required in some, but not all situations.
 --
 
+[[security-api-update-user-profile-data-response-body]]
+==== {api-response-body-title}
+
+A successful update profile data API call returns a JSON structure that shows
+the request is acknowledged.
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 [[security-api-update-user-profile-data-example]]
 ==== {api-examples-title}
 
 The API updates a profile document for a `uid` matching `u_kd2JMqwUQwSCCOxMv7M1vw`:
-
-
 
 [source,console]
 ------------------------------------------------------------
@@ -102,17 +112,6 @@ POST /_security/profile/_data/u_kd2JMqwUQwSCCOxMv7M1vw
 }
 ------------------------------------------------------------
 // TEST[skip:uid is random and no way to ensure this uid exists]
-
-A successful update profile data API call returns a JSON structure that shows
-the request is acknowledged.
-
-[source,js]
---------------------------------------------------
-{
-  "acknowledged": true
-}
---------------------------------------------------
-// NOTCONSOLE
 
 We can update the profile data again to replace some keys and adding new keys:
 

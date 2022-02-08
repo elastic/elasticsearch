@@ -31,7 +31,7 @@ import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
  */
 public class SlmHealthIndicatorService implements HealthIndicatorService {
 
-    public static final String NAME = "SLM";
+    public static final String NAME = "slm";
 
     private final ClusterService clusterService;
 
@@ -63,7 +63,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     private static HealthIndicatorDetails createDetails(SnapshotLifecycleMetadata metadata) {
         return new SimpleHealthIndicatorDetails(
-            Map.of("slm-status", metadata.getOperationMode(), "policies", metadata.getSnapshotConfigurations().size())
+            Map.of("slm_status", metadata.getOperationMode(), "policies", metadata.getSnapshotConfigurations().size())
         );
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -320,7 +321,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
+            if (IndexSettings.isTimeSeriesModeEnabled()) {
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
+            }
         }
 
         private final boolean hidden;

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.GetHealthAction;
@@ -17,10 +16,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService.NAME;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -33,7 +31,7 @@ public class InstanceHasMasterHealthIndicatorServiceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(MockTransportService.TestPlugin.class);
+        return List.of(MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -44,7 +42,7 @@ public class InstanceHasMasterHealthIndicatorServiceIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testGetHealth() throws Exception {
+    public void testGetHealthWhenMasterIsElected() throws Exception {
         var client = client();
 
         var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
@@ -52,11 +50,11 @@ public class InstanceHasMasterHealthIndicatorServiceIT extends ESIntegTestCase {
         assertThat(response.findComponent(CLUSTER_COORDINATION).findIndicator(NAME).status(), equalTo(GREEN));
     }
 
-    public void testGetHealthInstanceNoMaster() throws Exception {
-        Client client = internalCluster().coordOnlyNodeClient();
+    public void testGetHealthWhenNoMaster() throws Exception {
+        var client = internalCluster().coordOnlyNodeClient();
 
-        final NetworkDisruption disruptionScheme = new NetworkDisruption(
-            new NetworkDisruption.IsolateAllNodes(new HashSet<>(Arrays.asList(internalCluster().getNodeNames()))),
+        var disruptionScheme = new NetworkDisruption(
+            new NetworkDisruption.IsolateAllNodes(Set.of(internalCluster().getNodeNames())),
             NetworkDisruption.DISCONNECT
         );
 

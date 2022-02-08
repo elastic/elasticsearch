@@ -11,9 +11,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -21,14 +21,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class SearchProfilesRequest extends ActionRequest {
 
     private final Set<String> dataKeys;
-    @Nullable
     private final String query;
     private final int size;
 
-    public SearchProfilesRequest(Set<String> dataKeys, @Nullable String query, @Nullable Integer size) {
-        this.dataKeys = dataKeys;
-        this.query = query;
-        this.size = size == null ? 10 : size;
+    public SearchProfilesRequest(Set<String> dataKeys, String query, int size) {
+        this.dataKeys = Objects.requireNonNull(dataKeys, "data parameter must not be null");
+        this.query = Objects.requireNonNull(query, "query must not be null");
+        this.size = size;
     }
 
     public SearchProfilesRequest(StreamInput in) throws IOException {

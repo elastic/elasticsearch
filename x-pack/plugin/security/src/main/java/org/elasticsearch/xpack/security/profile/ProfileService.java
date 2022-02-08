@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.profile;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -166,8 +167,11 @@ public class ProfileService {
     }
 
     public void searchProfile(SearchProfilesRequest request, ActionListener<SearchProfilesResponse> listener) {
-        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
-            final BoolQueryBuilder query = QueryBuilders.boolQuery().must(QueryBuilders.termQuery("user_profile.enabled", true));
+        tryFreezeAndCheckIndex(listener.map(response -> {
+            assert response == null : "only null response can reach here";
+            return new SearchProfilesResponse(new SearchProfilesResponse.ProfileHit[] {}, 0, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
+        })).ifPresent(frozenProfileIndex -> {
+            final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
             if (Strings.hasText(request.getQuery())) {
                 query.must(
                     QueryBuilders.multiMatchQuery(
@@ -188,7 +192,7 @@ public class ProfileService {
                 .setQuery(query)
                 .setSize(request.getSize())
                 .addSort("_score", SortOrder.DESC)
-                .addSort("user_profile.uid", SortOrder.ASC)
+                .addSort("user_profile.last_synchronized", SortOrder.DESC)
                 .request();
 
             frozenProfileIndex.checkIndexVersionThenExecute(
@@ -429,7 +433,7 @@ public class ProfileService {
 
     /**
      * Freeze the profile index check its availability and return it if everything is ok.
-     * Otherwise it returns null.
+     * Otherwise it calls the listener with null and returns an empty Optional.
      */
     private <T> Optional<SecurityIndexManager> tryFreezeAndCheckIndex(ActionListener<T> listener) {
         final SecurityIndexManager frozenProfileIndex = profileIndex.freeze();

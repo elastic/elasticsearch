@@ -11,6 +11,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.SecureString;
@@ -56,6 +57,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
@@ -100,19 +102,17 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testProfileIndexAutoCreation() {
+        // Index does not exist yet
+        assertThat(getProfileIndexResponse().getIndices(), not(arrayContaining(INTERNAL_SECURITY_PROFILE_INDEX_8)));
+
+        // Trigger index creation by indexing
         var indexResponse = client().prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS))
             .setSource(Map.of("user_profile", Map.of("uid", randomAlphaOfLength(22))))
             .get();
-
         assertThat(indexResponse.status().getStatus(), equalTo(201));
 
-        var getIndexRequest = new GetIndexRequest();
-        getIndexRequest.indices(INTERNAL_SECURITY_PROFILE_INDEX_8);
-
-        var getIndexResponse = client().execute(GetIndexAction.INSTANCE, getIndexRequest).actionGet();
-
+        final GetIndexResponse getIndexResponse = getProfileIndexResponse();
         assertThat(getIndexResponse.getIndices(), arrayContaining(INTERNAL_SECURITY_PROFILE_INDEX_8));
-
         var aliases = getIndexResponse.getAliases().get(INTERNAL_SECURITY_PROFILE_INDEX_8);
         assertThat(aliases, hasSize(1));
         assertThat(aliases.get(0).alias(), equalTo(SECURITY_PROFILE_ALIAS));
@@ -330,7 +330,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
             doActivateProfile(key, nativeRacUserPassword);
         });
 
-        final SearchProfilesResponse.ProfileHit[] profiles1 = doSearch(null);
+        final SearchProfilesResponse.ProfileHit[] profiles1 = doSearch("");
         assertThat(extractUsernames(profiles1), equalTo(users.keySet()));
 
         final SearchProfilesResponse.ProfileHit[] profiles2 = doSearch(randomFrom("super admin", "admin super"));
@@ -351,8 +351,50 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(extractUsernames(profiles5), equalTo(users.keySet()));
     }
 
+    public void testProfileAPIsWhenIndexNotCreated() {
+        // Ensure index does not exist
+        assertThat(getProfileIndexResponse().getIndices(), not(arrayContaining(INTERNAL_SECURITY_PROFILE_INDEX_8)));
+
+        // Get Profile by ID returns empty result
+        final GetProfilesResponse getProfilesResponse = client().execute(
+            GetProfileAction.INSTANCE,
+            new GetProfileRequest(randomAlphaOfLength(20), Set.of())
+        ).actionGet();
+        assertThat(getProfilesResponse.getProfiles(), arrayWithSize(0));
+
+        // Ensure index does not exist
+        assertThat(getProfileIndexResponse().getIndices(), not(arrayContaining(INTERNAL_SECURITY_PROFILE_INDEX_8)));
+
+        // Search returns empty result
+        final SearchProfilesResponse.ProfileHit[] profiles1 = doSearch("");
+        assertThat(profiles1, emptyArray());
+
+        // Ensure index does not exist
+        assertThat(getProfileIndexResponse().getIndices(), not(arrayContaining(INTERNAL_SECURITY_PROFILE_INDEX_8)));
+
+        // Updating profile data results into doc missing exception
+        // But the index is created in the process
+        final DocumentMissingException e1 = expectThrows(
+            DocumentMissingException.class,
+            () -> client().execute(
+                UpdateProfileDataAction.INSTANCE,
+                new UpdateProfileDataRequest(
+                    randomAlphaOfLength(20),
+                    null,
+                    Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+                    -1,
+                    -1,
+                    WriteRequest.RefreshPolicy.WAIT_UNTIL
+                )
+            ).actionGet()
+        );
+
+        // TODO: The index is created after the update call regardless. Should it not do that?
+        assertThat(getProfileIndexResponse().getIndices(), arrayContaining(INTERNAL_SECURITY_PROFILE_INDEX_8));
+    }
+
     private SearchProfilesResponse.ProfileHit[] doSearch(String query) {
-        final SearchProfilesRequest searchProfilesRequest = new SearchProfilesRequest(null, query, 10);
+        final SearchProfilesRequest searchProfilesRequest = new SearchProfilesRequest(Set.of(), query, 10);
         final SearchProfilesResponse searchProfilesResponse = client().execute(SearchProfilesAction.INSTANCE, searchProfilesRequest)
             .actionGet();
         assertThat(searchProfilesResponse.getTotalHits().relation, is(TotalHits.Relation.EQUAL_TO));
@@ -399,5 +441,11 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
             .setSource(source, XContentType.JSON)
             .get();
         return uid;
+    }
+
+    private GetIndexResponse getProfileIndexResponse() {
+        final GetIndexRequest getIndexRequest = new GetIndexRequest();
+        getIndexRequest.indices(".*");
+        return client().execute(GetIndexAction.INSTANCE, getIndexRequest).actionGet();
     }
 }

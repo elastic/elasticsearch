@@ -64,8 +64,10 @@ public class InitialNodeSecurityAutoConfiguration {
         // This is not ideal because the {@code ENROLLMENT_ENABLED} setting is now interpreted as
         // "did the pre-startup configuration completed", in order to generate/display information assuming
         // and relying on that configuration being done.
+        LOGGER.info("maybeGenerateEnrollmentTokensAndElasticCredentialsOnNodeStartup");
         // TODO maybe we can improve the "did pre-start-up config run" check
         if (false == ENROLLMENT_ENABLED.get(environment.settings())) {
+            LOGGER.info("enrollment mode dammit");
             return;
         }
         final InternalEnrollmentTokenGenerator enrollmentTokenGenerator = new InternalEnrollmentTokenGenerator(

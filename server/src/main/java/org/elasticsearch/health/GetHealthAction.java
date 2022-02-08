@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
@@ -64,6 +65,13 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         public List<HealthComponentResult> getComponents() {
             return components;
+        }
+
+        public HealthComponentResult findComponent(String name) {
+            return components.stream()
+                .filter(c -> Objects.equals(c.name(), name))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Component [" + name + "] is not found"));
         }
 
         @Override

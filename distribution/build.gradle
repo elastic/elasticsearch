@@ -291,6 +291,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
+    libsXContentProvider project(path: ':libs:elasticsearch-x-content:impl', configuration: 'providerDir')
   }
 
   project.ext {
@@ -302,7 +303,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
-        into('xcontent_provider') {
+        into('providers') {
           from(configurations.libsXContentProvider)
         }
         into('tools/geoip-cli') {

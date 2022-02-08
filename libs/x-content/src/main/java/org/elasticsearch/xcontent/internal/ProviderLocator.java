@@ -43,15 +43,18 @@ public final class ProviderLocator {
 
     private static Path providerPath() {
         String classpath = System.getProperty("java.class.path");
+        for (String s : classpath.split(":")) {
+            System.out.println(s);
+        }
         List<Path> path = Arrays.stream(classpath.split(ProviderLocator.pathSeparator()))
-            .filter(s -> s.endsWith("provider"))
+            .filter(s -> s.endsWith("providers"))
             .map(Path::of)
             .filter(Files::isDirectory)
             .toList();
         if (path.size() != 1) {
             throw new RuntimeException("Expected one provider path, found:" + path);
         }
-        return checkPathExists(path.get(0));
+        return checkPathExists(path.get(0).resolve("x-content"));
     }
 
     private static Path checkPathExists(Path path) {

@@ -56,7 +56,7 @@ tasks.named("jar").configure {
   archiveBaseName = "x-content-impl"
 }
 
-File providerDirPath = new File(buildDir, 'provider')
+File providerDirPath = new File(buildDir, 'providers')
 def copyProviderJars = tasks.register("copyProviderJars", Copy) {
   dependsOn configurations.providerImpl
   inputs.property('jars', configurations.providerImpl)
@@ -64,7 +64,7 @@ def copyProviderJars = tasks.register("copyProviderJars", Copy) {
   outputs.dir(providerDirPath)
   from configurations.providerImpl
   from jar
-  into providerDirPath
+  into new File(providerDirPath, 'x-content')
 }
 
 artifacts {

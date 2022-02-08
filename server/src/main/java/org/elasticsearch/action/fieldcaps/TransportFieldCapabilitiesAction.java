@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -219,13 +220,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private FieldCapabilitiesResponse merge(
-        Map<String, FieldCapabilitiesIndexResponse> indexResponses,
+        Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
         boolean includeUnmapped,
         List<FieldCapabilitiesFailure> failures
     ) {
-        String[] indices = indexResponses.keySet().stream().sorted().toArray(String[]::new);
+        final List<FieldCapabilitiesIndexResponse> indexResponses = indexResponsesMap.values()
+            .stream()
+            .sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName))
+            .toList();
+        final String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
-        for (FieldCapabilitiesIndexResponse response : indexResponses.values()) {
+        for (FieldCapabilitiesIndexResponse response : indexResponses) {
             innerMerge(responseMapBuilder, response);
         }
         final Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();

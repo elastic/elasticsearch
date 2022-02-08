@@ -1820,7 +1820,7 @@ For more information about upgrading, see
 {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 
 [role="exclude",id="reindex-upgrade"]
-=== Reindex to upgrade
+=== Reindex before upgrading
 
 //tag::upgrade-reindex[]
 Before upgrading to {es} 8.0 and later, you must reindex any indices created in

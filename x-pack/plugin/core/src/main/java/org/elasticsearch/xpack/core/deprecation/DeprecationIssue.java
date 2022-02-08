@@ -16,14 +16,24 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Information about deprecated items
  */
 public class DeprecationIssue implements Writeable, ToXContentObject {
+
+    private static final String ACTIONS_META_FIELD = "actions";
+    private static final String OBJECTS_FIELD = "objects";
+    private static final String ACTION_TYPE = "action_type";
+    private static final String REMOVE_SETTINGS_ACTION_TYPE = "remove_settings";
 
     public enum Level implements Writeable {
         /**
@@ -174,5 +184,104 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    public static Map<String, Object> createMetaMapForRemovableSettings(List<String> removableSettings) {
+        Map<String, Object> actionsMap = new HashMap<>();
+        actionsMap.put(ACTION_TYPE, REMOVE_SETTINGS_ACTION_TYPE);
+        actionsMap.put(OBJECTS_FIELD, removableSettings);
+        return Collections.singletonMap(ACTIONS_META_FIELD, Collections.singletonList(Collections.unmodifiableMap(actionsMap)));
+    }
+
+    /**
+     * This method returns a DeprecationIssue that has in its meta object the intersection of all auto-removable settings that appear on
+     * all of the DeprecationIssues that are passed in. This method assumes that all DeprecationIssues passed in are equal, except for the
+     * auto-removable settings in the meta object.
+     * @param similarIssues
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    public static DeprecationIssue getIntersectionOfRemovableSettings(List<DeprecationIssue> similarIssues) {
+        if (similarIssues == null || similarIssues.isEmpty()) {
+            return null;
+        }
+        if (similarIssues.size() == 1) {
+            return similarIssues.get(0);
+        }
+        boolean hasDeletableSettings = false;
+        List<String> leastCommonRemovableSettings = null;
+        for (DeprecationIssue issue : similarIssues) {
+            Map<String, Object> meta = issue.getMeta();
+            if (meta == null) {
+                leastCommonRemovableSettings = null;
+                break;
+            }
+            Object actionsObject = meta.get(ACTIONS_META_FIELD);
+            if (actionsObject == null) {
+                leastCommonRemovableSettings = null;
+                break;
+            }
+            List<Map<String, Object>> actionsMapList = (List<Map<String, Object>>) actionsObject;
+            if (actionsMapList.isEmpty()) {
+                leastCommonRemovableSettings = null;
+                break;
+            }
+            for (Map<String, Object> actionsMap : actionsMapList) {
+                if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
+                    List<String> removableSettings = (List<String>) actionsMap.get(OBJECTS_FIELD);
+                    hasDeletableSettings = true;
+                    if (leastCommonRemovableSettings == null) {
+                        leastCommonRemovableSettings = new ArrayList<>(removableSettings);
+                    } else {
+                        leastCommonRemovableSettings = leastCommonRemovableSettings.stream()
+                            .distinct()
+                            .filter(removableSettings::contains)
+                            .collect(Collectors.toList());
+                    }
+                }
+            }
+        }
+        DeprecationIssue representativeIssue = similarIssues.get(0);
+        Map<String, Object> representativeMeta = representativeIssue.getMeta();
+        final Map<String, Object> newMeta;
+        if (representativeMeta != null) {
+            newMeta = new HashMap<>(representativeMeta);
+            if (hasDeletableSettings) {
+                List<Map<String, Object>> actions = (List<Map<String, Object>>) newMeta.get(ACTIONS_META_FIELD);
+                List<Map<String, Object>> clonedActions = new ArrayList<>(actions);
+                newMeta.put(ACTIONS_META_FIELD, clonedActions); // So that we don't modify the input data
+                for (int i = 0; i < clonedActions.size(); i++) {
+                    Map<String, Object> actionsMap = clonedActions.get(i);
+                    if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
+                        Map<String, Object> clonedActionsMap = new HashMap<>(actionsMap);
+                        if (leastCommonRemovableSettings == null) {
+                            clonedActionsMap.put(OBJECTS_FIELD, Collections.emptyList());
+                        } else {
+                            clonedActionsMap.put(OBJECTS_FIELD, leastCommonRemovableSettings);
+                        }
+                        clonedActions.set(i, clonedActionsMap);
+                    }
+                }
+                for (Map<String, Object> actionsMap : clonedActions) {
+                    if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
+                        if (leastCommonRemovableSettings == null) {
+                            actionsMap.put(OBJECTS_FIELD, Collections.emptyList());
+                        } else {
+                            actionsMap.put(OBJECTS_FIELD, leastCommonRemovableSettings);
+                        }
+                    }
+                }
+            }
+        } else {
+            newMeta = null;
+        }
+        return new DeprecationIssue(
+            representativeIssue.level,
+            representativeIssue.message,
+            representativeIssue.url,
+            representativeIssue.details,
+            representativeIssue.resolveDuringRollingUpgrade,
+            newMeta
+        );
     }
 }

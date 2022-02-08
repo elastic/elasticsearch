@@ -575,16 +575,7 @@ class NodeDeprecationChecks {
     }
 
     private static Map<String, Object> createMetaMapForRemovableSettings(boolean canAutoRemoveSetting, List<String> removableSettings) {
-        final Map<String, Object> meta;
-        if (canAutoRemoveSetting) {
-            Map<String, Object> actionsMap = new HashMap<>();
-            actionsMap.put("action_type", "remove_settings");
-            actionsMap.put("objects", removableSettings);
-            meta = Collections.singletonMap("actions", Collections.singletonList(actionsMap));
-        } else {
-            meta = null;
-        }
-        return meta;
+        return canAutoRemoveSetting ? DeprecationIssue.createMetaMapForRemovableSettings(removableSettings) : null;
     }
 
     static DeprecationIssue checkRemovedSetting(

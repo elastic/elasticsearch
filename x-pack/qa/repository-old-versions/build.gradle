@@ -69,6 +69,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     def testClusterProvider = testClusters.register(clusterName) {
       testDistribution = 'DEFAULT'
       numberOfNodes = 2
+      versions = [project.version, project.version] // to test full cluster restart
 
       setting 'path.repo', repoLocation
       setting 'xpack.license.self_generated.type', 'trial'
@@ -107,25 +108,41 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
     }
 
-    tasks.register("javaRestTest#${versionNoDots}", StandaloneRestIntegTestTask) {
+    tasks.register("javaRestTestBeforeRestart#${versionNoDots}", StandaloneRestIntegTestTask) {
       useCluster testClusterProvider
       dependsOn fixture
       doFirst {
         delete(repoLocation)
         mkdir(repoLocation)
       }
-      systemProperty "tests.repo.location", repoLocation
-      systemProperty "tests.es.version", version.toString()
+      systemProperty 'tests.after_restart', 'false'
+    }
+
+    tasks.register("javaRestTestAfterRestart#${versionNoDots}", StandaloneRestIntegTestTask) {
+      useCluster testClusterProvider
+      dependsOn fixture
+      dependsOn "javaRestTestBeforeRestart#${versionNoDots}"
+      systemProperty 'tests.after_restart', 'true'
+
+      doFirst {
+        testClusterProvider.get().goToNextVersion()
+      }
+    }
+
+    tasks.matching { it.name.startsWith("javaRestTest") && it.name.endsWith(versionNoDots) }.configureEach {
+      it.systemProperty "tests.repo.location", repoLocation
+      it.systemProperty "tests.es.version", version.toString()
+
       /* Use a closure on the string to delay evaluation until right before we
        * run the integration tests so that we can be sure that the file is
        * ready. */
-      nonInputProperties.systemProperty "tests.es.port", "${-> fixture.get().addressAndPort}"
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusterProvider.get().allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.clustername', "${-> testClusterProvider.get().getName()}")
+      it.nonInputProperties.systemProperty "tests.es.port", "${-> fixture.get().addressAndPort}"
+      it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusterProvider.get().allHttpSocketURI.join(",")}")
+      it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusterProvider.get().getName()}")
     }
 
     tasks.named("check").configure {
-      dependsOn "javaRestTest#${versionNoDots}"
+      dependsOn "javaRestTestAfterRestart#${versionNoDots}"
     }
   }
 }

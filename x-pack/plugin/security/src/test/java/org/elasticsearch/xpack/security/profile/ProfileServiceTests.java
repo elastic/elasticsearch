@@ -137,7 +137,7 @@ public class ProfileServiceTests extends ESTestCase {
 
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();
 
-        final Set<String> dataKeys = randomFrom(Set.of("app1"), Set.of("app2"), Set.of("app1", "app2"), Set.of(), null);
+        final Set<String> dataKeys = randomFrom(Set.of("app1"), Set.of("app2"), Set.of("app1", "app2"), Set.of());
 
         profileService.getProfile(uid, dataKeys, future);
         final Profile profile = future.actionGet();

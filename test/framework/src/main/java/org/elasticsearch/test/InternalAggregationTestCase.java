@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -714,6 +715,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         @Override
         public BucketCardinality bucketCardinality() {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
     }
 }

@@ -112,4 +112,9 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

@@ -16,12 +16,17 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.action.CreateDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.DataStreamsStatsTransportAction;
 import org.elasticsearch.datastreams.action.DeleteDataStreamTransportAction;
@@ -36,17 +41,65 @@ import org.elasticsearch.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
 public class DataStreamsPlugin extends Plugin implements ActionPlugin {
+
+    public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
+        "time_series.poll_interval",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueMinutes(10),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        if (IndexSettings.isTimeSeriesModeEnabled() == false) {
+            return List.of();
+        }
+
+        return List.of(TIME_SERIES_POLL_INTERVAL);
+    }
+
+    @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        if (IndexSettings.isTimeSeriesModeEnabled() == false) {
+            return List.of();
+        }
+
+        var service = new UpdateTimeSeriesRangeService(environment.settings(), threadPool, clusterService);
+        return List.of(service);
+    }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

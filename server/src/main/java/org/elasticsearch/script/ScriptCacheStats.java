@@ -11,12 +11,12 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -46,7 +46,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
 
         general = null;
         int size = in.readInt();
-        Map<String, ScriptStats> context = new HashMap<>(size);
+        Map<String, ScriptStats> context = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String name = in.readString();
             context.put(name, new ScriptStats(in));

@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -240,7 +239,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             this::removeNode,
             nodeHealthService
         );
-        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
+        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
@@ -300,27 +299,16 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private void removeNode(DiscoveryNode discoveryNode, String reason) {
         synchronized (mutex) {
             if (mode == Mode.LEADER) {
+                var task = new NodeRemovalClusterStateTaskExecutor.Task(
+                    discoveryNode,
+                    reason,
+                    () -> joinReasonService.onNodeRemoved(discoveryNode, reason)
+                );
                 masterService.submitStateUpdateTask(
                     "node-left",
-                    new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason),
+                    task,
                     ClusterStateTaskConfig.build(Priority.IMMEDIATE),
-                    nodeRemovalExecutor,
-                    new ClusterStateTaskListener() {
-                        @Override
-                        public void onFailure(final Exception e) {
-                            logger.error("unexpected failure during [node-left]", e);
-                        }
-
-                        @Override
-                        public void onNoLongerMaster() {
-                            logger.debug("no longer master while processing node removal [node-left]");
-                        }
-
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                            joinReasonService.onNodeRemoved(discoveryNode, reason);
-                        }
-                    }
+                    nodeRemovalExecutor
                 );
             }
         }
@@ -927,8 +915,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         synchronized (mutex) {
             final Optional<DiscoveryNode> peerFinderLeader = peerFinder.getLeader();
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
-            assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
-            assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
+            assert followersChecker.getFastResponseState().term() == getCurrentTerm() : followersChecker.getFastResponseState();
+            assert followersChecker.getFastResponseState().mode() == getMode() : followersChecker.getFastResponseState();
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID);
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector + " vs " + getPreVoteResponse();
 
@@ -1097,7 +1085,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // ... and also automatically exclude the node IDs of master-ineligible nodes that were previously master-eligible and are still in
         // the voting config. We could exclude all the master-ineligible nodes here, but there could be quite a few of them and that makes
         // the logging much harder to follow.
-        final Stream<String> masterIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+        final Stream<String> masterIneligibleNodeIdsInVotingConfig = clusterState.nodes()
+            .stream()
             .filter(
                 n -> n.isMasterNode() == false
                     && (clusterState.getLastAcceptedConfiguration().getNodeIds().contains(n.getId())
@@ -1105,7 +1094,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             )
             .map(DiscoveryNode::getId);
 
-        final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+        final Set<DiscoveryNode> liveNodes = clusterState.nodes()
+            .stream()
             .filter(DiscoveryNode::isMasterNode)
             .filter(coordinationState.get()::containsJoinVoteFor)
             .collect(Collectors.toSet());

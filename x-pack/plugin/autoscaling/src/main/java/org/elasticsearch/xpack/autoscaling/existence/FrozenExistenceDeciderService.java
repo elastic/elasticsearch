@@ -137,6 +137,6 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
      */
     // visible for testing
     static boolean isFrozenPhase(IndexMetadata indexMetadata) {
-        return FROZEN_PHASE.equals(indexMetadata.getLifecycleExecutionState().getPhase());
+        return FROZEN_PHASE.equals(indexMetadata.getLifecycleExecutionState().phase());
     }
 }

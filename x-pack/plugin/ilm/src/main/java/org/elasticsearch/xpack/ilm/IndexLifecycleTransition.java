@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -92,8 +93,8 @@ public final class IndexLifecycleTransition {
         }
 
         final Set<Step.StepKey> cachedStepKeys = stepRegistry.parseStepKeysFromPhase(
-            lifecycleState.getPhaseDefinition(),
-            lifecycleState.getPhase()
+            lifecycleState.phaseDefinition(),
+            lifecycleState.phase()
         );
         boolean isNewStepCached = cachedStepKeys != null && cachedStepKeys.contains(newStepKey);
 
@@ -206,7 +207,7 @@ public final class IndexLifecycleTransition {
             // if the error is transient/recoverable from
             failedState.setIsAutoRetryableError(failedStep.isRetryable());
             // maintain the retry count of the failed step as it will be cleared after a successful execution
-            failedState.setFailedStepRetryCount(currentState.getFailedStepRetryCount());
+            failedState.setFailedStepRetryCount(currentState.failedStepRetryCount());
         } else {
             logger.warn(
                 "failed step [{}] for index [{}] is not part of policy [{}] anymore, or it is invalid",
@@ -238,7 +239,7 @@ public final class IndexLifecycleTransition {
         }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         Step.StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
-        String failedStep = lifecycleState.getFailedStep();
+        String failedStep = lifecycleState.failedStep();
         if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName()) && Strings.isNullOrEmpty(failedStep) == false) {
             Step.StepKey nextStepKey = new Step.StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
             IndexLifecycleTransition.validateTransition(indexMetadata, currentStepKey, nextStepKey, stepRegistry);
@@ -246,21 +247,31 @@ public final class IndexLifecycleTransition {
 
             LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()
                 .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
-            LifecycleExecutionState nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
+
+            Map<String, Phase> policyPhases = policyMetadata.getPolicy().getPhases();
+
+            // we only refresh the cached phase if the failed step's action is still present in the underlying policy
+            // as otherwise ILM would block due to not recognizing the next step as part of the policy.
+            // if the policy was updated to not contain the action or even phase, we honour the cached phase as it is and do not refresh it
+            boolean forcePhaseDefinitionRefresh = policyPhases.get(nextStepKey.getPhase()) != null
+                && policyPhases.get(nextStepKey.getPhase()).getActions().get(nextStepKey.getAction()) != null;
+
+            final LifecycleExecutionState nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
                 policyMetadata,
                 lifecycleState,
                 nextStepKey,
                 nowSupplier,
-                true
+                forcePhaseDefinitionRefresh
             );
+
             LifecycleExecutionState.Builder retryStepState = LifecycleExecutionState.builder(nextStepState);
             retryStepState.setIsAutoRetryableError(lifecycleState.isAutoRetryableError());
-            Integer currentRetryCount = lifecycleState.getFailedStepRetryCount();
+            Integer currentRetryCount = lifecycleState.failedStepRetryCount();
             if (isAutomaticRetry) {
                 retryStepState.setFailedStepRetryCount(currentRetryCount == null ? 1 : ++currentRetryCount);
             } else {
                 // manual retries don't update the retry count
-                retryStepState.setFailedStepRetryCount(lifecycleState.getFailedStepRetryCount());
+                retryStepState.setFailedStepRetryCount(lifecycleState.failedStepRetryCount());
             }
             newState = IndexLifecycleTransition.newClusterStateWithLifecycleState(
                 indexMetadata.getIndex(),
@@ -458,7 +469,7 @@ public final class IndexLifecycleTransition {
             stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);
             stepInfoString = BytesReference.bytes(infoXContentBuilder).utf8ToString();
         }
-        if (stepInfoString.equals(lifecycleState.getStepInfo())) {
+        if (stepInfoString.equals(lifecycleState.stepInfo())) {
             return clusterState;
         }
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder(lifecycleState);

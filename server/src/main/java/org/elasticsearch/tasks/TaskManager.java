@@ -730,4 +730,8 @@ public class TaskManager implements ClusterStateApplier {
             throw new IllegalStateException("TaskCancellationService is not initialized");
         }
     }
+
+    public List<String> getTaskHeaders() {
+        return taskHeaders;
+    }
 }

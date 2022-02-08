@@ -122,8 +122,7 @@ public class Stash implements ToXContentFragment {
     }
 
     private Object unstashObject(List<Object> path, Object obj) throws IOException {
-        if (obj instanceof List) {
-            List<?> list = (List<?>) obj;
+        if (obj instanceof List<?> list) {
             List<Object> result = new ArrayList<>();
             int index = 0;
             for (Object o : list) {
@@ -137,8 +136,7 @@ public class Stash implements ToXContentFragment {
             }
             return result;
         }
-        if (obj instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) obj;
+        if (obj instanceof Map<?, ?> map) {
             Map<String, Object> result = new HashMap<>();
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 String key = (String) entry.getKey();

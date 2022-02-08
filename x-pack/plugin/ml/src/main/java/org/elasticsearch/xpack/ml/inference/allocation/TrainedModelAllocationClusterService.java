@@ -111,7 +111,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace(
                         () -> new ParameterizedMessage(
                             "updated model allocations based on node changes in the cluster; new metadata [{}]",
@@ -139,7 +139,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -161,7 +161,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(TrainedModelAllocationMetadata.fromState(newState).getModelAllocation(params.getModelId()));
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -180,7 +180,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -199,7 +199,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -219,7 +219,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -253,7 +253,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
 
         Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
         Map<String, String> nodeToReason = new TreeMap<>();
-        for (DiscoveryNode node : currentState.getNodes().getAllNodes()) {
+        for (DiscoveryNode node : currentState.getNodes()) {
             if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node) && shuttingDownNodes.contains(node.getId()) == false) {
                 Optional<String> maybeError = nodeHasCapacity(currentState, params, node);
                 if (maybeError.isPresent()) {
@@ -357,7 +357,6 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         final TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
         Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
         Map<String, DiscoveryNode> currentEligibleNodes = currentState.getNodes()
-            .getAllNodes()
             .stream()
             // TODO: Change when we update `mayAllocateToNode`
             .filter(

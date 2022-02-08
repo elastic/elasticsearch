@@ -170,6 +170,9 @@ ingest pipelines and {ilm-init} lifecycle policies that exist in your cluster
 and replaces them with the corresponding items from the snapshot.
 
 Use the `feature_states` parameter to configure how feature states are restored.
+
+If `include_global_state` is `true` and a snapshot was created without a global
+state then the restore request will fail.
 --
 
 [[restore-snapshot-api-feature-states]]

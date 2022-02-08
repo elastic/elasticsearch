@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.Collections;
 
@@ -101,6 +102,16 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         );
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
         assertEquals(DateUtils.asDateTimeWithMillis(value, zoneId), extractor.extract(bucket));
+    }
+
+    public void testExtractUnsignedLong() {
+        BigInteger bi = randomBigInteger();
+        Object value = bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0 ? bi.longValue() : bi;
+
+        TopHitsAggExtractor extractor = new TopHitsAggExtractor(randomAlphaOfLength(10), DataTypes.UNSIGNED_LONG, randomZone());
+        Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
+        Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
+        assertEquals(bi, extractor.extract(bucket));
     }
 
     private SearchHits searchHitsOf(Object value) {

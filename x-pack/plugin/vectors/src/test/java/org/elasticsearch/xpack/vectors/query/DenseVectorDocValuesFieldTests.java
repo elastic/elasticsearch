@@ -21,7 +21,7 @@ public class DenseVectorDocValuesFieldTests extends ESTestCase {
         assertEquals(dims, field.getScriptDocValues().dims());
 
         DenseVector dv = field.get();
-        float[] empty = new float[0];
+        QueryVector empty = new QueryVector(new float[0]);
 
         String message = "Dense vector value missing for a field, use isEmpty() to check for a missing vector value";
         IllegalArgumentException missing = expectThrows(IllegalArgumentException.class, dv::getMagnitude);
@@ -33,10 +33,7 @@ public class DenseVectorDocValuesFieldTests extends ESTestCase {
         missing = expectThrows(IllegalArgumentException.class, () -> dv.l1Norm(empty));
         assertEquals(message, missing.getMessage());
 
-        missing = expectThrows(IllegalArgumentException.class, () -> dv.l1Norm(new float[0]));
-        assertEquals(message, missing.getMessage());
-
-        missing = expectThrows(IllegalArgumentException.class, () -> dv.l2Norm(new float[0]));
+        missing = expectThrows(IllegalArgumentException.class, () -> dv.l2Norm(empty));
         assertEquals(message, missing.getMessage());
 
         missing = expectThrows(IllegalArgumentException.class, dv::getVector);

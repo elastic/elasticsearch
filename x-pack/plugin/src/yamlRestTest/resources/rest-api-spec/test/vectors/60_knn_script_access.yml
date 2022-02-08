@@ -1,5 +1,5 @@
 ---
-"Access to values of dense_vector in script":
+"Access to values of a knn dense_vector in script":
   - do:
       indices.create:
         index: test-index
@@ -9,6 +9,7 @@
               v:
                 type: dense_vector
                 dims: 3
+                index: true
 
   - do:
       bulk:

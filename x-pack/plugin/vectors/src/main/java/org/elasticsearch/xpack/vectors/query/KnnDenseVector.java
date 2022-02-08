@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.util.VectorUtil;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
@@ -31,36 +30,22 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
-    public double dotProduct(float[] queryVector) {
-        return VectorUtil.dotProduct(vector, queryVector);
+    public double dotProduct(QueryVector queryVector) {
+        return VectorUtil.dotProduct(vector, queryVector.asFloatArray());
     }
 
     @Override
-    public double l1Norm(float[] queryVector) {
-        double result = 0.0;
-        for (int i = 0; i < queryVector.length; i++) {
-            result += Math.abs(vector[i] - queryVector[i]);
-        }
-        return result;
-    }
-
-    @Override
-    public double l1Norm(List<?> queryVector) {
+    public double l1Norm(QueryVector queryVector) {
         double result = 0.0;
         for (int i = 0; i < queryVector.size(); i++) {
-            Object element = queryVector.get(i);
-            if (element instanceof Number number) {
-                result += Math.abs(vector[i] - number.floatValue());
-            } else {
-                throw new IllegalArgumentException(DenseVector.badElement(element, i));
-            }
+            result += Math.abs(vector[i] - queryVector.get(i));
         }
         return result;
     }
 
     @Override
-    public double l2Norm(float[] queryVector) {
-        return Math.sqrt(VectorUtil.squareDistance(vector, queryVector));
+    public double l2Norm(QueryVector queryVector) {
+        return Math.sqrt(VectorUtil.squareDistance(vector, queryVector.asFloatArray()));
     }
 
     @Override

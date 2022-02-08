@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
@@ -39,80 +38,48 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public double dotProduct(float[] queryVector) {
+    public double dotProduct(QueryVector queryVector) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
 
         double dotProduct = 0;
-        for (float queryValue : queryVector) {
+        /*for (double queryValue : queryVector) {
             dotProduct += queryValue * byteBuffer.getFloat();
+        }*/
+        for (int i = 0; i < queryVector.size(); i++) {
+            dotProduct += queryVector.get(i) * byteBuffer.getFloat();
         }
         return dotProduct;
     }
 
     @Override
-    public double dotProduct(List<?> queryVector) {
-        ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
-
-        double dotProduct = 0;
-        for (Object queryValue : queryVector) {
-            if (queryValue instanceof Number number) {
-                dotProduct += number.floatValue() * byteBuffer.getFloat();
-            } else {
-                throw new IllegalArgumentException(DenseVector.badElement(queryValue));
-            }
-        }
-        return dotProduct;
-    }
-
-    @Override
-    public double l1Norm(float[] queryVector) {
+    public double l1Norm(QueryVector queryVector) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
 
         double l1norm = 0;
-        for (float queryValue : queryVector) {
+        /*
+        for (double queryValue : queryVector) {
             l1norm += Math.abs(queryValue - byteBuffer.getFloat());
         }
-        return l1norm;
-    }
-
-    @Override
-    public double l1Norm(List<?> queryVector) {
-        ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
-
-        double l1norm = 0;
-        for (Object queryValue : queryVector) {
-            if (queryValue instanceof Number number) {
-                l1norm += Math.abs(number.floatValue() - byteBuffer.getFloat());
-            } else {
-                throw new IllegalArgumentException(DenseVector.badElement(queryValue));
-            }
+         */
+        for (int i = 0; i < queryVector.size(); i++) {
+            l1norm += Math.abs(queryVector.get(i) - byteBuffer.getFloat());
         }
         return l1norm;
     }
 
     @Override
-    public double l2Norm(float[] queryVector) {
+    public double l2Norm(QueryVector queryVector) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
         double l2norm = 0;
-        for (float queryValue : queryVector) {
+        for (double queryValue : queryVector) {
             double diff = queryValue - byteBuffer.getFloat();
             l2norm += diff * diff;
         }
-        return Math.sqrt(l2norm);
-    }
-
-    @Override
-    public double l2Norm(List<?> queryVector) {
-        ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
-        double l2norm = 0;
-        for (Object queryValue : queryVector) {
-            if (queryValue instanceof Number number) {
-                double diff = number.floatValue() - byteBuffer.getFloat();
-                l2norm += diff * diff;
-            } else {
-                throw new IllegalArgumentException(DenseVector.badElement(queryValue));
-            }
-        }
+        /*
+        for (int i = 0; i < queryVector.size(); i++) {
+            double diff = queryVector.get(i) - byteBuffer.getFloat();
+            l2norm += diff * diff;
+        }*/
         return Math.sqrt(l2norm);
     }
 

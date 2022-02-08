@@ -17,7 +17,7 @@ public class ScoreScriptUtils {
 
     public static class DenseVectorFunction {
         final ScoreScript scoreScript;
-        final float[] queryVector;
+        final QueryVector queryVector;
         final DenseVectorDocValuesField field;
 
         public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
@@ -45,20 +45,22 @@ public class ScoreScriptUtils {
                 );
             }
 
-            this.queryVector = new float[queryVector.size()];
+            float[] queryVectorArray = new float[queryVector.size()];
             double queryMagnitude = 0.0;
             for (int i = 0; i < queryVector.size(); i++) {
                 float value = queryVector.get(i).floatValue();
-                this.queryVector[i] = value;
+                queryVectorArray[i] = value;
                 queryMagnitude += value * value;
             }
             queryMagnitude = Math.sqrt(queryMagnitude);
 
             if (normalizeQuery) {
-                for (int dim = 0; dim < this.queryVector.length; dim++) {
-                    this.queryVector[dim] /= queryMagnitude;
+                for (int dim = 0; dim < queryVectorArray.length; dim++) {
+                    queryVectorArray[dim] /= queryMagnitude;
                 }
             }
+
+            this.queryVector = new QueryVector(queryVectorArray);
         }
 
         void setNextVector() {

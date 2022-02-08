@@ -14,6 +14,7 @@ class org.elasticsearch.script.ScoreScript @no_import {
 class org.elasticsearch.xpack.vectors.query.DenseVector {
     DenseVector EMPTY
     float getMagnitude()
+    # handle List<Number> and float[] arguments
     double dotProduct(Object)
     double l1Norm(Object)
     double l2Norm(Object)

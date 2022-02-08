@@ -433,4 +433,9 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
             && Objects.equals(extendedBounds, other.extendedBounds)
             && Objects.equals(hardBounds, other.hardBounds);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

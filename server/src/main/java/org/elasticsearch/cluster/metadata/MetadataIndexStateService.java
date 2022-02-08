@@ -884,8 +884,8 @@ public class MetadataIndexStateService {
         );
     }
 
-    public void openIndex(final OpenIndexClusterStateUpdateRequest request, final ActionListener<ShardsAcknowledgedResponse> listener) {
-        onlyOpenIndex(request, ActionListener.wrap(response -> {
+    public void openIndices(final OpenIndexClusterStateUpdateRequest request, final ActionListener<ShardsAcknowledgedResponse> listener) {
+        onlyOpenIndices(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
                 String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
                 activeShardsObserver.waitForActiveShards(
@@ -909,7 +909,7 @@ public class MetadataIndexStateService {
         }, listener::onFailure));
     }
 
-    private void onlyOpenIndex(final OpenIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
+    private void onlyOpenIndices(final OpenIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }

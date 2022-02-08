@@ -15,13 +15,27 @@ data loss. If you upgrade from a released version, such as 7.16, to a
 pre-release version for testing, discard the contents of the cluster when you are
 done. Do not attempt to upgrade to the final 8.0 release.
 
-* `elastic` user password and {kib} enrollment token are not generated on node first startup
-when elasticsearch is installed from archive on Linux aarch64 and macOS aarch64 platforms.
+* If you installed {es} from an archive on Linux aarch64 or macOS aarch64, the
+`elastic` user password and {kib} enrollment token are not generated
+automatically when starting your node for the first time.
 +
-You can still generate the `elastic` password with `bin/elasticsearch-reset-password -u elastic` and
-get a {kib} enrollment token with `bin/elasticsearch-create-enrollment-token -s kibana` after the
-node has started.
+--
+After the node starts, generate the `elastic` password with the
+<<reset-password,`bin/elasticsearch-reset-password`>> tool:
 
+[source,bash]
+----
+bin/elasticsearch-reset-password -u elastic
+----
+
+Then, create an enrollment token for {kib} with the
+<<create-enrollment-token,`bin/elasticsearch-create-enrollment-token`>> tool:
+
+[source,bash]
+----
+bin/elasticsearch-create-enrollment-token -s kibana
+----
+--
 [[deprecation-8.0.0-rc2]]
 [float]
 === Deprecations

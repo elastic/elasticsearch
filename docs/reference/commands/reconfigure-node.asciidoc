@@ -26,19 +26,20 @@ first node of a new cluster and configures it accordingly, enabling
 security features, generating a password for the `elastic` superuser
 and configuring TLS for the http and transport layer. However, if your
 plan is to add this node to an existing cluster that has security
-features enabled and auto-configured, the node needs to be
+features enabled and auto-configured already, the node needs to be
 configured so that it can join the existing cluster with the help of the
 `elasticsearch-reconfigure-node` tool.
 
 You can use an enrollment token that you can generate on any of the
 nodes of your existing cluster with `elasticsearch-create-enrollment-token -s node`
 
-You must run this tool with `sudo` so that it can create/edit the necessary files
-in your {es} installation.
+NOTE: You must run this tool with `sudo` so that it can edit the necessary files
+in your {es} installation configuration directory and are owned by `root:elasticsearch`.
 
 
 [discrete]
 [[reconfigure-node-parameters]]
+=== Parameters
 
 `--enrollment-token`:: An enrollment token that is generated in any of the
 nodes of an existing cluster

@@ -17,7 +17,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtAuthenticationTokenTests extends JwtTestCase {
 
     public void testJwtAuthenticationTokenParse() throws Exception {
@@ -39,11 +38,9 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         jwtAuthenticationToken.clearCredentials();
 
         // verify references to SecureString throw exception when calling their methods
-        @SuppressWarnings("ResultOfMethodCallIgnored")
         final Exception exception1 = expectThrows(IllegalStateException.class, endUserSignedJwt::length);
         assertThat(exception1.getMessage(), equalTo("SecureString has already been closed"));
         if (clientAuthenticationSharedSecret != null) {
-            @SuppressWarnings("ResultOfMethodCallIgnored")
             final Exception exception2 = expectThrows(IllegalStateException.class, clientAuthenticationSharedSecret::length);
             assertThat(exception2.getMessage(), equalTo("SecureString has already been closed"));
         }

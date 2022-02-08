@@ -49,7 +49,6 @@ import java.security.PrivilegedExceptionAction;
 /**
  * Utilities for JWT realm.
  */
-@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwtUtil.class);
 
@@ -210,7 +209,6 @@ public class JwtUtil {
      * @param sslService Realm config for SSL.
      * @return Initialized HTTPS client.
      */
-    @SuppressWarnings({ "removal" })
     public static CloseableHttpAsyncClient createHttpClient(final RealmConfig realmConfig, final SSLService sslService) {
         try {
             SpecialPermission.check();
@@ -258,7 +256,6 @@ public class JwtUtil {
      * @param uri URI to download.
      * @return Byte array of the URI contents up to N max bytes.
      */
-    @SuppressWarnings({ "removal" })
     public static byte[] readBytes(final CloseableHttpAsyncClient httpClient, final URI uri) {
         final PlainActionFuture<byte[]> plainActionFuture = PlainActionFuture.newFuture();
         try {

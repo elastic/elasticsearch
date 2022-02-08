@@ -15,7 +15,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtUtilTests extends JwtTestCase {
 
     public void testClientAuthenticationTypeValidation() {

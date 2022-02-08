@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.List;
 import java.util.Map;
 
-@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtIssuer {
     private final String issuer;
     private final List<String> audiences;

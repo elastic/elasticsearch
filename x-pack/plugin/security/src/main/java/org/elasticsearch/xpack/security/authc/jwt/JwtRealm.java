@@ -63,7 +63,6 @@ import java.util.TreeSet;
  * In bespoke JWT workflows, end-users may obtain a JWT directly, and use it as a bearer token in Elasticsearch and other applications.
  * Client authentication prevents those other applications from becoming potential JWT bearer token clients of Elasticsearch too.
  */
-@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
 

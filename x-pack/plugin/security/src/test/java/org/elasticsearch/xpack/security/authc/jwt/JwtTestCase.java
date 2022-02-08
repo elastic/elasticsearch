@@ -73,7 +73,6 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 
-@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public abstract class JwtTestCase extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtTestCase.class);

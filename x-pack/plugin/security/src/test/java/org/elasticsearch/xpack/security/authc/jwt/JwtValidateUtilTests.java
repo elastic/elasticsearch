@@ -28,7 +28,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtValidateUtilTests extends JwtTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtValidateUtilTests.class);

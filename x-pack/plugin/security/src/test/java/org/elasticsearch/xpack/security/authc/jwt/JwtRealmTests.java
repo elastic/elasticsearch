@@ -64,7 +64,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtRealmTests extends JwtTestCase {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealmTests.class);
 

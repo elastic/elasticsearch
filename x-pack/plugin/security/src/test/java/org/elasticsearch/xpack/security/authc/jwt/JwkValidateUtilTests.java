@@ -18,7 +18,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwkValidateUtilTests extends JwtTestCase {
 
     public void testComputeBitLengthRsa() throws Exception {

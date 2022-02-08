@@ -24,7 +24,7 @@
 ---
 "Test cat snapshots output":
   - skip:
-      version: "7.0.0 - 7.17.1"
+      version: " - 8.1.0"
       reason: "Pause BWC tests until #83290 is backported"
 
   - do:

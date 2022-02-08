@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-        version: "- 7.17.1"
-        reason: "Pause BWC tests until #83290 is backported"
+      version: " - 8.1.0"
+      reason: "Pause BWC tests until #83290 is backported"
 
   - do:
       snapshot.create_repository:

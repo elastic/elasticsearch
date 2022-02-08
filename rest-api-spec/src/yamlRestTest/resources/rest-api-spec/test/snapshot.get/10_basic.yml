@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      version: " - 8.1.0"
+      reason: "Pause BWC tests until #83290 is backported"
 
   - do:
       snapshot.create_repository:
@@ -11,9 +14,6 @@ setup:
 
 ---
 "Get snapshot info":
-  - skip:
-      version: "7.0.0 - 7.17.1"
-      reason: "Pause BWC tests until #83290 is backported"
 
   - do:
       indices.create:
@@ -64,9 +64,6 @@ setup:
 
 ---
 "Get snapshot info when verbose is false":
-  - skip:
-      version: "7.0.0 - 7.17.1"
-      reason: "Pause BWC tests until #83290 is backported"
 
   - do:
       indices.create:
@@ -104,8 +101,8 @@ setup:
 ---
 "Get snapshot info contains include_global_state":
   - skip:
-      version: " - 7.17.1"
-      reason: "include_global_state field has been added in the response in 6.2.0, Pause BWC tests until #83290 is backported"
+      version: " - 6.1.99"
+      reason: "include_global_state field has been added in the response in 6.2.0"
 
   - do:
       indices.create:
@@ -203,8 +200,8 @@ setup:
 ---
 "Get snapshot info with index details":
   - skip:
-      version: " - 7.17.1"
-      reason: "Introduced in 7.13.0, Pause BWC tests until #83290 is backported"
+      version: " - 7.12.99"
+      reason: "Introduced in 7.13.0"
   - do:
       indices.create:
         index: test_index

@@ -1,8 +1,13 @@
 ---
+setup:
+  - skip:
+      version: " - 8.1.0"
+      reason: "Pause BWC tests until #83290 is backported"
+---
 "Get repository returns UUID":
   - skip:
-      version: " - 7.17.1"
-      reason:  "repository UUIDs introduced in 7.12.0, Pause BWC tests until #83290 is backported"
+      version: " - 7.12.99"
+      reason:  repository UUIDs introduced in 7.12.0
 
   - do:
       snapshot.create_repository:

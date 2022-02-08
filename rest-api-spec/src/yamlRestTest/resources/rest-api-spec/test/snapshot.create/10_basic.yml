@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      version: " - 8.1.0"
+      reason: "Pause BWC tests until #83290 is backported"
 
   - do:
       snapshot.create_repository:
@@ -19,9 +22,6 @@ setup:
 
 ---
 "Create a snapshot":
-  - skip:
-        version: "7.0.0 - 7.17.1"
-        reason: "Pause BWC tests until #83290 is backported"
 
   - do:
       snapshot.create:
@@ -44,8 +44,8 @@ setup:
 ---
 "Create a snapshot and clean up repository":
   - skip:
-      version: " - 7.17.1"
-      reason:  "cleanup introduced in 7.4, Pause BWC tests until #83290 is backported"
+      version: " - 7.3.99"
+      reason:  cleanup introduced in 7.4
 
   - do:
       snapshot.cleanup_repository:

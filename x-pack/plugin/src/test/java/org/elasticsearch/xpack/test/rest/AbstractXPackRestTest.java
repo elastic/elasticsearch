@@ -97,8 +97,8 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
         // GET _licence returns a 404 status up until the license exists
         awaitCallApi(
             "license.get",
-            Map.of(),
-            List.of(),
+            Collections.emptyMap(),
+            Collections.emptyList(),
             response -> true,
             () -> "Exception when waiting for initial license to be generated"
         );

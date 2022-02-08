@@ -64,10 +64,8 @@ public class InitialNodeSecurityAutoConfiguration {
         // This is not ideal because the {@code ENROLLMENT_ENABLED} setting is now interpreted as
         // "did the pre-startup configuration completed", in order to generate/display information assuming
         // and relying on that configuration being done.
-        LOGGER.info("maybeGenerateEnrollmentTokensAndElasticCredentialsOnNodeStartup");
         // TODO maybe we can improve the "did pre-start-up config run" check
         if (false == ENROLLMENT_ENABLED.get(environment.settings())) {
-            LOGGER.info("enrollment mode dammit");
             return;
         }
         final InternalEnrollmentTokenGenerator enrollmentTokenGenerator = new InternalEnrollmentTokenGenerator(
@@ -197,11 +195,13 @@ public class InitialNodeSecurityAutoConfiguration {
     private static ConsoleLoader.Console getConsole() {
         final ConsoleLoader.Console console = BootstrapInfo.getConsole();
         if (console == null) {
+            LOGGER.info("BootstrapInfo.getConsole() was null ");
             return null;
         }
         // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
         console.printStream().println();
         if (console.printStream().checkError()) {
+            LOGGER.info("console was closed ");
             return null;
         }
         return console;

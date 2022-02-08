@@ -28,7 +28,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
     public static final GetCheckpointNodeAction INSTANCE = new GetCheckpointNodeAction();
 
     // note: this is an internal action
-    public static final String NAME = "cluster:internal/transform/checkpoint[s]";
+    public static final String NAME = "cluster:internal/transform/checkpoint[n]";
 
     private GetCheckpointNodeAction() {
         super(NAME, GetCheckpointNodeAction.Response::new);

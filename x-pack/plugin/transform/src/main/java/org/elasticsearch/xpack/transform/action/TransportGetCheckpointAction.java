@@ -170,7 +170,6 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 GetCheckpointNodeAction.Request nodeCheckpointsRequest = new GetCheckpointNodeAction.Request(
                     oneNodeAndItsShards.getValue()
                 );
-                nodeCheckpointsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 DiscoveryNode node = nodes.get(oneNodeAndItsShards.getKey());
 
                 // paranoia: this should not be possible using the same cluster state

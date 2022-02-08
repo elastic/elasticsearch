@@ -90,7 +90,9 @@ public class ClusterPrivilegeResolver {
         "cluster:admin/data_frame/*",
         "cluster:monitor/data_frame/*",
         "cluster:monitor/transform/*",
-        "cluster:admin/transform/*"
+        "cluster:admin/transform/*",
+        "cluster:internal/transform/*",
+        "indices:internal/transform/*"
     );
     private static final Set<String> MANAGE_WATCHER_PATTERN = Set.of("cluster:admin/xpack/watcher/*", "cluster:monitor/xpack/watcher/*");
     private static final Set<String> TRANSPORT_CLIENT_PATTERN = Set.of("cluster:monitor/nodes/liveness", "cluster:monitor/state");

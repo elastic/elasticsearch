@@ -29,15 +29,15 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
     public static final GetCheckpointAction INSTANCE = new GetCheckpointAction();
 
     // note: this is an admin action, it must be called with user headers
-    public static final String NAME = "cluster:admin/transform/checkpoint";
+    public static final String NAME = "indices:internal/transform/checkpoint";
 
     private GetCheckpointAction() {
         super(NAME, GetCheckpointAction.Response::new);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest {
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
-        private final String[] indices;
+        private String[] indices;
         private final IndicesOptions indicesOptions;
 
         public Request(StreamInput in) throws IOException {
@@ -89,6 +89,12 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             super.writeTo(out);
             out.writeStringArray(indices);
             indicesOptions.writeIndicesOptions(out);
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            this.indices = indices;
+            return this;
         }
     }
 

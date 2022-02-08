@@ -59,6 +59,28 @@ Need a new enrollment token? Use the
 tool to create enrollment tokens for {es} nodes and {kib} instances.
 
 [discrete]
+=== Better protection for system indices
+
+System indices store configurations and internal data for Elastic features.
+Generally, system indices are reserved only for internal use by these features.
+While possible, directly accessing or changing a system index can cause
+instability and other issues.
+
+In 8.0, we've made several changes to protect system indices from direct access.
+To access a system index, you must now have the
+{ref}/defining-roles.html#roles-indices-priv[`allow_restricted_indices`]
+permission set to `true`.
+
+The `superuser` role also no longer gives write access to system indices. As a
+result, the built-in `elastic` superuser cannot change system indices by
+default.
+
+If available, use {kib} or the associated {es} APIs to manage data for a feature
+rather than accessing a system index. If you directly access a system index,
+{es} will return a warning in the header of API responses and in the deprecation
+logs.
+
+[discrete]
 === Storage savings for `keyword`, `match_only_text`, and `text` fields
 
 We've updated inverted indices, an internal data structure, to use a more

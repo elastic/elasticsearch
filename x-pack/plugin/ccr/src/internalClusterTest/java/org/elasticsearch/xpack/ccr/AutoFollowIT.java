@@ -740,7 +740,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     private List<String> getFollowerAutoFollowedSystemIndices() {
-        final ClusterService followerClusterService = getFollowerCluster().getMasterNodeInstance(ClusterService.class);
+        final ClusterService followerClusterService = getFollowerCluster().getAnyMasterNodeInstance(ClusterService.class);
         PlainActionFuture<List<String>> future = PlainActionFuture.newFuture();
         CcrAutoFollowInfoFetcher.getAutoFollowedSystemIndices(followerClient(), followerClusterService.state(), future);
         return future.actionGet();

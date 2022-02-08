@@ -8,9 +8,9 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -31,7 +31,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.IntConsumer;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -116,9 +115,6 @@ public abstract class IndexRouting {
         return Murmur3HashFunction.hash(effectiveRouting);
     }
 
-    @Nullable
-    public abstract BiFunction<XContentType, BytesReference, String> calculateRouting();
-
     /**
      * Check if the _split index operation is allowed for an index
      * @throws IllegalArgumentException if the operation is not allowed
@@ -164,11 +160,6 @@ public abstract class IndexRouting {
             if (routingRequired && routing == null) {
                 throw new RoutingMissingException(indexName, id);
             }
-        }
-
-        @Override
-        public BiFunction<XContentType, BytesReference, String> calculateRouting() {
-            return null;
         }
     }
 
@@ -220,7 +211,7 @@ public abstract class IndexRouting {
         }
     }
 
-    private static class ExtractFromSource extends IndexRouting {
+    public static class ExtractFromSource extends IndexRouting {
         private final XContentParserConfiguration parserConfig;
 
         ExtractFromSource(IndexMetadata metadata) {
@@ -234,17 +225,8 @@ public abstract class IndexRouting {
         @Override
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
-
-            int hash = hashSource(sourceType, source);
-            if (routing != null) {
-                String expectedRouting = hashToRouting(hash);
-                if (false == expectedRouting.equals(routing)) {
-                    throw new IllegalArgumentException(
-                        "routing must not be supplied or must be [" + expectedRouting + "] but was [" + routing + "]"
-                    );
-                }
-            }
-            return hashToShardId(hash);
+            checkNoRouting(routing);
+            return hashToShardId(hashSource(sourceType, source));
         }
 
         private int hashSource(XContentType sourceType, BytesReference source) {
@@ -262,7 +244,17 @@ public abstract class IndexRouting {
             } catch (IOException | ParsingException e) {
                 throw new IllegalArgumentException("Error extracting routing: " + e.getMessage(), e);
             }
-            return hashToShardId(hashesToHash(hashes));
+            return hashesToHash(hashes);
+        }
+
+        public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
+            byte[] idBytes = new byte[4 + suffix.length];
+
+            // TODO it'd be way faster to use the fields that we've extract here rather than the source
+            int routingHash = hashSource(sourceType, source);
+            ByteUtils.writeIntLE(routingHash, idBytes, 0);
+            System.arraycopy(suffix, 0, idBytes, 4, suffix.length);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
         }
 
         private static void extractObject(List<NameAndHash> hashes, @Nullable String path, XContentParser source) throws IOException {
@@ -329,39 +321,33 @@ public abstract class IndexRouting {
 
         @Override
         public int deleteShard(String id, @Nullable String routing) {
-            return routingToHash(routing);
+            checkNoRouting(routing);
+            return idToHash(id);
         }
 
         @Override
         public int getShard(String id, @Nullable String routing) {
-            return routingToHash(routing);
+            checkNoRouting(routing);
+            return idToHash(id);
         }
 
-        private int routingToHash(String routing) {
-            if (routing == null) {
-                throw new ResourceNotFoundException("routing is required because [{}] is in time series mode", indexName);
+        private void checkNoRouting(@Nullable String routing) {
+            if (routing != null) {
+                throw new IllegalArgumentException(error("specifying routing"));
             }
-            byte[] routingBytes;
+        }
+
+        private int idToHash(String id) {
+            byte[] idBytes;
             try {
-                routingBytes = Base64.getUrlDecoder().decode(routing);
+                idBytes = Base64.getUrlDecoder().decode(id);
             } catch (IllegalArgumentException e) {
-                throw new ResourceNotFoundException("invalid routing [{}] for index [{}] in time series mode", routing, indexName);
+                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
             }
-            if (routingBytes.length < 4) {
-                throw new ResourceNotFoundException("invalid routing [{}] for index [{}] in time series mode", routing, indexName);
+            if (idBytes.length < 4) {
+                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
             }
-            return hashToShardId(ByteUtils.readIntLE(routingBytes, 0));
-        }
-
-        private String hashToRouting(int hash) {
-            byte[] routingBytes = new byte[4];
-            ByteUtils.writeIntLE(hash, routingBytes, 0);
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(routingBytes);
-        }
-
-        @Override
-        public BiFunction<XContentType, BytesReference, String> calculateRouting() {
-            return (contentType, source) -> hashToRouting(hashSource(contentType, source));
+            return hashToShardId(ByteUtils.readIntLE(idBytes, 0));
         }
 
         @Override

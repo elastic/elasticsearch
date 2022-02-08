@@ -16,6 +16,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.lucene.Lucene;
@@ -23,7 +24,6 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -102,9 +102,6 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
     private static final long SEED = 0;
 
     public void createField(DocumentParserContext context, BytesRef tsid) {
-        Hash128 hash = new Hash128();
-        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
-
         IndexableField[] timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampFields.length == 0) {
             throw new IllegalArgumentException(
@@ -113,12 +110,19 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         }
         long timestamp = timestampFields[0].numericValue().longValue();
 
-        byte[] encoded = new byte[16];
-        ByteUtils.writeLongLE(hash.h1, encoded, 0);
-        ByteUtils.writeLongLE(timestamp, encoded, 8);   // TODO compare disk usage for LE and BE on timestamp
+        Hash128 hash = new Hash128();
+        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
 
-        context.id(Base64.getUrlEncoder().withoutPadding().encodeToString(encoded));
+        byte[] suffix = new byte[16];
+        ByteUtils.writeLongLE(hash.h1, suffix, 0);
+        ByteUtils.writeLongLE(timestamp, suffix, 8);   // TODO compare disk usage for LE and BE on timestamp
+
+        IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadata(
+            context.indexSettings().getIndexMetadata()
+        );
+        context.id(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
         assert Uid.isURLBase64WithoutPadding(context.id()); // Make sure we get to use Uid's nice optimizations
+
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new Field(NAME, uidEncoded, Defaults.FIELD_TYPE));
     }

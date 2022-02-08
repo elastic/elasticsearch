@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.support.MapXContentParser;
-import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,7 +34,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -464,35 +462,15 @@ public class IndexRoutingTests extends ESTestCase {
         IndexRouting indexRouting = indexRoutingForPath(5, "foo");
         String value = randomAlphaOfLength(5);
         BytesReference source = source(Map.of("foo", value));
-        String docRouting = indexRouting.calculateRouting().apply(XContentType.JSON, source);
-        assertThat(
-            indexRouting.indexShard(randomAlphaOfLength(5), docRouting, XContentType.JSON, source),
-            equalTo(indexRouting.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source))
-        );
-    }
-
-    public void testRoutingIndWithWrongRouting() throws IOException {
-        IndexRouting indexRouting = indexRoutingForPath(5, "foo");
-        String value = randomAlphaOfLength(5);
-        BytesReference source = source(Map.of("foo", value));
-        String docRouting = indexRouting.calculateRouting().apply(XContentType.JSON, source);
+        String docRouting = randomAlphaOfLength(5);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> indexRouting.indexShard(randomAlphaOfLength(5), docRouting + "garbage", XContentType.JSON, source)
+            () -> indexRouting.indexShard(randomAlphaOfLength(5), docRouting, XContentType.JSON, source)
         );
         assertThat(
             e.getMessage(),
-            equalTo("routing must not be supplied or must be [" + docRouting + "] but was [" + docRouting + "garbage]")
+            equalTo("specifying routing is not supported because the destination index [test] is in time series mode")
         );
-    }
-
-    public void testRoutingPathRead() throws IOException {
-        IndexRouting indexRouting = indexRoutingForPath(5, "foo");
-        String value = randomAlphaOfLength(5);
-        BytesReference source = source(Map.of("foo", value));
-        String docRouting = indexRouting.calculateRouting().apply(XContentType.JSON, source);
-        int indexShard = indexRouting.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source);
-        assertThat(shardIdForReadFromSourceExtracting(indexRouting, docRouting), equalTo(indexShard));
     }
 
     public void testRoutingPathCollectSearchWithRouting() throws IOException {
@@ -566,25 +544,18 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(routing, Map.of("dim.a", "a"), 4);
     }
 
-    public void testRoutingPathReadWithoutRouting() throws IOException {
-        int shards = between(2, 1000);
-        IndexRouting indexRouting = indexRoutingForPath(shards, "foo");
-        Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(indexRouting, null));
-        assertThat(e.getMessage(), equalTo("routing is required because [test] is in time series mode"));
-    }
-
     public void testRoutingPathReadWithInvalidString() throws IOException {
         int shards = between(2, 1000);
         IndexRouting indexRouting = indexRoutingForPath(shards, "foo");
         Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(indexRouting, "!@#"));
-        assertThat(e.getMessage(), equalTo("invalid routing [!@#] for index [test] in time series mode"));
+        assertThat(e.getMessage(), equalTo("invalid id [!@#] for index [test] in time series mode"));
     }
 
     public void testRoutingPathReadWithShortString() throws IOException {
         int shards = between(2, 1000);
         IndexRouting indexRouting = indexRoutingForPath(shards, "foo");
         Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(indexRouting, ""));
-        assertThat(e.getMessage(), equalTo("invalid routing [] for index [test] in time series mode"));
+        assertThat(e.getMessage(), equalTo("invalid id [] for index [test] in time series mode"));
     }
 
     /**
@@ -592,9 +563,8 @@ public class IndexRoutingTests extends ESTestCase {
      * chosen method. All of the random methods <strong>should</strong> return the
      * same results.
      */
-    private int shardIdForReadFromSourceExtracting(IndexRouting indexRouting, String docRouting) {
-        String id = randomBoolean() ? null : randomAlphaOfLength(5);
-        return randomBoolean() ? indexRouting.deleteShard(id, docRouting) : indexRouting.getShard(id, docRouting);
+    private int shardIdForReadFromSourceExtracting(IndexRouting indexRouting, String id) {
+        return randomBoolean() ? indexRouting.deleteShard(id, null) : indexRouting.getShard(id, null);
     }
 
     private IndexRouting indexRoutingForPath(int shards, String path) {
@@ -612,16 +582,10 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expectedShard) throws IOException {
-        assertIndexShard(routing, source, expectedShard, any(String.class));
-    }
-
-    private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expectedShard, Matcher<String> routingStringMatcher)
-        throws IOException {
         BytesReference sourceBytes = source(source);
         assertThat(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, sourceBytes), equalTo(expectedShard));
-        String routingString = routing.calculateRouting().apply(XContentType.JSON, sourceBytes);
-        assertThat(routingString, routingStringMatcher);
-        assertThat(shardIdForReadFromSourceExtracting(routing, routingString), equalTo(expectedShard));
+        String id = ((IndexRouting.ExtractFromSource) routing).createId(XContentType.JSON, sourceBytes, new byte[0]);
+        assertThat(shardIdForReadFromSourceExtracting(routing, id), equalTo(expectedShard));
     }
 
     private BytesReference source(Map<String, Object> doc) throws IOException {

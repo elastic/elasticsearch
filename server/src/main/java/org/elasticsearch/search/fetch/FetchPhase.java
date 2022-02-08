@@ -13,9 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -24,7 +22,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.LeafNestedDocuments;
@@ -53,7 +50,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -110,18 +106,15 @@ public class FetchPhase {
         // make sure that we iterate in doc id order
         Arrays.sort(docs);
 
-        BiFunction<XContentType, BytesReference, String> calculateRouting = IndexRouting.fromIndexMetadata(
-            context.indexShard().indexSettings().getIndexMetadata()
-        ).calculateRouting();
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, calculateRouting != null, storedToRequestedFields);
+        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
         profiler.visitor(fieldsVisitor);
 
         FetchContext fetchContext = new FetchContext(context);
 
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
 
-        List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), calculateRouting, fetchContext, profiler);
+        List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         int currentReaderIndex = -1;
@@ -187,12 +180,7 @@ public class FetchPhase {
         return new SearchHits(hits, totalHits, context.queryResult().getMaxScore());
     }
 
-    List<FetchSubPhaseProcessor> getProcessors(
-        SearchShardTarget target,
-        BiFunction<XContentType, BytesReference, String> calculateRouting,
-        FetchContext context,
-        Profiler profiler
-    ) {
+    List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {
         try {
             List<FetchSubPhaseProcessor> processors = new ArrayList<>();
             for (FetchSubPhase fsp : fetchSubPhases) {
@@ -200,20 +188,6 @@ public class FetchPhase {
                 if (processor != null) {
                     processors.add(profiler.profile(fsp.getClass().getSimpleName(), "", processor));
                 }
-            }
-            if (calculateRouting != null) {
-                processors.add(profiler.profile("IndexRouting", "", new FetchSubPhaseProcessor() {
-                    @Override
-                    public void setNextReader(LeafReaderContext readerContext) throws IOException {}
-
-                    @Override
-                    public void process(HitContext hitContext) throws IOException {
-                        SourceLookup lookup = hitContext.sourceLookup();
-                        String routing = calculateRouting.apply(lookup.sourceContentType(), lookup.internalSourceRef());
-                        DocumentField field = new DocumentField(RoutingFieldMapper.NAME, List.of(routing));
-                        hitContext.hit().setMetaField(RoutingFieldMapper.NAME, field);
-                    }
-                }));
             }
             return processors;
         } catch (Exception e) {
@@ -236,11 +210,7 @@ public class FetchPhase {
         }
     }
 
-    private FieldsVisitor createStoredFieldsVisitor(
-        SearchContext context,
-        boolean routingRequiresSource,
-        Map<String, Set<String>> storedToRequestedFields
-    ) {
+    private FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
@@ -248,7 +218,7 @@ public class FetchPhase {
             if (context.hasScriptFields() == false && context.hasFetchSourceContext() == false) {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
-            boolean loadSource = routingRequiresSource || sourceRequired(context);
+            boolean loadSource = sourceRequired(context);
             return new FieldsVisitor(loadSource);
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
@@ -271,7 +241,7 @@ public class FetchPhase {
                     requestedFields.add(fieldName);
                 }
             }
-            boolean loadSource = routingRequiresSource || sourceRequired(context);
+            boolean loadSource = sourceRequired(context);
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 return new FieldsVisitor(loadSource);
@@ -282,7 +252,7 @@ public class FetchPhase {
     }
 
     private boolean sourceRequired(SearchContext context) {
-        return context.sourceRequested() || context.fetchFieldsContext() != null; // TODO force source fetching if the routing needs it
+        return context.sourceRequested() || context.fetchFieldsContext() != null;
     }
 
     private HitContext prepareHitContext(

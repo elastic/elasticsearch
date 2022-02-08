@@ -9,7 +9,6 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -18,7 +17,6 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentFieldFilter;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -33,14 +31,12 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -249,17 +245,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         if (source != null) {
-            IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexSettings.getIndexMetadata());
-            BiFunction<XContentType, BytesReference, String> calculateRouting = indexRouting.calculateRouting();
-            if (calculateRouting != null) {
-                if (metadataFields == null) {
-                    metadataFields = new HashMap<>();
-                }
-                XContentType type = XContentHelper.xContentType(source);
-                String routing = calculateRouting.apply(type, source);
-                metadataFields.put(RoutingFieldMapper.CONTENT_TYPE, new DocumentField(RoutingFieldMapper.NAME, List.of(routing)));
-            }
-
             // apply request-level source filtering
             if (fetchSourceContext.fetchSource() == false) {
                 source = null;

@@ -155,7 +155,7 @@ FROM (SELECT ...) WHERE [simple_condition]`, this is currently **un-supported**.
 
 Using `FIRST` and `LAST` in the `HAVING` clause is not supported. The same applies to
 <<sql-functions-aggs-min,`MIN`>> and <<sql-functions-aggs-max,`MAX`>> when their target column
-is of type <<keyword, `keyword`>> as they are internally translated to `FIRST` and `LAST`.
+is of type <<keyword, `keyword`>> or <<number, `unsigned_long`>> as they are internally translated to `FIRST` and `LAST`.
 
 [discrete]
 [[group-by-time]]

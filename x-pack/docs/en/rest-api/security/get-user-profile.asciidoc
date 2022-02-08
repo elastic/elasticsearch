@@ -1,0 +1,10 @@
+[role="xpack"]
+[[security-api-get-user-profile]]
+=== Get user profile API
+++++
+<titleabbrev>Get user profile</titleabbrev>
+++++
+
+Retrieves a user's profile given the unique profile ID
+
+coming::[8.2.0]

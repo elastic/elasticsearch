@@ -38,7 +38,7 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
         ArgumentCaptor<TrainedModelDeploymentTask> taskCaptor = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<String> reasonCaptur = ArgumentCaptor.forClass(String.class);
         doAnswer(invocation -> {
-            taskCaptor.getValue().markedAsStopped(reasonCaptur.getValue());
+            taskCaptor.getValue().markAsStopped(reasonCaptur.getValue());
             return null;
         }).when(nodeService).stopDeploymentAndNotify(taskCaptor.capture(), reasonCaptur.capture(), any());
 
@@ -66,8 +66,8 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
         verify(feature, times(1)).stopTracking(licenseState, "model-" + modelId);
     }
 
-    public void testMarkedAsStopped() {
-        assertTrackingComplete(t -> t.markedAsStopped("foo"), randomAlphaOfLength(10));
+    public void testMarkAsStopped() {
+        assertTrackingComplete(t -> t.markAsStopped("foo"), randomAlphaOfLength(10));
     }
 
     public void testOnStop() {

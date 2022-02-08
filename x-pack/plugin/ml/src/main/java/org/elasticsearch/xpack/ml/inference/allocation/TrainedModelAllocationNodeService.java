@@ -135,7 +135,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         if (stopped) {
             return;
         }
-        task.markedAsStopped(reason);
+        task.markAsStopped(reason);
 
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {

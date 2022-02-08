@@ -86,7 +86,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason, listener);
     }
 
-    public void markedAsStopped(String reason) {
+    public void markAsStopped(String reason) {
         licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
         stoppedReasonHolder.trySet(reason);

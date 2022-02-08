@@ -280,7 +280,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             clusterState,
             null,
             null,
-            null,
             info,
             null,
             Set.of(),
@@ -355,7 +354,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         SnapshotShardSizeInfo shardSizeInfo = new SnapshotShardSizeInfo(shardSizeBuilder.build());
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
-            null,
             null,
             null,
             null,
@@ -448,7 +446,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
-            null,
             thresholdSettings,
             info,
             null,
@@ -521,11 +518,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     public boolean canRemainWithNoNodes(ClusterState clusterState, ShardRouting shardRouting, AllocationDecider... deciders) {
         AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(deciders));
-        DataTierAllocationDecider dataTierAllocationDecider = new DataTierAllocationDecider();
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             allocationDeciders,
-            dataTierAllocationDecider,
             new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             ClusterInfo.EMPTY,
             null,
@@ -626,11 +621,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         AllocationDecider... deciders
     ) {
         AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(deciders));
-        DataTierAllocationDecider dataTierAllocationDecider = new DataTierAllocationDecider();
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             allocationDeciders,
-            dataTierAllocationDecider,
             new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             ClusterInfo.EMPTY,
             null,

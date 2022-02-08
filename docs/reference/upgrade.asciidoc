@@ -1,111 +1,29 @@
 [[setup-upgrade]]
 = Upgrade {es}
 
-[partintro]
---
-ifeval::["{release-state}"!="released"]
-[[upgrade-pre-release]]
-IMPORTANT: This documentation is for a pre-release of {es} {minor-version}. 
-Upgrades from pre-release builds are not supported and
-could result in errors or data loss. 
-If you upgrade from a released version to a pre-release verion for testing, 
-discard the contents of the cluster when you are done.
-Do not attempt to upgrade to the final release. 
-endif::[]
+{es} clusters can usually be upgraded one node at a time so
+upgrading does not interrupt service. To upgrade to 8.0 or later, 
+**you must first upgrade to {prev-major-last}**, even if you opt to
+do a full-cluster restart instead of a rolling upgrade. 
 
-{es} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
-process so upgrading does not interrupt service. Rolling upgrades are supported:
+This enables you to use the **Upgrade Assistant** to identify and resolve issues,
+reindex indices created before 7.0, and then perform a rolling upgrade.
 
-// tag::rolling-upgrade-versions[]
-* Between minor versions of the same major version
-* From 5.6 to 6.8
-* From 6.8 to {prev-major-version}
-* From {prev-major-version} to {version}
-ifeval::[ "{bare_version}" != "{minor-version}.0" ]
-* From any version since {minor-version}.0 to {version}
-endif::[]
-// end::rolling-upgrade-versions[]
+You must resolve all critical issues before proceeding with the upgrade.
 
-[TIP]
-====
-For rolling upgrades between major versions, we recommend
-using the {kibana-ref}/upgrade-assistant.html[Kibana Upgrade Assistant].
-
-The upgrade assistant identifies deprecated settings in your cluster and guides
-you through the process of resolving issues, including reindexing.
-
-We also recommend checking your <<deprecation-logging,deprecation logs>> for any
-other functionality that may have changed.
-====
-
-[discrete]
-[[upgrade-paths]]
-=== Upgrade paths to {version}
-
-[cols="<1,3",options="header",]
-|====
-|Upgrade from   
-|Recommended upgrade path to {version}
-
-ifeval::[ "{bare_version}" != "{minor-version}.0" ]
-|A previous {minor-version} version (e.g., {minor-version}.0)
-|<<rolling-upgrades,Rolling upgrade>> to {version}
-endif::[]
-
-|{prev-major-version}
-|<<rolling-upgrades,Rolling upgrade>> to {version}
-
-|7.0–7.15
-a|
-. {ref-7x}/rolling-upgrades.html[Rolling upgrade] to 7.16
-. <<rolling-upgrades,Rolling upgrade>> to {version}
-
-|6.8
-a|
-. {ref-7x}/rolling-upgrades.html[Rolling upgrade] to 7.16
-. <<rolling-upgrades,Rolling upgrade>> to {version}
-
-|6.0–6.7
-a|
-
-. https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
-. {ref-7x}/rolling-upgrades.html[Rolling upgrade] to 7.16
-. <<rolling-upgrades,Rolling upgrade>> to {version}
-|====
-
-
-[WARNING]
-====
-The upgrade path from 6.8 to 7.0 is *not* supported (both full cluster restart and rolling upgrade).
-====
-
-To upgrade directly to {version} from 6.7 or earlier, you must shut down the
-cluster, install {version}, and restart. For more information, see
-<<restart-upgrade, Full cluster restart upgrade>>.
-
-[discrete]
-[[upgrade-downgrade]]
-=== Downgrades
-
-In-place downgrades to earlier versions are *not* supported. To downgrade to an
-earlier version, <<snapshots-restore-snapshot,restore a snapshot>> taken prior
-to the version upgrade.
-
+For upgrade instructions, see {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 
 [discrete]
 [[upgrade-index-compatibility]]
 === Index compatibility
 
 {es} can read indices created in the previous major version. If you
-have indices created in 5.x or before, you must reindex or delete them
+have indices created in 6.x or earlier, you must reindex or delete them
 before upgrading to {version}. {es} nodes will fail to start if
-incompatible indices are present. Snapshots of 5.x or earlier indices cannot be
-restored to a 7.x cluster even if they were created by a 6.x cluster. For
-information about upgrading old indices, see <<reindex-upgrade, Reindex to upgrade>>.
-
-When upgrading to a new version of {es}, you need to upgrade each
-of the products in your Elastic Stack. For more information, see the
-{stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
+incompatible indices are present. Snapshots of 6.x or earlier indices cannot be
+restored to a 8.x cluster even if they were created by a 7.x cluster. 
+The **Upgrade Assistant** in {prev-major-last} identifies any indices 
+that need to be reindexed or removed.
 
 [discrete]
 [[upgrade-rest-api-compatibility]]
@@ -120,13 +38,5 @@ See <<rest-api-compatibility>> for additional information.
 === FIPS Compliance and Java 17
 
 include::{xes-repo-dir}/security/fips-java17.asciidoc[]
-
---
-
-include::upgrade/rolling_upgrade.asciidoc[]
-
-include::upgrade/cluster_restart.asciidoc[]
-
-include::upgrade/reindex_upgrade.asciidoc[]
 
 include::upgrade/archived-settings.asciidoc[]

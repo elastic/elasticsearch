@@ -220,6 +220,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         multiFields.parse(this, () -> parserContext);
     }
 
+    /**
+     * Parser that pretends to be the main document parser, but exposes the provided geohash regardless of how the geopoint was provided
+     * in the incoming document. We rely on the fact that consumers are only ever call {@link XContentParser#textOrNull()} and never
+     * advance tokens, which is explicitly disallowed by this parser.
+     */
     static class GeoHashMultiFieldParser extends FilterXContentParser {
         private final String value;
 

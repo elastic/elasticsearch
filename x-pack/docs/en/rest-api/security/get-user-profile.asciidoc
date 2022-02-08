@@ -8,7 +8,7 @@ beta::[]
 <titleabbrev>Get user profile</titleabbrev>
 ++++
 
-Retrieves a user's profile given the unique profile ID
+Retrieves a user's profile using the unique profile ID.
 
 [[security-api-get-user-profile-request]]
 ==== {api-request-title}
@@ -18,13 +18,13 @@ Retrieves a user's profile given the unique profile ID
 [[security-api-get-user-profile-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_user_profile` cluster privilege.
+* To use this API, you must have _at least_ the `manage_user_profile` cluster privilege.
 
 
 [[security-api-get-user-profile-desc]]
 ==== {api-description-title}
 
-This API returns the user profile document with `uid` matching the provided path parameter.
+The get user profile API returns the user profile document that matches the specified `uid`.
 
 [[security-api-get-user-profile-path-params]]
 ==== {api-path-parms-title}
@@ -47,25 +47,20 @@ use `data=app1` to retrieve the content nested under the key of `app1`.
 A successful call returns the JSON representation of the user profile
 and its internal versioning numbers. The API returns an empty object
 if no profile document is found for the provided `uid`.
+The content of the `data` field is not returned by default to avoid deserializing
+a potential large payload. 
 
-[[security-api-get-user-profile-response-codes]]
-==== {api-response-codes-title}
-
-If the user profile is not found for the given `uid`, the request 404s.
 
 [[security-api-get-user-profile-example]]
 ==== {api-examples-title}
 
-To retrieve a user profile, submit a GET request to the `/_security/profile/<uid>`
-endpoint. Assuming a profile document exist with uid `u_kd2JMqwUQwSCCOxMv7M1vw`,
-it can be retrieved with the following:
 
 [source,console]
 --------------------------------------------------
 GET /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw
 --------------------------------------------------
 // TEST[skip:uid is random and no way to ensure this uid exists]
-
+The API returns the following response for a `uid` matching `u_kd2JMqwUQwSCCOxMv7M1vw`:
 [source,js]
 --------------------------------------------------
 {
@@ -98,8 +93,7 @@ GET /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw
 
 <1> No data is returned by default
 
-Content of the `data` field is not returned by default to avoid deserializing a potential large
-payload. The following request retrieves a subset of data along with the profile:
+The following request retrieves a subset of `data` along with the user's profile:
 
 [source,console]
 --------------------------------------------------

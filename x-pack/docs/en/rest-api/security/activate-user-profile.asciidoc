@@ -8,7 +8,7 @@ beta::[]
 <titleabbrev>Activate user profile</titleabbrev>
 ++++
 
-Creates or updates the user profile on behalf of another user
+Creates or updates a user profile on behalf of another user.
 
 [[security-api-activate-user-profile-request]]
 ==== {api-request-title}
@@ -23,20 +23,20 @@ Creates or updates the user profile on behalf of another user
 [[security-api-activate-user-profile-desc]]
 ==== {api-description-title}
 
-The caller must have authentication credentials (either an access token,
-or a username and password) for the user on whose behalf the profile document
-will be created. It is not possible to use this API to create a profile document
-without that user's credentials.
+The activate user profile API creates or updates a profile document for end
+users with information that is extracted from the user's authentication object,
+including `username`, `full_name`, `roles`, and the authentication realm.
 
-This API creates a profile document if one does not exist yet. If a profile
-document already exists, it updates the document and also enable it (if it
-was disabled). The API creates or updates the document with information
-extracted from the user's authentication object, including `username`, `full_name`,
-`roles` and authentication realm. Note that the update does not change any
-existing content under either the `access` or `data` field.
+When updating a profile document, the API enables the document if it was 
+disabled. Any updates do not change existing content for either the `access` or
+`data` fields.
 
-This API is intended be used by applications that need to create or update
-profiles for end users.
+This API is intended only for use by applications that need to create or
+update profiles for end users. The calling application must have either an
+`access_token` or a combination of `username` and `password` for the user that
+the profile document is intended for.
+
+
 
 
 [[security-api-activate-user-profile-request-body]]
@@ -51,18 +51,21 @@ parameter is required. It is not valid with other grant types.
 
 `grant_type`::
 (Required, string)
-The type of grant. Supported grant types are: `access_token`,`password`.
-
+The type of grant. 
++
+.Valid values for `grant_type`
+[%collapsible%open]
+====
 `access_token`:::
 (Required*, string)
 In this type of grant, you must supply an access token that was created by the
 {es} token service. For more information, see
-<<security-api-get-token>> and <<encrypt-http-communication>>.
+<<security-api-get-token>> and <<token-service-settings>>.
 
 `password`:::
-In this type of grant, you must supply the user ID and password for which you
-want to create the API key.
-
+In this type of grant, you must supply the user ID and password for the 
+user that you want to create the API key for.
+====
 `password`::
 (Optional*, string)
 The user's password. If you specify the `password` grant type, this parameter is
@@ -70,9 +73,10 @@ required. It is not valid with other grant types.
 
 `username`::
 (Optional*, string)
-The user name that identifies the user. If you specify the `password` grant type,
+The username that identifies the user. If you specify the `password` grant type,
 this parameter is required. It is not valid with other grant types.
 
+*Indicates that the setting is required in some, but not all situations.
 [[security-api-activate-user-profile-example]]
 ==== {api-examples-title}
 

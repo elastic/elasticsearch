@@ -8,7 +8,7 @@ beta::[]
 <titleabbrev>Update user profile data</titleabbrev>
 ++++
 
-Update application specific data for the user profile of the given unique ID.
+Updates specific data for the user profile of a specified unique ID.
 
 [[security-api-update-user-profile-data-request]]
 ==== {api-request-title}
@@ -27,12 +27,12 @@ being referenced in the request
 [[security-api-update-user-profile-data-desc]]
 ==== {api-description-title}
 
-This API allows update to both the `access` and `data` fields of an existing
-user profile document with JSON objects.
-Data provided in the request are merged into existing data:
+The update user profile API updates the `access` and `data` fields of an
+existing user profile document with JSON objects. New keys and their values are
+added to the profile document, and conflicting keys are replaced by data that's
+included in the request.
 
-* New keys and their values are added to document.
-* Conflicting keys will be replaced by the data provided in the request.
+
 
 For both `access` and `data`, the data are namespaced by the top level fields.
 The _"update profile data"_ global privilege allows granting privilege for
@@ -54,7 +54,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 `uid`::
-(Required, string) An unique identifier for the user profile.
+(Required, string) A unique identifier for the user profile.
 
 [[security-api-update-user-profile-data-request-body]]
 ==== {api-request-body-title}
@@ -81,9 +81,9 @@ The `data` object is not searchable, but can be retrieved with <<security-api-ge
 [[security-api-update-user-profile-data-example]]
 ==== {api-examples-title}
 
-To update the profile data, submit a POST request to the `/_security/profile/_data/<uid>`
-endpoint. Assuming a profile document exist with uid `u_kd2JMqwUQwSCCOxMv7M1vw`,
-its data can be updated with the following:
+The API updates a profile document for a `uid` matching `u_kd2JMqwUQwSCCOxMv7M1vw`:
+
+
 
 [source,console]
 ------------------------------------------------------------

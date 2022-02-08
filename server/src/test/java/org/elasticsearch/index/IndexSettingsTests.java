@@ -158,9 +158,11 @@ public class IndexSettingsTests extends ESTestCase {
             settings.updateIndexMetadata(
                 newIndexMeta(
                     "index",
-                    Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                         .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, Version.CURRENT)
-                        .put("index.test.setting.int", 42).build()
+                        .put("index.test.setting.int", 42)
+                        .build()
                 )
             );
             fail("version has changed");

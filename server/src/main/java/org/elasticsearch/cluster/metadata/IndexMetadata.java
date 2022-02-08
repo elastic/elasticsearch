@@ -356,8 +356,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 Version createdVersion = (Version) settings.get(SETTING_INDEX_VERSION_CREATED);
                 if (compatibilityVersion.before(createdVersion)) {
                     throw new IllegalArgumentException(
-                            SETTING_VERSION_COMPATIBILITY + " [" + compatibilityVersion + "] must be >= " +
-                                    SETTING_VERSION_CREATED + " [" + createdVersion + "]"
+                        SETTING_VERSION_COMPATIBILITY
+                            + " ["
+                            + compatibilityVersion
+                            + "] must be >= "
+                            + SETTING_VERSION_CREATED
+                            + " ["
+                            + createdVersion
+                            + "]"
                     );
                 }
             }

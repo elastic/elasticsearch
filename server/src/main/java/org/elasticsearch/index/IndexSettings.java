@@ -941,8 +941,12 @@ public final class IndexSettings {
         Version newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
         Version compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
         if (compatibilityVersion.equals(newCompatibilityVersion) == false) {
-            throw new IllegalArgumentException("compatibility version mismatch on settings update expected: " + compatibilityVersion +
-                " but was: " + newCompatibilityVersion);
+            throw new IllegalArgumentException(
+                "compatibility version mismatch on settings update expected: "
+                    + compatibilityVersion
+                    + " but was: "
+                    + newCompatibilityVersion
+            );
         }
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {

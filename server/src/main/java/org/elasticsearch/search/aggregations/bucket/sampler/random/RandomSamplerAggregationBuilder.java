@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -158,6 +159,11 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_8_1_0;
     }
 
     @Override

@@ -85,7 +85,7 @@ To leverage REST API compatibility during an upgrade from 7.17 to {version}:
 
 1. Upgrade your https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} clients]
 to the latest 7.x version and enable REST API compatibility.
-2. Use the {kibana-ref}/upgrade-assistant.html[Upgrade Assistant]
+2. Use the {kibana-ref-all}/{prev-major-last}/upgrade-assistant.html[Upgrade Assistant]
 to review all critical issues and explore the deprecation logs.
 Some critical issues might be mitigated by REST API compatibility.
 3. Resolve all critical issues before proceeding with the upgrade.

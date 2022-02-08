@@ -1,0 +1,5 @@
+pr: 83693
+summary: Avoid eagerly loading `StoredFieldsReader` in fetch phase
+area: Search
+type: bug
+issues: []

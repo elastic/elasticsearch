@@ -68,12 +68,6 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         return newSettings.build();
     }
 
-    @After
-    public void cleanup() {
-        DeleteDataStreamAction.Request deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
-        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest).actionGet());
-    }
-
     public void testTimeRanges() throws Exception {
         var mappingTemplate = """
             {

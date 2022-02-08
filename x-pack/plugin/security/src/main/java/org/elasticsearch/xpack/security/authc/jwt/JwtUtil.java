@@ -146,15 +146,28 @@ public class JwtUtil {
         }
     }
 
-    public static URI parseHttpsUriNoException(final String uriString) {
-        if ((Strings.hasText(uriString)) && (uriString.startsWith("https:/"))) {
-            try {
-                return new URI(uriString);
-            } catch (Exception e) {
-                LOGGER.trace("Invalid HTTPS URI [" + uriString + "].", e);
+    public static URI parseHttpsUri(final String uriString) {
+        if (Strings.hasText(uriString)) {
+            if (uriString.startsWith("https")) {
+                final URI uri;
+                try {
+                    uri = new URI(uriString);
+                } catch (Exception e) {
+                    throw new SettingsException("Failed to parse HTTPS URI [" + uriString + "].", e);
+                }
+                if (Strings.hasText(uri.getHost()) == false) {
+                    // Example URIs w/o host: "https:/", "https://", "https://:443"
+                    throw new SettingsException("Host is missing in HTTPS URI [" + uriString + "].");
+                } else if ((Strings.hasText(uri.getPath()) == false) || (uri.getPath().endsWith("/"))) {
+                    // Examples URIs with missing path: "https://example.com", "https://example.com/", "https://example.com:443/path/"
+                    throw new SettingsException("File path is missing in HTTPS URI [" + uriString + "].");
+                }
+                return uri;
+            } else if (uriString.startsWith("http")) {
+                throw new SettingsException("Not allowed to use HTTP URI [" + uriString + "]. Only HTTPS is supported.");
+            } else {
+                LOGGER.trace("Not a HTTPS URI [" + uriString + "].");
             }
-        } else {
-            LOGGER.trace("Invalid HTTPS URI [" + uriString + "].");
         }
         return null;
     }

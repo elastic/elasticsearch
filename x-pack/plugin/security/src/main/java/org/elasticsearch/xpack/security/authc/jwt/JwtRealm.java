@@ -116,7 +116,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         // PKC JWKSet can be URL, file, or not set; only initialize HTTP client if PKC JWKSet is a URL.
         this.jwkSetPath = super.config.getSetting(JwtRealmSettings.JWKSET_PKC_PATH);
         if (Strings.hasText(this.jwkSetPath)) {
-            final URI jwkSetPathPkcUri = JwtUtil.parseHttpsUriNoException(this.jwkSetPath);
+            final URI jwkSetPathPkcUri = JwtUtil.parseHttpsUri(this.jwkSetPath);
             if (jwkSetPathPkcUri == null) {
                 this.httpClient = null; // local file means no HTTP client
             } else {
@@ -181,7 +181,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 super.config.env()
             );
         } else {
-            final URI jwkSetPathPkcUri = JwtUtil.parseHttpsUriNoException(this.jwkSetPath);
+            final URI jwkSetPathPkcUri = JwtUtil.parseHttpsUri(this.jwkSetPath);
             jwkSetContentBytesPkc = JwtUtil.readUriContents(
                 RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PKC_PATH),
                 jwkSetPathPkcUri,

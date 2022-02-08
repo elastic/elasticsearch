@@ -177,7 +177,7 @@ public class IndexLifecycleService
             // may have not been run due to master rollover
             for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
                 String policyName = idxMeta.getLifecyclePolicyName();
-                if (Strings.isNullOrEmpty(policyName) == false) {
+                if (Strings.hasText(policyName)) {
                     final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 
@@ -384,7 +384,7 @@ public class IndexLifecycleService
         // associated to a policy
         for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
             String policyName = idxMeta.getLifecyclePolicyName();
-            if (Strings.isNullOrEmpty(policyName) == false) {
+            if (Strings.hasText(policyName)) {
                 final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                 StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 

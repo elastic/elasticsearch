@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
-import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -602,7 +602,7 @@ public class RollupResponseTranslator {
         // something we can discuss exposing
         if (metric instanceof InternalMax || metric instanceof InternalMin) {
             return metric;
-        } else if (metric instanceof Sum) {
+        } else if (metric instanceof InternalSum) {
             // If count is anything other than -1, this sum is actually an avg
             if (count != -1) {
                 // Note: Avgs have a slightly different name to prevent collision with empty bucket defaults
@@ -642,8 +642,8 @@ public class RollupResponseTranslator {
 
         if (countPath != null && aggMap.get(countPath) != null) {
             // we always set the count fields to Sum aggs, so this is safe
-            assert aggMap.get(countPath) instanceof Sum;
-            return (long) ((Sum) aggMap.get(countPath)).value();
+            assert aggMap.get(countPath) instanceof InternalSum;
+            return (long) ((InternalSum) aggMap.get(countPath)).getValue();
         }
 
         return -1;

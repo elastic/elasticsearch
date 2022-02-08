@@ -14,7 +14,13 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ParsedSum extends ParsedSingleValueNumericMetricsAggregation {
+public class ParsedSum extends ParsedSingleValueNumericMetricsAggregation implements Sum {
+
+    @Override
+    public double getValue() {
+        return value();
+    }
+
     @Override
     public String getType() {
         return SumAggregationBuilder.NAME;

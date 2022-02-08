@@ -46,12 +46,9 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * JWT realms supports JWTs as bearer tokens for authenticating to Elasticsearch. For security, it is recommended to use a client,
@@ -92,16 +89,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final Hasher hasher;
     final Cache<String, JwtRealmCacheValue> cache;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
-
-    // usage stats
-    final AtomicLong counterTokenFail = new AtomicLong(0);
-    final AtomicLong counterTokenSuccess = new AtomicLong(0);
-    final AtomicLong counterAuthenticateFail = new AtomicLong(0);
-    final AtomicLong counterAuthenticateSuccess = new AtomicLong(0);
-    final AtomicLong counterCacheGetFail = new AtomicLong(0);
-    final AtomicLong counterCacheGetOkWarning = new AtomicLong(0);
-    final AtomicLong counterCacheGetOkNoWarning = new AtomicLong(0);
-    final AtomicLong counterCacheAdd = new AtomicLong(0);
 
     public JwtRealm(final RealmConfig realmConfig, final SSLService sslService, final UserRoleMapper userRoleMapper)
         throws SettingsException {
@@ -317,36 +304,26 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     @Override
     public AuthenticationToken token(final ThreadContext threadContext) {
-        JwtAuthenticationToken jwtAuthenticationToken = null;
-        try {
-            this.ensureInitialized();
-            final SecureString authenticationParameterValue = JwtUtil.getHeaderValue(
-                threadContext,
-                JwtRealm.HEADER_END_USER_AUTHENTICATION,
-                JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
-                false
-            );
-            if (authenticationParameterValue == null) {
-                return null; // Could not find non-empty SchemeParameters in HTTP header "Authorization: Bearer <SchemeParameters>"
-            }
-
-            // Get all other possible parameters. A different JWT realm may do the actual authentication.
-            final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
-                threadContext,
-                JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET,
-                true
-            );
-
-            jwtAuthenticationToken = new JwtAuthenticationToken(authenticationParameterValue, clientAuthenticationSharedSecretValue);
-        } finally {
-            if (jwtAuthenticationToken == null) {
-                this.counterTokenFail.incrementAndGet();
-            } else {
-                this.counterTokenSuccess.incrementAndGet();
-            }
+        this.ensureInitialized();
+        final SecureString authenticationParameterValue = JwtUtil.getHeaderValue(
+            threadContext,
+            JwtRealm.HEADER_END_USER_AUTHENTICATION,
+            JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
+            false
+        );
+        if (authenticationParameterValue == null) {
+            return null; // Could not find non-empty SchemeParameters in HTTP header "Authorization: Bearer <SchemeParameters>"
         }
-        return jwtAuthenticationToken;
+
+        // Get all other possible parameters. A different JWT realm may do the actual authentication.
+        final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
+            threadContext,
+            JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+            JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET,
+            true
+        );
+
+        return new JwtAuthenticationToken(authenticationParameterValue, clientAuthenticationSharedSecretValue);
     }
 
     @Override
@@ -356,267 +333,221 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     @Override
     public void authenticate(final AuthenticationToken authenticationToken, final ActionListener<AuthenticationResult<User>> listener) {
-        boolean authenticateSuccess = false;
-        try {
-            this.ensureInitialized();
-            if (authenticationToken instanceof JwtAuthenticationToken jwtAuthenticationToken) {
-                final String tokenPrincipal = jwtAuthenticationToken.principal();
-                LOGGER.trace("Realm [{}] received JwtAuthenticationToken for tokenPrincipal [{}].", super.name(), tokenPrincipal);
+        this.ensureInitialized();
+        if (authenticationToken instanceof JwtAuthenticationToken jwtAuthenticationToken) {
+            final String tokenPrincipal = jwtAuthenticationToken.principal();
+            LOGGER.trace("Realm [{}] received JwtAuthenticationToken for tokenPrincipal [{}].", super.name(), tokenPrincipal);
 
-                // Attempt to authenticate from the cache
-                final SecureString endUserSignedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
-                final SecureString clientAuthenticationSharedSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
-                if (this.cache != null) {
-                    JwtRealmCacheValue jwtRealmCacheValue = null;
-                    boolean same = false;
-                    try {
-                        jwtRealmCacheValue = this.cache.get(tokenPrincipal);
-                        if (jwtRealmCacheValue != null) {
-                            same = jwtRealmCacheValue.verifySameCredentials(endUserSignedJwt, clientAuthenticationSharedSecret);
-                            LOGGER.debug(
-                                "Realm [" + super.name() + "] cache hit for tokenPrincipal=[" + tokenPrincipal + "], same=[" + same + "]."
-                            );
-                            listener.onResponse(jwtRealmCacheValue.get());
-                            return; // finally sets authenticateSuccess=true during return
-                        }
-                        LOGGER.trace("Realm [" + super.name() + "] cache miss for tokenPrincipal=[" + tokenPrincipal + "].");
-                    } finally {
-                        if (jwtRealmCacheValue == null) {
-                            this.counterCacheGetFail.incrementAndGet();
-                        } else {
-                            if (same == false) {
-                                this.counterCacheGetOkWarning.incrementAndGet();
-                            } else {
-                                this.counterCacheGetOkNoWarning.incrementAndGet();
-                            }
-                            authenticateSuccess = true; // finally sets authenticateSuccess=true during return
-                        }
-                    }
-                }
-
-                try {
-                    JwtUtil.validateClientAuthentication(
-                        this.clientAuthenticationType,
-                        this.clientAuthenticationSharedSecret,
-                        clientAuthenticationSharedSecret
+            // Attempt to authenticate from the cache
+            final SecureString endUserSignedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
+            final SecureString clientAuthenticationSharedSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
+            if (this.cache != null) {
+                JwtRealmCacheValue jwtRealmCacheValue = this.cache.get(tokenPrincipal);
+                if (jwtRealmCacheValue != null) {
+                    final boolean same = jwtRealmCacheValue.verifySameCredentials(endUserSignedJwt, clientAuthenticationSharedSecret);
+                    LOGGER.debug(
+                        "Realm [" + super.name() + "] cache hit for tokenPrincipal=[" + tokenPrincipal + "], same=[" + same + "]."
                     );
-                } catch (Exception e) {
-                    final String msg = "Realm [" + super.name() + "] client validation failed for tokenPrincipal [" + tokenPrincipal + "].";
-                    LOGGER.debug(msg, e);
-                    listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
+                    listener.onResponse(jwtRealmCacheValue.get());
                     return;
                 }
+                LOGGER.trace("Realm [" + super.name() + "] cache miss for tokenPrincipal=[" + tokenPrincipal + "].");
+            }
 
-                final SignedJWT signedJwt;
-                final JWTClaimsSet jwtClaimsSet;
-                try {
-                    signedJwt = SignedJWT.parse(jwtAuthenticationToken.getEndUserSignedJwt().toString());
-                    jwtClaimsSet = signedJwt.getJWTClaimsSet();
-                } catch (ParseException e) {
-                    throw new IllegalArgumentException("Failed to parse JWT", e);
-                }
+            try {
+                JwtUtil.validateClientAuthentication(
+                    this.clientAuthenticationType,
+                    this.clientAuthenticationSharedSecret,
+                    clientAuthenticationSharedSecret
+                );
+            } catch (Exception e) {
+                final String msg = "Realm [" + super.name() + "] client validation failed for tokenPrincipal [" + tokenPrincipal + "].";
+                LOGGER.debug(msg, e);
+                listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
+                return;
+            }
 
-                final JWSAlgorithm jwsAlgorithm = signedJwt.getHeader().getAlgorithm();
-                final boolean isHmacJwtAlg = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(jwsAlgorithm.getName());
-                try {
-                    JwtValidateUtil.validate(
-                        signedJwt,
-                        isHmacJwtAlg ? this.jwksHmac : this.jwksPkc,
-                        this.allowedIssuer,
-                        this.allowedAudiences,
-                        isHmacJwtAlg ? this.algorithmsHmac : this.algorithmsPkc,
-                        this.allowedClockSkew.seconds()
-                    );
-                } catch (Exception e) {
-                    final String msg = "Realm [" + super.name() + "] JWT validation failed for tokenPrincipal [" + tokenPrincipal + "].";
-                    LOGGER.debug(msg, e);
-                    listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
-                    return;
-                }
+            final SignedJWT signedJwt;
+            final JWTClaimsSet jwtClaimsSet;
+            try {
+                signedJwt = SignedJWT.parse(jwtAuthenticationToken.getEndUserSignedJwt().toString());
+                jwtClaimsSet = signedJwt.getJWTClaimsSet();
+            } catch (ParseException e) {
+                throw new IllegalArgumentException("Failed to parse JWT", e);
+            }
 
-                // Stop using tokenPrincipal. We trust the JWT after the above check, so compute the actual principal from the claims now.
+            final JWSAlgorithm jwsAlgorithm = signedJwt.getHeader().getAlgorithm();
+            final boolean isHmacJwtAlg = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(jwsAlgorithm.getName());
+            try {
+                JwtValidateUtil.validate(
+                    signedJwt,
+                    isHmacJwtAlg ? this.jwksHmac : this.jwksPkc,
+                    this.allowedIssuer,
+                    this.allowedAudiences,
+                    isHmacJwtAlg ? this.algorithmsHmac : this.algorithmsPkc,
+                    this.allowedClockSkew.seconds()
+                );
+            } catch (Exception e) {
+                final String msg = "Realm [" + super.name() + "] JWT validation failed for tokenPrincipal [" + tokenPrincipal + "].";
+                LOGGER.debug(msg, e);
+                listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
+                return;
+            }
 
-                // Principal claim is mandatory
-                final String principal = this.claimParserPrincipal.getClaimValue(jwtClaimsSet);
-                final String messageAboutPrincipalClaim = "Realm ["
+            // Stop using tokenPrincipal. We trust the JWT after the above check, so compute the actual principal from the claims now.
+
+            // Principal claim is mandatory
+            final String principal = this.claimParserPrincipal.getClaimValue(jwtClaimsSet);
+            final String messageAboutPrincipalClaim = "Realm ["
+                + super.name()
+                + "] got principal claim ["
+                + principal
+                + "] using parser ["
+                + this.claimParserPrincipal.getClaimName()
+                + "].";
+            if (principal == null) {
+                LOGGER.debug(messageAboutPrincipalClaim);
+                listener.onResponse(AuthenticationResult.unsuccessful(messageAboutPrincipalClaim, null));
+                return;
+            } else {
+                LOGGER.trace(messageAboutPrincipalClaim);
+            }
+
+            // Groups claim is optional
+            final List<String> groups = this.claimParserGroups.getClaimValues(jwtClaimsSet);
+            LOGGER.trace(
+                "Realm ["
                     + super.name()
-                    + "] got principal claim ["
+                    + "] principal ["
                     + principal
+                    + "] got groups ["
+                    + (groups == null ? "null" : String.join(",", groups))
                     + "] using parser ["
-                    + this.claimParserPrincipal.getClaimName()
-                    + "].";
-                if (principal == null) {
-                    LOGGER.debug(messageAboutPrincipalClaim);
-                    listener.onResponse(AuthenticationResult.unsuccessful(messageAboutPrincipalClaim, null));
-                    return;
-                } else {
-                    LOGGER.trace(messageAboutPrincipalClaim);
-                }
+                    + (this.claimParserGroups.getClaimName() == null ? "null" : this.claimParserGroups.getClaimName())
+                    + "]."
+            );
 
-                // Groups claim is optional
-                final List<String> groups = this.claimParserGroups.getClaimValues(jwtClaimsSet);
-                LOGGER.trace(
-                    "Realm ["
-                        + super.name()
-                        + "] principal ["
-                        + principal
-                        + "] got groups ["
-                        + (groups == null ? "null" : String.join(",", groups))
-                        + "] using parser ["
-                        + (this.claimParserGroups.getClaimName() == null ? "null" : this.claimParserGroups.getClaimName())
-                        + "]."
-                );
+            // Metadata is optional
+            final Map<String, Object> userMetadata = this.populateUserMetadata ? jwtClaimsSet.getClaims() : Map.of();
+            LOGGER.trace(
+                "Realm ["
+                    + super.name()
+                    + "] principal ["
+                    + principal
+                    + "] populateUserMetadata ["
+                    + this.populateUserMetadata
+                    + "] got metadata ["
+                    + userMetadata
+                    + "] from JWTClaimsSet."
+            );
 
-                // Metadata is optional
-                final Map<String, Object> userMetadata = this.populateUserMetadata ? jwtClaimsSet.getClaims() : Map.of();
-                LOGGER.trace(
-                    "Realm ["
-                        + super.name()
-                        + "] principal ["
-                        + principal
-                        + "] populateUserMetadata ["
-                        + this.populateUserMetadata
-                        + "] got metadata ["
-                        + userMetadata
-                        + "] from JWTClaimsSet."
-                );
-
-                // Delegate authorization to other realms. If enabled, do lookup here and return; don't fall through.
-                if (this.delegatedAuthorizationSupport.hasDelegation()) {
-                    final String delegatedAuthorizationSupportDetails = this.delegatedAuthorizationSupport.toString();
-                    this.delegatedAuthorizationSupport.resolve(principal, ActionListener.wrap(result -> {
-                        // Intercept the delegated authorization listener response to log the resolved roles here. Empty roles is OK.
-                        assert result != null : "JWT delegated authz should return a non-null AuthenticationResult<User>";
-                        final User user = result.getValue();
-                        assert user != null : "JWT delegated authz should return a non-null User";
-                        final String[] roles = user.roles();
-                        assert roles != null : "JWT delegated authz should return non-null Roles";
-                        LOGGER.debug(
-                            "Realm ["
-                                + super.name()
-                                + "] principal ["
-                                + principal
-                                + "] got lookup roles ["
-                                + Arrays.toString(roles)
-                                + "] via delegated authorization ["
-                                + delegatedAuthorizationSupportDetails
-                                + "]"
-                        );
-                        if (this.cache != null) {
-                            this.cache.put(
-                                tokenPrincipal,
-                                new JwtRealmCacheValue(result, endUserSignedJwt, clientAuthenticationSharedSecret, hasher)
-                            );
-                            this.counterCacheAdd.incrementAndGet();
-                        }
-                        listener.onResponse(result);
-                    }, e -> {
-                        LOGGER.debug(
-                            "Realm ["
-                                + super.name()
-                                + "] principal ["
-                                + principal
-                                + "] failed to get lookup roles via delegated authorization ["
-                                + delegatedAuthorizationSupportDetails
-                                + "].",
-                            e
-                        );
-                        if (this.cache != null) {
-                            this.cache.invalidate(tokenPrincipal);
-                            listener.onFailure(e);
-                        }
-                    }));
-                    authenticateSuccess = true; // authenticated successfully with authz roles lookup
-                    return;
-                }
-
-                // Handle role mapping in JWT Realm.
-                final AtomicBoolean roleMappingOk = new AtomicBoolean(false);
-                final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, null, groups, userMetadata, super.config);
-                this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(setOfRoles -> {
-                    // Intercept the role mapper listener response to log the resolved roles here. Empty is OK.
-                    assert setOfRoles != null : "JWT role mapping should return non-null set of roles.";
-                    final String[] roles = new TreeSet<>(setOfRoles).toArray(new String[setOfRoles.size()]);
+            // Delegate authorization to other realms. If enabled, do lookup here and return; don't fall through.
+            if (this.delegatedAuthorizationSupport.hasDelegation()) {
+                final String delegatedAuthorizationSupportDetails = this.delegatedAuthorizationSupport.toString();
+                this.delegatedAuthorizationSupport.resolve(principal, ActionListener.wrap(result -> {
+                    // Intercept the delegated authorization listener response to log the resolved roles here. Empty roles is OK.
+                    assert result != null : "JWT delegated authz should return a non-null AuthenticationResult<User>";
+                    final User user = result.getValue();
+                    assert user != null : "JWT delegated authz should return a non-null User";
+                    final String[] roles = user.roles();
+                    assert roles != null : "JWT delegated authz should return non-null Roles";
                     LOGGER.debug(
                         "Realm ["
                             + super.name()
                             + "] principal ["
                             + principal
-                            + "] groups ["
-                            + (groups == null ? "null" : String.join(",", groups))
-                            + "] metadata ["
-                            + userMetadata
-                            + "] got mapped roles ["
+                            + "] got lookup roles ["
                             + Arrays.toString(roles)
-                            + "]."
+                            + "] via delegated authorization ["
+                            + delegatedAuthorizationSupportDetails
+                            + "]"
                     );
-                    final User user = new User(principal, roles, null, null, userMetadata, true);
-                    final AuthenticationResult<User> result = AuthenticationResult.success(user);
                     if (this.cache != null) {
                         this.cache.put(
                             tokenPrincipal,
                             new JwtRealmCacheValue(result, endUserSignedJwt, clientAuthenticationSharedSecret, hasher)
                         );
-                        this.counterCacheAdd.incrementAndGet();
                     }
                     listener.onResponse(result);
-                    roleMappingOk.set(true); // authenticated successfully with authc role mapping
                 }, e -> {
                     LOGGER.debug(
                         "Realm ["
                             + super.name()
                             + "] principal ["
                             + principal
-                            + "] groups ["
-                            + (groups == null ? "null" : String.join(",", groups))
-                            + "] metadata ["
-                            + userMetadata
-                            + "] failed to get mapped roles.",
+                            + "] failed to get lookup roles via delegated authorization ["
+                            + delegatedAuthorizationSupportDetails
+                            + "].",
                         e
                     );
                     if (this.cache != null) {
                         this.cache.invalidate(tokenPrincipal);
+                        listener.onFailure(e);
                     }
-                    listener.onFailure(e);
                 }));
-                authenticateSuccess = roleMappingOk.get(); // authenticated, but success depends on role mapping without an exception
-            } else {
-                final String className = (authenticationToken == null) ? "null" : authenticationToken.getClass().getCanonicalName();
-                final String msg = "Realm [" + super.name() + "] does not support AuthenticationToken [" + className + "].";
-                LOGGER.trace(msg);
-                listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
+                return;
             }
-        } finally {
-            if (authenticateSuccess == false) {
-                this.counterAuthenticateFail.incrementAndGet();
-            } else {
-                this.counterAuthenticateSuccess.incrementAndGet();
-            }
+
+            // Handle role mapping in JWT Realm.
+            final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, null, groups, userMetadata, super.config);
+            this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(setOfRoles -> {
+                // Intercept the role mapper listener response to log the resolved roles here. Empty is OK.
+                assert setOfRoles != null : "JWT role mapping should return non-null set of roles.";
+                final String[] roles = new TreeSet<>(setOfRoles).toArray(new String[setOfRoles.size()]);
+                LOGGER.debug(
+                    "Realm ["
+                        + super.name()
+                        + "] principal ["
+                        + principal
+                        + "] groups ["
+                        + (groups == null ? "null" : String.join(",", groups))
+                        + "] metadata ["
+                        + userMetadata
+                        + "] got mapped roles ["
+                        + Arrays.toString(roles)
+                        + "]."
+                );
+                final User user = new User(principal, roles, null, null, userMetadata, true);
+                final AuthenticationResult<User> result = AuthenticationResult.success(user);
+                if (this.cache != null) {
+                    this.cache.put(
+                        tokenPrincipal,
+                        new JwtRealmCacheValue(result, endUserSignedJwt, clientAuthenticationSharedSecret, hasher)
+                    );
+                }
+                listener.onResponse(result);
+            }, e -> {
+                LOGGER.debug(
+                    "Realm ["
+                        + super.name()
+                        + "] principal ["
+                        + principal
+                        + "] groups ["
+                        + (groups == null ? "null" : String.join(",", groups))
+                        + "] metadata ["
+                        + userMetadata
+                        + "] failed to get mapped roles.",
+                    e
+                );
+                if (this.cache != null) {
+                    this.cache.invalidate(tokenPrincipal);
+                }
+                listener.onFailure(e);
+            }));
+        } else {
+            final String className = (authenticationToken == null) ? "null" : authenticationToken.getClass().getCanonicalName();
+            final String msg = "Realm [" + super.name() + "] does not support AuthenticationToken [" + className + "].";
+            LOGGER.trace(msg);
+            listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
         }
     }
 
     @Override
     public void usageStats(final ActionListener<Map<String, Object>> listener) {
         this.ensureInitialized();
-        super.usageStats(ActionListener.wrap(usageStats -> {
-            final LinkedHashMap<String, Object> token = new LinkedHashMap<>();
-            token.put("miss", this.counterTokenFail.get());
-            token.put("hit", this.counterTokenSuccess.get());
-            usageStats.put("token", token);
-
-            final LinkedHashMap<String, Object> authenticate = new LinkedHashMap<>();
-            authenticate.put("miss", this.counterAuthenticateFail.get());
-            authenticate.put("hit", this.counterAuthenticateSuccess.get());
-            usageStats.put("authenticate", authenticate);
-
-            final LinkedHashMap<String, Object> cache = new LinkedHashMap<>();
-            cache.put("miss", this.counterCacheGetFail.get());
-            cache.put("warn", this.counterCacheGetOkWarning.get());
-            cache.put("hit", this.counterCacheGetOkNoWarning.get());
-            cache.put("add", this.counterCacheAdd.get());
-            cache.put("size", this.getCacheSize());
-            usageStats.put("cache", cache);
-            listener.onResponse(usageStats);
+        super.usageStats(ActionListener.wrap(stats -> {
+            stats.put("cache", Collections.singletonMap("size", this.getCacheSize()));
+            listener.onResponse(stats);
         }, listener::onFailure));
     }
 

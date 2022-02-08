@@ -184,9 +184,9 @@ public class EnableAllocationDecider extends AllocationDecider {
             case PRIMARIES -> shardRouting.primary()
                 ? allocation.decision(Decision.YES, NAME, "primary rebalancing is allowed")
                 : allocation.decision(Decision.NO, NAME, "replica rebalancing is forbidden due to %s", setting(enable, usedIndexSetting));
-            case REPLICAS -> shardRouting.primary() == false
-                ? allocation.decision(Decision.YES, NAME, "replica rebalancing is allowed")
-                : allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden due to %s", setting(enable, usedIndexSetting));
+            case REPLICAS -> shardRouting.primary()
+                ? allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden due to %s", setting(enable, usedIndexSetting))
+                : allocation.decision(Decision.YES, NAME, "replica rebalancing is allowed");
         };
     }
 

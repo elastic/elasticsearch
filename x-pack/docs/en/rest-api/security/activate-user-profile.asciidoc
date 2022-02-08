@@ -32,17 +32,14 @@ disabled. Any updates do not change existing content for either the `access` or
 `data` fields.
 
 This API is intended only for use by applications that need to create or
-update profiles for end users. The calling application must have either an
-`access_token` or a combination of `username` and `password` for the user that
-the profile document is intended for.
+update profiles for end users.
 
-
-
+IMPORTANT: The calling application must have either an `access_token` or a
+combination of `username` and `password` for the user that the profile document
+is intended for.
 
 [[security-api-activate-user-profile-request-body]]
 ==== {api-request-body-title}
-
-The following parameters can be specified in the body of a POST request:
 
 `access_token`::
 (Required*, string)
@@ -56,16 +53,17 @@ The type of grant.
 .Valid values for `grant_type`
 [%collapsible%open]
 ====
-`access_token`:::
+`access_token`::
 (Required*, string)
 In this type of grant, you must supply an access token that was created by the
 {es} token service. For more information, see
 <<security-api-get-token>> and <<token-service-settings>>.
 
-`password`:::
-In this type of grant, you must supply the user ID and password for the
+`password`::
+In this type of grant, you must supply the `username` and `password` for the
 user that you want to create the API key for.
 ====
+
 `password`::
 (Optional*, string)
 The user's password. If you specify the `password` grant type, this parameter is
@@ -76,9 +74,7 @@ required. It is not valid with other grant types.
 The username that identifies the user. If you specify the `password` grant type,
 this parameter is required. It is not valid with other grant types.
 
---
 *Indicates that the setting is required in some, but not all situations.
---
 
 [[security-api-activate-user-profile-response-body]]
 ==== {api-response-body-title}
@@ -91,15 +87,17 @@ control numbers.
 ==== {api-examples-title}
 
 [source,console]
-------------------------------------------------------------
+----
 POST /_security/profile/_activate
 {
   "grant_type": "password",
   "username" : "jacknich",
   "password" : "l0ng-r4nd0m-p@ssw0rd"
 }
-------------------------------------------------------------
+----
 // TEST[setup:jacknich_user]
+
+The API returns the following response:
 
 [source,console-result]
 ----

@@ -8,7 +8,8 @@ beta::[]
 <titleabbrev>Update user profile data</titleabbrev>
 ++++
 
-Updates specific data for the user profile of a specified unique ID.
+Updates specific data for the user profile that's associated with the specified
+unique ID.
 
 [[security-api-update-user-profile-data-request]]
 ==== {api-request-title}
@@ -18,11 +19,11 @@ Updates specific data for the user profile of a specified unique ID.
 [[security-api-update-user-profile-data-prereqs]]
 ==== {api-prereq-title}
 
-To use this API, you must have either:
+To use this API, you must have one of the following privileges:
 
-- the `manage_user_profile` cluster privilege; _or_
-- the _"update profile data"_ global privilege for the namespaces
-being referenced in the request
+* The `manage_user_profile` cluster privilege.
+* The `update_profile_data` global privilege for the namespaces that are
+referenced in the request.
 
 [[security-api-update-user-profile-data-desc]]
 ==== {api-description-title}
@@ -32,15 +33,15 @@ existing user profile document with JSON objects. New keys and their values are
 added to the profile document, and conflicting keys are replaced by data that's
 included in the request.
 
-For both `access` and `data`, the data are namespaced by the top level fields.
-The _"update profile data"_ global privilege allows granting privilege for
-updating only the allowed namespaces.
+For both `access` and `data`, content is namespaced by the top-level fields.
+The `update_profile_data` global privilege grants privileges for updating only
+the allowed namespaces.
 
 [[security-api-update-user-profile-data-path-params]]
 ==== {api-path-parms-title}
 
 `uid`::
-(Required, string) An unique identifier for the user profile.
+(Required, string) A unique identifier for the user profile.
 
 [[security-api-update-user-profile-data-query-params]]
 ==== {api-query-parms-title}
@@ -57,46 +58,44 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 [[security-api-update-user-profile-data-request-body]]
 ==== {api-request-body-title}
 
-The following parameters can be specified in the body of a POST request:
-
 `access`::
 (Required*, object)
-Arbitrary searchable data that you want to associate with the user profile.
-It supports nested data structure. Within the `access` object, top level
-keys cannot begin with `_` or contain `.`.
+Searchable data that you want to associate with the user profile.
+This field supports a nested data structure. Within the `access` object,
+top-level keys cannot begin with an underscore (`_`) or contain a period (`.`).
 
 `data`::
 (Required*, object)
-Arbitrary non-searchable data that you want to associate with the user profile.
-It supports nested data structure. Within the `data` object, top level
-keys cannot begin with `_` or contain `.`.
-The `data` object is not searchable, but can be retrieved with <<security-api-get-user-profile>>.
+Non-searchable data that you want to associate with the user profile.
+This field supports a nested data structure. Within the `data` object, top-level
+keys cannot begin with an underscore (`_`) or contain a period (`.`)
+The `data` object is not searchable, but can be retrieved with the 
+<<security-api-get-user-profile,Get user profile API>>.
 
---
 *Indicates that the setting is required in some, but not all situations.
---
 
 [[security-api-update-user-profile-data-response-body]]
 ==== {api-response-body-title}
 
-A successful update profile data API call returns a JSON structure that shows
-the request is acknowledged.
+A successful update user profile data API call returns a JSON structure
+indicating that the request is acknowledged:
 
 [source,js]
---------------------------------------------------
+----
 {
   "acknowledged": true
 }
---------------------------------------------------
+----
 // NOTCONSOLE
 
 [[security-api-update-user-profile-data-example]]
 ==== {api-examples-title}
 
-The API updates a profile document for a `uid` matching `u_kd2JMqwUQwSCCOxMv7M1vw`:
+The following request updates a profile document for a `uid` matching 
+`u_kd2JMqwUQwSCCOxMv7M1vw`:
 
 [source,console]
-------------------------------------------------------------
+----
 POST /_security/profile/_data/u_kd2JMqwUQwSCCOxMv7M1vw
 {
   "access": {
@@ -110,13 +109,13 @@ POST /_security/profile/_data/u_kd2JMqwUQwSCCOxMv7M1vw
     }
   }
 }
-------------------------------------------------------------
+----
 // TEST[skip:uid is random and no way to ensure this uid exists]
 
-We can update the profile data again to replace some keys and adding new keys:
+You can update the profile data to replace some keys and add new keys:
 
 [source,console]
-------------------------------------------------------------
+----
 POST /_security/profile/_data/u_kd2JMqwUQwSCCOxMv7M1vw
 {
   "access": {
@@ -130,12 +129,13 @@ POST /_security/profile/_data/u_kd2JMqwUQwSCCOxMv7M1vw
     }
   }
 }
-------------------------------------------------------------
+----
 // TEST[skip:uid is random and no way to ensure this uid exists]
 
-The consolidated profile data is as the follows:
+If you run the request again, the consolidated profile data is returned:
+
 [source,js]
---------------------------------------------------
+----
 {
   "u_kd2JMqwUQwSCCOxMv7M1vw": {
     "uid": "u_kd2JMqwUQwSCCOxMv7M1vw",
@@ -168,5 +168,5 @@ The consolidated profile data is as the follows:
     }
   }
 }
---------------------------------------------------
+----
 // NOTCONSOLE

@@ -343,7 +343,7 @@ public class MetadataIndexStateService {
      * @param block The type of block to add
      * @return a tuple of the updated cluster state, as well as the blocks that got added
      */
-    static Tuple<ClusterState, Map<Index, ClusterBlock>> addIndexBlock(
+    private static Tuple<ClusterState, Map<Index, ClusterBlock>> addIndexBlock(
         final Index[] indices,
         final ClusterState currentState,
         final APIBlock block
@@ -538,7 +538,7 @@ public class MetadataIndexStateService {
      * this action succeed then the shard is considered to be ready for closing. When all shards of a given index are ready for closing,
      * the index is considered ready to be closed.
      */
-    class WaitForClosedBlocksApplied extends ActionRunnable<Map<Index, IndexResult>> {
+    private class WaitForClosedBlocksApplied extends ActionRunnable<Map<Index, IndexResult>> {
 
         private final Map<Index, ClusterBlock> blockedIndices;
         private final CloseIndexClusterStateUpdateRequest request;
@@ -670,7 +670,7 @@ public class MetadataIndexStateService {
      * Helper class that coordinates with shards to ensure that blocks have been properly applied to all shards using
      * {@link TransportVerifyShardIndexBlockAction}.
      */
-    class WaitForBlocksApplied extends ActionRunnable<Map<Index, AddBlockResult>> {
+    private class WaitForBlocksApplied extends ActionRunnable<Map<Index, AddBlockResult>> {
 
         private final Map<Index, ClusterBlock> blockedIndices;
         private final AddIndexBlockClusterStateUpdateRequest request;
@@ -929,7 +929,7 @@ public class MetadataIndexStateService {
         );
     }
 
-    ClusterState openIndices(final Index[] indices, final ClusterState currentState) {
+    private ClusterState openIndices(final Index[] indices, final ClusterState currentState) {
         final List<IndexMetadata> indicesToOpen = new ArrayList<>();
         for (Index index : indices) {
             final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
@@ -1003,7 +1003,7 @@ public class MetadataIndexStateService {
      * @param block the full block to convert to
      * @return the updated cluster state, as well as the (failed and successful) index-level results for adding the block
      */
-    static Tuple<ClusterState, Collection<AddBlockResult>> finalizeBlock(
+    private static Tuple<ClusterState, Collection<AddBlockResult>> finalizeBlock(
         final ClusterState currentState,
         final Map<Index, ClusterBlock> blockedIndices,
         final Map<Index, AddBlockResult> verifyResult,

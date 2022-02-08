@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.util.VectorUtil;
 
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.PrimitiveIterator;
 
 public class KnnDenseVector implements DenseVector {
     protected final float[] vector;
@@ -71,12 +71,12 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
-    public PrimitiveIterator.OfDouble iterator() {
-        return new PrimitiveIterator.OfDouble() {
+    public Iterator<Float> iterator() {
+        return new Iterator<>() {
             int index = 0;
 
             @Override
-            public double nextDouble() {
+            public Float next() {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }

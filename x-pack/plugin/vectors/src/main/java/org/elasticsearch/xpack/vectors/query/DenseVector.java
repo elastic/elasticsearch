@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.vectors.query;
 
+import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.PrimitiveIterator;
 
-public interface DenseVector extends Iterable<Double> {
+public interface DenseVector extends Iterable<Float> {
     float getMagnitude();
 
     // The implementations of these vector operations
@@ -94,10 +94,10 @@ public interface DenseVector extends Iterable<Double> {
         }
 
         @Override
-        public PrimitiveIterator.OfDouble iterator() {
-            return new PrimitiveIterator.OfDouble() {
+        public Iterator<Float> iterator() {
+            return new Iterator<>() {
                 @Override
-                public double nextDouble() {
+                public Float next() {
                     throw new NoSuchElementException();
                 }
 

@@ -13,7 +13,7 @@ import org.elasticsearch.script.field.DocValuesField;
 import java.io.IOException;
 import java.util.Iterator;
 
-public abstract class DenseVectorDocValuesField implements DocValuesField<Double>, DenseVectorScriptDocValues.DenseVectorSupplier {
+public abstract class DenseVectorDocValuesField implements DocValuesField<Float>, DenseVectorScriptDocValues.DenseVectorSupplier {
     protected final String name;
 
     public DenseVectorDocValuesField(String name) {
@@ -64,7 +64,7 @@ public abstract class DenseVectorDocValuesField implements DocValuesField<Double
             }
 
             @Override
-            public Iterator<Double> iterator() {
+            public Iterator<Float> iterator() {
                 return vector.iterator();
             }
 

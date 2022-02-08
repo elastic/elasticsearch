@@ -65,7 +65,7 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
     }
 
     @Override
-    public Iterator<Double> iterator() {
+    public Iterator<Float> iterator() {
         return get().iterator();
     }
 

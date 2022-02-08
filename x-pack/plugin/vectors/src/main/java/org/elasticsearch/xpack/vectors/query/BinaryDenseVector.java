@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
@@ -42,9 +43,6 @@ public class BinaryDenseVector implements DenseVector {
         ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
 
         double dotProduct = 0;
-        /*for (double queryValue : queryVector) {
-            dotProduct += queryValue * byteBuffer.getFloat();
-        }*/
         for (int i = 0; i < queryVector.size(); i++) {
             dotProduct += queryVector.get(i) * byteBuffer.getFloat();
         }
@@ -56,11 +54,6 @@ public class BinaryDenseVector implements DenseVector {
         ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
 
         double l1norm = 0;
-        /*
-        for (double queryValue : queryVector) {
-            l1norm += Math.abs(queryValue - byteBuffer.getFloat());
-        }
-         */
         for (int i = 0; i < queryVector.size(); i++) {
             l1norm += Math.abs(queryVector.get(i) - byteBuffer.getFloat());
         }
@@ -71,15 +64,10 @@ public class BinaryDenseVector implements DenseVector {
     public double l2Norm(QueryVector queryVector) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
         double l2norm = 0;
-        for (double queryValue : queryVector) {
-            double diff = queryValue - byteBuffer.getFloat();
-            l2norm += diff * diff;
-        }
-        /*
         for (int i = 0; i < queryVector.size(); i++) {
             double diff = queryVector.get(i) - byteBuffer.getFloat();
             l2norm += diff * diff;
-        }*/
+        }
         return Math.sqrt(l2norm);
     }
 
@@ -99,13 +87,13 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public PrimitiveIterator.OfDouble iterator() {
-        return new PrimitiveIterator.OfDouble() {
+    public Iterator<Float> iterator() {
+        return new Iterator<>() {
             int index = 0;
             final ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
 
             @Override
-            public double nextDouble() {
+            public Float next() {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }

@@ -895,7 +895,7 @@ public class MetadataIndexStateService {
                     shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug(
-                                "[{}] indices opened, but the operation timed out while waiting for " + "enough shards to be started.",
+                                "[{}] indices opened, but the operation timed out while waiting for enough shards to be started.",
                                 Arrays.toString(indexNames)
                             );
                         }
@@ -1079,7 +1079,7 @@ public class MetadataIndexStateService {
         return new ClusterBlock(
             INDEX_CLOSED_BLOCK_ID,
             UUIDs.randomBase64UUID(),
-            "index preparing to close. Reopen the index to allow " + "writes again or retry closing the index to fully close the index.",
+            "index preparing to close. Reopen the index to allow writes again or retry closing the index to fully close the index.",
             false,
             false,
             false,

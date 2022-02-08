@@ -120,8 +120,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
-        assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
-//        assert allocation.debugDecision() == false; set to true when called via the reroute API
+        assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
+            : Thread.currentThread().getName();
+        // assert allocation.debugDecision() == false; set to true when called via the reroute API
         assert allocation.ignoreDisable() == false;
 
         if (allocation.routingNodes().size() == 0) {
@@ -1295,4 +1296,3 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
     }
 }
-

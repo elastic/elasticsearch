@@ -25,7 +25,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private DesiredBalance currentDesiredBalance;
 
-    public DesiredBalanceShardsAllocator(Settings settings, ClusterSettings clusterSettings, Supplier<RerouteService> rerouteServiceSupplier) {
+    public DesiredBalanceShardsAllocator(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        Supplier<RerouteService> rerouteServiceSupplier
+    ) {
         this.rerouteServiceSupplier = rerouteServiceSupplier;
         this.balancedShardsAllocator = new BalancedShardsAllocator(settings, clusterSettings);
     }
@@ -34,9 +38,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     public void allocate(RoutingAllocation allocation) {
         assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
             : Thread.currentThread().getName();
-
-
-
 
     }
 

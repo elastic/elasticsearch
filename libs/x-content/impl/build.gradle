@@ -12,6 +12,7 @@ apply plugin: 'elasticsearch.publish'
 configurations {
   providerDir
   providerImpl {
+    transitive = false
     canBeConsumed = true
     canBeResolved = true
     // If you want this configuration to share the same dependencies, otherwise omit this line
@@ -47,12 +48,9 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("jarHell").configure { enabled = false }
 
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    'com.fasterxml.jackson.databind.ObjectMapper',
-    'com.fasterxml.jackson.databind.cfg.MapperBuilder'
-  )
-}
+tasks.named("javadoc").configure { enabled = false }
+
+tasks.named("thirdPartyAudit").configure {enabled = true }
 
 tasks.named("jar").configure {
   archiveBaseName = "x-content-impl"

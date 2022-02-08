@@ -27,8 +27,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 @SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtValidateUtilTests extends JwtTestCase {
@@ -196,45 +194,5 @@ public class JwtValidateUtilTests extends JwtTestCase {
         final Tuple<List<String>, List<JWK>> filtered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algs);
         assertThat(algs.size(), equalTo(filtered.v1().size()));
         assertThat(jwks.size(), equalTo(filtered.v2().size()));
-    }
-
-    public void testParseHttpsUri() {
-        // Invalid null or empty values should be rejected
-        assertThat(JwtUtil.parseHttpsUriNoException(null), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException(""), is(nullValue()));
-        // Valid Windows local file paths should be rejected
-        assertThat(JwtUtil.parseHttpsUriNoException("C:"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("C:/"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("C:/jwkset.json"), is(nullValue()));
-        // Valid Linux local file paths should be rejected
-        assertThat(JwtUtil.parseHttpsUriNoException("/"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("/tmp"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("/tmp/"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("/tmp/jwkset.json"), is(nullValue()));
-        // Malformed URIs should be rejected
-        assertThat(JwtUtil.parseHttpsUriNoException("http"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("http:"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("http://"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("https"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("https:"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("https://"), is(nullValue()));
-        // Valid HTTP URIs should be rejected
-        assertThat(JwtUtil.parseHttpsUriNoException("http:/"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com:443"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com:8443"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com/"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com:443/"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com:8443/"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com:8443/jwkset.json"), is(nullValue()));
-        // Valid HTTPS URIs should be accepted
-        assertThat(JwtUtil.parseHttpsUriNoException("https:/"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:443"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:8443"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com/"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:443/"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:8443/"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:8443/jwkset.json"), is(notNullValue()));
     }
 }

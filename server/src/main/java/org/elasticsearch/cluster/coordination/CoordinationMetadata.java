@@ -346,9 +346,13 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         }
 
         public boolean hasQuorum(Collection<String> votes) {
-            final HashSet<String> intersection = new HashSet<>(nodeIds);
-            intersection.retainAll(votes);
-            return intersection.size() * 2 > nodeIds.size();
+            int votedNodes = 0;
+            for (String nodeId : nodeIds) {
+                if (votes.contains(nodeId)) {
+                    votedNodes++;
+                }
+            }
+            return votedNodes * 2 > nodeIds.size();
         }
 
         public Set<String> getNodeIds() {

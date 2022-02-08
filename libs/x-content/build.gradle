@@ -11,15 +11,15 @@ import java.util.stream.Collectors
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
-configurations {
-  providerImpl
-  providerDir
-}
+//configurations {
+//  providerImpl
+//  providerDir
+//}
 
 dependencies {
   api project(':libs:elasticsearch-core')
 
-  providerImpl project(':libs:x-content:impl')
+  //providerImpl project(':libs:x-content:impl')
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
@@ -46,39 +46,39 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("jarHell").configure { enabled = false }
 
-tasks.named("jar").configure {
-  into('org/elasticsearch/xcontent/internal') {
-    from configurations.providerImpl
-  }
-}
-
-File providerDirPath = new File(buildDir, 'provider')
-def copyProviderJars = tasks.register("copyProviderJars", Copy) {
-  dependsOn configurations.providerImpl
-  inputs.property('jars', configurations.providerImpl)
-  outputs.dir(providerDirPath)
-  from configurations.providerImpl
-  into providerDir
-}
-
-artifacts {
-  providerDir(providerDirPath) {
-    builtBy copyProviderJars
-  } 
-}
-
-def generateProviderJarsList = tasks.register("generateProviderJarsList") {
-  File jarsFile = new File(buildDir, 'generated-resources/org/elasticsearch/xcontent/internal/provider-jars.txt')
-  processResources.from(new File(buildDir, 'generated-resources'))
-  inputs.property('jars', configurations.providerImpl)
-  outputs.file(jarsFile)
-  doLast {
-    jarsFile.parentFile.mkdirs()
-    jarsFile.setText(configurations.providerImpl.files.stream()
-      .map(f -> "/" + f.name).collect(Collectors.joining('\n')), 'UTF-8')
-  }
-}
-
-tasks.named("processResources").configure {
-  dependsOn generateProviderJarsList
-}
+//tasks.named("jar").configure {
+//  into('org/elasticsearch/xcontent/internal') {
+//    from configurations.providerImpl
+//  }
+//}
+//
+//File providerDirPath = new File(buildDir, 'provider')
+//def copyProviderJars = tasks.register("copyProviderJars", Copy) {
+//  dependsOn configurations.providerImpl
+//  inputs.property('jars', configurations.providerImpl)
+//  outputs.dir(providerDirPath)
+//  from configurations.providerImpl
+//  into providerDirPath
+//}
+//
+//artifacts {
+//  providerDir(providerDirPath) {
+//    builtBy copyProviderJars
+//  }
+//}
+//
+//def generateProviderJarsList = tasks.register("generateProviderJarsList") {
+//  File jarsFile = new File(buildDir, 'generated-resources/org/elasticsearch/xcontent/internal/provider-jars.txt')
+//  processResources.from(new File(buildDir, 'generated-resources'))
+//  inputs.property('jars', configurations.providerImpl)
+//  outputs.file(jarsFile)
+//  doLast {
+//    jarsFile.parentFile.mkdirs()
+//    jarsFile.setText(configurations.providerImpl.files.stream()
+//      .map(f -> "/" + f.name).collect(Collectors.joining('\n')), 'UTF-8')
+//  }
+//}
+//
+//tasks.named("processResources").configure {
+//  dependsOn generateProviderJarsList
+//}

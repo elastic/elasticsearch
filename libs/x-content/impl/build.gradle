@@ -9,14 +9,26 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
+configurations {
+  providerDir
+  providerImpl {
+    canBeConsumed = true
+    canBeResolved = true
+    // If you want this configuration to share the same dependencies, otherwise omit this line
+  }
+  implementation {
+    extendsFrom providerImpl
+  }
+}
+
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
   compileOnly project(':libs:elasticsearch-x-content')
-  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
+  providerImpl "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  providerImpl "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
+  providerImpl "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  providerImpl "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  providerImpl "org.yaml:snakeyaml:${versions.snakeyaml}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
@@ -44,4 +56,21 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("jar").configure {
   archiveBaseName = "x-content-impl"
+}
+
+File providerDirPath = new File(buildDir, 'provider')
+def copyProviderJars = tasks.register("copyProviderJars", Copy) {
+  dependsOn configurations.providerImpl
+  inputs.property('jars', configurations.providerImpl)
+  inputs.property('jars', jar)
+  outputs.dir(providerDirPath)
+  from configurations.providerImpl
+  from jar
+  into providerDirPath
+}
+
+artifacts {
+  providerDir(providerDirPath) {
+    builtBy copyProviderJars
+  }
 }

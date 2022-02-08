@@ -281,7 +281,6 @@ public class RestHighLevelClient implements Closeable {
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
     private final XPackClient xPackClient = new XPackClient(this);
-    private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
     private final TransformClient transformClient = new TransformClient(this);
@@ -435,18 +434,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public FeaturesClient features() {
         return featuresClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Migration APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api.html">
-     * Migration APIs on elastic.co</a> for more information.
-     */
-    public MigrationClient migration() {
-        return migrationClient;
     }
 
     /**

@@ -402,7 +402,7 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testRoutingPathCompliant() throws IOException {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(createIndexSettings(version, indexSettings(version)).getIndexMetadata());
+        IndexRouting indexRouting = createIndexSettings(version, indexSettings(version)).getIndexRouting();
         int indexShard = indexShard(indexRouting);
         assertThat(indexRouting.getShard(testCase.expectedId, null), equalTo(indexShard));
         assertThat(indexRouting.deleteShard(testCase.expectedId, null), equalTo(indexShard));

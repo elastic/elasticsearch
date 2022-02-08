@@ -75,6 +75,7 @@ class AutodetectWorkerExecutorService extends AbstractExecutorService {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException("autodetect worker service has shutdown", true);
             if (command instanceof AbstractRunnable) {
                 ((AbstractRunnable) command).onRejection(rejected);
+                return;
             } else {
                 throw rejected;
             }

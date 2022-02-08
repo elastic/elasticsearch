@@ -26,6 +26,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -39,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83647")
 public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
     // Index a random set of docs with timestamp and tsid with the tsid/timestamp sort order

@@ -20,7 +20,6 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -34,9 +33,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public final class ProviderLocator {
-
-    /** List of known expected impl jar and dependency file name prefixes. */
-    private static final List<String> JAR_PREFIXES = List.of("jackson", "snakeyaml", "x-content-impl");
 
     public static final XContentProvider INSTANCE = provider();
 
@@ -81,28 +77,20 @@ public final class ProviderLocator {
         return sl.findFirst().orElseThrow(() -> new RuntimeException("cannot locate x-content provider"));
     }
 
-    /** Returns true if the path refers to a jar with one of the known expected names. */
-    static boolean isProviderJar(Path path) {
-        if (Files.isDirectory(path) == false) {
-            String name = path.getFileName().toString();
-            if (name.endsWith(".jar") && JAR_PREFIXES.stream().anyMatch(name::startsWith)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static URL[] gatherUrls(Path dir) throws IOException {
+        final InputStream is = ProviderLocator.class.getResourceAsStream("provider-jars.txt");
+        if (is == null) {
+            throw new IllegalStateException("missing x-content provider jars list");
+        }
+
         final List<Path> paths;
-        try (InputStream is = ProviderLocator.class.getResourceAsStream("provider-jars.txt");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
             paths = reader.lines().map(dir::resolve).collect(Collectors.toList());
-            //return loadAsNonModule(reader.lines().map(ProviderLocator.class::getResource).toArray(URL[]::new));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
-        Set<URL> urls = new LinkedHashSet<>();
+        final Set<URL> urls = new LinkedHashSet<>();
         for (Path path : paths) {
             URL url = path.toRealPath().toUri().toURL();
             if (urls.add(url) == false) {

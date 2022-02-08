@@ -37,11 +37,17 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-tasks.named("jarHell").configure { enabled = false }
+//tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("javadoc").configure { enabled = false }
 
-tasks.named("thirdPartyAudit").configure {enabled = true }
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
+    'com.fasterxml.jackson.databind.ObjectMapper',
+    'com.fasterxml.jackson.databind.cfg.MapperBuilder'
+  )
+}
 
 tasks.named("jar").configure {
   archiveBaseName = "x-content-impl"

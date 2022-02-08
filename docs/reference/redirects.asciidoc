@@ -1822,6 +1822,28 @@ For more information about upgrading, see
 [role="exclude",id="reindex-upgrade"]
 === Reindex to upgrade
 
-Refer to
-{stack-ref}/upgrade-elastic-stack-for-elastic-cloud.html#upgrading-reindex[Reindex
-to upgrade].
+//tag::upgrade-reindex[]
+Before upgrading to {es} 8.0 and later, you must reindex any indices created in
+6.8 or earlier versions. We recommend you use the Upgrade Assistant to guide you
+through this process.
+
+For more information about upgrading, see 
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
+//end::upgrade-reindex[]
+
+For more information about reindexing, see <<docs-reindex>>.
+
+[role="exclude",id="reindex-upgrade-inplace"]
+=== Reindex in place
+
+include::redirects.asciidoc[tag=upgrade-reindex]
+
+For more information about reindexing, see <<docs-reindex>>.
+
+[role="exclude",id="reindex-upgrade-remote"]
+=== Reindex from a remote cluster
+
+include::redirects.asciidoc[tag=upgrade-reindex]
+
+For more information about reindexing from a remote cluster, see
+<<reindex-from-remote>>.

@@ -172,10 +172,10 @@ public class ProfileService {
             return new SearchProfilesResponse(new SearchProfilesResponse.ProfileHit[] {}, 0, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
         })).ifPresent(frozenProfileIndex -> {
             final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
-            if (Strings.hasText(request.getQuery())) {
+            if (Strings.hasText(request.getName())) {
                 query.must(
                     QueryBuilders.multiMatchQuery(
-                        request.getQuery(),
+                        request.getName(),
                         "user_profile.user.username",
                         "user_profile.user.username._2gram",
                         "user_profile.user.username._3gram",

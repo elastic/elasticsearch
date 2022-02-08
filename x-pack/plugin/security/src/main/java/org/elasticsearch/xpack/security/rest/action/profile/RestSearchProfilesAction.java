@@ -35,7 +35,7 @@ public class RestSearchProfilesAction extends SecurityBaseRestHandler {
     );
 
     static {
-        PARSER.declareString(optionalConstructorArg(), new ParseField("query"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("name"));
         PARSER.declareInt(optionalConstructorArg(), new ParseField("size"));
     }
 
@@ -58,14 +58,14 @@ public class RestSearchProfilesAction extends SecurityBaseRestHandler {
         final Set<String> dataKeys = Strings.tokenizeByCommaToSet(request.param("data", null));
         final Payload payload = request.hasContent() ? PARSER.parse(request.contentParser(), null) : new Payload(null, null);
 
-        final SearchProfilesRequest searchProfilesRequest = new SearchProfilesRequest(dataKeys, payload.query(), payload.size());
+        final SearchProfilesRequest searchProfilesRequest = new SearchProfilesRequest(dataKeys, payload.name(), payload.size());
         return channel -> client.execute(SearchProfilesAction.INSTANCE, searchProfilesRequest, new RestToXContentListener<>(channel));
     }
 
-    record Payload(String query, Integer size) {
+    record Payload(String name, Integer size) {
 
-        public String query() {
-            return query != null ? query : "";
+        public String name() {
+            return name != null ? name : "";
         }
 
         public Integer size() {

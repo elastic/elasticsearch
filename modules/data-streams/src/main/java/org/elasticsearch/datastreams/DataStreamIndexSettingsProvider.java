@@ -31,7 +31,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         String dataStreamName,
         IndexMode templateIndexMode,
         Metadata metadata,
-        long resolvedAt,
+        Instant resolvedAt,
         Settings allSettings
     ) {
         if (dataStreamName != null) {
@@ -48,9 +48,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
                 if (indexMode == IndexMode.TIME_SERIES) {
                     TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(allSettings);
-                    Instant start;
+                    final Instant start;
+                    final Instant end;
                     if (dataStream == null) {
-                        start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());
+                        start = resolvedAt.minusMillis(lookAheadTime.getMillis());
+                        end = resolvedAt.plusMillis(lookAheadTime.getMillis());
                     } else {
                         IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
                         if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
@@ -64,9 +66,14 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             );
                         }
                         start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
+                        if (start.isAfter(resolvedAt)) {
+                            end = start.plusMillis(lookAheadTime.getMillis());
+                        } else {
+                            end = resolvedAt.plusMillis(lookAheadTime.getMillis());
+                        }
                     }
+                    assert start.isBefore(end) : "data stream backing index's start time is not before end time";
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
-                    Instant end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
                 }
                 return builder.build();

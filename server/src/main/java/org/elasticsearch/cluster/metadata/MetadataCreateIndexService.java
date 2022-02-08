@@ -854,6 +854,7 @@ public class MetadataCreateIndexService {
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
+            final var resolvedAt = Instant.ofEpochMilli(request.getNameResolvedAt());
             for (IndexSettingProvider provider : indexSettingProviders) {
                 additionalIndexSettings.put(
                     provider.getAdditionalIndexSettings(
@@ -861,7 +862,7 @@ public class MetadataCreateIndexService {
                         request.dataStreamName(),
                         matchingIndexMode,
                         currentState.getMetadata(),
-                        request.getNameResolvedAt(),
+                        resolvedAt,
                         templateAndRequestSettings
                     )
                 );

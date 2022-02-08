@@ -72,7 +72,7 @@ To access a system index, you must now have the
 permission set to `true`.
 
 The `superuser` role also no longer gives write access to system indices. As a
-result, the built-in `elastic` superuser cannot change system indices by
+result, the built-in `elastic` superuser can't change system indices by
 default.
 
 If available, use {kib} or the associated {es} APIs to manage data for a feature

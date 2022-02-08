@@ -17,10 +17,11 @@ an index permission that targets the specific index and set the
 `allow_restricted_indices` permission to `true`. Refer to 
 {ref}/defining-roles.html#roles-indices-priv[indices privileges] for
 information on adding this permission to an index privilege.
+
 *Impact* +
 Accessing system indices directly results in warnings in the header of API
-responses. If available, use {kib} or the associated feature's {es} APIs to manage the data
-that you want to access.
+responses. If available, use {kib} or the associated feature's {es} APIs to
+manage the data that you want to access.
 ====
 
 [[deprecate-max-merge-at-once-explicit-setting]]

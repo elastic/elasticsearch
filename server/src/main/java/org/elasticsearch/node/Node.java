@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -95,6 +96,7 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -211,6 +213,7 @@ import java.util.stream.Stream;
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
@@ -897,12 +900,14 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            final HealthService healthService = new HealthService(
-                pluginsService.filterPlugins(HealthPlugin.class)
-                    .stream()
-                    .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
-                    .toList()
+            List<HealthIndicatorService> serverHealthIndicatorServices = List.of(
+                new InstanceHasMasterHealthIndicatorService(clusterService)
             );
+            List<HealthIndicatorService> pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
+                .stream()
+                .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
+                .toList();
+            HealthService healthService = new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices));
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);

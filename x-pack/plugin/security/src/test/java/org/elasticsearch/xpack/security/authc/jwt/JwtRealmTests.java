@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@SuppressWarnings({ "checkstyle:MissingJavadocType", "checkstyle:MissingJavadocMethod" })
+@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtRealmTests extends JwtTestCase {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealmTests.class);
 
@@ -86,7 +86,6 @@ public class JwtRealmTests extends JwtTestCase {
         terminate(this.threadPool);
     }
 
-    @SuppressWarnings("checkstyle:MissingJavadocMethod")
     public void testJwtAuthcRealmAuthenticateWithEmptyRoles() throws Exception {
         final Tuple<Integer, Integer> authcRange = new Tuple<>(1, 1);
         final Tuple<Integer, Integer> authzRange = new Tuple<>(0, 1);
@@ -98,7 +97,6 @@ public class JwtRealmTests extends JwtTestCase {
         this.realmTestHelper(authcRange, authzRange, algRange, audRange, userRange, roleRange, jwtRange);
     }
 
-    @SuppressWarnings("checkstyle:MissingJavadocMethod")
     public void testJwtAuthcRealmAuthenticateWithoutAuthzRealms() throws Exception {
         final Tuple<Integer, Integer> authcRange = new Tuple<>(1, 3);
         final Tuple<Integer, Integer> authzRange = new Tuple<>(0, 0);
@@ -110,7 +108,6 @@ public class JwtRealmTests extends JwtTestCase {
         this.realmTestHelper(authcRange, authzRange, algRange, audRange, userRange, roleRange, jwtRange);
     }
 
-    @SuppressWarnings("checkstyle:MissingJavadocMethod")
     public void testJwtAuthcRealmAuthenticateWithAuthzRealms() throws Exception {
         final Tuple<Integer, Integer> authcRange = new Tuple<>(1, 3);
         final Tuple<Integer, Integer> authzRange = new Tuple<>(0, 3);
@@ -212,7 +209,7 @@ public class JwtRealmTests extends JwtTestCase {
 
                 // Generate different JWTs for the selected user. Use a different JWK/alg and iat each time.
                 final JWSSigner jwsSigner = JwtValidateUtil.createJwsSigner(jwk);
-                final Tuple<JWSHeader, JWTClaimsSet> jwsHeaderAndJwtClaimsSet = JwtUtilTests.randomValidJwsHeaderAndJwtClaimsSet(
+                final Tuple<JWSHeader, JWTClaimsSet> jwsHeaderAndJwtClaimsSet = JwkValidateUtilTests.randomValidJwsHeaderAndJwtClaimsSet(
                     signatureAlgorithm,
                     jwtRealm.allowedIssuer,
                     jwtRealm.allowedAudiences,
@@ -397,7 +394,7 @@ public class JwtRealmTests extends JwtTestCase {
             )
             .put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWKSET_PKC_PATH),
-                writeJwkSetTempFile(jwtIssuer.getJwkSetPkc(), true)
+                saveJwkSetToTempFile(jwtIssuer.getJwkSetPkc(), true)
             )
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_AUDIENCES), randomFrom(jwtIssuer.getAudiences()))
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE), clientAuthenticationType)
@@ -467,7 +464,7 @@ public class JwtRealmTests extends JwtTestCase {
         return jwtRealm;
     }
 
-    private String writeJwkSetTempFile(final JWKSet jwksetPkc, final boolean publicKeysOnly) throws IOException {
+    private String saveJwkSetToTempFile(final JWKSet jwksetPkc, final boolean publicKeysOnly) throws IOException {
         final String serializedJwkSet = JwtUtil.serializeJwkSet(jwksetPkc, publicKeysOnly);
         if (serializedJwkSet == null) {
             return null;

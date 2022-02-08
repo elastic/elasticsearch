@@ -40,7 +40,7 @@ import java.util.List;
 /**
  * Utilities for JWT validation.
  */
-@SuppressWarnings({ "checkstyle:MissingJavadocType", "checkstyle:MissingJavadocMethod" })
+@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtValidateUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwtValidateUtil.class);
 

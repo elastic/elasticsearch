@@ -22,7 +22,6 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -54,7 +53,20 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-@SuppressWarnings({ "checkstyle:MissingJavadocType", "checkstyle:MissingJavadocMethod" })
+/**
+ * JWT realms supports JWTs as bearer tokens for authenticating to Elasticsearch. For security, it is recommended to use a client,
+ * credential too; examples follow to illustrate why this is important.
+ *
+ * In OIDC workflows, end-users are clients of OIDC RP applications. End-users are asked to authenticate to an OIDC OP, and the OIDC RP
+ * receives a JWT from the OIDC OP to identify the end-user. Potentially, all OIDC RPs can use JWTs as bearer tokens in Elasticsearch.
+ * JWT audience filtering (i.e. OIDC RP client ID) is not sufficient when JWTs are treated as bearer tokens. OIDC RPs may share JWTs with
+ * helper applications (ex: microservices), or use them for authenticating to other applications. Client authentication locks down
+ * exactly which applications are allowed to be JWT bearer token clients of Elasticsearch.
+ *
+ * In bespoke JWT workflows, end-users may obtain a JWT directly, and use it as a bearer token in Elasticsearch and other applications.
+ * Client authentication prevents those other applications from becoming potential JWT bearer token clients of Elasticsearch too.
+ */
+@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
 
@@ -78,7 +90,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final String clientAuthenticationType;
     final SecureString clientAuthenticationSharedSecret;
     final Hasher hasher;
-    final Cache<String, CacheResult> cache;
+    final Cache<String, JwtRealmCacheValue> cache;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
 
     // usage stats
@@ -104,7 +116,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.clientAuthenticationType = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
         this.clientAuthenticationSharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
         this.hasher = Hasher.resolve(realmConfig.getSetting(JwtRealmSettings.CACHE_HASH_ALGO));
-        this.cache = this.initializeCache();
+        this.cache = this.initializeJwtCache();
 
         // Validate Client Authentication settings. Throw SettingsException there was a problem.
         JwtUtil.validateClientAuthenticationSettings(
@@ -136,11 +148,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.jwksPkc = algsAndJwksPkc.v2(); // reloadable
     }
 
-    private Cache<String, CacheResult> initializeCache() {
+    private Cache<String, JwtRealmCacheValue> initializeJwtCache() {
         final TimeValue cacheTtl = super.config.getSetting(JwtRealmSettings.CACHE_TTL);
         if (cacheTtl.getNanos() > 0) {
             final Integer cacheMaxUsers = super.config.getSetting(JwtRealmSettings.CACHE_MAX_USERS);
-            return CacheBuilder.<String, CacheResult>builder().setExpireAfterWrite(cacheTtl).setMaximumWeight(cacheMaxUsers).build();
+            return CacheBuilder.<String, JwtRealmCacheValue>builder().setExpireAfterWrite(cacheTtl).setMaximumWeight(cacheMaxUsers).build();
         }
         return null;
     }
@@ -351,24 +363,25 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 final String tokenPrincipal = jwtAuthenticationToken.principal();
                 LOGGER.trace("Realm [{}] received JwtAuthenticationToken for tokenPrincipal [{}].", super.name(), tokenPrincipal);
 
+                // Attempt to authenticate from the cache
                 final SecureString endUserSignedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
                 final SecureString clientAuthenticationSharedSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
                 if (this.cache != null) {
-                    CacheResult cacheResult = null;
+                    JwtRealmCacheValue jwtRealmCacheValue = null;
                     boolean same = false;
                     try {
-                        cacheResult = this.cache.get(tokenPrincipal);
-                        if (cacheResult != null) {
-                            same = cacheResult.verifySameCredentials(endUserSignedJwt, clientAuthenticationSharedSecret);
+                        jwtRealmCacheValue = this.cache.get(tokenPrincipal);
+                        if (jwtRealmCacheValue != null) {
+                            same = jwtRealmCacheValue.verifySameCredentials(endUserSignedJwt, clientAuthenticationSharedSecret);
                             LOGGER.debug(
                                 "Realm [" + super.name() + "] cache hit for tokenPrincipal=[" + tokenPrincipal + "], same=[" + same + "]."
                             );
-                            listener.onResponse(cacheResult.get());
+                            listener.onResponse(jwtRealmCacheValue.get());
                             return; // finally sets authenticateSuccess=true during return
                         }
                         LOGGER.trace("Realm [" + super.name() + "] cache miss for tokenPrincipal=[" + tokenPrincipal + "].");
                     } finally {
-                        if (cacheResult == null) {
+                        if (jwtRealmCacheValue == null) {
                             this.counterCacheGetFail.incrementAndGet();
                         } else {
                             if (same == false) {
@@ -492,7 +505,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         if (this.cache != null) {
                             this.cache.put(
                                 tokenPrincipal,
-                                new CacheResult(result, endUserSignedJwt, clientAuthenticationSharedSecret, hasher)
+                                new JwtRealmCacheValue(result, endUserSignedJwt, clientAuthenticationSharedSecret, hasher)
                             );
                             this.counterCacheAdd.incrementAndGet();
                         }
@@ -540,7 +553,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     final User user = new User(principal, roles, null, null, userMetadata, true);
                     final AuthenticationResult<User> result = AuthenticationResult.success(user);
                     if (this.cache != null) {
-                        this.cache.put(tokenPrincipal, new CacheResult(result, endUserSignedJwt, clientAuthenticationSharedSecret, hasher));
+                        this.cache.put(
+                            tokenPrincipal,
+                            new JwtRealmCacheValue(result, endUserSignedJwt, clientAuthenticationSharedSecret, hasher)
+                        );
                         this.counterCacheAdd.incrementAndGet();
                     }
                     listener.onResponse(result);
@@ -607,37 +623,5 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public int getCacheSize() {
         this.ensureInitialized();
         return (this.cache == null) ? -1 : this.cache.count();
-    }
-
-    public static class CacheResult {
-        private final AuthenticationResult<User> authenticationResultUser;
-        private final char[] hash; // even if tokenPrinciple matches, detect if JWT+SharedSecret changed
-
-        public CacheResult(
-            final AuthenticationResult<User> authenticationResultUser,
-            final SecureString jwt,
-            final SecureString clientSharedSecret,
-            final Hasher hasher
-        ) {
-            assert authenticationResultUser != null : "AuthenticationResult must be non-null";
-            assert authenticationResultUser.isAuthenticated() : "AuthenticationResult.isAuthenticated must be true";
-            assert authenticationResultUser.getValue() != null : "AuthenticationResult.getValue=User must be non-null";
-            assert jwt != null : "Cache key must be non-null";
-            assert hasher != null : "Hasher must be non-null";
-            this.authenticationResultUser = authenticationResultUser;
-            this.hash = this.hash(jwt, clientSharedSecret, hasher);
-        }
-
-        public char[] hash(final SecureString jwt, final @Nullable SecureString clientSecret, final Hasher hasher) {
-            return hasher.hash(JwtUtil.join("/", jwt, clientSecret));
-        }
-
-        public boolean verifySameCredentials(final SecureString jwt, final @Nullable SecureString clientSecret) {
-            return Hasher.verifyHash(JwtUtil.join("/", jwt, clientSecret), this.hash);
-        }
-
-        public AuthenticationResult<User> get() {
-            return this.authenticationResultUser;
-        }
     }
 }

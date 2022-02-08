@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
  * "true" or "false", but the corresponding ES boolean parser only accepts "true" or "false".
  * @see org.elasticsearch.core.Booleans#parseBoolean(String)
  */
-@SuppressWarnings({ "checkstyle:MissingJavadocType", "checkstyle:MissingJavadocMethod" })
+@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testAllSettings() throws Exception {

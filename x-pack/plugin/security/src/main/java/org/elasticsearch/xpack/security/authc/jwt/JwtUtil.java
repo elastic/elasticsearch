@@ -50,7 +50,7 @@ import java.security.PrivilegedExceptionAction;
 /**
  * Utilities for JWT realm.
  */
-@SuppressWarnings({ "checkstyle:MissingJavadocType", "checkstyle:MissingJavadocMethod" })
+@SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class JwtUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwtUtil.class);
 

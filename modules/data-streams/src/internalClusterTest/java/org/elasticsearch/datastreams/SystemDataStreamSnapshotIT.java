@@ -26,7 +26,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.After;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -52,13 +51,6 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(MockRepository.Plugin.class, DataStreamsPlugin.class, SystemDataStreamTestPlugin.class);
-    }
-
-    @After
-    public void cleanUp() throws Exception {
-        DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
-        AcknowledgedResponse response = client().execute(DeleteDataStreamAction.INSTANCE, request).get();
-        assertTrue(response.isAcknowledged());
     }
 
     public void testSystemDataStreamInGlobalState() throws Exception {

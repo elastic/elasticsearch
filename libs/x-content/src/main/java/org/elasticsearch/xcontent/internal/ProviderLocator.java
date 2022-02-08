@@ -11,9 +11,12 @@ package org.elasticsearch.xcontent.internal;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -28,6 +31,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class ProviderLocator {
 
@@ -43,9 +47,6 @@ public final class ProviderLocator {
 
     private static Path providerPath() {
         String classpath = System.getProperty("java.class.path");
-        for (String s : classpath.split(":")) {
-            System.out.println(s);
-        }
         List<Path> path = Arrays.stream(classpath.split(ProviderLocator.pathSeparator()))
             .filter(s -> s.endsWith("providers"))
             .map(Path::of)
@@ -54,6 +55,7 @@ public final class ProviderLocator {
         if (path.size() != 1) {
             throw new RuntimeException("Expected one provider path, found:" + path);
         }
+
         return checkPathExists(path.get(0).resolve("x-content"));
     }
 
@@ -91,15 +93,20 @@ public final class ProviderLocator {
     }
 
     private static URL[] gatherUrls(Path dir) throws IOException {
+        final List<Path> paths;
+        try (InputStream is = ProviderLocator.class.getResourceAsStream("provider-jars.txt");
+             BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+            paths = reader.lines().map(dir::resolve).collect(Collectors.toList());
+            //return loadAsNonModule(reader.lines().map(ProviderLocator.class::getResource).toArray(URL[]::new));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
         Set<URL> urls = new LinkedHashSet<>();
-        try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(dir, "*.jar")) {
-            for (Path jar : jarStream) {
-                if (isProviderJar(jar)) {
-                    URL url = jar.toRealPath().toUri().toURL();
-                    if (urls.add(url) == false) {
-                        throw new IllegalStateException("duplicate codebase: " + url);
-                    }
-                }
+        for (Path path : paths) {
+            URL url = path.toRealPath().toUri().toURL();
+            if (urls.add(url) == false) {
+                throw new IllegalStateException("duplicate codebase: " + url);
             }
         }
         return urls.toArray(URL[]::new);

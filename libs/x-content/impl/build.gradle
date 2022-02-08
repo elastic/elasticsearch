@@ -11,25 +11,16 @@ apply plugin: 'elasticsearch.publish'
 
 configurations {
   providerDir
-  providerImpl {
-    transitive = false
-    canBeConsumed = true
-    canBeResolved = true
-    // If you want this configuration to share the same dependencies, otherwise omit this line
-  }
-  implementation {
-    extendsFrom providerImpl
-  }
 }
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
   compileOnly project(':libs:elasticsearch-x-content')
-  providerImpl "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  providerImpl "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-  providerImpl "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  providerImpl "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  providerImpl "org.yaml:snakeyaml:${versions.snakeyaml}"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
@@ -58,12 +49,8 @@ tasks.named("jar").configure {
 
 File providerDirPath = new File(buildDir, 'providers')
 def copyProviderJars = tasks.register("copyProviderJars", Copy) {
-  dependsOn configurations.providerImpl
-  inputs.property('jars', configurations.providerImpl)
-  inputs.property('jars', jar)
-  outputs.dir(providerDirPath)
-  from configurations.providerImpl
-  from jar
+  from configurations.runtimeClasspath
+  from tasks.named("jar")
   into new File(providerDirPath, 'x-content')
 }
 

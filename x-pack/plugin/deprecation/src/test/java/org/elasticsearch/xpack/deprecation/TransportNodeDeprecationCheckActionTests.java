@@ -27,7 +27,6 @@ import org.mockito.Mockito;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 
 public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
 
@@ -59,6 +58,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         TransportNodeDeprecationCheckAction transportNodeDeprecationCheckAction = new TransportNodeDeprecationCheckAction(
             inputSettings,
             threadPool,
+            new XPackLicenseState(() -> 0),
             clusterService,
             transportService,
             pluginsService,
@@ -66,11 +66,22 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         );
         NodesDeprecationCheckAction.NodeRequest nodeRequest = null;
         AtomicReference<Settings> visibleSettings = new AtomicReference<>();
-        BiFunction<Settings, PluginsAndModules, DeprecationIssue> nodeSettingCheck = (settings, p) -> {
-            visibleSettings.set(settings);
-            return null;
-        };
-        java.util.List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> nodeSettingsChecks = List.of(nodeSettingCheck);
+        DeprecationChecks.NodeDeprecationCheck<
+            Settings,
+            PluginsAndModules,
+            ClusterState,
+            XPackLicenseState,
+            DeprecationIssue> nodeSettingCheck = (settings, p, c, x) -> {
+                visibleSettings.set(settings);
+                return null;
+            };
+        java.util.List<
+            DeprecationChecks.NodeDeprecationCheck<
+                Settings,
+                PluginsAndModules,
+                ClusterState,
+                XPackLicenseState,
+                DeprecationIssue>> nodeSettingsChecks = List.of(nodeSettingCheck);
         transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
         settingsBuilder = Settings.builder();
         settingsBuilder.put("some.undeprecated.property", "someValue3");

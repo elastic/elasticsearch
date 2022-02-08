@@ -938,6 +938,16 @@ public final class IndexSettings {
         if (version.equals(newIndexVersion) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
         }
+        Version newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
+        Version compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
+        if (compatibilityVersion.equals(newCompatibilityVersion) == false) {
+            throw new IllegalArgumentException(
+                "compatibility version mismatch on settings update expected: "
+                    + compatibilityVersion
+                    + " but was: "
+                    + newCompatibilityVersion
+            );
+        }
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);

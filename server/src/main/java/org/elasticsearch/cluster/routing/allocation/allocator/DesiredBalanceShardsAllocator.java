@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -16,7 +18,9 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
@@ -34,10 +38,32 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.balancedShardsAllocator = new BalancedShardsAllocator(settings, clusterSettings);
     }
 
+    public static boolean needsRefresh(ClusterState currentState, ClusterState newState) {
+
+        final Set<String> currentDataNodeEphemeralIds = currentState.nodes()
+            .stream()
+            .filter(DiscoveryNode::canContainData)
+            .map(DiscoveryNode::getEphemeralId)
+            .collect(Collectors.toSet());
+        final Set<String> newDataNodeEphemeralIds = newState.nodes()
+            .stream()
+            .filter(DiscoveryNode::canContainData)
+            .map(DiscoveryNode::getEphemeralId)
+            .collect(Collectors.toSet());
+
+        if (currentDataNodeEphemeralIds.equals(newDataNodeEphemeralIds) == false) {
+            return true;
+        }
+
+        return false;
+    }
+
     @Override
     public void allocate(RoutingAllocation allocation) {
         assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
             : Thread.currentThread().getName();
+        // assert allocation.debugDecision() == false; set to true when called via the reroute API
+        assert allocation.ignoreDisable() == false;
 
     }
 

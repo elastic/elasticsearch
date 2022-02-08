@@ -85,7 +85,8 @@ shard is a primary (`p`) or a replica (`r`).
 `max_primary_shard_docs`::
 (Optional, integer)
 Triggers rollover when the largest primary shard in the index reaches a certain number of documents.
-This is the maximum docs of the primary shards in the index. As with `max_docs`
+This is the maximum docs of the primary shards in the index. As with `max_docs`,
+replicas are ignored.
 +
 TIP: To see the current shard docs, use the <<cat-shards, _cat shards>> API.
 The `docs` value shows the number of documents each shard.

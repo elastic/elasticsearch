@@ -130,9 +130,12 @@ public class ResponseRewriterTests extends ESTestCase {
 
     public void testAllowedTypes() {
         Map<String, IndexFieldCapabilities> oldResponse = Map.of(
-            "text", fieldCaps("text", "text", false),
-            "long", fieldCaps("long", "long", false),
-            "keyword", fieldCaps("keyword", "keyword", false)
+            "text",
+            fieldCaps("text", "text", false),
+            "long",
+            fieldCaps("long", "long", false),
+            "keyword",
+            fieldCaps("keyword", "keyword", false)
         );
 
         Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(

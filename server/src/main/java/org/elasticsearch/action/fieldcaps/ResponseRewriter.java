@@ -29,8 +29,13 @@ final class ResponseRewriter {
         if (version.onOrAfter(Version.V_8_1_0)) {
             return input;   // nothing needs to be done
         }
-        Function<IndexFieldCapabilities, IndexFieldCapabilities> transformer
-            = buildTransformer(version, input, filters, allowedTypes, isMetadata);
+        Function<IndexFieldCapabilities, IndexFieldCapabilities> transformer = buildTransformer(
+            version,
+            input,
+            filters,
+            allowedTypes,
+            isMetadata
+        );
         Map<String, IndexFieldCapabilities> rewritten = new HashMap<>();
         for (var entry : input.entrySet()) {
             IndexFieldCapabilities fc = transformer.apply(entry.getValue());

@@ -150,10 +150,10 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         assertThat(request.getDescription(), equalTo("indices[], fields[], filters[], types[]"));
 
         request.fields("a", "b");
-        assertThat(request.getDescription(),
-            anyOf(
-                equalTo("indices[], fields[a,b], filters[], types[]"),
-                equalTo("indices[], fields[b,a], filters[], types[]")));
+        assertThat(
+            request.getDescription(),
+            anyOf(equalTo("indices[], fields[a,b], filters[], types[]"), equalTo("indices[], fields[b,a], filters[], types[]"))
+        );
 
         request.indices("x", "y", "z");
         request.fields("a");

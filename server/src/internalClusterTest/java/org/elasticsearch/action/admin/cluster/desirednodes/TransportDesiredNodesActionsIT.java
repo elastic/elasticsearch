@@ -372,7 +372,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     private Runnable blockClusterStateUpdateThread() throws InterruptedException {
         final CountDownLatch unblockClusterStateUpdateTask = new CountDownLatch(1);
         final CountDownLatch blockingClusterStateUpdateTaskExecuting = new CountDownLatch(1);
-        final ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

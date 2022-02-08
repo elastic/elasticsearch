@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.MultiValueMode;
@@ -85,5 +86,10 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

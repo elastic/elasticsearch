@@ -122,7 +122,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
 
     private void setupRemoteCluster() throws Exception {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
-        String address = getLeaderCluster().getMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
+        String address = getLeaderCluster().getAnyMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", address));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         List<RemoteConnectionInfo> infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();

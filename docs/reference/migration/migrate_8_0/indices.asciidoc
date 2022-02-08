@@ -20,7 +20,7 @@ information on adding this permission to an index privilege.
 
 *Impact* +
 Accessing system indices directly results in warnings in the header of API
-responses. Use {kib} or the associated feature's {es} APIs to manage the data
+responses. If available, use {kib} or the associated feature's {es} APIs to manage the data
 that you want to access.
 ====
 

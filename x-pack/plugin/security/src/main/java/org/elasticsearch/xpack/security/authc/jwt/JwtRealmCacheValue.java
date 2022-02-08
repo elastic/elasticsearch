@@ -37,11 +37,6 @@ public class JwtRealmCacheValue {
         final SecureString clientSharedSecret,
         final Hasher hasher
     ) {
-        assert authenticationResultUser != null : "AuthenticationResult must be non-null";
-        assert authenticationResultUser.isAuthenticated() : "AuthenticationResult.isAuthenticated must be true";
-        assert authenticationResultUser.getValue() != null : "AuthenticationResult.getValue=User must be non-null";
-        assert jwt != null : "Cache key must be non-null";
-        assert hasher != null : "Hasher must be non-null";
         this.authenticationResultUser = authenticationResultUser;
         this.hash = this.hash(jwt, clientSharedSecret, hasher);
     }

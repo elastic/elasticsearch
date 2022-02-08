@@ -445,11 +445,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 final String delegatedAuthorizationSupportDetails = this.delegatedAuthorizationSupport.toString();
                 this.delegatedAuthorizationSupport.resolve(principal, ActionListener.wrap(result -> {
                     // Intercept the delegated authorization listener response to log the resolved roles here. Empty roles is OK.
-                    assert result != null : "JWT delegated authz should return a non-null AuthenticationResult<User>";
                     final User user = result.getValue();
-                    assert user != null : "JWT delegated authz should return a non-null User";
                     final String[] roles = user.roles();
-                    assert roles != null : "JWT delegated authz should return non-null Roles";
                     LOGGER.debug(
                         "Realm ["
                             + super.name()
@@ -491,7 +488,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, null, groups, userMetadata, super.config);
             this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(setOfRoles -> {
                 // Intercept the role mapper listener response to log the resolved roles here. Empty is OK.
-                assert setOfRoles != null : "JWT role mapping should return non-null set of roles.";
                 final String[] roles = new TreeSet<>(setOfRoles).toArray(new String[setOfRoles.size()]);
                 LOGGER.debug(
                     "Realm ["

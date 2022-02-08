@@ -227,7 +227,6 @@ public abstract class JwtTestCase extends ESTestCase {
 
     protected Answer<Class<Void>> getAnswer(AtomicReference<UserRoleMapper.UserData> userData) {
         return invocation -> {
-            assert invocation.getArguments().length == 2;
             userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
             @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];

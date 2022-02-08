@@ -66,8 +66,8 @@ setup:
 ---
 index with routing:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: message changed in 8.2.0
 
   - do:
       catch: /specifying routing is not supported because the destination index \[test\] is in time series mode/
@@ -89,8 +89,9 @@ index with routing:
 ---
 index with routing over _bulk:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: message changed in 8.2.0
+
   - do:
       bulk:
         refresh: true

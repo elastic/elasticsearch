@@ -8,14 +8,11 @@ package org.elasticsearch.xpack.watcher.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
-import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
-import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -88,7 +85,6 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -209,12 +205,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         // Otherwise ESIntegTestCase test cluster's wipe cluster logic that deletes all indices may fail,
         // because it attempts to remove the write index of an existing data stream.
         waitNoPendingTasksOnAll();
-        String[] dataStreamsToDelete = { HistoryStoreField.DATA_STREAM };
-        client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(dataStreamsToDelete));
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(dataStreamsToDelete);
-        assertBusy(
-            () -> assertFutureThrows(client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest), ResourceNotFoundException.class)
-        );
     }
 
     /**

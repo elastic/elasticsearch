@@ -322,4 +322,43 @@ public class FrozenIndexIT extends ESIntegTestCase {
             client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
         }
     }
+
+    public void testOpenPointInTimeWithNoIndexMatched() {
+        createIndex("test-index");
+
+        int numDocs = randomIntBetween(10, 50);
+        for (int i = 0; i < numDocs; i++) {
+            String id = Integer.toString(i);
+            client().prepareIndex("test-index", "_doc").setId(id).setSource("value", i).get();
+        }
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test-index")).actionGet());
+        // include the frozen indices
+        {
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").keepAlive(
+                TimeValue.timeValueMinutes(2)
+            );
+            final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
+            try {
+                SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
+                assertNoFailures(resp);
+                assertHitCount(resp, numDocs);
+            } finally {
+                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+            }
+        }
+        // exclude the frozen indices
+        {
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").indicesOptions(
+                IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled()
+            ).keepAlive(TimeValue.timeValueMinutes(2));
+            final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
+            try {
+                SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
+                assertNoFailures(resp);
+                assertHitCount(resp, 0);
+            } finally {
+                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+            }
+        }
+    }
 }

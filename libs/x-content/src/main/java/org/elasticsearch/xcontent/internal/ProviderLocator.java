@@ -38,6 +38,11 @@ public final class ProviderLocator {
     public static final XContentProvider INSTANCE = provider();
 
     private static XContentProvider provider() {
+        String classpath = System.getProperty("java.class.path");
+        for (String s : classpath.split(":")) {
+            System.out.println(s);
+        }
+
         try (InputStream is = ProviderLocator.class.getResourceAsStream("provider-jars.txt");
              BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
             return loadAsNonModule(reader.lines().map(ProviderLocator.class::getResource).toArray(URL[]::new));

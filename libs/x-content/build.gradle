@@ -13,6 +13,7 @@ apply plugin: 'elasticsearch.publish'
 
 configurations {
   providerImpl
+  providerDir
 }
 
 dependencies {
@@ -51,6 +52,20 @@ tasks.named("jar").configure {
   }
 }
 
+File providerDirPath = new File(buildDir, 'provider')
+def copyProviderJars = tasks.register("copyProviderJars", Copy) {
+  dependsOn configurations.providerImpl
+  inputs.property('jars', configurations.providerImpl)
+  outputs.dir(providerDirPath)
+  from configurations.providerImpl
+  into providerDir
+}
+
+artifacts {
+  providerDir(providerDirPath) {
+    builtBy copyProviderJars
+  } 
+}
 
 def generateProviderJarsList = tasks.register("generateProviderJarsList") {
   File jarsFile = new File(buildDir, 'generated-resources/org/elasticsearch/xcontent/internal/provider-jars.txt')
@@ -60,7 +75,7 @@ def generateProviderJarsList = tasks.register("generateProviderJarsList") {
   doLast {
     jarsFile.parentFile.mkdirs()
     jarsFile.setText(configurations.providerImpl.files.stream()
-      .map(f -> f.name).collect(Collectors.joining('\n')), 'UTF-8')
+      .map(f -> "/" + f.name).collect(Collectors.joining('\n')), 'UTF-8')
   }
 }
 

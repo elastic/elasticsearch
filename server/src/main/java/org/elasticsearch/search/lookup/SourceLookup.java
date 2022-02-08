@@ -120,7 +120,7 @@ public class SourceLookup implements Map<String, Object> {
             // for random access and don't optimize for sequential access - except for merging.
             // So we do a little hack here and pretend we're going to do merges in order to
             // get better sequential access.
-            if (context.reader() instanceof SequentialStoredFieldsLeafReader lf) {
+            if (context.reader()instanceof SequentialStoredFieldsLeafReader lf) {
                 // Avoid eagerly loading the stored fields reader, since this can be expensive
                 Supplier<StoredFieldsReader> supplier = new MemoizedSupplier<>(lf::getSequentialStoredFieldsReader);
                 fieldReader = (d, v) -> supplier.get().visitDocument(d, v);

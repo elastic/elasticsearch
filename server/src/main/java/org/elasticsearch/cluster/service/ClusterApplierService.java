@@ -79,24 +79,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private final Collection<ClusterStateApplier> normalPriorityStateAppliers = new CopyOnWriteArrayList<>();
     private final Collection<ClusterStateApplier> lowPriorityStateAppliers = new CopyOnWriteArrayList<>();
 
-    private static class ContextPreservingClusterStateListener implements ClusterStateListener {
-        private final ClusterStateListener delegate;
-        private final Supplier<ThreadContext.StoredContext> supplier;
-
-        ContextPreservingClusterStateListener(ClusterStateListener delegate, Supplier<ThreadContext.StoredContext> supplier) {
-            this.delegate = delegate;
-            this.supplier = supplier;
-        }
-
-        @Override
-        public void clusterChanged(ClusterChangedEvent event) {
-            try (ThreadContext.StoredContext stored = supplier.get()) {
-                delegate.clusterChanged(event);
-            }
-        }
-    }
-
-    private final Collection<ContextPreservingClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
+    private final Collection<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
     private final Map<TimeoutClusterStateListener, NotifyTimeout> timeoutClusterStateListeners = new ConcurrentHashMap<>();
 
     private final AtomicReference<ClusterState> state; // last applied state
@@ -230,20 +213,17 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /**
-     * Add a listener for updated cluster states
+     * Add a listener for updated cluster states. Listeners are executed in the system thread context.
      */
     public void addListener(ClusterStateListener listener) {
-        assert clusterStateListeners.stream().anyMatch(stored -> stored.delegate.equals(listener)) == false : "listener must be unique";
-        clusterStateListeners.add(
-            new ContextPreservingClusterStateListener(listener, threadPool.getThreadContext().newRestorableContext(true))
-        );
+        clusterStateListeners.add(listener);
     }
 
     /**
      * Removes a listener for updated cluster states.
      */
     public void removeListener(final ClusterStateListener listener) {
-        clusterStateListeners.removeIf(storedListener -> storedListener.delegate.equals(listener));
+        clusterStateListeners.remove(listener);
     }
 
     /**

@@ -182,13 +182,6 @@ public abstract class JwtTestCase extends ESTestCase {
             )
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_MAX_CONNECTIONS), randomIntBetween(5, 20))
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS), randomIntBetween(5, 20))
-            // HTTP proxy settings for outgoing connections
-            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_PROXY_SCHEME), randomBoolean() ? "" : "https")
-            .put(
-                RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_PROXY_PORT),
-                randomBoolean() ? "" : Integer.toString(randomIntBetween(1, 65535))
-            )
-            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_PROXY_HOST), randomBoolean() ? "" : "proxy.example.com")
             // TLS settings for outgoing connections
             .put(RealmSettings.getFullSettingKey(name, SSLConfigurationSettings.TRUSTSTORE_TYPE.realm(JwtRealmSettings.TYPE)), "PKCS12")
             .put(RealmSettings.getFullSettingKey(name, SSLConfigurationSettings.TRUSTSTORE_PATH.realm(JwtRealmSettings.TYPE)), "ts2.p12")

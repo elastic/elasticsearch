@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.authc.jwt;
 
-import org.apache.http.HttpHost;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.set.Sets;
@@ -19,9 +17,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -73,10 +69,6 @@ public class JwtRealmSettings {
     private static final int MIN_HTTP_MAX_CONNECTIONS = 0;
     private static final int DEFAULT_HTTP_MAX_ENDPOINT_CONNECTIONS = 200;
     private static final int MIN_HTTP_MAX_ENDPOINT_CONNECTIONS = 0;
-    public static final String DEFAULT_HTTP_PROXY_SCHEME = "http";
-    public static final int DEFAULT_HTTP_PROXY_PORT = 80;
-    public static final int MIN_HTTP_PROXY_PORT = 1;
-    public static final int MAX_HTTP_PROXY_PORT = 65535;
 
     // All settings
 
@@ -127,8 +119,6 @@ public class JwtRealmSettings {
                 HTTP_MAX_ENDPOINT_CONNECTIONS
             )
         );
-        // Standard HTTP proxy settings for outgoing connections to get JWT issuer jwkset_path
-        set.addAll(List.of(HTTP_PROXY_SCHEME, HTTP_PROXY_PORT, HTTP_PROXY_HOST));
         // Standard TLS connection settings for outgoing connections to get JWT issuer jwkset_path
         set.addAll(SSL_CONFIGURATION_SETTINGS);
         // JWT End-user delegated authorization settings: authorization_realms
@@ -261,61 +251,6 @@ public class JwtRealmSettings {
         RealmSettings.realmSettingPrefix(TYPE),
         "http.max_endpoint_connections",
         key -> Setting.intSetting(key, DEFAULT_HTTP_MAX_ENDPOINT_CONNECTIONS, MIN_HTTP_MAX_ENDPOINT_CONNECTIONS, Setting.Property.NodeScope)
-    );
-
-    // Individual outgoing HTTP proxy settings
-
-    public static final Setting.AffixSetting<String> HTTP_PROXY_SCHEME = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE),
-        "http.proxy.scheme",
-        key -> Setting.simpleString(key, DEFAULT_HTTP_PROXY_SCHEME, value -> {
-            if (value.equals("http") == false && value.equals("https") == false) {
-                throw new IllegalArgumentException("Invalid value [" + value + "] for [" + key + "]. Only `http` or `https` is allowed.");
-            }
-        }, Setting.Property.NodeScope)
-    );
-    public static final Setting.AffixSetting<Integer> HTTP_PROXY_PORT = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE),
-        "http.proxy.port",
-        key -> Setting.intSetting(key, DEFAULT_HTTP_PROXY_PORT, MIN_HTTP_PROXY_PORT, MAX_HTTP_PROXY_PORT, Setting.Property.NodeScope)
-    );
-    public static final Setting.AffixSetting<String> HTTP_PROXY_HOST = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE),
-        "http.proxy.host",
-        key -> Setting.simpleString(key, new Setting.Validator<>() {
-            @Override
-            public void validate(final String value) {
-                // There is no point in validating the hostname in itself without the scheme and port
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                // load settings to use in validate()
-                final String ns = JwtRealmSettings.HTTP_PROXY_HOST.getNamespace(JwtRealmSettings.HTTP_PROXY_HOST.getConcreteSetting(key));
-                final List<Setting<?>> settings = List.of(
-                    JwtRealmSettings.HTTP_PROXY_SCHEME.getConcreteSettingForNamespace(ns),
-                    JwtRealmSettings.HTTP_PROXY_PORT.getConcreteSettingForNamespace(ns)
-                );
-                return settings.iterator();
-            }
-
-            @Override
-            public void validate(final String address, final Map<Setting<?>, Object> settings) {
-                if (Strings.hasText(address) == false) {
-                    return;
-                }
-                final String ns = JwtRealmSettings.HTTP_PROXY_HOST.getNamespace(JwtRealmSettings.HTTP_PROXY_HOST.getConcreteSetting(key));
-                final Setting<String> schemeSetting = JwtRealmSettings.HTTP_PROXY_SCHEME.getConcreteSettingForNamespace(ns);
-                final Setting<Integer> portSetting = JwtRealmSettings.HTTP_PROXY_PORT.getConcreteSettingForNamespace(ns);
-                final String scheme = (String) settings.get(schemeSetting);
-                final Integer port = (Integer) settings.get(portSetting);
-                try {
-                    new HttpHost(address, port, scheme);
-                } catch (Exception e) {
-                    throw new IllegalArgumentException("Failed to parse value [" + address + "] for setting [" + key + "].");
-                }
-            }
-        }, Setting.Property.NodeScope)
     );
 
     // SSL Configuration settings

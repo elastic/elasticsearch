@@ -11,7 +11,6 @@ import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.util.JSONObjectUtils;
 
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
@@ -212,17 +211,11 @@ public class JwtUtil {
                 final int tcpSocketTimeout = (int) realmConfig.getSetting(JwtRealmSettings.HTTP_SOCKET_TIMEOUT).getMillis();
                 final int httpMaxEndpointConnections = realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS);
                 final int httpMaxConnections = realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_CONNECTIONS);
-                final String proxyScheme = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_SCHEME);
-                final String proxyAddress = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_HOST);
-                final int proxyPort = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_PORT);
 
                 final RequestConfig.Builder requestConfigBuilder = RequestConfig.custom();
                 requestConfigBuilder.setConnectTimeout(tcpConnectTimeoutMillis)
                     .setConnectionRequestTimeout(tcpConnectionReadTimeoutSec)
                     .setSocketTimeout(tcpSocketTimeout);
-                if (Strings.hasText(proxyAddress) && Strings.hasText(proxyScheme)) {
-                    requestConfigBuilder.setProxy(new HttpHost(proxyAddress, proxyPort, proxyScheme));
-                }
                 final RegistryBuilder<SchemeIOSessionStrategy> sessionStrategyBuilder = RegistryBuilder.create();
                 final SSLIOSessionStrategy sslIOSessionStrategy = sslService.sslIOSessionStrategy(elasticsearchSslConfig);
                 sessionStrategyBuilder.register("https", sslIOSessionStrategy);

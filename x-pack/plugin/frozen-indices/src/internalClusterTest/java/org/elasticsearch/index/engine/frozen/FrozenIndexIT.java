@@ -329,7 +329,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(10, 50);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("test-index").setId(id).setSource("value", i).get();
+            client().prepareIndex("test-index", "_doc").setId(id).setSource("value", i).get();
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test-index")).actionGet());
         // include the frozen indices

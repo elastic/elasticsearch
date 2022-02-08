@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.DelegatingXContentParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.NumberType;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -428,8 +429,10 @@ public class CompletionFieldMapper extends FieldMapper {
 
         context.addToFieldNames(fieldType().name());
         for (CompletionInputMetadata metadata : inputMap.values()) {
-            DocumentParserContext externalValueContext = context.switchParser(new MultiFieldParser(metadata));
-            multiFields.parse(this, externalValueContext);
+            multiFields.parse(
+                this,
+                () -> context.switchParser(new MultiFieldParser(metadata, fieldType().name(), context.parser().getTokenLocation()))
+            );
         }
     }
 
@@ -591,36 +594,39 @@ public class CompletionFieldMapper extends FieldMapper {
 
     /**
      * Parser that exposes the expected format depending on the type of multi-field that is consuming content.
-     * Completion fields can hold multi-fields, which can either parse simple values or an object in case of another completion field.
-     * This parser tries to detect which of the two is parsing content and exposes the full object when needed (including input, context
-     * and weight if available), otherwise the values only.
+     * Completion fields can hold multi-fields, which can either parse a simple string value or an object in case of another completion
+     * field. This parser detects which of the two is parsing content and exposes the full object when needed (including input, weight
+     * and context if available), otherwise the input value only.
      *
      * A few assumptions are made that make this work:
      * 1) only string values are supported for a completion field, hence only sub-fields that parse strings are supported
      * 2) sub-fields that parse simple values only ever call {@link #textOrNull()} to do so. They may call {@link #currentToken()} only to
-     * check if there's a null value, which is irrelevant in the multi-fields scenario as null values are ignored in the parent field.
+     * check if there's a null value, which is irrelevant in the multi-fields scenario as null values are ignored in the parent field and
+     * don't lead to any field creation.
      * 3) completion is the only sub-field type that may be parsing the object structure.
      *
-     * The parser is set to expose by default simple values, unless {@link #nextToken()} is called which is what signals that the
-     * consumer supports the object structure. Note that in order to support multiple completion sub-fields, the inner object parser
-     * needs to be able to return the same object structure multiple times.
+     * The parser is set to expose by default simple value, unless {@link #nextToken()} is called which is what signals that the
+     * consumer supports the object structure.
      */
-    /*
-    There are a couple of problems with the current approach: the parser changes behaviour depending on which methods are called by
-    consumers, which is extremely delicate. This kind of works for our internal mappers, but what about mappers from plugins?
-    Also, the sequence of tokens returned by this parser is not valid and things like e.g. copyCurrentStructure blow up.
-    Additionally {@link #getTokenLocation} is incorrect, which is reported together with error messages.
-     */
+    // This parser changes behaviour depending on which methods are called by consumers, which is extremely delicate. This kind of works for
+    // our internal mappers, but what about mappers from plugins
     static class MultiFieldParser extends DelegatingXContentParser {
-        private final Map<String, Object> metadata;
         private final String textValue;
-        private XContentParser fullObjectParser;
+        private final String fieldName;
+        private final XContentLocation locationOffset;
+        private final XContentParser fullObjectParser;
         // we assume that the consumer is parsing values, we will switch to exposing the object format if nextToken is called
         private boolean parsingObject = false;
-        private int level = 0;
 
-        MultiFieldParser(CompletionInputMetadata metadata) {
-            this.metadata = metadata.toMap();
+        MultiFieldParser(CompletionInputMetadata metadata, String fieldName, XContentLocation locationOffset) {
+            this.fullObjectParser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                metadata.toMap(),
+                XContentType.JSON
+            );
+            this.fieldName = fieldName;
+            this.locationOffset = locationOffset;
             this.textValue = metadata.input;
         }
 
@@ -628,7 +634,7 @@ public class CompletionFieldMapper extends FieldMapper {
         protected XContentParser delegate() {
             // if consumers are only reading values, they should never go through delegate and rather call the
             // overridden currentToken and textOrNull below that don't call super
-            assert parsingObject && fullObjectParser != null;
+            assert parsingObject;
             return fullObjectParser;
         }
 
@@ -654,39 +660,31 @@ public class CompletionFieldMapper extends FieldMapper {
         @Override
         public Token nextToken() throws IOException {
             if (parsingObject == false) {
-                // a completion sub-field is parsing: trigger the creation of a new object parser at the next delegate() call
-                fullObjectParser = new MapXContentParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.IGNORE_DEPRECATIONS,
-                    metadata,
-                    XContentType.JSON
-                );
-                // move to the START_OBJECT, which was already returned by currentToken prior to the current nextToken invocation
-                Token token = fullObjectParser.nextToken();
-                assert token == Token.START_OBJECT;
-                level++;
+                // a completion sub-field is parsing
                 parsingObject = true;
+                // move to START_OBJECT, currentToken has already returned START_OBJECT and we will advance one token further just below
+                this.fullObjectParser.nextToken();
             }
-            Token token = super.nextToken();
-            if (token == Token.START_OBJECT) {
-                level++;
-            } else if (token == Token.END_OBJECT) {
-                level--;
-                // the top-level START_OBJECT was not counted
-                if (level == 0) {
-                    // we reached the end of the top-level object, we reinitialize the parser in case there are more multi-fields configured
-                    parsingObject = false;
-                }
-            }
-            return token;
+            return super.nextToken();
         }
 
         @Override
         public String currentName() throws IOException {
             if (parsingObject == false) {
-                return null;
+                return fieldName;
             }
-            return super.currentName();
+            String currentName = super.currentName();
+            if (currentName == null && currentToken() == Token.END_OBJECT) {
+                return fieldName;
+            }
+            return currentName;
+        }
+
+        @Override
+        public XContentLocation getTokenLocation() {
+            // return fixed token location: it's not possible to match the token location while parsing through the object structure,
+            // because completion metadata have been rewritten hence they won't match the incoming document
+            return locationOffset;
         }
     }
 }

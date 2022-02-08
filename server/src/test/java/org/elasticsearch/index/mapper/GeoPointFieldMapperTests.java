@@ -8,9 +8,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -233,6 +237,36 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertThat(doc.getFields("field.geohash"), arrayWithSize(2));
         assertThat(doc.getFields("field.geohash")[0].binaryValue().utf8ToString(), equalTo("s093jd0k72s1"));
         assertThat(doc.getFields("field.geohash")[1].binaryValue().utf8ToString(), equalTo("s0fu7n0xng81"));
+    }
+
+    private static XContentParser documentParser(String value, boolean prettyPrint) throws IOException {
+        XContentBuilder docBuilder = JsonXContent.contentBuilder();
+        if (prettyPrint) {
+            docBuilder.prettyPrint();
+        }
+        docBuilder.startObject();
+        docBuilder.field("field", value);
+        docBuilder.endObject();
+        String document = Strings.toString(docBuilder);
+        XContentParser docParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, document);
+        docParser.nextToken();
+        docParser.nextToken();
+        assertEquals(XContentParser.Token.VALUE_STRING, docParser.nextToken());
+        return docParser;
+    }
+
+    public void testGeoHashMultiFieldParser() throws IOException {
+        boolean prettyPrint = randomBoolean();
+        XContentParser docParser = documentParser("POINT (2 3)", prettyPrint);
+        XContentParser expectedParser = documentParser("s093jd0k72s1", prettyPrint);
+        XContentParser parser = new GeoPointFieldMapper.GeoHashMultiFieldParser(docParser, "s093jd0k72s1");
+        for (int i = 0; i < 10; i++) {
+            assertEquals(expectedParser.currentToken(), parser.currentToken());
+            assertEquals(expectedParser.currentName(), parser.currentName());
+            assertEquals(expectedParser.getTokenLocation(), parser.getTokenLocation());
+            assertEquals(expectedParser.textOrNull(), parser.textOrNull());
+            expectThrows(UnsupportedOperationException.class, parser::nextToken);
+        }
     }
 
     public void testNullValue() throws Exception {

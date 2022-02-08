@@ -42,9 +42,9 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
+import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -215,7 +215,33 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             context.doc().add(new StoredField(fieldType().name(), geometry.toString()));
         }
         // TODO phase out geohash (which is currently used in the CompletionSuggester)
-        multiFields.parse(this, context.switchParser(MapXContentParser.wrapObject(geometry.geohash())));
+        // we only expose the geohash value and disallow advancing tokens, hence we can reuse the same parser throughout multiple sub-fields
+        DocumentParserContext parserContext = context.switchParser(new GeoHashMultiFieldParser(context.parser(), geometry.geohash()));
+        multiFields.parse(this, () -> parserContext);
+    }
+
+    static class GeoHashMultiFieldParser extends FilterXContentParser {
+        private final String value;
+
+        GeoHashMultiFieldParser(XContentParser innerParser, String value) {
+            super(innerParser);
+            this.value = value;
+        }
+
+        @Override
+        public String textOrNull() throws IOException {
+            return value;
+        }
+
+        @Override
+        public Token currentToken() {
+            return Token.VALUE_STRING;
+        }
+
+        @Override
+        public Token nextToken() throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @Override

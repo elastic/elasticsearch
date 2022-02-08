@@ -39,6 +39,7 @@ import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -366,7 +367,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testKeywordWithSubCompletionAndStringInsert() throws Exception {
+    public void testGeoHashWithSubCompletionAndStringInsert() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "geo_point");
             b.startObject("fields");
@@ -821,28 +822,92 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testMultiFieldParser() throws IOException {
+    private static CompletionFieldMapper.CompletionInputMetadata randomCompletionMetadata() {
         Map<String, Set<String>> contexts = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap("filter", Collections.singleton("value"));
-        CompletionFieldMapper.CompletionInputMetadata metadata = new CompletionFieldMapper.CompletionInputMetadata("text", contexts, 10);
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.map(metadata.toMap());
-        String jsonMetadata = Strings.toString(builder);
-        CompletionFieldMapper.MultiFieldParser multiFieldParser = new CompletionFieldMapper.MultiFieldParser(metadata);
+        return new CompletionFieldMapper.CompletionInputMetadata("text", contexts, 10);
+    }
+
+    private static XContentParser documentParser(CompletionFieldMapper.CompletionInputMetadata metadata) throws IOException {
+        XContentBuilder docBuilder = JsonXContent.contentBuilder();
+        if (randomBoolean()) {
+            docBuilder.prettyPrint();
+        }
+        docBuilder.startObject();
+        docBuilder.field("field");
+        docBuilder.map(metadata.toMap());
+        docBuilder.endObject();
+        String document = Strings.toString(docBuilder);
+        XContentParser docParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, document);
+        docParser.nextToken();
+        docParser.nextToken();
+        assertEquals(XContentParser.Token.START_OBJECT, docParser.nextToken());
+        return docParser;
+    }
+
+    public void testMultiFieldParserSimpleValue() throws IOException {
+        CompletionFieldMapper.CompletionInputMetadata metadata = randomCompletionMetadata();
+        XContentParser documentParser = documentParser(metadata);
+        XContentParser multiFieldParser = new CompletionFieldMapper.MultiFieldParser(
+            metadata,
+            documentParser.currentName(),
+            documentParser.getTokenLocation()
+        );
+        // we don't check currentToken here because it returns START_OBJECT that is inconsistent with returning a value
+        assertEquals("text", multiFieldParser.textOrNull());
+        assertEquals(documentParser.getTokenLocation(), multiFieldParser.getTokenLocation());
+        assertEquals(documentParser.currentName(), multiFieldParser.currentName());
+    }
+
+    public void testMultiFieldParserCompletionSubfield() throws IOException {
+        CompletionFieldMapper.CompletionInputMetadata metadata = randomCompletionMetadata();
+        XContentParser documentParser = documentParser(metadata);
+        // compare the object structure with the original metadata, this implicitly verifies that the xcontent read is valid
+        XContentBuilder multiFieldBuilder = JsonXContent.contentBuilder()
+            .copyCurrentStructure(
+                new CompletionFieldMapper.MultiFieldParser(metadata, documentParser.currentName(), documentParser.getTokenLocation())
+            );
+        XContentBuilder metadataBuilder = JsonXContent.contentBuilder().map(metadata.toMap());
+        String jsonMetadata = Strings.toString(metadataBuilder);
+        assertEquals(jsonMetadata, Strings.toString(multiFieldBuilder));
+        // advance token by token and verify currentName as well as getTokenLocation
+        XContentParser multiFieldParser = new CompletionFieldMapper.MultiFieldParser(
+            metadata,
+            documentParser.currentName(),
+            documentParser.getTokenLocation()
+        );
+        XContentParser expectedParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, jsonMetadata);
+        assertEquals(expectedParser.nextToken(), multiFieldParser.currentToken());
+        XContentLocation expectedTokenLocation = documentParser.getTokenLocation();
+        while (expectedParser.nextToken() != null) {
+            XContentParser.Token token = multiFieldParser.nextToken();
+            assertEquals(expectedParser.currentToken(), token);
+            assertEquals(expectedParser.currentToken(), multiFieldParser.currentToken());
+            assertEquals(expectedTokenLocation, multiFieldParser.getTokenLocation());
+            assertEquals(documentParser.nextToken(), multiFieldParser.currentToken());
+            assertEquals(documentParser.currentName(), multiFieldParser.currentName());
+        }
+        assertNull(multiFieldParser.nextToken());
+    }
+
+    public void testMultiFieldParserMixedSubfields() throws IOException {
+        CompletionFieldMapper.CompletionInputMetadata metadata = randomCompletionMetadata();
+        XContentParser documentParser = documentParser(metadata);
+        // simulate 10 sub-fields which may either read simple values or the full object structure
         for (int i = 0; i < 10; i++) {
+            XContentParser multiFieldParser = new CompletionFieldMapper.MultiFieldParser(
+                metadata,
+                documentParser.currentName(),
+                documentParser.getTokenLocation()
+            );
             if (randomBoolean()) {
                 assertEquals("text", multiFieldParser.textOrNull());
             } else {
-                XContentParser objectParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, jsonMetadata);
-                assertEquals(objectParser.nextToken(), multiFieldParser.currentToken());
-                while (objectParser.nextToken() != null) {
-                    XContentParser.Token token = multiFieldParser.nextToken();
-                    assertEquals(objectParser.currentToken(), token);
-                    assertEquals(objectParser.currentName(), multiFieldParser.currentName());
-                    // we don't check currentToken because there's an inconsistency when refreshing the inner parser: currentToken
-                    // goes back to returning START_OBJECT when nextToken has just returned END_OBJECT, and before nextToken is called again
-                }
+                XContentBuilder multiFieldBuilder = JsonXContent.contentBuilder().copyCurrentStructure(multiFieldParser);
+                XContentBuilder metadataBuilder = JsonXContent.contentBuilder().map(metadata.toMap());
+                String jsonMetadata = Strings.toString(metadataBuilder);
+                assertEquals(jsonMetadata, Strings.toString(multiFieldBuilder));
             }
         }
     }

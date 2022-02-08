@@ -318,7 +318,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         );
     }
 
-    public Bucket createBucket(Bucket prototype, InternalAggregations aggregations, long docCount) {
+    private Bucket createBucket(Bucket prototype, InternalAggregations aggregations, long docCount) {
         return new Bucket(
             format,
             prototype.key,

@@ -17,7 +17,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.plugins.HealthIndicatorPlugin;
+import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -49,7 +49,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
         Setting.Property.Dynamic
     );
 
-    public static final class TestHealthPlugin extends Plugin implements HealthIndicatorPlugin {
+    public static final class TestHealthPlugin extends Plugin implements HealthPlugin {
 
         private final SetOnce<TestHealthIndicatorService> healthIndicatorService = new SetOnce<>();
 

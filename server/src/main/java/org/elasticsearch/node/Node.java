@@ -136,7 +136,7 @@ import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
-import org.elasticsearch.plugins.HealthIndicatorPlugin;
+import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -898,7 +898,7 @@ public class Node implements Closeable {
             );
 
             final HealthService healthService = new HealthService(
-                pluginsService.filterPlugins(HealthIndicatorPlugin.class)
+                pluginsService.filterPlugins(HealthPlugin.class)
                     .stream()
                     .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
                     .toList()

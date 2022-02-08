@@ -15,7 +15,7 @@ import java.util.Collection;
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's health indicators functionality.
  */
-public interface HealthIndicatorPlugin {
+public interface HealthPlugin {
 
     Collection<HealthIndicatorService> getHealthIndicatorServices();
 }

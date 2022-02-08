@@ -76,10 +76,10 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
             ClusterState,
             XPackLicenseState,
             DeprecationIssue> nodeSettingCheck = (settings, p, clusterState1, l) -> {
-            visibleNodeSettings.set(settings);
-            visibleClusterStateMetadataSettings.set(clusterState1.getMetadata().settings());
-            return null;
-        };
+                visibleNodeSettings.set(settings);
+                visibleClusterStateMetadataSettings.set(clusterState1.getMetadata().settings());
+                return null;
+            };
         java.util.List<
             DeprecationChecks.NodeDeprecationCheck<
                 Settings,

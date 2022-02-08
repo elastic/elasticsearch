@@ -143,7 +143,7 @@ public class ProfileIT extends ESRestTestCase {
         final Request searchProfilesRequest1 = new Request(randomFrom("GET", "POST"), "_security/profile/_search");
         searchProfilesRequest1.setJsonEntity("""
             {
-              "query": "rac",
+              "name": "rac",
               "size": 10
             }""");
         final Response searchProfilesResponse1 = adminClient().performRequest(searchProfilesRequest1);

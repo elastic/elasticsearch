@@ -139,7 +139,11 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertThat(e.getMessage(), equalTo("[nested] requires 'score_mode' field"));
     }
 
-    public void testFromJson() throws IOException {
+    public void testParseDefaultsRemoved() throws IOException {
+        /*
+         * This json includes many defaults. When we parse the query and then
+         * call toString on it all of the defaults are removed.
+         */
         String json = """
             {
               "nested" : {

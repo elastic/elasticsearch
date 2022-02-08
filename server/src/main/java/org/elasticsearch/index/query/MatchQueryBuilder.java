@@ -328,7 +328,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         builder.startObject(fieldName);
 
         builder.field(QUERY_FIELD.getPreferredName(), value);
-        if (operator != Operator.OR) {
+        if (operator != DEFAULT_OPERATOR) {
             builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
         }
         if (analyzer != null) {

@@ -240,7 +240,11 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
     }
 
-    public void testSimpleMatchQuery() throws IOException {
+    public void testParseDefaultsRemoved() throws IOException {
+        /*
+         * This json includes many defaults. When we parse the query and then
+         * call toString on it all of the defaults are removed.
+         */
         String json = """
             {
               "match" : {

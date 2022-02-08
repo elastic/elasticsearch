@@ -185,3 +185,16 @@ setup:
 
   - is_false: fields.text\\.keyword
   - is_true: fields.misc\\.keyword
+
+---
+"Field type filters":
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: '*'
+        types: 'text,keyword,long'
+
+  - is_false: fields.date
+  - is_false: fields.non_indexed_boolean
+  - is_true: fields.non_indexed_keyword
+  - is_true: fields.misc

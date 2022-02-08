@@ -23,12 +23,14 @@ final class ResponseRewriter {
         Version version,
         Map<String, IndexFieldCapabilities> input,
         String[] filters,
+        String[] allowedTypes,
         Predicate<String> isMetadata
     ) {
         if (version.onOrAfter(Version.V_8_1_0)) {
             return input;   // nothing needs to be done
         }
-        Function<IndexFieldCapabilities, IndexFieldCapabilities> transformer = buildTransformer(version, input, filters, isMetadata);
+        Function<IndexFieldCapabilities, IndexFieldCapabilities> transformer
+            = buildTransformer(version, input, filters, allowedTypes, isMetadata);
         Map<String, IndexFieldCapabilities> rewritten = new HashMap<>();
         for (var entry : input.entrySet()) {
             IndexFieldCapabilities fc = transformer.apply(entry.getValue());
@@ -43,12 +45,17 @@ final class ResponseRewriter {
         Version version,
         Map<String, IndexFieldCapabilities> input,
         String[] filters,
+        String[] allowedTypes,
         Predicate<String> isMetadata
     ) {
         boolean checkMetadata = version.before(Version.V_7_13_0);
         Predicate<IndexFieldCapabilities> test = ifc -> true;
         Set<String> objects = null;
         Set<String> nestedObjects = null;
+        if (allowedTypes.length > 0) {
+            Set<String> at = Set.of(allowedTypes);
+            test = test.and(ifc -> at.contains(ifc.getType()));
+        }
         for (String filter : filters) {
             if ("-parent".equals(filter)) {
                 test = test.and(fc -> fc.getType().equals("nested") == false && fc.getType().equals("object") == false);

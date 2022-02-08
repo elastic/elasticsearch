@@ -147,18 +147,20 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
 
     public void testGetDescription() {
         final FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
-        assertThat(request.getDescription(), equalTo("indices[], fields[], filters[]"));
+        assertThat(request.getDescription(), equalTo("indices[], fields[], filters[], types[]"));
 
         request.fields("a", "b");
         assertThat(request.getDescription(),
-            anyOf(equalTo("indices[], fields[a,b], filters[]"), equalTo("indices[], fields[b,a], filters[]")));
+            anyOf(
+                equalTo("indices[], fields[a,b], filters[], types[]"),
+                equalTo("indices[], fields[b,a], filters[], types[]")));
 
         request.indices("x", "y", "z");
         request.fields("a");
-        assertThat(request.getDescription(), equalTo("indices[x,y,z], fields[a], filters[]"));
+        assertThat(request.getDescription(), equalTo("indices[x,y,z], fields[a], filters[], types[]"));
 
         request.filters("-metadata", "-multifields");
-        assertThat(request.getDescription(), endsWith("filters[-metadata,-multifields]"));
+        assertThat(request.getDescription(), endsWith("filters[-metadata,-multifields], types[]"));
 
         final String[] lots = new String[between(1024, 2048)];
         for (int i = 0; i < lots.length; i++) {
@@ -179,7 +181,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         );
         assertThat(
             request.getDescription().length(),
-            lessThanOrEqualTo(1024 + ("indices[x,y,z], fields[" + "s9999,... (9999 in total, 9999 omitted)], filters[]").length())
+            lessThanOrEqualTo(1024 + ("indices[x,y,z], fields[" + "s9999,... (9999 in total, 9999 omitted)], filters[], types[]").length())
         );
 
         request.fields("a");
@@ -191,12 +193,12 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
                 containsString("..."),
                 containsString(lots.length + " in total"),
                 containsString("omitted"),
-                endsWith("], fields[a], filters[]")
+                endsWith("], fields[a], filters[], types[]")
             )
         );
         assertThat(
             request.getDescription().length(),
-            lessThanOrEqualTo(1024 + ("indices[" + "s9999,... (9999 in total, 9999 omitted)], fields[a], filters[]").length())
+            lessThanOrEqualTo(1024 + ("indices[" + "s9999,... (9999 in total, 9999 omitted)], fields[a], filters[], types[]").length())
         );
 
         final FieldCapabilitiesRequest randomRequest = createTestInstance();

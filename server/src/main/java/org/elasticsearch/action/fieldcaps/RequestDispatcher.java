@@ -175,6 +175,7 @@ final class RequestDispatcher {
             shardIds,
             fieldCapsRequest.fields(),
             fieldCapsRequest.filters(),
+            fieldCapsRequest.allowedTypes(),
             originalIndices,
             fieldCapsRequest.indexFilter(),
             nowInMillis,

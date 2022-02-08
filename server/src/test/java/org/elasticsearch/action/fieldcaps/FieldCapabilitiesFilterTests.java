@@ -40,6 +40,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             sec,
             new String[] { "*" },
             new String[] { "-nested" },
+            Strings.EMPTY_ARRAY,
             f -> true
         );
 
@@ -66,6 +67,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 sec,
                 new String[] { "*" },
                 new String[] { "+metadata" },
+                Strings.EMPTY_ARRAY,
                 f -> true
             );
             assertNotNull(response.getField("_index"));
@@ -77,6 +79,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 sec,
                 new String[] { "*" },
                 new String[] { "-metadata" },
+                Strings.EMPTY_ARRAY,
                 f -> true
             );
             assertNull(response.getField("_index"));
@@ -108,6 +111,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             sec,
             new String[] { "*" },
             new String[] { "-multifield" },
+            Strings.EMPTY_ARRAY,
             f -> true
         );
         assertNotNull(response.getField("field1"));
@@ -137,6 +141,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             sec,
             new String[] { "*" },
             new String[] { "-parent" },
+            Strings.EMPTY_ARRAY,
             f -> true
         );
         assertNotNull(response.getField("parent.field1"));
@@ -163,6 +168,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 sec,
                 new String[] { "*" },
                 Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
                 securityFilter
             );
 
@@ -177,6 +183,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 sec,
                 new String[] { "*" },
                 new String[] { "-metadata" },
+                Strings.EMPTY_ARRAY,
                 securityFilter
             );
 
@@ -184,5 +191,31 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             assertNull(response.getField("forbidden"));
             assertNull(response.getField("_index"));     // -metadata filter applies on top
         }
+    }
+
+    public void testFieldTypeFiltering() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "field1" : { "type" : "keyword" },
+                "field2" : { "type" : "long" },
+                "field3" : { "type" : "text" }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        FieldCapabilitiesIndexResponse response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            "index",
+            sec,
+            new String[] { "*" },
+            Strings.EMPTY_ARRAY,
+            new String[] { "text", "keyword" },
+            f -> true
+        );
+        assertNotNull(response.getField("field1"));
+        assertNull(response.getField("field2"));
+        assertNotNull(response.getField("field3"));
+        assertNull(response.getField("_index"));
     }
 }

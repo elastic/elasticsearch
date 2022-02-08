@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -28,6 +29,7 @@ public class ResponseRewriterTests extends ESTestCase {
             Version.V_8_0_0,
             oldResponse,
             new String[] { "-metadata" },
+            Strings.EMPTY_ARRAY,
             f -> f.startsWith("_")
         );
 
@@ -47,6 +49,7 @@ public class ResponseRewriterTests extends ESTestCase {
             Version.V_8_0_0,
             oldResponse,
             new String[] { "+metadata" },
+            Strings.EMPTY_ARRAY,
             f -> f.startsWith("_")
         );
 
@@ -68,6 +71,7 @@ public class ResponseRewriterTests extends ESTestCase {
             Version.V_8_0_0,
             oldResponse,
             new String[] { "-nested" },
+            Strings.EMPTY_ARRAY,
             f -> f.startsWith("_")
         );
 
@@ -92,6 +96,7 @@ public class ResponseRewriterTests extends ESTestCase {
             Version.V_8_0_0,
             oldResponse,
             new String[] { "-multifield" },
+            Strings.EMPTY_ARRAY,
             f -> f.startsWith("_")
         );
 
@@ -114,12 +119,33 @@ public class ResponseRewriterTests extends ESTestCase {
             Version.V_8_0_0,
             oldResponse,
             new String[] { "-parent" },
+            Strings.EMPTY_ARRAY,
             f -> f.startsWith("_")
         );
 
         assertTrue(rewritten.containsKey("field"));
         assertFalse(rewritten.containsKey("parent"));
         assertTrue(rewritten.containsKey("parent.child"));
+    }
+
+    public void testAllowedTypes() {
+        Map<String, IndexFieldCapabilities> oldResponse = Map.of(
+            "text", fieldCaps("text", "text", false),
+            "long", fieldCaps("long", "long", false),
+            "keyword", fieldCaps("keyword", "keyword", false)
+        );
+
+        Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
+            Version.V_8_0_0,
+            oldResponse,
+            Strings.EMPTY_ARRAY,
+            new String[] { "text", "keyword" },
+            f -> f.startsWith("_")
+        );
+
+        assertTrue(rewritten.containsKey("text"));
+        assertTrue(rewritten.containsKey("keyword"));
+        assertFalse(rewritten.containsKey("long"));
     }
 
     private static IndexFieldCapabilities fieldCaps(String name, String type, boolean isMetadata) {

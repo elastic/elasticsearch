@@ -46,6 +46,7 @@ class FieldCapabilitiesFetcher {
         ShardId shardId,
         String[] fieldPatterns,
         String[] filters,
+        String[] fieldTypes,
         QueryBuilder indexFilter,
         long nowInMillis,
         Map<String, Object> runtimeFields
@@ -69,7 +70,7 @@ class FieldCapabilitiesFetcher {
 
             Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
 
-            return retrieveFieldCaps(shardId.getIndexName(), searchExecutionContext, fieldPatterns, filters, fieldPredicate);
+            return retrieveFieldCaps(shardId.getIndexName(), searchExecutionContext, fieldPatterns, filters, fieldTypes, fieldPredicate);
         }
     }
 
@@ -78,6 +79,7 @@ class FieldCapabilitiesFetcher {
         SearchExecutionContext context,
         String[] fieldPatterns,
         String[] filters,
+        String[] types,
         Predicate<String> indexFieldfilter
     ) {
 
@@ -88,7 +90,7 @@ class FieldCapabilitiesFetcher {
 
         boolean includeParentObjects = checkIncludeParents(filters);
 
-        FieldCapsFilter filter = buildFilter(indexFieldfilter, filters);
+        FieldCapsFilter filter = buildFilter(indexFieldfilter, filters, types);
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
             MappedFieldType ft = context.getFieldType(field);
@@ -177,9 +179,13 @@ class FieldCapabilitiesFetcher {
         }
     }
 
-    private static FieldCapsFilter buildFilter(Predicate<String> fieldFilter, String[] filters) {
+    private static FieldCapsFilter buildFilter(Predicate<String> fieldFilter, String[] filters, String[] fieldTypes) {
         // security filters don't exclude metadata fields
         FieldCapsFilter fcf = (ft, c) -> fieldFilter.test(ft.name()) || c.isMetadataField(ft.name());
+        if (fieldTypes.length > 0) {
+            Set<String> acceptedTypes = Set.of(fieldTypes);
+            fcf = fcf.and((ft, c) -> acceptedTypes.contains(ft.familyTypeName()));
+        }
         for (String filter : filters) {
             if ("parent".equals(filter) || "-parent".equals(filter)) {
                 continue;

@@ -10,7 +10,6 @@ package org.elasticsearch.health;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -116,24 +115,20 @@ public class GetHealthActionIT extends ESIntegTestCase {
         try (var ignored = setTestSetting(TEST_HEALTH_STATUS, (builder, setting) -> builder.put(setting.getKey(), status))) {
             var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
 
+            assertThat(response.getStatus(), equalTo(status));
             assertThat(
-                response,
+                response.findComponent("test_component"),
                 equalTo(
-                    new GetHealthAction.Response(
-                        new ClusterName(cluster().getClusterName()),
+                    new HealthComponentResult(
+                        "test_component",
+                        status,
                         List.of(
-                            new HealthComponentResult(
+                            new HealthIndicatorResult(
+                                "test_indicator",
                                 "test_component",
                                 status,
-                                List.of(
-                                    new HealthIndicatorResult(
-                                        "test_indicator",
-                                        "test_component",
-                                        status,
-                                        "Health is set to [" + status + "] by test plugin",
-                                        HealthIndicatorDetails.EMPTY
-                                    )
-                                )
+                                "Health is set to [" + status + "] by test plugin",
+                                HealthIndicatorDetails.EMPTY
                             )
                         )
                     )

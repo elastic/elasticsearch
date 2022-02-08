@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
-import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -59,16 +57,6 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             // This just generates less churn and makes it easier to read the log file if needed
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
             .build();
-    }
-
-    @After
-    public void cleanup() {
-        try {
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { index })).get();
-        } catch (Exception e) {
-            // Okay to ignore this
-            logger.info("failed to clean up data stream", e);
-        }
     }
 
     public void testShrinkOnTiers() throws Exception {

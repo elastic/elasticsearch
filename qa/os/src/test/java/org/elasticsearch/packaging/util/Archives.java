@@ -267,7 +267,7 @@ public class Archives {
             """;
         String expectScript = """
             expect - <<EXPECT
-            set timeout 30
+            set timeout 60
             spawn -ignore HUP %s
             %s
             %s

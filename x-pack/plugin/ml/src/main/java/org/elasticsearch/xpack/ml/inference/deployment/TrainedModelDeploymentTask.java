@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -80,15 +82,11 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params;
     }
 
-    public void stop(String reason) {
-        logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
-        licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
-        stopped = true;
-        stoppedReasonHolder.trySet(reason);
-        trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason);
+    public void stop(String reason, ActionListener<AcknowledgedResponse> listener) {
+        trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason, listener);
     }
 
-    public void stopWithoutNotification(String reason) {
+    public void markAsStopped(String reason) {
         licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
         stoppedReasonHolder.trySet(reason);
@@ -106,7 +104,14 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     @Override
     protected void onCancelled() {
         String reason = getReasonCancelled();
-        stop(reason);
+        logger.info("[{}] task cancelled due to reason [{}]", getModelId(), reason);
+        stop(
+            reason,
+            ActionListener.wrap(
+                acknowledgedResponse -> {},
+                e -> logger.error(new ParameterizedMessage("[{}] error stopping the model after task cancellation", getModelId()), e)
+            )
+        );
     }
 
     public void infer(Map<String, Object> doc, InferenceConfigUpdate update, TimeValue timeout, ActionListener<InferenceResults> listener) {

@@ -10,6 +10,7 @@ package org.elasticsearch.health;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -116,6 +117,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
             var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
 
             assertThat(response.getStatus(), equalTo(status));
+            assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
             assertThat(
                 response.findComponent("test_component"),
                 equalTo(

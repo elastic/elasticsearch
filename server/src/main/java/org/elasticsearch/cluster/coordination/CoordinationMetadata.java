@@ -346,13 +346,13 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         }
 
         public boolean hasQuorum(Collection<String> votes) {
-            int votedNodes = 0;
+            int votedNodesCount = 0;
             for (String nodeId : nodeIds) {
                 if (votes.contains(nodeId)) {
-                    votedNodes++;
+                    votedNodesCount++;
                 }
             }
-            return votedNodes * 2 > nodeIds.size();
+            return votedNodesCount * 2 > nodeIds.size();
         }
 
         public Set<String> getNodeIds() {

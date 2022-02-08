@@ -1824,7 +1824,7 @@ For more information about upgrading, see
 
 //tag::upgrade-reindex[]
 Before upgrading to {es} 8.0 and later, you must reindex any indices created in
-6.8 or earlier versions. We recommend you use the Upgrade Assistant to guide you
+a 6.x version. We recommend you use the Upgrade Assistant to guide you
 through this process.
 
 For more information about upgrading, see 

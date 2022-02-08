@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class InternalRateTests extends InternalAggregationTestCase<InternalRate> {

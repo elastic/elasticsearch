@@ -48,8 +48,6 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -192,23 +190,25 @@ public class ProfileService {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
                 .must(QueryBuilders.termQuery("user_profile.user.username", subject.getUser().principal()));
             if (subject.getRealm().getDomain() == null) {
-                boolQuery.must(QueryBuilders.termQuery("user_profile.user.realm.name", subject.getRealm().getName()));
+                boolQuery.must(QueryBuilders.termQuery("user_profile.user.realm.name", subject.getRealm().getName()))
+                    .must(QueryBuilders.termQuery("user_profile.user.realm.type", subject.getRealm().getType()));
             } else {
-                final String[] domainRealms = subject.getRealm()
-                    .getDomain()
-                    .realms()
-                    .stream()
-                    .map(RealmConfig.RealmIdentifier::getName)
-                    .toArray(String[]::new);
                 logger.debug(
                     () -> new ParameterizedMessage(
                         "searching existing profile document for user [{}] from any of the realms [{}] under domain [{}]",
                         subject.getUser().principal(),
-                        Strings.arrayToCommaDelimitedString(domainRealms),
+                        Strings.collectionToCommaDelimitedString(subject.getRealm().getDomain().realms()),
                         subject.getRealm().getDomain().name()
                     )
                 );
-                boolQuery.must(QueryBuilders.termsQuery("user_profile.user.realm.name", domainRealms));
+                subject.getRealm().getDomain().realms().forEach(realmIdentifier -> {
+                    boolQuery.should(
+                        QueryBuilders.boolQuery()
+                            .must(QueryBuilders.termQuery("user_profile.user.realm.name", realmIdentifier.getName()))
+                            .must(QueryBuilders.termQuery("user_profile.user.realm.type", realmIdentifier.getType()))
+                    );
+                });
+                boolQuery.minimumShouldMatch(1);
             }
 
             final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS).setQuery(boolQuery).request();
@@ -279,7 +279,7 @@ public class ProfileService {
                         indexResponse.getPrimaryTerm(),
                         indexResponse.getSeqNo()
                     );
-                    listener.onResponse(versionedDocument.toProfile(Set.of(), subject.getRealm().getDomain()));
+                    listener.onResponse(versionedDocument.toProfile(Set.of()));
                 }, listener::onFailure))
             )
         );
@@ -299,7 +299,7 @@ public class ProfileService {
             ),
             listener.map(
                 updateResponse -> new VersionedDocument(profileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
-                    .toProfile(Set.of(), subject.getRealm().getDomain())
+                    .toProfile(Set.of())
             )
         );
     }
@@ -426,12 +426,9 @@ public class ProfileService {
     record VersionedDocument(ProfileDocument doc, long primaryTerm, long seqNo) {
 
         /**
-         * Convert the index document to the user-facing Profile by
-         * (1) filtering through the application data
-         * (2) replace the domain with the most appropriate one. This means the latest authentication object
-         *     if one exists or extraction from the document itself.
+         * Convert the index document to the user-facing Profile by filtering through the application data
          */
-        Profile toProfile(Set<String> dataKeys, @Nullable RealmDomain realmDomain) {
+        Profile toProfile(Set<String> dataKeys) {
             assert dataKeys != null : "data keys must not be null";
             final Map<String, Object> applicationData;
             if (dataKeys.isEmpty()) {
@@ -444,19 +441,11 @@ public class ProfileService {
                 doc.uid(),
                 doc.enabled(),
                 doc.lastSynchronized(),
-                doc.user().toProfileUser(realmDomain == null ? null : realmDomain.name()),
+                doc.user().toProfileUser(),
                 doc.access(),
                 applicationData,
                 new Profile.VersionControl(primaryTerm, seqNo)
             );
-        }
-
-        /**
-         * Similar to above but always uses the domain info from the index document.
-         * Suitable for when there is no latest authentication, e.g. get profile by ID.
-         */
-        Profile toProfile(Set<String> dataKeys) {
-            return toProfile(dataKeys, doc.user().realm().getDomain());
         }
     }
 }

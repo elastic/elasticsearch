@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.profile;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -67,7 +66,8 @@ public record ProfileDocument(
             return builder;
         }
 
-        public Profile.ProfileUser toProfileUser(@Nullable String domainName) {
+        public Profile.ProfileUser toProfileUser() {
+            final String domainName = realm.getDomain() != null ? realm.getDomain().name() : null;
             return new Profile.ProfileUser(username, roles, realm.getName(), domainName, email, fullName, displayName, active);
         }
     }

@@ -344,6 +344,31 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<Version> SETTING_INDEX_VERSION_COMPATIBILITY = Setting.versionSetting(
         SETTING_VERSION_COMPATIBILITY,
         SETTING_INDEX_VERSION_CREATED, // fall back to index.version.created
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final Version compatibilityVersion) {
+
+            }
+
+            @Override
+            public void validate(final Version compatibilityVersion, final Map<Setting<?>, Object> settings) {
+                Version createdVersion = (Version) settings.get(SETTING_INDEX_VERSION_CREATED);
+                if (compatibilityVersion.before(createdVersion)) {
+                    throw new IllegalArgumentException(
+                            SETTING_VERSION_COMPATIBILITY + " [" + compatibilityVersion + "] must be >= " +
+                                    SETTING_VERSION_CREATED + " [" + createdVersion + "]"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(SETTING_INDEX_VERSION_CREATED);
+                return settings.iterator();
+            }
+
+        },
         Property.IndexScope,
         Property.PrivateIndex
     );
@@ -703,6 +728,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * Return the {@link Version} on which this index has been created. This
      * information is typically useful for backward compatibility.
+     * To check index compatibility (e.g. N-1 checks), use {@link #getCompatibilityVersion()} instead.
      */
     public Version getCreationVersion() {
         return indexCreatedVersion;

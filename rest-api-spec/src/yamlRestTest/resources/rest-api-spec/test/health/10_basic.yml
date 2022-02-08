@@ -10,4 +10,7 @@
   - is_true: cluster_name
   - match:   { status: "GREEN" }
   - match:   { impacts: [] }
-  - match:   { components: {} }
+  - match:   { components.data.status: "GREEN" }
+  - match:   { components.data.indicators.ilm.status: "GREEN" }
+  - match:   { components.snapshot.status: "GREEN" }
+  - match:   { components.snapshot.indicators.slm.status: "GREEN" }

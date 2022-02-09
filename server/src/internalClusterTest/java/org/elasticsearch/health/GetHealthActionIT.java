@@ -52,7 +52,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
 
     public static final class TestHealthPlugin extends Plugin implements HealthPlugin {
 
-        private final SetOnce<TestHealthIndicatorService> healthIndicatorService = new SetOnce<>();
+        private final SetOnce<FixedStatusHealthIndicatorService> healthIndicatorService = new SetOnce<>();
 
         @Override
         public List<Setting<?>> getSettings() {
@@ -73,7 +73,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier
         ) {
-            var service = new TestHealthIndicatorService(clusterService);
+            var service = new FixedStatusHealthIndicatorService(clusterService);
             healthIndicatorService.set(service);
             return List.of(service);
         }
@@ -84,11 +84,15 @@ public class GetHealthActionIT extends ESIntegTestCase {
         }
     }
 
-    public static final class TestHealthIndicatorService implements HealthIndicatorService {
+    /**
+     * This indicator could be used to pre-define health of the cluster with {@code TEST_HEALTH_STATUS} property
+     * and return it via health API.
+     */
+    public static final class FixedStatusHealthIndicatorService implements HealthIndicatorService {
 
         private final ClusterService clusterService;
 
-        public TestHealthIndicatorService(ClusterService clusterService) {
+        public FixedStatusHealthIndicatorService(ClusterService clusterService) {
             this.clusterService = clusterService;
         }
 
@@ -115,7 +119,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
         var status = randomFrom(HealthStatus.values());
 
         try {
-            setClusterSettings(Settings.builder().put(TEST_HEALTH_STATUS.getKey(), status));
+            updateClusterSettings(Settings.builder().put(TEST_HEALTH_STATUS.getKey(), status));
 
             var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
 
@@ -140,7 +144,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 )
             );
         } finally {
-            setClusterSettings(Settings.builder().putNull(TEST_HEALTH_STATUS.getKey()));
+            updateClusterSettings(Settings.builder().putNull(TEST_HEALTH_STATUS.getKey()));
         }
     }
 }

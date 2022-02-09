@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Set;
 import java.util.function.Supplier;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private final BalancedShardsAllocator balancedShardsAllocator;
+    private final ThreadPool threadPool;
     private final Supplier<RerouteService> rerouteServiceSupplier;
 
     private DesiredBalance currentDesiredBalance;
@@ -32,8 +34,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     public DesiredBalanceShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,
+        ThreadPool threadPool,
         Supplier<RerouteService> rerouteServiceSupplier
     ) {
+        this.threadPool = threadPool;
         this.rerouteServiceSupplier = rerouteServiceSupplier;
         this.balancedShardsAllocator = new BalancedShardsAllocator(settings, clusterSettings);
     }

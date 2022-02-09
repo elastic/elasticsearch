@@ -534,7 +534,7 @@ public class Node implements Closeable {
                 clusterPlugins,
                 clusterInfoService,
                 snapshotsInfoService,
-                threadPool.getThreadContext(),
+                threadPool,
                 systemIndices,
                 rerouteServiceReference::get
             );

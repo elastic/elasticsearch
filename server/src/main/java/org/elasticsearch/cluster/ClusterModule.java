@@ -60,7 +60,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -71,6 +70,7 @@ import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -115,16 +115,22 @@ public class ClusterModule extends AbstractModule {
         List<ClusterPlugin> clusterPlugins,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        ThreadContext threadContext,
+        ThreadPool threadPool,
         SystemIndices systemIndices,
         Supplier<RerouteService> rerouteServiceSupplier
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
-        this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins, rerouteServiceSupplier);
+        this.shardsAllocator = createShardsAllocator(
+            settings,
+            clusterService.getClusterSettings(),
+            threadPool,
+            clusterPlugins,
+            rerouteServiceSupplier
+        );
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices);
         this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
     }
@@ -321,6 +327,7 @@ public class ClusterModule extends AbstractModule {
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,
+        ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
         Supplier<RerouteService> rerouteServiceSupplier
     ) {
@@ -328,7 +335,7 @@ public class ClusterModule extends AbstractModule {
         allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings));
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
-            () -> new DesiredBalanceShardsAllocator(settings, clusterSettings, rerouteServiceSupplier)
+            () -> new DesiredBalanceShardsAllocator(settings, clusterSettings, threadPool, rerouteServiceSupplier)
         );
 
         for (ClusterPlugin plugin : clusterPlugins) {

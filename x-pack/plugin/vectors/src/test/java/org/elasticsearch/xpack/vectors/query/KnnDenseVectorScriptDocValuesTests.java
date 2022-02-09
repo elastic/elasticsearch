@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.NoSuchElementException;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -103,6 +104,20 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         assertEquals("dotProduct result is not equal to the expected value!", 65425.624, scriptDocValues.dotProduct(queryVector), 0.001);
         assertEquals("l1norm result is not equal to the expected value!", 485.184, scriptDocValues.l1Norm(queryVector), 0.001);
         assertEquals("l2norm result is not equal to the expected value!", 301.361, scriptDocValues.l2Norm(queryVector), 0.001);
+    }
+
+    public void testMissingVectorValues() throws IOException {
+        int dims = 7;
+        KnnDenseVectorDocValuesField emptyKnn = new KnnDenseVectorDocValuesField(null, "test", dims);
+
+        emptyKnn.setNextDocId(0);
+        assertEquals(0, emptyKnn.getScriptDocValues().size());
+        assertTrue(emptyKnn.getScriptDocValues().isEmpty());
+        assertEquals(DenseVector.EMPTY, emptyKnn.get());
+        assertNull(emptyKnn.get(null));
+        assertNull(emptyKnn.getInternal());
+        assertFalse(emptyKnn.iterator().hasNext());
+        expectThrows(NoSuchElementException.class, () -> emptyKnn.iterator().next());
     }
 
     private static VectorValues wrap(float[][] vectors) {

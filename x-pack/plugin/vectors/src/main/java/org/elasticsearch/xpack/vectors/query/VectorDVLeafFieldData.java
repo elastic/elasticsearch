@@ -58,7 +58,9 @@ final class VectorDVLeafFieldData implements LeafFieldData {
             if (indexed) {
                 VectorValues values = reader.getVectorValues(field);
                 if (values == null || values == VectorValues.EMPTY) {
-                    return DenseVectorDocValuesField.empty(name, dims);
+                    // There's no way for KnnDenseVectorDocValuesField to reliably differentiate between VectorValues.EMPTY and
+                    // values that can be iterated through. Since VectorValues.EMPTY throws on docID(), pass a null instead.
+                    values = null;
                 }
                 return new KnnDenseVectorDocValuesField(values, name, dims);
             } else {

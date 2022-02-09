@@ -35,7 +35,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
 

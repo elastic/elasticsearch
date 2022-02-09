@@ -17,8 +17,12 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.ZoneId;
 import java.util.Base64;
+
+import static org.elasticsearch.xpack.sql.common.io.SqlStreamOutput.HEADER_COMPRESSED;
+import static org.elasticsearch.xpack.sql.common.io.SqlStreamOutput.HEADER_UNCOMPRESSED;
 
 /**
  * SQL-specific stream extension for {@link StreamInput} used for deserializing
@@ -26,17 +30,23 @@ import java.util.Base64;
  */
 public class SqlStreamInput extends NamedWriteableAwareStreamInput {
 
-    private final ZoneId zoneId;
-
-    public SqlStreamInput(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
-        this(Base64.getDecoder().decode(base64encoded), namedWriteableRegistry, version);
+    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version)
+        throws IOException {
+        byte[] bytes = Base64.getDecoder().decode(base64encoded);
+        InputStream in = new ByteArrayInputStream(bytes);
+        int header = in.read();
+        if (header == HEADER_COMPRESSED) {
+            in = CompressorFactory.COMPRESSOR.threadLocalInputStream(in);
+        } else if (header != HEADER_UNCOMPRESSED) {
+            throw new SqlIllegalArgumentException("Cursor [{}] does not have a valid header.", base64encoded);
+        }
+        return new SqlStreamInput(in, namedWriteableRegistry, version);
     }
 
-    public SqlStreamInput(byte[] input, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
-        super(
-            new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(new ByteArrayInputStream(input))),
-            namedWriteableRegistry
-        );
+    private final ZoneId zoneId;
+
+    private SqlStreamInput(InputStream input, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
+        super(new InputStreamStreamInput(input), namedWriteableRegistry);
 
         // version check first
         Version ver = Version.readVersion(delegate);
@@ -44,7 +54,6 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
             throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", ver, version);
         }
         delegate.setVersion(version);
-        // configuration settings
         zoneId = delegate.readZoneId();
     }
 

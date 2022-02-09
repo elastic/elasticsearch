@@ -402,7 +402,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testAddComponentTemplate() throws Exception {
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
-        Template template = new Template(Settings.builder().build(), new CompressedXContent("""
+        Template template = new Template(Settings.builder().put("number_of_shards", 1).build(), new CompressedXContent("""
             {"properties":{"@timestamp":{"type":"date"}}}
             """), ComponentTemplateTests.randomAliases());
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());

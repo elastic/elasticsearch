@@ -211,7 +211,6 @@ import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
@@ -904,8 +903,8 @@ public class Node implements Closeable {
 
             List<HealthIndicatorService> serverHealthIndicatorServices = List.of(
                 new InstanceHasMasterHealthIndicatorService(clusterService),
-                new NoEligibleMasterNodesIndicator(clusterService.state()),
-                new LackOfQuorumIndicator(clusterService.state())
+                new NoEligibleMasterNodesIndicator(clusterService),
+                new LackOfQuorumIndicator(clusterService)
             );
             List<HealthIndicatorService> pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
                 .stream()

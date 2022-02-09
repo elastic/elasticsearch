@@ -16,10 +16,12 @@ import org.elasticsearch.cluster.coordination.indicators.LackOfQuorumIndicator;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 import java.util.Set;
 
@@ -50,7 +52,7 @@ public class LackOfQuorumTests extends ESTestCase {
             )
             .build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterState).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterService(clusterState)).calculate();
 
         assertThat(
             noEligibleMasterNodes,
@@ -78,7 +80,7 @@ public class LackOfQuorumTests extends ESTestCase {
             )
             .build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterState).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterService(clusterState)).calculate();
 
         assertThat(
             noEligibleMasterNodes,
@@ -108,7 +110,7 @@ public class LackOfQuorumTests extends ESTestCase {
             )
             .build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterState).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterService(clusterState)).calculate();
 
         assertThat(
             noEligibleMasterNodes,
@@ -135,7 +137,7 @@ public class LackOfQuorumTests extends ESTestCase {
             )
             .build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterState).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterService(clusterState)).calculate();
 
         assertThat(
             noEligibleMasterNodes,
@@ -170,7 +172,7 @@ public class LackOfQuorumTests extends ESTestCase {
             )
             .build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterState).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterService(clusterState)).calculate();
 
         assertThat(
             noEligibleMasterNodes,
@@ -196,7 +198,7 @@ public class LackOfQuorumTests extends ESTestCase {
             )
             .build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterState).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterService(clusterState)).calculate();
 
         assertEquals("lack_of_quorum", noEligibleMasterNodes.name());
         assertEquals(HealthStatus.RED, noEligibleMasterNodes.status());
@@ -206,7 +208,7 @@ public class LackOfQuorumTests extends ESTestCase {
     public void testRedIfThereNoNodes() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster")).nodes(DiscoveryNodes.builder().build()).build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterState).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new LackOfQuorumIndicator(clusterService(clusterState)).calculate();
 
         assertThat(
             noEligibleMasterNodes,
@@ -225,4 +227,9 @@ public class LackOfQuorumTests extends ESTestCase {
         return buildNewFakeTransportAddress();
     }
 
+    private static ClusterService clusterService(ClusterState clusterState) {
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        Mockito.when(clusterService.state()).thenReturn(clusterState);
+        return clusterService;
+    }
 }

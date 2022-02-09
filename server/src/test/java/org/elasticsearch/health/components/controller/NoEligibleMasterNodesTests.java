@@ -14,10 +14,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.indicators.NoEligibleMasterNodesIndicator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 import java.util.Set;
 
@@ -40,7 +42,8 @@ public class NoEligibleMasterNodesTests extends ESTestCase {
             )
             .build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new NoEligibleMasterNodesIndicator(clusterState).calculate();
+        ClusterService clusterService = clusterService(clusterState);
+        HealthIndicatorResult noEligibleMasterNodes = new NoEligibleMasterNodesIndicator(clusterService).calculate();
 
         assertEquals("no_eligible_masters", noEligibleMasterNodes.name());
         assertEquals(HealthStatus.GREEN, noEligibleMasterNodes.status());
@@ -58,7 +61,7 @@ public class NoEligibleMasterNodesTests extends ESTestCase {
             )
             .build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new NoEligibleMasterNodesIndicator(clusterState).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new NoEligibleMasterNodesIndicator(clusterService(clusterState)).calculate();
 
         assertEquals("no_eligible_masters", noEligibleMasterNodes.name());
         assertEquals(HealthStatus.RED, noEligibleMasterNodes.status());
@@ -68,7 +71,7 @@ public class NoEligibleMasterNodesTests extends ESTestCase {
     public void testRedIfThereNoNodes() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster")).nodes(DiscoveryNodes.builder().build()).build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new NoEligibleMasterNodesIndicator(clusterState).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new NoEligibleMasterNodesIndicator(clusterService(clusterState)).calculate();
 
         assertEquals("no_eligible_masters", noEligibleMasterNodes.name());
         assertEquals(HealthStatus.RED, noEligibleMasterNodes.status());
@@ -79,4 +82,9 @@ public class NoEligibleMasterNodesTests extends ESTestCase {
         return buildNewFakeTransportAddress();
     }
 
+    private static ClusterService clusterService(ClusterState clusterState) {
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        Mockito.when(clusterService.state()).thenReturn(clusterState);
+        return clusterService;
+    }
 }

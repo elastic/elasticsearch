@@ -8,9 +8,9 @@
 
 package org.elasticsearch.cluster.coordination.indicators;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
@@ -20,10 +20,10 @@ public class NoEligibleMasterNodesIndicator implements HealthIndicatorService {
     public static final String NO_ELIGIBLE_MASTERS = "no_eligible_masters";
     public static final String CLUSTER_COORDINATION = "cluster_coordination";
 
-    private final ClusterState clusterState;
+    private final ClusterService clusterService;
 
-    public NoEligibleMasterNodesIndicator(ClusterState clusterState) {
-        this.clusterState = clusterState;
+    public NoEligibleMasterNodesIndicator(ClusterService clusterService) {
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -38,7 +38,7 @@ public class NoEligibleMasterNodesIndicator implements HealthIndicatorService {
 
     @Override
     public HealthIndicatorResult calculate() {
-        for (DiscoveryNode node : clusterState.nodes()) {
+        for (DiscoveryNode node : clusterService.state().nodes()) {
             if (node.getRoles().contains(DiscoveryNodeRole.MASTER_ROLE)) {
                 return HealthIndicatorResult.of(
                     NO_ELIGIBLE_MASTERS,

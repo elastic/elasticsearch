@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cluster.coordination.indicators;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
@@ -21,10 +21,10 @@ public class LackOfQuorumIndicator implements HealthIndicatorService {
     public static final String LACK_OF_QUORUM = "lack_of_quorum";
     public static final String CLUSTER_COORDINATION = "cluster_coordination";
 
-    private final ClusterState clusterState;
+    private final ClusterService clusterService;
 
-    public LackOfQuorumIndicator(ClusterState clusterState) {
-        this.clusterState = clusterState;
+    public LackOfQuorumIndicator(ClusterService clusterService) {
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -39,6 +39,7 @@ public class LackOfQuorumIndicator implements HealthIndicatorService {
 
     @Override
     public HealthIndicatorResult calculate() {
+        var clusterState = clusterService.state();
         boolean hasQuorum = clusterState.getLastCommittedConfiguration()
             .hasQuorum(clusterState.getNodes().getNodes().values().stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
         return hasQuorum

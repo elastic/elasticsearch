@@ -44,7 +44,7 @@ import static java.util.Collections.singleton;
 
 public class IpPrefixAggregatorTests extends AggregatorTestCase {
 
-    public static final Comparator<InternalIpPrefix.Bucket> IP_ADDRESS_KEY_COMPARATOR = Comparator.comparing(
+    private static final Comparator<InternalIpPrefix.Bucket> IP_ADDRESS_KEY_COMPARATOR = Comparator.comparing(
         InternalIpPrefix.Bucket::getKeyAsString
     );
 

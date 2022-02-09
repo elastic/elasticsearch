@@ -35,6 +35,11 @@ public class FillMaskProcessor implements NlpTask.Processor {
     }
 
     @Override
+    public void close() {
+        tokenizer.close();
+    }
+
+    @Override
     public void validateInputs(List<String> inputs) {
         ValidationException ve = new ValidationException();
         if (inputs.isEmpty()) {

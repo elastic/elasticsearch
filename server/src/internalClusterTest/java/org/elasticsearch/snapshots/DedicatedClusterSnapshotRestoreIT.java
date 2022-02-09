@@ -1108,7 +1108,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository(repoName, "fs");
         createIndex("some-index");
 
-        final SnapshotsService snapshotsService = internalCluster().getMasterNodeInstance(SnapshotsService.class);
+        final SnapshotsService snapshotsService = internalCluster().getAnyMasterNodeInstance(SnapshotsService.class);
         final Snapshot snapshot1 = PlainActionFuture.get(
             f -> snapshotsService.createSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-1"), f)
         );

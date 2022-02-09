@@ -36,6 +36,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -1003,6 +1004,83 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertThat(
             createPreviewResponse.getWarnings().get(createPreviewResponse.getWarnings().size() - 1),
             allOf(containsString("Pipeline returned 100 errors, first error:"), containsString("type=script_exception"))
+        );
+    }
+
+    /**
+     * This test case makes sure that deprecation warnings from _search API are propagated to _preview API.
+     */
+    public void testPreviewTransformWithScriptedMetricUsingDeprecatedSyntax() throws Exception {
+        testTransformUsingScriptsUsingDeprecatedSyntax("POST", getTransformEndpoint() + "_preview");
+    }
+
+    /**
+     * This test case makes sure that deprecation warnings from _search API are propagated to PUT API.
+     */
+    public void testCreateTransformWithScriptedMetricUsingDeprecatedSyntax() throws Exception {
+        testTransformUsingScriptsUsingDeprecatedSyntax("PUT", getTransformEndpoint() + "script_deprecated_syntax");
+    }
+
+    private void testTransformUsingScriptsUsingDeprecatedSyntax(String method, String endpoint) throws Exception {
+        String transformIndex = "script_deprecated_syntax";
+        String config = "{"
+            + "  \"source\": {"
+            + "    \"index\": \""
+            + REVIEWS_INDEX_NAME
+            + "\","
+            + "    \"runtime_mappings\": {"
+            + "      \"timestamp-5m\": {"
+            + "        \"type\": \"date\","
+            + "        \"script\": {"
+            // We don't use "era" for anything in this script. This is solely to generate the deprecation warning.
+            + "          \"source\": \"def era = doc['timestamp'].value.era; emit(doc['timestamp'].value.millis)\""
+            + "        }"
+            + "      }"
+            + "    }"
+            + "  },"
+            + "  \"dest\": {"
+            + "    \"index\": \""
+            + transformIndex
+            + "\""
+            + "  },"
+            + "  \"pivot\": {"
+            + "    \"group_by\": {"
+            + "      \"timestamp\": {"
+            + "        \"date_histogram\": {"
+            + "          \"field\": \"timestamp-5m\","
+            + "          \"calendar_interval\": \"1m\""
+            + "        }"
+            + "      }"
+            + "    },"
+            + "    \"aggregations\": {"
+            + "      \"bytes.avg\": {"
+            + "        \"avg\": {"
+            + "          \"field\": \"bytes\""
+            + "        }"
+            + "      },"
+            + "      \"millis\": {"
+            + "        \"scripted_metric\": {"
+            + "          \"init_script\": \"state.m = 0\","
+            + "          \"map_script\": \"state.m = doc['timestamp'].value.millis;\","
+            + "          \"combine_script\": \"return state.m;\","
+            + "          \"reduce_script\": \"def last = 0; for (s in states) {last = s;} return last;\""
+            + "        }"
+            + "      }"
+            + "    }"
+            + "  }"
+            + "}";
+
+        final Request request = new Request(method, endpoint);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        request.setJsonEntity(config);
+        final Response response = client().performRequest(request);
+        assertThat(
+            "Warnings were: " + response.getWarnings(),
+            response.getWarnings(),
+            hasItems(
+                "Use of the joda time method [getMillis()] is deprecated. Use [toInstant().toEpochMilli()] instead.",
+                "Use of the joda time method [getEra()] is deprecated. Use [get(ChronoField.ERA)] instead."
+            )
         );
     }
 

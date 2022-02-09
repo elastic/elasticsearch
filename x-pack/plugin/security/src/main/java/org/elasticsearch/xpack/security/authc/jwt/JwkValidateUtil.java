@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.nimbusds.jose.Algorithm;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.jwk.Curve;
@@ -31,6 +30,7 @@ import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Utilities for JWK Validation.
@@ -39,14 +39,34 @@ public class JwkValidateUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwkValidateUtil.class);
 
     // Static method for unit testing. No need to construct a complete RealmConfig with all settings.
-    static Tuple<List<String>, List<JWK>> filterJwksAndAlgorithms(final List<JWK> jwks, final List<String> algs) throws SettingsException {
-        // Keep algorithms with at least one corresponding JWK+strength. Keep JWKs with at least one corresponding algorithm+strength.
-        final List<String> validAlgs = algs.stream().filter(alg -> (jwks.stream().anyMatch(jwk -> isMatch(jwk, alg)))).toList();
-        final List<JWK> validJwks = jwks.stream().filter(jwk -> (algs.stream().anyMatch(alg -> isMatch(jwk, alg)))).toList();
-        LOGGER.trace("Algorithms [" + algs + "]. Valid [" + validAlgs + "]. JWKs [" + jwks.size() + "]. Valid [" + validJwks.size() + "].");
-        return new Tuple<>(validAlgs, validJwks);
+    static Tuple<List<JWK>, List<String>> filterJwksAndAlgorithms(final List<JWK> jwks, final List<String> algs) throws SettingsException {
+        LOGGER.trace("JWKs [" + jwks.size() + "] and Algorithms [" + String.join(",", algs) + "] before filters.");
+
+        final Predicate<JWK> keyUsePredicate = j -> ((j.getKeyUse() == null) || (KeyUse.SIGNATURE.equals(j.getKeyUse())));
+        final List<JWK> jwksSig = jwks.stream().filter(keyUsePredicate).toList();
+        LOGGER.trace("JWKs [" + jwksSig.size() + "] after KeyUse [SIGNATURE||null] filter.");
+
+        final Predicate<JWK> keyOpPredicate = j -> ((j.getKeyOperations() == null) || (j.getKeyOperations().contains(KeyOperation.VERIFY)));
+        final List<JWK> jwksVerify = jwksSig.stream().filter(keyOpPredicate).toList();
+        LOGGER.trace("JWKs [" + jwksVerify.size() + " after KeyOperation [VERIFY||null] filter.");
+
+        final List<JWK> jwksFiltered = jwksVerify.stream().filter(j -> (algs.stream().anyMatch(a -> isMatch(j, a)))).toList();
+        LOGGER.trace("JWKs [" + jwksFiltered.size() + "] after Algorithms [" + String.join(",", algs) + "] filter.");
+
+        final List<String> algsFiltered = algs.stream().filter(a -> (jwksFiltered.stream().anyMatch(j -> isMatch(j, a)))).toList();
+        LOGGER.trace("Algorithms [" + String.join(",", algsFiltered) + "] after remaining JWKs [" + jwksFiltered.size() + "] filter.");
+
+        return new Tuple<>(jwksFiltered, algsFiltered);
     }
 
+    /**
+     * Verify JWK type matches algorithm requirement. EX: HS256 needs OctetSequenceKey, RS256/PS256 needs RSAKey, ES256 needs ECKey.
+     * Verify JWK strength matches algorithm requirement. EX: HS384 needs min 384-bit, RSA needs min 2048-bit, ES256 needs secp256r1 curve.
+     *
+     * @param jwk JWK object of class OctetSequenceKey, RSAKey, or ECKey.
+     * @param algorithm Algorithm string of value HS256, HS384, HS512, RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, or ES512.
+     * @return True if JWT type and strength match both requirements for the signature algorithm.
+     */
     static boolean isMatch(final JWK jwk, final String algorithm) {
         try {
             if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(algorithm)) && (jwk instanceof OctetSequenceKey jwkHmac)) {
@@ -70,33 +90,6 @@ public class JwkValidateUtil {
             throw new Exception("Expected public key class [RSAPublicKey]. Got [" + "null" + "] instead.");
         }
         throw new Exception("Expected public key class [RSAPublicKey]. Got [" + publicKey.getClass().getSimpleName() + "] instead.");
-    }
-
-    // Remove JWKs if they have an optional kid and it does not match the filter
-    static List<JWK> removeJwkKidMismatches(final List<JWK> jwks, final String kid) {
-        return jwks.stream()
-            .filter(j -> ((Strings.hasText(kid) == false) || (j.getKeyID() == null) || (kid.equals(j.getKeyID()))))
-            .toList();
-    }
-
-    // Remove JWKs if they have an optional KeyUse and it does not match the filter
-    static List<JWK> removeJwksKeyUseMismatches(final List<JWK> jwks, final KeyUse keyUse) {
-        return jwks.stream().filter(j -> ((keyUse == null) || (j.getKeyUse() == null) || (keyUse.equals(j.getKeyUse())))).toList();
-    }
-
-    // Remove JWKs if they have an optional KeyOperation and it does not match the filter
-    static List<JWK> removeJwksKeyOperationMismatches(final List<JWK> jwks, final KeyOperation ko) {
-        return jwks.stream().filter(j -> ((ko == null) || (j.getKeyOperations() == null) || (j.getKeyOperations().contains(ko)))).toList();
-    }
-
-    // Remove JWKs if they have an optional Algorithm and it does not match the filter
-    static List<JWK> removeJwksAlgMismatches(final List<JWK> jwks, final Algorithm algorithm) {
-        return jwks.stream().filter(j -> (j.getAlgorithm() == null) || (algorithm.equals(j.getAlgorithm()))).toList();
-    }
-
-    // Remove JWKs if their key type or length/curve do not match the algorithm filter
-    static List<JWK> removeJwkTypeOrStrengthMismatches(final List<JWK> jwks, final Algorithm algorithm) {
-        return jwks.stream().filter(jwk -> JwkValidateUtil.isMatch(jwk, algorithm.getName())).toList();
     }
 
     static List<JWK> loadJwksFromJwkSetString(final String jwkSetConfigKey, final String jwkSetContents) throws SettingsException {

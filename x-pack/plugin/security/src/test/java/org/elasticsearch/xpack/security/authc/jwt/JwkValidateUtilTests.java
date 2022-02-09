@@ -33,9 +33,9 @@ public class JwkValidateUtilTests extends JwtTestCase {
         final Map<String, List<JWK>> algsToJwks = JwtTestCase.randomJwks(algs);
         final List<JWK> jwks = algsToJwks.values().stream().flatMap(List::stream).toList();
         // If HMAC JWKSet and algorithms are present, verify they are accepted
-        final Tuple<List<String>, List<JWK>> filtered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algs);
-        assertThat(algs.size(), equalTo(filtered.v1().size()));
-        assertThat(jwks.size(), equalTo(filtered.v2().size()));
+        final Tuple<List<JWK>, List<String>> filtered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algs);
+        assertThat(jwks.size(), equalTo(filtered.v1().size()));
+        assertThat(algs.size(), equalTo(filtered.v2().size()));
     }
 
     public void testValidateAlgsJwksPkc() throws Exception {
@@ -43,8 +43,8 @@ public class JwkValidateUtilTests extends JwtTestCase {
         final Map<String, List<JWK>> algsToJwks = JwtTestCase.randomJwks(algs);
         final List<JWK> jwks = algsToJwks.values().stream().flatMap(List::stream).toList();
         // If RSA/EC JWKSet and algorithms are present, verify they are accepted
-        final Tuple<List<String>, List<JWK>> filtered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algs);
-        assertThat(algs.size(), equalTo(filtered.v1().size()));
-        assertThat(jwks.size(), equalTo(filtered.v2().size()));
+        final Tuple<List<JWK>, List<String>> filtered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algs);
+        assertThat(jwks.size(), equalTo(filtered.v1().size()));
+        assertThat(algs.size(), equalTo(filtered.v2().size()));
     }
 }

@@ -125,13 +125,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.httpClient = null; // no setting means no HTTP client
         }
 
-        final Tuple<List<String>, List<JWK>> algsAndJwksHmac = this.parseAlgsAndJwksHmac();
-        this.algorithmsHmac = algsAndJwksHmac.v1(); // not reloadable
-        this.jwksHmac = algsAndJwksHmac.v2(); // not reloadable
+        final Tuple<List<JWK>, List<String>> algsAndJwksHmac = this.parseAlgsAndJwksHmac();
+        this.jwksHmac = algsAndJwksHmac.v1(); // not reloadable
+        this.algorithmsHmac = algsAndJwksHmac.v2(); // not reloadable
 
-        final Tuple<List<String>, List<JWK>> algsAndJwksPkc = this.parseAlgsAndJwksPkc(false);
-        this.algorithmsPkc = algsAndJwksPkc.v1(); // reloadable
-        this.jwksPkc = algsAndJwksPkc.v2(); // reloadable
+        final Tuple<List<JWK>, List<String>> algsAndJwksPkc = this.parseAlgsAndJwksPkc(false);
+        this.jwksPkc = algsAndJwksPkc.v1(); // reloadable
+        this.algorithmsPkc = algsAndJwksPkc.v2(); // reloadable
     }
 
     private Cache<String, JwtRealmCacheValue> initializeJwtCache() {
@@ -144,7 +144,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     // must call parseAlgsAndJwksHmac() before parseAlgsAndJwksPkc()
-    private Tuple<List<String>, List<JWK>> parseAlgsAndJwksHmac() {
+    private Tuple<List<JWK>, List<String>> parseAlgsAndJwksHmac() {
         final SecureString jwkSetContentsHmac = super.config.getSetting(JwtRealmSettings.JWKSET_HMAC_CONTENTS);
         if (Strings.hasText(jwkSetContentsHmac) == false) {
             return new Tuple<>(Collections.emptyList(), Collections.emptyList());
@@ -161,13 +161,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
         final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
         final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
-        final Tuple<List<String>, List<JWK>> algsAndJwksHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
-        LOGGER.debug("HMAC: Algorithms " + algsAndJwksHmac.v1() + ". JWKs [" + algsAndJwksHmac.v2() + "].");
+        final Tuple<List<JWK>, List<String>> algsAndJwksHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
+        LOGGER.debug("HMAC: JWKs [" + algsAndJwksHmac.v1() + "]. Algorithms [" + String.join(",", algsAndJwksHmac.v2()) + "].");
         return algsAndJwksHmac;
     }
 
     // must call parseAlgsAndJwksHmac() before parseAlgsAndJwksPkc()
-    private Tuple<List<String>, List<JWK>> parseAlgsAndJwksPkc(final boolean isReload) {
+    private Tuple<List<JWK>, List<String>> parseAlgsAndJwksPkc(final boolean isReload) {
         if (Strings.hasText(this.jwkSetPath) == false) {
             return new Tuple<>(Collections.emptyList(), Collections.emptyList());
         }
@@ -198,37 +198,37 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         // PKC JWKSet filter contents
         final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
         final List<String> algsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
-        final Tuple<List<String>, List<JWK>> newAlgsAndJwksPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
-        LOGGER.debug("PKC: Algorithms " + newAlgsAndJwksPkc.v1() + ". JWKs [" + newAlgsAndJwksPkc.v2() + "].");
+        final Tuple<List<JWK>, List<String>> newAlgsAndJwksPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
+        LOGGER.debug("PKC: JWKs [" + newAlgsAndJwksPkc.v1() + "]. Algorithms [" + String.join(",", newAlgsAndJwksPkc.v2()) + "].");
 
         // If HMAC has no content, PKC much have content. Fail hard during startup. Fail gracefully during reloads.
         if (((this.algorithmsHmac.isEmpty()) && (newAlgsAndJwksPkc.v1().isEmpty()))
             || ((this.jwksHmac.isEmpty()) && (newAlgsAndJwksPkc.v2().isEmpty()))) {
             if (isReload) {
-                LOGGER.error("No usable PKC algorithms or JWKs. They are required when no usable HMAC algorithms or JWKs.");
-                return new Tuple<>(this.algorithmsPkc, this.jwksPkc); // return previous settings
+                LOGGER.error("No usable PKC JWKs or algorithms. Realm authentication expected to fail until this is fixed.");
+                return newAlgsAndJwksPkc;
             }
-            throw new SettingsException("No usable PKC algorithms or JWKs. They are required when no usable HMAC algorithms or JWKs.");
+            throw new SettingsException("No usable PKC JWKs or algorithms. Realm authentication expected to fail until this is fixed.");
         }
         if (isReload) {
             // Only give delta feedback during reloads.
-            if ((newAlgsAndJwksPkc.v1().isEmpty()) && (newAlgsAndJwksPkc.v1().isEmpty() == false)) {
-                LOGGER.info("PKC algorithms changed from no usable content to having usable content " + newAlgsAndJwksPkc.v1() + ".");
-            } else if ((this.algorithmsPkc.isEmpty() == false) && (newAlgsAndJwksPkc.v1().isEmpty())) {
-                LOGGER.warn("PKC algorithms changed from having usable content " + this.algorithmsPkc + " to no usable content.");
-            } else if (this.algorithmsPkc.stream().sorted().toList().equals(newAlgsAndJwksPkc.v1().stream().sorted().toList())) {
-                LOGGER.debug("PKC algorithms changed from usable content " + this.algorithmsHmac + " to " + newAlgsAndJwksPkc.v1() + ".");
-            } else {
-                LOGGER.trace("PKC algorithms did not change from usable content " + this.algorithmsHmac + ".");
-            }
-            if ((this.jwksPkc.isEmpty()) && (newAlgsAndJwksPkc.v2().isEmpty() == false)) {
-                LOGGER.info("PKC JWKs changed from none to [" + newAlgsAndJwksPkc.v2().size() + "].");
-            } else if ((this.jwksPkc.isEmpty() == false) && (newAlgsAndJwksPkc.v2().isEmpty())) {
+            if ((this.jwksPkc.isEmpty()) && (newAlgsAndJwksPkc.v1().isEmpty() == false)) {
+                LOGGER.info("PKC JWKs changed from none to [" + newAlgsAndJwksPkc.v1().size() + "].");
+            } else if ((this.jwksPkc.isEmpty() == false) && (newAlgsAndJwksPkc.v1().isEmpty())) {
                 LOGGER.warn("PKC JWKs changed from [" + this.jwksPkc.size() + "] to none.");
-            } else if (this.jwksPkc.stream().sorted().toList().equals(newAlgsAndJwksPkc.v2().stream().sorted().toList())) {
-                LOGGER.debug("PKC JWKs changed from [" + this.jwksPkc.size() + "] to [" + newAlgsAndJwksPkc.v2().size() + "].");
+            } else if (this.jwksPkc.stream().sorted().toList().equals(newAlgsAndJwksPkc.v1().stream().sorted().toList())) {
+                LOGGER.debug("PKC JWKs changed from [" + this.jwksPkc.size() + "] to [" + newAlgsAndJwksPkc.v1().size() + "].");
             } else {
                 LOGGER.trace("PKC JWKs no change from [" + this.algorithmsHmac + "].");
+            }
+            if ((newAlgsAndJwksPkc.v1().isEmpty()) && (newAlgsAndJwksPkc.v2().isEmpty() == false)) {
+                LOGGER.info("PKC algorithms changed from no usable content to having usable content " + newAlgsAndJwksPkc.v2() + ".");
+            } else if ((this.algorithmsPkc.isEmpty() == false) && (newAlgsAndJwksPkc.v2().isEmpty())) {
+                LOGGER.warn("PKC algorithms changed from having usable content " + this.algorithmsPkc + " to no usable content.");
+            } else if (this.algorithmsPkc.stream().sorted().toList().equals(newAlgsAndJwksPkc.v2().stream().sorted().toList())) {
+                LOGGER.debug("PKC algorithms changed from usable content " + this.algorithmsHmac + " to " + newAlgsAndJwksPkc.v2() + ".");
+            } else {
+                LOGGER.trace("PKC algorithms did not change from usable content " + this.algorithmsHmac + ".");
             }
         }
         return newAlgsAndJwksPkc;

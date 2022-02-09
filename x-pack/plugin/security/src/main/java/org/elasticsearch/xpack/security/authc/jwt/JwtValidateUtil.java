@@ -21,8 +21,6 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.KeyOperation;
-import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
@@ -68,33 +66,33 @@ public class JwtValidateUtil {
     ) throws Exception {
         final Date now = new Date();
         LOGGER.debug(
-            "Validating JWT, now=["
+            "Validating JWT, now ["
                 + now
-                + "], alg=["
+                + "], alg ["
                 + jwt.getHeader().getAlgorithm()
-                + "], issuer=["
+                + "], issuer ["
                 + jwt.getJWTClaimsSet().getIssuer()
-                + "], audiences=["
+                + "], audiences ["
                 + jwt.getJWTClaimsSet().getAudience()
-                + "], typ=["
+                + "], typ ["
                 + jwt.getHeader().getType()
-                + "], auth_time=["
+                + "], auth_time ["
                 + jwt.getJWTClaimsSet().getDateClaim("auth_time")
-                + "], iat=["
+                + "], iat ["
                 + jwt.getJWTClaimsSet().getIssueTime()
-                + "], nbf=["
+                + "], nbf ["
                 + jwt.getJWTClaimsSet().getIssueTime()
-                + "], exp=["
+                + "], exp ["
                 + jwt.getJWTClaimsSet().getExpirationTime()
-                + "], kid=["
+                + "], kid ["
                 + jwt.getHeader().getKeyID()
-                + "], jti=["
+                + "], jti ["
                 + jwt.getJWTClaimsSet().getJWTID()
         );
         // validate claims before signature, because log messages about rejected claims can be more helpful than rejected signatures
+        JwtValidateUtil.validateType(jwt);
         JwtValidateUtil.validateIssuer(jwt, allowedIssuer);
         JwtValidateUtil.validateAudiences(jwt, allowedAudiences);
-        JwtValidateUtil.validateType(jwt);
         JwtValidateUtil.validateSignatureAlgorithm(jwt, allowedSignatureAlgorithms);
         JwtValidateUtil.validateAuthTime(jwt, now, allowedClockSkewSeconds);
         JwtValidateUtil.validateIssuedAtTime(jwt, now, allowedClockSkewSeconds);
@@ -103,39 +101,33 @@ public class JwtValidateUtil {
         JwtValidateUtil.validateSignature(jwt, jwks);
     }
 
-    public static void validateSignatureAlgorithm(final SignedJWT jwt, final List<String> allowedSignatureAlgorithms) throws Exception {
-        final JWSAlgorithm jwtHeaderAlgorithm = jwt.getHeader().getAlgorithm();
-        if ((jwtHeaderAlgorithm == null) || (allowedSignatureAlgorithms.contains(jwtHeaderAlgorithm.getName()) == false)) {
-            throw new Exception(
-                "Rejected signature algorithm ["
-                    + jwtHeaderAlgorithm
-                    + "]. Allowed signature algorithms are ["
-                    + String.join(",", allowedSignatureAlgorithms)
-                    + "]"
-            );
-        }
-    }
-
-    public static void validateIssuer(final SignedJWT jwt, String allowedIssuer) throws Exception {
-        final String issuer = jwt.getJWTClaimsSet().getIssuer();
-        if ((issuer == null) || (allowedIssuer.equals(issuer) == false)) {
-            throw new Exception("Rejected issuer [" + issuer + "]. Allowed issuer is [" + allowedIssuer + "]");
-        }
-    }
-
-    public static void validateAudiences(final SignedJWT jwt, List<String> allowedAudiences) throws Exception {
-        final List<String> audiences = jwt.getJWTClaimsSet().getAudience();
-        if ((audiences == null) || (allowedAudiences.stream().anyMatch(audiences::contains) == false)) {
-            throw new Exception("Rejected audiences [" + audiences + "]. Allowed audiences are [" + allowedAudiences + "]");
-        }
-    }
-
     public static void validateType(final SignedJWT jwt) throws Exception {
         final JOSEObjectType jwtHeaderType = jwt.getHeader().getType();
         try {
             JwtValidateUtil.JWT_HEADER_TYPE_VERIFIER.verify(jwtHeaderType, null);
         } catch (Exception e) {
             throw new Exception("Invalid JWT type [" + jwtHeaderType + "].", e);
+        }
+    }
+
+    public static void validateIssuer(final SignedJWT jwt, String allowedIssuer) throws Exception {
+        final String issuer = jwt.getJWTClaimsSet().getIssuer();
+        if ((issuer == null) || (allowedIssuer.equals(issuer) == false)) {
+            throw new Exception("Rejected issuer [" + issuer + "]. Allowed [" + allowedIssuer + "]");
+        }
+    }
+
+    public static void validateAudiences(final SignedJWT jwt, List<String> allowedAudiences) throws Exception {
+        final List<String> audiences = jwt.getJWTClaimsSet().getAudience();
+        if ((audiences == null) || (allowedAudiences.stream().anyMatch(audiences::contains) == false)) {
+            throw new Exception("Rejected audiences [" + String.join(",", audiences) + "]. Allowed [" + allowedAudiences + "]");
+        }
+    }
+
+    public static void validateSignatureAlgorithm(final SignedJWT jwt, final List<String> allowedAlgorithms) throws Exception {
+        final JWSAlgorithm algorithm = jwt.getHeader().getAlgorithm();
+        if ((algorithm == null) || (allowedAlgorithms.contains(algorithm.getName()) == false)) {
+            throw new Exception("Rejected algorithm [" + algorithm + "]. Allowed [" + String.join(",", allowedAlgorithms) + "]");
         }
     }
 
@@ -288,60 +280,25 @@ public class JwtValidateUtil {
      * @throws Exception Error if JWKs fail to validate the Signed JWT.
      */
     public static void validateSignature(final SignedJWT jwt, final List<JWK> jwks) throws Exception {
-        // Filter JWKs by optional KID attribute. See JwtTestCase.randomSettingsForJwkGenerator for example of JWK optional attributes.
-        final List<JWK> filteredByKid = JwkValidateUtil.removeJwkKidMismatches(jwks, jwt.getHeader().getKeyID());
-        LOGGER.trace(
-            "JWK count " + jwks.size() + " reduced to " + filteredByKid.size() + " after KID filter [" + jwt.getHeader().getKeyID() + "]."
-        );
+        final String id = jwt.getHeader().getKeyID();
+        final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
+        LOGGER.trace("JWKs [" + jwks.size() + "], JWT KID [ + id + ], and JWT Algorithm [" + alg.getName() + "] before filters.");
 
-        // Filter JWKs by optional ALG attribute. See JwtTestCase.randomSettingsForJwkGenerator for example of JWK optional attributes.
-        final List<JWK> filteredByAlg = JwkValidateUtil.removeJwksAlgMismatches(filteredByKid, jwt.getHeader().getAlgorithm());
-        LOGGER.trace(
-            "JWK count "
-                + filteredByKid.size()
-                + " reduced to "
-                + filteredByAlg.size()
-                + " after Algorithm filter ["
-                + jwt.getHeader().getAlgorithm()
-                + "]."
-        );
+        final List<JWK> jwksKid = jwks.stream().filter(j -> ((id == null) || (j.getKeyID() == null) || (id.equals(j.getKeyID())))).toList();
+        LOGGER.trace("JWKs [" + jwksKid.size() + "] after KID [" + id + "||null] filter.");
 
-        // Filter JWKs by optional USE attribute. See JwtTestCase.randomSettingsForJwkGenerator for example of JWK optional attributes.
-        final List<JWK> filteredByUse = JwkValidateUtil.removeJwksKeyUseMismatches(filteredByAlg, KeyUse.SIGNATURE);
-        LOGGER.trace(
-            "JWK count " + filteredByAlg.size() + " reduced to " + filteredByUse.size() + " after KeyUse filter [" + KeyUse.SIGNATURE + "]."
-        );
+        final List<JWK> jwksAlg = jwksKid.stream().filter(j -> (j.getAlgorithm() == null) || (alg.equals(j.getAlgorithm()))).toList();
+        LOGGER.trace("JWKs [" + jwksAlg.size() + " after Algorithm [" + alg.getName() + "||null] filter.");
 
-        // Filter JWKs by optional OPS attribute. See JwtTestCase.randomSettingsForJwkGenerator for example of JWK optional attributes.
-        final List<JWK> filteredByOp = JwkValidateUtil.removeJwksKeyOperationMismatches(filteredByUse, KeyOperation.VERIFY);
-        LOGGER.trace(
-            "JWK count "
-                + filteredByUse.size()
-                + " reduced to "
-                + filteredByOp.size()
-                + " after KeyOperation filter ["
-                + KeyOperation.VERIFY
-                + "]."
-        );
+        final List<JWK> jwksStrength = jwksAlg.stream().filter(j -> JwkValidateUtil.isMatch(j, alg.getName())).toList();
+        LOGGER.trace("JWKs [" + jwksStrength.size() + "] after Algorithm [" + alg + "] match filter.");
 
-        // Filter JWKs by type and size/curve. See JwtTestCase.randomSettingsForJwkGenerator for example of JWK optional attributes.
-        final List<JWK> filteredByType = JwkValidateUtil.removeJwkTypeOrStrengthMismatches(filteredByOp, jwt.getHeader().getAlgorithm());
-        LOGGER.trace(
-            "JWK count "
-                + filteredByOp.size()
-                + " reduced to "
-                + filteredByType.size()
-                + " after type+length filter ["
-                + jwt.getHeader().getAlgorithm()
-                + "]."
-        );
-
-        for (final JWK jwk : filteredByType) {
+        for (final JWK jwk : jwksStrength) {
             if (jwt.verify(JwtValidateUtil.createJwsVerifier(jwk))) {
                 return; // VERIFY SUCCEEDED
             }
         }
-        throw new Exception("Verify failed using " + filteredByType.size() + " of " + jwks.size() + " provided JWKs.");
+        throw new Exception("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
     }
 
     public static JWSVerifier createJwsVerifier(final JWK jwk) throws JOSEException {
@@ -352,17 +309,7 @@ public class JwtValidateUtil {
         } else if (jwk instanceof OctetSequenceKey octetSequenceKey) {
             return new MACVerifier(octetSequenceKey);
         }
-        throw new JOSEException(
-            "Unsupported class ["
-                + (jwk == null ? "null" : jwk.getClass().getCanonicalName())
-                + "]. Supported classes are ["
-                + RSAKey.class.getCanonicalName()
-                + ", "
-                + ECKey.class.getCanonicalName()
-                + ", "
-                + OctetSequenceKey.class.getCanonicalName()
-                + "]."
-        );
+        throw JwtValidateUtil.createExceptionInvalidJwkClass(jwk);
     }
 
     public static JWSSigner createJwsSigner(final JWK jwk) throws JOSEException {
@@ -373,8 +320,12 @@ public class JwtValidateUtil {
         } else if (jwk instanceof OctetSequenceKey octetSequenceKey) {
             return new MACSigner(octetSequenceKey);
         }
-        throw new JOSEException(
-            "Unsupported class ["
+        throw JwtValidateUtil.createExceptionInvalidJwkClass(jwk);
+    }
+
+    private static JOSEException createExceptionInvalidJwkClass(final JWK jwk) {
+        return new JOSEException(
+            "Unsupported JWK class ["
                 + (jwk == null ? "null" : jwk.getClass().getCanonicalName())
                 + "]. Supported classes are ["
                 + RSAKey.class.getCanonicalName()

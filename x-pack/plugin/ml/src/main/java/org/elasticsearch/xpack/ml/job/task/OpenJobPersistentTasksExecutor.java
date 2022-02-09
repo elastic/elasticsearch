@@ -471,6 +471,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     private class RevertToCurrentSnapshotAction extends RetryableAction<Boolean> {
 
         private final JobTask jobTask;
+        private volatile boolean hasFailedAtLeastOnce;
 
         private RevertToCurrentSnapshotAction(JobTask jobTask, ActionListener<Boolean> listener) {
             super(
@@ -540,10 +541,13 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             if (jobTask.isClosing() || jobTask.isVacating()) {
                 return false;
             }
-            logger.error(
-                new ParameterizedMessage("[{}] error reverting job to its current snapshot; attempting retry", jobTask.getJobId()),
-                e
-            );
+            if (hasFailedAtLeastOnce == false) {
+                hasFailedAtLeastOnce = true;
+                logger.error(
+                    new ParameterizedMessage("[{}] error reverting job to its current snapshot; attempting retry", jobTask.getJobId()),
+                    e
+                );
+            }
             return true;
         }
     }

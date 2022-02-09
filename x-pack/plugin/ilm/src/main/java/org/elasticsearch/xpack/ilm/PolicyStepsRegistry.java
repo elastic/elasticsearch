@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCacheManagement;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
@@ -205,7 +204,7 @@ public class PolicyStepsRegistry {
             throw new IllegalArgumentException("index " + index + " does not exist in the current cluster state");
         }
         final IndexMetadata indexMetadata = metadata.index(index);
-        final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        final String policyName = indexMetadata.getLifecyclePolicyName();
         final LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policyName);
         if (policyMetadata == null) {
             throw new IllegalArgumentException("the policy [" + policyName + "] for index" + index + " does not exist");
@@ -320,7 +319,7 @@ public class PolicyStepsRegistry {
         }
 
         final String phase = stepKey.getPhase();
-        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String policyName = indexMetadata.getLifecyclePolicyName();
         final Index index = indexMetadata.getIndex();
 
         if (policyName == null) {

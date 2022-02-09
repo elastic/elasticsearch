@@ -223,10 +223,7 @@ public abstract class TransportNodesAction<
 
         void start() {
             if (task instanceof CancellableTask cancellableTask) {
-                if (cancellableTask.registerListener(this) == false) {
-                    cancellableTask.notifyIfCancelled(listener);
-                    return;
-                }
+                cancellableTask.addListener(this);
             }
             final DiscoveryNode[] nodes = request.concreteNodes();
             if (nodes.length == 0) {
@@ -309,10 +306,9 @@ public abstract class TransportNodesAction<
 
         @Override
         public void onCancelled() {
+            assert task instanceof CancellableTask : "task must be cancellable";
             try {
-                if (task instanceof CancellableTask t) {
-                    t.ensureNotCancelled();
-                }
+                ((CancellableTask) task).ensureNotCancelled();
             } catch (TaskCancelledException e) {
                 nodeResponseTracker.discardIntermediateResponses(e);
             }

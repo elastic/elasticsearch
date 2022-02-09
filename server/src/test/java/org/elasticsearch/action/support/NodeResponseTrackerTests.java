@@ -53,10 +53,9 @@ public class NodeResponseTrackerTests extends ESTestCase {
         expectThrows(NodeResponseTracker.DiscardedResponsesException.class, () -> intermediateNodeResponses.getResponse(0));
     }
 
-    public void testResponseIsRegisteredOnlyOnce() throws Exception {
+    public void testResponseIsRegisteredOnlyOnce() {
         NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(1);
         assertTrue(intermediateNodeResponses.trackResponseAndCheckIfLast(0, "response1"));
-        assertFalse(intermediateNodeResponses.trackResponseAndCheckIfLast(0, "response2"));
-        assertEquals("response1", intermediateNodeResponses.getResponse(0));
+        expectThrows(AssertionError.class, () -> intermediateNodeResponses.trackResponseAndCheckIfLast(0, "response2"));
     }
 }

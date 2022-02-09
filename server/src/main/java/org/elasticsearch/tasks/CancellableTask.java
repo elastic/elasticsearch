@@ -71,13 +71,17 @@ public class CancellableTask extends Task {
     }
 
     /**
-     * This method registers a listener that needs to be notified when this task is cancelled given that the task is not cancelled yet.
+     * This method adds a listener that needs to be notified if this task is cancelled.
      */
-    public final boolean registerListener(CancellationListener listener) {
-        if (isCancelled) {
-            return false;
+    public final void addListener(CancellationListener listener) {
+        synchronized (this) {
+            if (this.isCancelled == false) {
+                listeners.add(listener);
+            }
         }
-        return listeners.add(listener);
+        if (isCancelled) {
+            listener.onCancelled();
+        }
     }
 
     /**

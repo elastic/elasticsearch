@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.MPNetTokenizer;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,9 +27,17 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 public class MPNetRequestBuilderTests extends ESTestCase {
+    private MPNetTokenizer tokenizer;
+
+    @After
+    public void closeIt() {
+        if (tokenizer != null) {
+            tokenizer.close();
+        }
+    }
 
     public void testBuildRequest() throws IOException {
-        MPNetTokenizer tokenizer = MPNetTokenizer.mpBuilder(TEST_CASED_VOCAB, new MPNetTokenization(null, null, 512, null)).build();
+        tokenizer = MPNetTokenizer.mpBuilder(TEST_CASED_VOCAB, new MPNetTokenization(null, null, 512, null)).build();
 
         MPNetRequestBuilder requestBuilder = new MPNetRequestBuilder(tokenizer);
         NlpTask.Request request = requestBuilder.buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
@@ -51,7 +60,7 @@ public class MPNetRequestBuilderTests extends ESTestCase {
     }
 
     public void testInputTooLarge() throws IOException {
-        MPNetTokenizer tokenizer = MPNetTokenizer.mpBuilder(TEST_CASED_VOCAB, new MPNetTokenization(null, null, 5, null)).build();
+        tokenizer = MPNetTokenizer.mpBuilder(TEST_CASED_VOCAB, new MPNetTokenization(null, null, 5, null)).build();
         {
             MPNetRequestBuilder requestBuilder = new MPNetRequestBuilder(tokenizer);
             ElasticsearchStatusException e = expectThrows(
@@ -78,7 +87,7 @@ public class MPNetRequestBuilderTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testBatchWithPadding() throws IOException {
-        MPNetTokenizer tokenizer = MPNetTokenizer.mpBuilder(TEST_CASED_VOCAB, new MPNetTokenization(null, null, 512, null)).build();
+        tokenizer = MPNetTokenizer.mpBuilder(TEST_CASED_VOCAB, new MPNetTokenization(null, null, 512, null)).build();
 
         MPNetRequestBuilder requestBuilder = new MPNetRequestBuilder(tokenizer);
         NlpTask.Request request = requestBuilder.buildRequest(

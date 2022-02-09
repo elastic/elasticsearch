@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -50,7 +51,7 @@ public enum IndexMode {
 
         private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException("[" + setting.getKey() + "] requires [" + IndexSettings.MODE.getKey() + "=time_series]");
+                throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
             }
         }
 
@@ -73,6 +74,11 @@ public enum IndexMode {
         }
 
         @Override
+        public TimestampBounds getTimestampBound(IndexScopedSettings settings) {
+            return null;
+        }
+
+        @Override
         public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
@@ -89,14 +95,12 @@ public enum IndexMode {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
-            settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
+            checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
         }
 
-        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+        private void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException("[" + IndexSettings.MODE.getKey() + "=time_series] requires [" + setting.getKey() + "]");
+                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + setting.getKey() + "]");
             }
         }
 
@@ -128,12 +132,13 @@ public enum IndexMode {
             return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
         }
 
-        private String routingRequiredBad() {
-            return "routing is forbidden on CRUD operations that target indices in " + tsdbMode();
+        @Override
+        public TimestampBounds getTimestampBound(IndexScopedSettings settings) {
+            return new TimestampBounds(settings);
         }
 
-        private String tsdbMode() {
-            return "[" + IndexSettings.MODE.getKey() + "=time_series]";
+        private String routingRequiredBad() {
+            return "routing is forbidden on CRUD operations that target indices in " + tsdbMode();
         }
 
         @Override
@@ -141,6 +146,10 @@ public enum IndexMode {
             return TimeSeriesIdFieldMapper.INSTANCE;
         }
     };
+
+    protected String tsdbMode() {
+        return "[" + IndexSettings.MODE.getKey() + "=time_series]";
+    }
 
     public static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
 
@@ -214,6 +223,12 @@ public enum IndexMode {
      */
     @Nullable
     public abstract CompressedXContent getDefaultMapping();
+
+    /**
+     * Get timebounds
+     */
+    @Nullable
+    public abstract TimestampBounds getTimestampBound(IndexScopedSettings settings);
 
     /**
      * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates

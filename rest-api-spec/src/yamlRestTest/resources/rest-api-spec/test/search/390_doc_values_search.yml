@@ -45,6 +45,9 @@ setup:
               ip:
                 type: ip
                 index: false
+              geo_point:
+                type: geo_point
+                index: false
 
   - do:
       index:
@@ -62,6 +65,7 @@ setup:
           keyword: "key1"
           boolean: "false"
           ip: "192.168.0.1"
+          geo_point: [13.5, 34.89]
 
   - do:
       index:
@@ -79,6 +83,7 @@ setup:
           keyword: "key2"
           boolean: "true"
           ip: "192.168.0.2"
+          geo_point : [-63.24, 31.0]
 
   - do:
       indices.refresh: {}
@@ -237,6 +242,27 @@ setup:
   - length:   { hits.hits: 2  }
 
 ---
+"Test distance_feature query on date field where only doc values are enabled":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              should:
+                distance_feature:
+                  field: "date"
+                  pivot: "7d"
+                  origin: "now"
+  - length:   { hits.hits: 2  }
+  - match: {hits.hits.0._id: "2" }
+  - match: {hits.hits.1._id: "1" }
+
+---
 "Test match query on keyword field where only doc values are enabled":
 
   - do:
@@ -262,6 +288,60 @@ setup:
         index: test
         body: { query: { range: { keyword: { gte: "key1" } } } }
   - length:   { hits.hits: 2  }
+
+---
+"Test fuzzy query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { fuzzy: { keyword: { value: "kay1", fuzziness: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test prefix query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { prefix: { keyword: { value: "key" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test case insensitive term query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { term: { keyword: { value: "KeY1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test wildcard query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "k*1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test case insensitive wildcard query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "K*1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test regexp query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { regexp: { keyword: { value: "k.*1" } } } }
+  - length:   { hits.hits: 1  }
 
 ---
 "Test match query on boolean field where only doc values are enabled":
@@ -316,3 +396,42 @@ setup:
         index: test
         body: { query: { range: { ip: { gte: "192.168.0.1" } } } }
   - length:   { hits.hits: 2  }
+
+---
+"Test geo shape query on geo_point field where only doc values are enabled":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            geo_shape:
+              geo_point:
+                shape:
+                  type: "envelope"
+                  coordinates: [ [ -70, 32 ], [ -50, 30 ] ]
+  - match: {hits.total.value: 1}
+
+---
+"Test distance_feature query on geo_point field where only doc values are enabled":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              should:
+                distance_feature:
+                  field: geo_point
+                  pivot: "1000km"
+                  origin: [0.0, 0.0]
+  - length:   { hits.hits: 2  }
+  - match: {hits.hits.0._id: "1" }
+  - match: {hits.hits.1._id: "2" }

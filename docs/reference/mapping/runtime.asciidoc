@@ -914,7 +914,7 @@ for each ip address of the returned search hits.
 
 The response of lookup fields are grouped to maintain the independence
 of each document from the lookup index. The lookup query is expected to
-match at most document on the lookup index. If more than one documents
+match at most one document on the lookup index. If more than one documents
 match, then a random document will be selected.
 
 [[runtime-indexed]]

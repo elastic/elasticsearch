@@ -142,7 +142,7 @@ setup:
 ---
 "Float range":
   - skip:
-      version: " - 8.2"
+      version: " - 8.2.0"
       reason: Temporarily disable test preparing for backport to 8.0.1, 8.1.0  and 17.7.1
   - do:
       search:

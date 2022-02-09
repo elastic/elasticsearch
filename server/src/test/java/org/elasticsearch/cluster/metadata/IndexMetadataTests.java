@@ -467,6 +467,24 @@ public class IndexMetadataTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, indexMetadata::getTierPreference);
     }
 
+    public void testLifeCyclePolicyName() {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+
+        IndexMetadata idxMeta1 = IndexMetadata.builder("test").settings(settings).build();
+
+        // null means no policy
+        assertNull(idxMeta1.getLifecyclePolicyName());
+
+        IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1)
+            .settings(settings.put(IndexMetadata.LIFECYCLE_NAME, "some_policy").build())
+            .build();
+
+        assertThat(idxMeta2.getLifecyclePolicyName(), equalTo("some_policy"));
+    }
+
     private static Settings indexSettingsWithDataTier(String dataTier) {
         return Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

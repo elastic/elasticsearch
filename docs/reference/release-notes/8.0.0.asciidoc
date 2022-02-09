@@ -703,4 +703,4 @@ Infra/Logging::
 * Upgrade ECS logging layout to latest version {es-pull}80500[#80500]
 
 Search::
-* Upgrade to released lucene 9.0.0 {es-pull}81426[#81426]
+* Upgrade to Lucene 9 {es-pull}81426[#81426]

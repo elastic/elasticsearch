@@ -279,7 +279,6 @@ public class RestHighLevelClient implements Closeable {
     private final ClusterClient clusterClient = new ClusterClient(this);
     private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
-    private final TasksClient tasksClient = new TasksClient(this);
     private final XPackClient xPackClient = new XPackClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
@@ -392,15 +391,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public final SnapshotClient snapshot() {
         return snapshotClient;
-    }
-
-    /**
-     * Provides a {@link TasksClient} which can be used to access the Tasks API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
-     */
-    public final TasksClient tasks() {
-        return tasksClient;
     }
 
     /**

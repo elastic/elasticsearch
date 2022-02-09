@@ -122,8 +122,8 @@ public class DocumentField implements Writeable, Iterable<Object> {
             out.writeList(lookupFields);
         } else {
             if (lookupFields.isEmpty() == false) {
-                assert false : "Lookup fields must be resolved on data nodes";
-                throw new IllegalStateException("Lookup fields must be resolved on data nodes; got [" + lookupFields + "]");
+                assert false : "Lookup fields require all nodes be on 8.2 or later";
+                throw new IllegalStateException("Lookup fields require all nodes be on 8.2 or later");
             }
         }
     }

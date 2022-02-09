@@ -8,7 +8,6 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -73,8 +72,6 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             .getSettings()
             .get(DataStream.getDefaultBackingIndexName(index, 2));
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
-
-        client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { index }));
     }
 
     public void startHotOnlyNode() {

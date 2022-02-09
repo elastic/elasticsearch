@@ -41,13 +41,9 @@ public class ReleaseHighlightsGenerator {
 
         if (version.minor() > 0) {
             final int major = version.major();
-            for (int minor = version.minor(); minor >= 0; minor--) {
+            for (int minor = version.minor() - 1; minor >= 0; minor--) {
                 String majorMinor = major + "." + minor;
-                String fileSuffix = "";
-                if (major == 7 && minor < 7) {
-                    fileSuffix = "-" + majorMinor + ".0";
-                }
-                priorVersions.add("{ref-bare}/" + majorMinor + "/release-highlights" + fileSuffix + ".html[" + majorMinor + "]");
+                priorVersions.add("{ref-bare}/" + majorMinor + "/release-highlights.html[" + majorMinor + "]");
             }
         }
 

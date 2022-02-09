@@ -96,8 +96,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
     );
 
-    private static final DataTierAllocationDecider DATA_TIER_ALLOCATION_DECIDER = new DataTierAllocationDecider();
-
     private ClusterState state;
     private final int hotNodes = randomIntBetween(1, 8);
     private final int warmNodes = randomIntBetween(1, 3);
@@ -366,8 +364,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             createContext(state, Set.of(role)),
             DISK_THRESHOLD_SETTINGS,
-            createAllocationDeciders(allocationDeciders),
-            DATA_TIER_ALLOCATION_DECIDER
+            createAllocationDeciders(allocationDeciders)
         );
         assertThat(subject.invoke(allocationState), equalTo(expected));
     }
@@ -429,7 +426,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             Collections.emptyList()
         );
         return new AllocationDeciders(
-            Stream.of(Stream.of(extraDeciders), Stream.of(new DataTierAllocationDecider()), systemAllocationDeciders.stream())
+            Stream.of(Stream.of(extraDeciders), Stream.of(DataTierAllocationDecider.INSTANCE), systemAllocationDeciders.stream())
                 .flatMap(s -> s)
                 .collect(Collectors.toList())
         );

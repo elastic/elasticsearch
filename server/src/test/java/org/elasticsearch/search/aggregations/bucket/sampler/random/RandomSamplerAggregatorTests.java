@@ -17,40 +17,50 @@ import org.elasticsearch.search.aggregations.metrics.Avg;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.DoubleStream;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RandomSamplerAggregatorTests extends AggregatorTestCase {
 
     private static final String NUMERIC_FIELD_NAME = "value";
 
     public void testAggregationSampling() throws IOException {
-        testCase(
-            new RandomSamplerAggregationBuilder("my_agg").subAggregation(AggregationBuilders.avg("avg").field(NUMERIC_FIELD_NAME))
-                .setProbability(0.25),
-            new MatchAllDocsQuery(),
-            RandomSamplerAggregatorTests::writeTestDocs,
-            (InternalRandomSampler result) -> {
-                assertThat(result.getDocCount(), allOf(greaterThan(20L), lessThan(60L)));
-                Avg agg = result.getAggregations().get("avg");
-                assertThat(agg.getValue(), closeTo(2, 1));
-            },
-            longField(NUMERIC_FIELD_NAME)
-        );
+        double[] avgs = new double[5];
+        long[] counts = new long[5];
+        AtomicInteger integer = new AtomicInteger();
+        do {
+            testCase(
+                new RandomSamplerAggregationBuilder("my_agg").subAggregation(AggregationBuilders.avg("avg").field(NUMERIC_FIELD_NAME))
+                    .setProbability(0.25),
+                new MatchAllDocsQuery(),
+                RandomSamplerAggregatorTests::writeTestDocs,
+                (InternalRandomSampler result) -> {
+                    counts[integer.get()] = result.getDocCount();
+                    Avg agg = result.getAggregations().get("avg");
+                    assertTrue(Double.isNaN(agg.getValue()) == false && Double.isFinite(agg.getValue()));
+                    avgs[integer.get()] = agg.getValue();
+                },
+                longField(NUMERIC_FIELD_NAME)
+            );
+        } while (integer.incrementAndGet() < 5);
+        long avgCount = LongStream.of(counts).sum() / integer.get();
+        double avgAvg = DoubleStream.of(avgs).sum() / integer.get();
+        assertThat(avgCount, allOf(greaterThanOrEqualTo(20L), lessThanOrEqualTo(70L)));
+        assertThat(avgAvg, closeTo(1.5, 0.5));
     }
 
     private static void writeTestDocs(RandomIndexWriter w) throws IOException {
-        for (int i = 0; i < 50; i++) {
+        for (int i = 0; i < 75; i++) {
             w.addDocument(List.of(new SortedNumericDocValuesField(NUMERIC_FIELD_NAME, 1)));
         }
-        for (int i = 0; i < 50; i++) {
+        for (int i = 0; i < 75; i++) {
             w.addDocument(List.of(new SortedNumericDocValuesField(NUMERIC_FIELD_NAME, 2)));
-        }
-        for (int i = 0; i < 25; i++) {
-            w.addDocument(List.of(new SortedNumericDocValuesField(NUMERIC_FIELD_NAME, 4)));
         }
     }
 

@@ -49,7 +49,6 @@ import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.hamcrest.Matchers;
-import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -132,15 +131,6 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .writeIndex(true)
         );
         assertAcked(client.admin().indices().aliases(aliasesRequest).actionGet());
-    }
-
-    @After
-    public void cleanup() {
-        AcknowledgedResponse response = client().execute(
-            DeleteDataStreamAction.INSTANCE,
-            new DeleteDataStreamAction.Request(new String[] { "*" })
-        ).actionGet();
-        assertAcked(response);
     }
 
     public void testSnapshotAndRestore() throws Exception {

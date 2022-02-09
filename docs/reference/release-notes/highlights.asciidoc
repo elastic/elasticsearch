@@ -81,6 +81,23 @@ rather than accessing a system index. If you attempt to directly access a system
 logs.
 
 [discrete]
+=== kNN search API
+
+With 8.0, we're introducing a technical preview of the
+{ref}/knn-search-api.html[kNN search API].
+
+Using `dense_vector` fields, a {ref}/knn-search.html[_k-nearest neighbor_ (kNN)
+search] finds the _k_ nearest vectors to a query vector, as measured by a
+similarity metric. kNN is commonly used to power recommendation engines and rank
+relevancy based on natural language processing (NLP) algorithms.
+
+Previously, {es} only supported exact kNN searches using a `script_score` query
+with a vector function. While this method guarantees accurate results, it often
+results in slow searches and doesn’t scale well with large datasets. The new kNN
+search API lets you run approximate kNN searches on larger datasets and at faster
+speeds—at the cost of slower indexing and imperfect accuracy.
+
+[discrete]
 === Storage savings for `keyword`, `match_only_text`, and `text` fields
 
 We've updated inverted indices, an internal data structure, to use a more

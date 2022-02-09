@@ -168,6 +168,7 @@ size:
   - match:    { aggregations.page.buckets.1.key: 2 }
   - length:   { aggregations.page.buckets.1.top_hits.hits.hits: 1 }
   - match:    { aggregations.page.buckets.1.top_hits.hits.hits.0._source.text: "The vorpal blade went snicker-snack!" }
+
 ---
 named queries:
   - do:

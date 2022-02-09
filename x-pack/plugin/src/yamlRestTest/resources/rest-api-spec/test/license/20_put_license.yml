@@ -127,8 +127,14 @@ teardown:
 ---
 "Current license is trial means not eligle to start trial":
 
+  # Check the current state of the license. If this is not a trail, then the rest of the test will fail (but the failure is hard to diagnose without this assertion)
   - do:
-      license.get_trial_status: {}
+      license.get: { }
+
+  - match: { license.type: "trial" }
+
+  - do:
+      license.get_trial_status: { }
 
   - match: { eligible_to_start_trial: false }
 

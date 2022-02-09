@@ -45,7 +45,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     GREEN,
                     "SLM is running",
-                    new SimpleHealthIndicatorDetails(Map.of("slm-status", RUNNING, "policies", 1))
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1))
                 )
             )
         );
@@ -64,7 +64,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     YELLOW,
                     "SLM is not running",
-                    new SimpleHealthIndicatorDetails(Map.of("slm-status", status, "policies", 1))
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1))
                 )
             )
         );
@@ -83,7 +83,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     GREEN,
                     "No policies configured",
-                    new SimpleHealthIndicatorDetails(Map.of("slm-status", status, "policies", 0))
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0))
                 )
             )
         );
@@ -101,7 +101,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     SNAPSHOT,
                     GREEN,
                     "No policies configured",
-                    new SimpleHealthIndicatorDetails(Map.of("slm-status", RUNNING, "policies", 0))
+                    new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0))
                 )
             )
         );

@@ -186,6 +186,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *
      * @param interval The calendar interval to use with the aggregation
      */
+    @Override
     public DateHistogramAggregationBuilder calendarInterval(DateHistogramInterval interval) {
         dateHistogramInterval.calendarInterval(interval);
         return this;
@@ -199,6 +200,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *
      * @param interval The fixed interval to use with the aggregation
      */
+    @Override
     public DateHistogramAggregationBuilder fixedInterval(DateHistogramInterval interval) {
         dateHistogramInterval.fixedInterval(interval);
         return this;
@@ -488,5 +490,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             && Objects.equals(offset, other.offset)
             && Objects.equals(extendedBounds, other.extendedBounds)
             && Objects.equals(hardBounds, other.hardBounds);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

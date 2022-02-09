@@ -71,7 +71,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
         final LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
-        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String policyName = indexMetadata.getLifecyclePolicyName();
         final String snapshotRepository = lifecycleState.snapshotRepository();
         if (Strings.hasText(snapshotRepository) == false) {
             listener.onFailure(

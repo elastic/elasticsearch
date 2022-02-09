@@ -158,10 +158,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             // NOTE: we would actually need to use Version.V_6_4_0 which is not available, so we use the earliest possible version
+            final String key = this.key == null ? generateKey(from, to, format) : this.key;
             if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-                out.writeString(this.key == null ? generateKey(from, to, format) : this.key);
+                out.writeString(key);
             } else {
-                out.writeOptionalString(this.key);
+                out.writeOptionalString(key);
             }
             out.writeDouble(from);
             if (out.getVersion().onOrAfter(Version.V_7_17_0)) {

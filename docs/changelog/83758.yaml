@@ -1,0 +1,5 @@
+pr: 83758
+summary: Readiness client probe
+area: Infra/Core
+type: feature
+issues: []

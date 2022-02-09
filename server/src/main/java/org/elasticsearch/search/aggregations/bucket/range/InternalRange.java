@@ -157,10 +157,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
-                out.writeOptionalString(key);
+            // NOTE: we would actually need to use Version.V_6_4_0 which is not available, so we use the earliest possible version
+            if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+                out.writeString(this.key == null ? generateKey(from, to, format) : this.key);
             } else {
-                out.writeString(key == null ? generateKey(from, to, format) : key);
+                out.writeOptionalString(this.key);
             }
             out.writeDouble(from);
             if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
@@ -263,14 +264,21 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            String key = in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString() : in.readString();
+            // NOTE: we would actually need to use Version.V_6_4_0 which is not available, so we use the earliest possible version
+            String key = in.getVersion().onOrAfter(Version.V_7_16_0) ? in.readString() : in.readOptionalString();
             double from = in.readDouble();
             if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
-                in.readOptionalDouble();
+                final Double originalFrom = in.readOptionalDouble();
+                if (originalFrom != null) {
+                    from = originalFrom;
+                }
             }
             double to = in.readDouble();
             if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
-                in.readOptionalDouble();
+                final Double originalTo = in.readOptionalDouble();
+                if (originalTo != null) {
+                    to = originalTo;
+                }
             }
             long docCount = in.readVLong();
             InternalAggregations aggregations = InternalAggregations.readFrom(in);

@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
+import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -19,6 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -65,7 +70,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     public interface PreferredTierFunction {
-        Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes);
+        Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes, DesiredNodes desiredNodes);
     }
 
     private static final Decision YES_PASSES = Decision.single(Decision.YES.type(), NAME, "node passes tier preference filters");
@@ -80,7 +85,8 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         if (tierPreference.isEmpty() != false) {
             return YES_PASSES;
         }
-        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes());
+        DesiredNodes desiredNodes = allocation.desiredNodes();
+        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), desiredNodes);
         if (tier.isPresent()) {
             String tierName = tier.get();
             if (allocationAllowed(tierName, roles)) {
@@ -136,8 +142,37 @@ public final class DataTierAllocationDecider extends AllocationDecider {
      * {@code Optional<String>}.
      */
     public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, DiscoveryNodes nodes) {
+        return preferredAvailableTier(prioritizedTiers, nodes, null);
+    }
+
+    /**
+     * Given a string of comma-separated prioritized tiers (highest priority
+     * first) and an allocation, find the highest priority tier for which nodes
+     * exist. If no nodes for any of the tiers are available, returns an empty
+     * {@code Optional<String>}.
+     */
+    public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, DiscoveryNodes nodes, DesiredNodes desiredNodes) {
+        Optional<String> availableTierInDesiredNodes = preferredAvailableTierDesiredNodes(prioritizedTiers, desiredNodes, nodes);
+
+        if (availableTierInDesiredNodes.isPresent()) {
+            return availableTierInDesiredNodes;
+        }
+
+        return preferredAvailableTierDiscoveryNodes(prioritizedTiers, nodes);
+    }
+
+    private static Optional<String> preferredAvailableTierDiscoveryNodes(List<String> prioritizedTiers, DiscoveryNodes nodes) {
         for (String tier : prioritizedTiers) {
             if (tierNodesPresent(tier, nodes)) {
+                return Optional.of(tier);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<String> preferredAvailableTierDesiredNodes(List<String> prioritizedTiers, DesiredNodes nodes, DiscoveryNodes discoveryNodes) {
+        for (String tier : prioritizedTiers) {
+            if (tierPresentInDesiredNodes(tier, nodes) && tierNodesPresent(tier, discoveryNodes)) {
                 return Optional.of(tier);
             }
         }
@@ -149,6 +184,24 @@ public final class DataTierAllocationDecider extends AllocationDecider {
             : "tier " + singleTier + " is an invalid tier name";
         for (DiscoveryNode node : nodes) {
             if (allocationAllowed(singleTier, node.getRoles())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean tierPresentInDiscoveryNodes(String tierName, DiscoveryNodes discoveryNodes) {
+        for (DiscoveryNode node : discoveryNodes) {
+            if (allocationAllowed(tierName, node.getRoles())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean tierPresentInDesiredNodes(String tierName, DesiredNodes desiredNodes) {
+        for (DesiredNode node : desiredNodes.nodes()) {
+            if (allocationAllowed(tierName, node.getRoles())) {
                 return true;
             }
         }

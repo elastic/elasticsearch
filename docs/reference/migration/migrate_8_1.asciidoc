@@ -21,10 +21,9 @@ and prevent them from operating normally.
 Before upgrading to 8.1, review these changes and take the described steps
 to mitigate the impact.
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
+// NOTE: The notable-breaking-changes tagged regions are re-used in the
+// Installation and Upgrade Guide
+// tag::notable-breaking-changes[]
 [discrete]
 [[breaking_81_rest_api_changes]]
 ==== REST API changes

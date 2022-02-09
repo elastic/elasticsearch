@@ -36,8 +36,14 @@ Autoscaling::
 Geo::
 * Handle bounds properly when grid tiles crosses the dateline {es-pull}83348[#83348] (issue: {es-issue}83299[#83299])
 
+Indices APIs::
+* Simplify and Speed up `ExecutorSelector` {es-pull}83514[#83514] (issue: {es-issue}82450[#82450])
+
 Infra/Core::
 * Copy `trace.id` in threadcontext stash {es-pull}83218[#83218]
+
+Infra/REST API::
+* Do not allow safelisted media types on Content-Type {es-pull}83448[#83448]
 
 Infra/Scripting::
 * Fix duplicated allow lists upon script engine creation {es-pull}82820[#82820] (issue: {es-issue}82778[#82778])
@@ -48,9 +54,11 @@ Machine Learning::
 * Fail queued inference requests with cause if the process crashes {es-pull}81584[#81584]
 * Fix NLP tokenization `never_split` handling around punctuation {es-pull}82982[#82982]
 * Fix `ZeroShotClassificationConfig` update mixing fields {es-pull}82848[#82848]
+* Fix submit after shutdown in process worker service {es-pull}83645[#83645] (issue: {es-issue}83633[#83633])
 * Fixes `categorize_text` parameter validation to be parse order independent {es-pull}82628[#82628] (issue: {es-issue}82629[#82629])
 * Return `zxx` for `lang_ident_model_1` if no valid text is found for language identification {es-pull}82746[#82746] (issue: {es-issue}81933[#81933])
 * Validate vocabulary on model deployment {es-pull}81548[#81548] (issue: {es-issue}81470[#81470])
+* Wait for model process to be stop in stop deployment {es-pull}83644[#83644]
 
 Mapping::
 * Add support for sub-fields to `search_as_you_type` fields {es-pull}82430[#82430] (issue: {es-issue}56326[#56326])
@@ -58,6 +66,9 @@ Mapping::
 
 Network::
 * Throw `NoSeedNodeLeftException` on proxy failure {es-pull}80961[#80961] (issue: {es-issue}80898[#80898])
+
+Packaging::
+* Add log4j-slf4j-impl to repository-azure {es-pull}83661[#83661] (issue: {es-issue}83652[#83652])
 
 Recovery::
 * Add missing `indices.recovery.internal_action_retry_timeout` to list of settings {es-pull}83354[#83354]
@@ -71,6 +82,7 @@ Search::
 
 Security::
 * Add validation for API key role descriptors {es-pull}82049[#82049] (issue: {es-issue}67311[#67311])
+* Upgrade jANSI dependency to 2.4.0 {es-pull}83566[#83566]
 
 Snapshot/Restore::
 * Adjust `LinuxFileSystemNatives.allocatedSizeInBytes` for aarch64 architectures {es-pull}81376[#81376] (issues: {es-issue}80437[#80437], {es-issue}81362[#81362])
@@ -195,6 +207,7 @@ Mapping::
 
 Monitoring::
 * Add Enterprise Search monitoring index templates {es-pull}82743[#82743]
+* Add `beats_stats.metrics.apm-server.sampling.tail` to stack monitoring templates {es-pull}82401[#82401]
 
 Network::
 * Report close connection exceptions at INFO {es-pull}81768[#81768] (issues: {es-issue}51612[#51612], {es-issue}66473[#66473])

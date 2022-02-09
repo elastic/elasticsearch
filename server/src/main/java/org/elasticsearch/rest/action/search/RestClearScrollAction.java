@@ -44,7 +44,7 @@ public class RestClearScrollAction extends BaseRestHandler {
                 // NOTE: if rest request with xcontent body has request parameters, values parsed from request body have the precedence
                 try {
                     clearRequest.fromXContent(xContentParser);
-                } catch (IOException|XContentParseException e) {
+                } catch (IOException | XContentParseException e) {
                     throw new IllegalArgumentException("Failed to parse request body", e);
                 }
             }

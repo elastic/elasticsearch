@@ -40,7 +40,6 @@ import org.junit.BeforeClass;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -288,7 +287,10 @@ public class IndexingSlowLogTests extends ESTestCase {
             null
         );
 
-        final XContentParseException e = expectThrows(XContentParseException.class, () -> IndexingSlowLogMessage.of(index, doc, 10, true, 3));
+        final XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> IndexingSlowLogMessage.of(index, doc, 10, true, 3)
+        );
         assertThat(
             e,
             hasToString(

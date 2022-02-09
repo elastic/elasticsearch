@@ -181,7 +181,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     public Number numberValue() throws IOException {
         try {
             return parser.getNumberValue();
-        } catch (InputCoercionException|JsonParseException e) {
+        } catch (InputCoercionException | JsonParseException e) {
             throw newXContentParseException(e);
         }
     }
@@ -190,7 +190,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     public short doShortValue() throws IOException {
         try {
             return parser.getShortValue();
-        } catch (InputCoercionException|JsonParseException e) {
+        } catch (InputCoercionException | JsonParseException e) {
             throw newXContentParseException(e);
         }
     }
@@ -199,7 +199,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     public int doIntValue() throws IOException {
         try {
             return parser.getIntValue();
-        } catch (InputCoercionException|JsonParseException e) {
+        } catch (InputCoercionException | JsonParseException e) {
             throw newXContentParseException(e);
         }
     }
@@ -208,7 +208,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     public long doLongValue() throws IOException {
         try {
             return parser.getLongValue();
-        } catch (InputCoercionException|JsonParseException e) {
+        } catch (InputCoercionException | JsonParseException e) {
             throw newXContentParseException(e);
         }
     }
@@ -217,7 +217,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     public float doFloatValue() throws IOException {
         try {
             return parser.getFloatValue();
-        } catch (InputCoercionException|JsonParseException e) {
+        } catch (InputCoercionException | JsonParseException e) {
             throw newXContentParseException(e);
         }
     }
@@ -226,7 +226,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     public double doDoubleValue() throws IOException {
         try {
             return parser.getDoubleValue();
-        } catch (InputCoercionException|JsonParseException e) {
+        } catch (InputCoercionException | JsonParseException e) {
             throw newXContentParseException(e);
         }
     }

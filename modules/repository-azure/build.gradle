@@ -82,8 +82,9 @@ dependencies {
   api "io.projectreactor:reactor-core:${versions.reactorCore}"
   api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
 
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
+  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
+
 
   testImplementation project(':test:fixtures:azure-fixture')
 }

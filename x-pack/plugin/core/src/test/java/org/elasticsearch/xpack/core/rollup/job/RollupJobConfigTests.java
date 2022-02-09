@@ -166,9 +166,19 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
         );
         assertThat(e.getMessage(), equalTo("Index pattern must not match all indices (as it would match it's own rollup index"));
 
-        e = expectThrows(IllegalArgumentException.class, () ->
-            new RollupJobConfig(sample.getId(), "test,*", sample.getRollupIndex(), sample.getCron(), sample.getPageSize(),
-                sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout()));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RollupJobConfig(
+                sample.getId(),
+                "test,*",
+                sample.getRollupIndex(),
+                sample.getCron(),
+                sample.getPageSize(),
+                sample.getGroupConfig(),
+                sample.getMetricsConfig(),
+                sample.getTimeout()
+            )
+        );
         assertThat(e.getMessage(), equalTo("Index pattern must not match all indices (as it would match it's own rollup index"));
     }
 
@@ -190,9 +200,19 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
         );
         assertThat(e.getMessage(), equalTo("Index pattern would match rollup index name which is not allowed"));
 
-        e = expectThrows(IllegalArgumentException.class, () ->
-            new RollupJobConfig(sample.getId(), "test,foo-*", "foo-rollup", sample.getCron(), sample.getPageSize(),
-                sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout()));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RollupJobConfig(
+                sample.getId(),
+                "test,foo-*",
+                "foo-rollup",
+                sample.getCron(),
+                sample.getPageSize(),
+                sample.getGroupConfig(),
+                sample.getMetricsConfig(),
+                sample.getTimeout()
+            )
+        );
         assertThat(e.getMessage(), equalTo("Index pattern would match rollup index name which is not allowed"));
     }
 
@@ -214,9 +234,19 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
         );
         assertThat(e.getMessage(), equalTo("Index pattern would match rollup index name which is not allowed"));
 
-        e = expectThrows(IllegalArgumentException.class, () ->
-            new RollupJobConfig(sample.getId(), "test,*-rollup", "foo-rollup", sample.getCron(), sample.getPageSize(),
-                sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout()));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RollupJobConfig(
+                sample.getId(),
+                "test,*-rollup",
+                "foo-rollup",
+                sample.getCron(),
+                sample.getPageSize(),
+                sample.getGroupConfig(),
+                sample.getMetricsConfig(),
+                sample.getTimeout()
+            )
+        );
         assertThat(e.getMessage(), equalTo("Index pattern would match rollup index name which is not allowed"));
     }
 
@@ -238,9 +268,19 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
         );
         assertThat(e.getMessage(), equalTo("Rollup index may not be the same as the index pattern"));
 
-        e = expectThrows(IllegalArgumentException.class, () ->
-            new RollupJobConfig(sample.getId(), "test,foo", "foo", sample.getCron(), sample.getPageSize(),
-                sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout()));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RollupJobConfig(
+                sample.getId(),
+                "test,foo",
+                "foo",
+                sample.getCron(),
+                sample.getPageSize(),
+                sample.getGroupConfig(),
+                sample.getMetricsConfig(),
+                sample.getTimeout()
+            )
+        );
         assertThat(e.getMessage(), equalTo("Rollup index may not be the same as the index pattern"));
     }
 
@@ -348,12 +388,28 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
     public void testIndices() {
         final RollupJobConfig sample = randomRollupJobConfig(random());
 
-        RollupJobConfig config = new RollupJobConfig(sample.getId(), "foo", sample.getRollupIndex(),
-            sample.getCron(), sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        RollupJobConfig config = new RollupJobConfig(
+            sample.getId(),
+            "foo",
+            sample.getRollupIndex(),
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
         assertThat(config.indices(), arrayContaining("foo"));
 
-        config = new RollupJobConfig(sample.getId(), "foo,bar", sample.getRollupIndex(),
-            sample.getCron(), sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+        config = new RollupJobConfig(
+            sample.getId(),
+            "foo,bar",
+            sample.getRollupIndex(),
+            sample.getCron(),
+            sample.getPageSize(),
+            sample.getGroupConfig(),
+            sample.getMetricsConfig(),
+            sample.getTimeout()
+        );
         assertThat(config.indices(), arrayContaining("foo", "bar"));
     }
 }

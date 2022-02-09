@@ -287,13 +287,6 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         return Strings.toString(this, true, true);
     }
 
-    /**
-     * Same as toString() but more explicitly named so the caller knows this is turned into JSON
-     */
-    public String toJSONString() {
-        return toString();
-    }
-
     public static RollupJobConfig fromXContent(final XContentParser parser, @Nullable final String optionalJobId) throws IOException {
         return PARSER.parse(parser, optionalJobId);
     }

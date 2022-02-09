@@ -315,4 +315,3 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         return Collections.unmodifiableList(builders);
     }
 }
-

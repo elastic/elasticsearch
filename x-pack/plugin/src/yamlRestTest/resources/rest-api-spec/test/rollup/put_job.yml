@@ -356,7 +356,6 @@ setup:
             field:
               type: "keyword"
 
-
 ---
 "Test put_job with comma-delimited index pattern":
 
@@ -367,7 +366,7 @@ setup:
         id: bar
         body:  >
           {
-            "index_pattern": "foo,bar",
+            "index_pattern": "foo,bar*",
             "rollup_index": "foo_rollup",
             "cron": "*/30 * * * * ?",
             "page_size" :10,

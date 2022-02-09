@@ -254,12 +254,3 @@ tasks.named('splitPackagesAudit').configure {
     // but this should be fixed in Lucene 9
   ignoreClasses 'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper'
 }
-
-tasks.register('printCP') {
-  doLast {
-    for (File f : sourceSets.test.runtimeClasspath.getFiles()) {
-      println f
-    }
-  }
-}
-

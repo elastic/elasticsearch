@@ -108,7 +108,7 @@ public class RoutingAllocation {
      * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
      * @param clusterState cluster state before rerouting
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
-     * @param isSimulating {@link true} if "transient" deciders should be ignored because we are simulating the final allocation
+     * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
      */
     private RoutingAllocation(
         AllocationDeciders deciders,

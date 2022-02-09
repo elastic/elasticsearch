@@ -1,0 +1,6 @@
+pr: 82944
+summary: [RollupV2]: make RollupAction available and improve some features
+area: Rollup
+type: feature
+issues:
+  - 42720

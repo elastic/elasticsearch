@@ -110,7 +110,6 @@ include projects.toArray(new String[0])
 project(":libs").children.each { libsProject ->
   libsProject.name = "elasticsearch-${libsProject.name}"
   libsProject.children.each { lp ->
-    print lp.name
     lp.name = lp.name  // for :libs:elasticsearch-x-content:impl
   }
 }

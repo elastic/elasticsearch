@@ -8,19 +8,46 @@ release notes from the 8.0.0-alpha1, -alpha2, -beta1, -rc1 and -rc2 releases.
 
 Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
 
+[[known-issues-8.0.0]]
+[float]
+=== Known issues
+
+* If you installed {es} from an archive on an aarch64 platform like Linux ARM or macOS M1, the
+`elastic` user password and {kib} enrollment token are not generated
+automatically when starting your node for the first time.
++
+--
+After the node starts, generate the `elastic` password with the
+<<reset-password,`bin/elasticsearch-reset-password`>> tool:
+
+[source,bash]
+----
+bin/elasticsearch-reset-password -u elastic
+----
+
+Then, create an enrollment token for {kib} with the
+<<create-enrollment-token,`bin/elasticsearch-create-enrollment-token`>> tool:
+
+[source,bash]
+----
+bin/elasticsearch-create-enrollment-token -s kibana
+----
+--
+
+
 [[breaking-8.0.0]]
 [float]
 === Breaking changes
 
 Aggregations::
 * Percentiles aggregation: disallow specifying same percentile values twice {es-pull}52257[#52257] (issue: {es-issue}51871[#51871])
-* Remove Adjacency_matrix setting {es-pull}46327[#46327] (issues: {es-issue}46257[#46257], {es-issue}46324[#46324])
+* Remove adjacency matrix setting {es-pull}46327[#46327] (issues: {es-issue}46257[#46257], {es-issue}46324[#46324])
 * Remove `MovingAverage` pipeline aggregation {es-pull}39328[#39328]
 * Remove deprecated `_time` and `_term` sort orders {es-pull}39450[#39450]
 * Remove deprecated date histo interval {es-pull}75000[#75000]
 
 Allocation::
-* Breaking change for single data node setting {es-pull}73737[#73737] (issues: {es-issue}55805[#55805], {es-issue}73733[#73733])
+* Require single data nodes to respect disk watermarks {es-pull}73737[#73737] (issues: {es-issue}55805[#55805], {es-issue}73733[#73733])
 * Remove `include_relocations` setting {es-pull}47717[#47717] (issues: {es-issue}46079[#46079], {es-issue}47443[#47443])
 
 Analysis::
@@ -54,17 +81,17 @@ Features/CAT APIs::
 * Remove the deprecated `local` parameter for `_cat/shards` {es-pull}64867[#64867] (issue: {es-issue}62197[#62197])
 
 Features/Features::
-* Remove deprecated ._tier allocation filtering settings {es-pull}73074[#73074] (issue: {es-issue}72835[#72835])
+* Remove deprecated `._tier` allocation filtering settings {es-pull}73074[#73074] (issue: {es-issue}72835[#72835])
 
 Features/ILM+SLM::
 * Add lower bound on `poll_interval` {es-pull}39593[#39593] (issue: {es-issue}39163[#39163])
 * Make the ILM `freeze` action a no-op {es-pull}77158[#77158] (issue: {es-issue}70192[#70192])
 * Always enforce default tier preference {es-pull}79751[#79751] (issue: {es-issue}76147[#76147])
 * Validate that snapshot repository exists for ILM policies at creation/update time {es-pull}78468[#78468] (issues: {es-issue}72957[#72957], {es-issue}77657[#77657])
-* Default `ENFORCE_DEFAULT_TIER_PREFERENCE` to `true` {es-pull}79275[#79275] (issues: {es-issue}76147[#76147], {es-issue}79210[#79210])
+* Default `cluster.routing.allocation.enforce_default_tier_preference` to `true` {es-pull}79275[#79275] (issues: {es-issue}76147[#76147], {es-issue}79210[#79210])
 
 Features/Indices APIs::
-* Change prefer_v2_templates parameter to default to true {es-pull}55489[#55489] (issues: {es-issue}53101[#53101], {es-issue}55411[#55411])
+* Change `prefer_v2_templates` parameter to default to true {es-pull}55489[#55489] (issues: {es-issue}53101[#53101], {es-issue}55411[#55411])
 * Remove deprecated `_upgrade` API {es-pull}64732[#64732] (issue: {es-issue}21337[#21337])
 * Remove local parameter for get field mapping request {es-pull}55100[#55100] (issue: {es-issue}55099[#55099])
 * Remove `include_type_name` parameter from REST layer {es-pull}48632[#48632] (issue: {es-issue}41059[#41059])
@@ -82,13 +109,12 @@ Infra/Circuit Breakers::
 * Fixed synchronizing inflight breaker with internal variable {es-pull}40878[#40878]
 
 Infra/Core::
-* Fail when using multiple data paths {es-pull}72184[#72184] (issue: {es-issue}71205[#71205])
 * Limit processors by available processors {es-pull}44894[#44894] (issue: {es-issue}44889[#44889])
 * Remove `nodes/0` folder prefix from data path {es-pull}42489[#42489]
 * Remove `bootstrap.system_call_filter` setting {es-pull}72848[#72848]
 * Remove `fixed_auto_queue_size` threadpool type {es-pull}52280[#52280]
 * Remove `node.max_local_storage_nodes` {es-pull}42428[#42428] (issue: {es-issue}42426[#42426])
-* Remove camel case named formats {es-pull}60044[#60044]
+* Remove camel case named date/time formats {es-pull}60044[#60044]
 * Remove legacy role settings {es-pull}71163[#71163] (issues: {es-issue}54998[#54998], {es-issue}66409[#66409], {es-issue}71143[#71143])
 * Remove `processors` setting {es-pull}45905[#45905] (issue: {es-issue}45855[#45855])
 * Remove the `local` parameter of `/_cat/nodes` {es-pull}50594[#50594] (issues: {es-issue}50088[#50088], {es-issue}50499[#50499])
@@ -96,7 +122,6 @@ Infra/Core::
 * Remove the node local storage setting {es-pull}54381[#54381] (issue: {es-issue}54374[#54374])
 * Remove the `pidfile` setting {es-pull}45940[#45940] (issue: {es-issue}45938[#45938])
 * Removes `week_year` date format {es-pull}63384[#63384] (issue: {es-issue}60707[#60707])
-* Fail index creation using custom data path {es-pull}76792[#76792] (issue: {es-issue}73168[#73168])
 * System indices treated as restricted indices {es-pull}74212[#74212] (issue: {es-issue}69298[#69298])
 * Remove Joda dependency {es-pull}79007[#79007]
 * Remove Joda support from date formatters {es-pull}78990[#78990]
@@ -106,7 +131,7 @@ Infra/Logging::
 * Remove slowlog level {es-pull}57591[#57591] (issue: {es-issue}56171[#56171])
 
 Infra/Plugins::
-* Remove deprecated basic license feature enablement settings from 8.0 {es-pull}56211[#56211] (issue: {es-issue}54745[#54745])
+* Remove deprecated basic license feature enablement settings {es-pull}56211[#56211] (issue: {es-issue}54745[#54745])
 
 Infra/REST API::
 * Remove content type required setting {es-pull}61043[#61043]
@@ -119,8 +144,8 @@ Infra/Resiliency::
 
 Infra/Scripting::
 * Consolidate script parsing from object {es-pull}59507[#59507] (issue: {es-issue}59391[#59391])
-* Scripting: Move `script_cache` into _nodes/stats {es-pull}59265[#59265] (issues: {es-issue}50152[#50152], {es-issue}59262[#59262])
-* Scripting: Remove general cache settings {es-pull}59262[#59262] (issue: {es-issue}50152[#50152])
+* Move `script_cache` into _nodes/stats {es-pull}59265[#59265] (issues: {es-issue}50152[#50152], {es-issue}59262[#59262])
+* Remove general cache settings {es-pull}59262[#59262] (issue: {es-issue}50152[#50152])
 
 Infra/Settings::
 * Change default value of `action.destructive_requires_name` to `true` {es-pull}66908[#66908] (issue: {es-issue}61074[#61074])
@@ -221,7 +246,6 @@ CCR::
 CRUD::
 * Remove types from `BulkRequest` {es-pull}46983[#46983] (issue: {es-issue}41059[#41059])
 * Remove `Client.prepareIndex(index, type, id)` method {es-pull}48443[#48443]
-* Remove deprecated `include-type` methods from HLRC indices client {es-pull}48471[#48471]
 
 
 Client::
@@ -229,7 +253,6 @@ Client::
 
 Features/ILM+SLM::
 * Remove the `ILMClient` {es-pull}42817[#42817]
-* Rename HLRC `indexlifecycle` components to `ilm` {es-pull}44982[#44982] (issues: {es-issue}44725[#44725], {es-issue}44917[#44917])
 
 Features/Monitoring::
 * Remove `MonitoringClient` from x-pack {es-pull}42770[#42770]
@@ -439,7 +462,6 @@ Machine Learning::
 * The Windows build platform for the {ml} C++ code now uses Visual Studio 2019 {ml-pull}1352[#1352]
 * The macOS build platform for the {ml} C++ code is now Mojave running Xcode 11.3.1,
   or Ubuntu 20.04 running clang 8 for cross compilation {ml-pull}1429[#1429]
-* The Linux build platform for the {ml} C++ code is now CentOS 7 running gcc 9.3 {ml-pull}1170[#1170]
 * Add a new application for evaluating PyTorch models. The app depends on LibTorch - the C++ front end to PyTorch - and performs inference on models stored in the TorchScript format {ml-pull}1902[#1902]
 * Adding new PUT trained model vocabulary endpoint {es-pull}77387[#77387]
 * Creating new PUT model definition part API {es-pull}76987[#76987]
@@ -518,9 +540,7 @@ Security::
 * Change default hashing algorithm for FIPS 140 {es-pull}55544[#55544]
 * Create enrollment token {es-pull}73573[#73573] (issues: {es-issue}71438[#71438], {es-issue}72129[#72129])
 * Enroll node API {es-pull}72129[#72129]
-* Not encoding the Api Key in Enrollment token {es-pull}74510[#74510] (issue: {es-issue}73573[#73573])
 * Configure security for the initial node CLI {es-pull}74868[#74868]
-* Adding base `RestHandler` class for Enrollment APIs {es-pull}76564[#76564] (issue: {es-issue}76097[#76097])
 * Generate and store password hash for elastic user {es-pull}76276[#76276] (issue: {es-issue}75310[#75310])
 * Set elastic password and generate enrollment token {es-pull}75816[#75816] (issue: {es-issue}75310[#75310])
 * Add `elasticsearch-enroll-node` tool {es-pull}77292[#77292]
@@ -528,11 +548,9 @@ Security::
 * Add v7 `restCompat` for invalidating API key with the id field {es-pull}78664[#78664] (issue: {es-issue}66671[#66671])
 * Print enrollment token on startup {es-pull}78293[#78293]
 * Startup check for security implicit behavior change {es-pull}76879[#76879]
-* Update auto-generated credentials output {es-pull}79755[#79755] (issue: {es-issue}79312[#79312])
 * CLI tool to reconfigure nodes to enroll {es-pull}79690[#79690] (issue: {es-issue}7718[#7718])
 * Security auto-configuration for packaged installations {es-pull}75144[#75144] (issue: {es-issue}78306[#78306])
 * Update to OpenSAML 4 {es-pull}77012[#77012] (issue: {es-issue}71983[#71983])
-* URL option for `BaseRunAsSuperuserCommand` {es-pull}81025[#81025] (issue: {es-issue}80481[#80481])
 
 Snapshot/Restore::
 * Introduce searchable snapshots index setting for cascade deletion of snapshots {es-pull}74977[#74977]
@@ -582,7 +600,6 @@ Data streams::
 
 Distributed::
 * Introduce `?wait_for_active_shards=index-setting` {es-pull}67158[#67158] (issue: {es-issue}66419[#66419])
-* Respect `CloseIndexRequest#waitForActiveShards` in HLRC {es-pull}67374[#67374] (issues: {es-issue}67158[#67158], {es-issue}67246[#67246])
 * Fixes to task result index mapping {es-pull}50359[#50359] (issue: {es-issue}50248[#50248])
 
 Features/CAT APIs::
@@ -596,8 +613,9 @@ Features/Indices APIs::
 * Fix `ComposableIndexTemplate` equals when `composed_of` is null {es-pull}80864[#80864]
 
 Features/Java High Level REST Client::
-* Fix HLRC compatibility with Java 8 {es-pull}74290[#74290] (issues: {es-issue}73910[#73910], {es-issue}74272[#74272], {es-issue}74289[#74289])
-* Avoid `StackOverflowError` due to regex alternate paths {es-pull}61259[#61259] (issue: {es-issue}60889[#60889])
+* The Java High Level Rest Client (HLRC) has been removed and replaced by a new
+{es} Java client. For migration steps, refer to
+{java-api-client}/migrate-hlrc.html[Migrate from the High Level Rest Client].
 
 Geo::
 * Preprocess polygon rings before processing it for decomposition {es-pull}59501[#59501] (issues: {es-issue}54441[#54441], {es-issue}59386[#59386])
@@ -634,9 +652,7 @@ Ingest::
 * Adjust default geoip logging to be less verbose {es-pull}81404[#81404] (issue: {es-issue}81356[#81356])
 
 Machine Learning::
-* Handle null value of `FieldCapabilitiesResponse` {es-pull}64327[#64327]
 * Add timeout parameter for delete trained models API {es-pull}79739[#79739] (issue: {es-issue}77070[#77070])
-* Fix `MlMetadata` backwards compatibility bug with 7.13 through 7.16 {es-pull}80041[#80041]
 * Tone down ML unassigned job notifications {es-pull}79578[#79578] (issue: {es-issue}79270[#79270])
 * Use a new annotations index for future annotations {es-pull}79006[#79006] (issue: {es-issue}78439[#78439])
 * Set model state compatibility version to 8.0.0 {ml-pull}2139[#2139]
@@ -663,14 +679,9 @@ Search::
 * Handle total hits equal to `track_total_hits` {es-pull}37907[#37907] (issue: {es-issue}37897[#37897])
 * Improve error msg for CCS request on node without remote cluster role {es-pull}60351[#60351] (issue: {es-issue}59683[#59683])
 * Remove unsafe assertion in wildcard field {es-pull}78966[#78966]
-* Reject zero-length vectors when using cosine similarity {es-pull}82241[#82241] (issue: {es-issue}81167[#81167])
 
 Security::
 * Allow access to restricted system indices for reserved system roles {es-pull}76845[#76845]
-* Auto-generated TLS files under fixed config path {es-pull}81547[#81547] (issue: {es-issue}81057[#81057])
-* Bind to non-localhost for transport in some cases {es-pull}82973[#82973]
-* Correct file ownership on node reconfiguration {es-pull}82789[#82789] (issue: {es-issue}80990[#80990])
-* Display security auto-configuration with fancy unicode {es-pull}82740[#82740] (issue: {es-issue}82364[#82364])
 
 Snapshot/Restore::
 * Fix `GET /_snapshot/_all/_all` if there are no repos {es-pull}43558[#43558] (issue: {es-issue}43547[#43547])
@@ -691,9 +702,5 @@ Search::
 Infra/Logging::
 * Upgrade ECS logging layout to latest version {es-pull}80500[#80500]
 
-Lucene::
-* Upgrade to Lucene 8.9.0 {es-pull}74729[#74729]
-
 Search::
-* Update Lucene 9 snapshot {es-pull}79701[#79701] {es-pull}79138[#79138] {es-pull}78548[#78548] {es-pull}78286[#78286] {es-pull}73324[#73324] {es-pull}79461[#79461]
 * Upgrade to released lucene 9.0.0 {es-pull}81426[#81426]

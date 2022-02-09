@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -58,7 +57,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
     private static DiscoveryNodes randomDiscoveryNodes() {
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
 
-        final DiscoveryNode localNode = new DiscoveryNode("master-node", buildNewFakeTransportAddress(), Collections.emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+        final DiscoveryNode localNode = new DiscoveryNode(
+            "master-node",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
 
         builder.add(localNode);
         builder.localNodeId(localNode.getId());
@@ -161,14 +166,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             } else {
                 settingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, between(0, 2));
             }
-            clusterState = clusterStateChanges.createIndex(clusterState,
-                new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE));
+            clusterState = clusterStateChanges.createIndex(
+                clusterState,
+                new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE)
+            );
             assertTrue(clusterState.metadata().hasIndex(name));
         }
-
-
-
-
 
     }
 

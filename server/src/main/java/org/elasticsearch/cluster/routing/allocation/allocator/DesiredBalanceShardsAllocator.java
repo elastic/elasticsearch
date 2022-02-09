@@ -65,6 +65,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         // assert allocation.debugDecision() == false; set to true when called via the reroute API
         assert allocation.ignoreDisable() == false;
 
+        // 1. fork background task to update desired balance
+        // 2. compute next moves towards current desired balance
+
     }
 
     @Override

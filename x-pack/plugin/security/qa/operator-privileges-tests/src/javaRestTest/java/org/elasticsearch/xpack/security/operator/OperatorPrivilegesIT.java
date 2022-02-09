@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class OperatorPrivilegesIT extends ESRestTestCase {
 
@@ -201,6 +204,48 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         assertThat(persistentSettings.get("xpack.security.http.filter.allow"), equalTo("tutorial.com"));
         assertThat(persistentSettings.get("search.default_keep_alive"), equalTo("10m"));
         assertNull(persistentSettings.get("search.allow_expensive_queries"));
+    }
+
+    public void testNodeBandwidthRecoveryUserFactorSettings() throws IOException {
+        final Map<String, Double> userSettings = Map.of(
+            RecoverySettings.NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING.getKey(),
+            randomDoubleBetween(0.1d, 1.0d, true),
+            RecoverySettings.NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING.getKey(),
+            randomDoubleBetween(0.1d, 1.0d, true)
+        );
+
+        for (Map.Entry<String, Double> userSetting : userSettings.entrySet()) {
+            updateSettings(Map.of(userSetting.getKey(), userSetting.getValue()), null);
+            assertThat(getPersistentSettings().get(userSetting.getKey()), equalTo(Double.toString(userSetting.getValue())));
+
+            updateSettings(Collections.singletonMap(userSetting.getKey(), null), OPERATOR_AUTH_HEADER);
+            assertThat(getPersistentSettings().containsKey(userSetting.getKey()), is(false));
+        }
+    }
+
+    public void testNodeBandwidthRecoveryOperatorFactorSettings() throws IOException {
+        final Map<String, Double> operatorSettings = Map.of(
+            RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING.getKey(),
+            randomDoubleBetween(0.1d, 1.0d, true),
+            RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING.getKey(),
+            randomDoubleBetween(0.1d, 1.0d, true),
+            RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING.getKey(),
+            randomDoubleBetween(0.1d, 1.0d, true),
+            RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING.getKey(),
+            randomDoubleBetween(1d, 1000d, true)
+        );
+
+        for (Map.Entry<String, Double> operatorSetting : operatorSettings.entrySet()) {
+            final Map<String, Double> settings = Map.of(operatorSetting.getKey(), operatorSetting.getValue());
+
+            ResponseException exception = expectThrows(ResponseException.class, () -> updateSettings(settings, null));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(exception.getMessage(), containsString("is unauthorized for user"));
+            assertThat(getPersistentSettings().containsKey(operatorSetting.getKey()), is(false));
+
+            updateSettings(settings, OPERATOR_AUTH_HEADER);
+            assertThat(getPersistentSettings().get(operatorSetting.getKey()), equalTo(Double.toString(operatorSetting.getValue())));
+        }
     }
 
     private void createSnapshotRepo(String repoName) throws IOException {

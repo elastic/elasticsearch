@@ -581,8 +581,7 @@ public class Setting<T> implements ToXContentObject {
             final String key = getKey();
             List<String> skipTheseDeprecations = settings.getAsList("deprecation.skip_deprecated_settings");
             if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
-                String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version.";
+                String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
                 if (this.isDeprecatedWarningOnly()) {
                     Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
                 } else {
@@ -1232,6 +1231,15 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<Version> versionSetting(final String key, final Version defaultValue, Property... properties) {
         return new Setting<>(key, s -> Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
+    }
+
+    public static Setting<Version> versionSetting(
+        final String key,
+        Setting<Version> fallbackSetting,
+        Validator<Version> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, fallbackSetting, s -> Version.fromId(Integer.parseInt(s)), properties);
     }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {
@@ -1979,28 +1987,35 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, double maxValue, Property... properties) {
-        return new Setting<>(key, (s) -> Double.toString(defaultValue), (s) -> {
-            final double d = Double.parseDouble(s);
-            if (d < minValue) {
-                String err = "Failed to parse value"
-                    + (isFiltered(properties) ? "" : " [" + s + "]")
-                    + " for setting ["
-                    + key
-                    + "] must be >= "
-                    + minValue;
-                throw new IllegalArgumentException(err);
-            }
-            if (d > maxValue) {
-                String err = "Failed to parse value"
-                    + (isFiltered(properties) ? "" : " [" + s + "]")
-                    + " for setting ["
-                    + key
-                    + "] must be <= "
-                    + maxValue;
-                throw new IllegalArgumentException(err);
-            }
-            return d;
-        }, properties);
+        return new Setting<>(
+            key,
+            (s) -> Double.toString(defaultValue),
+            (s) -> parseDouble(s, minValue, maxValue, key, properties),
+            properties
+        );
+    }
+
+    public static Double parseDouble(String s, double minValue, double maxValue, String key, Property... properties) {
+        final double d = Double.parseDouble(s);
+        if (d < minValue) {
+            String err = "Failed to parse value"
+                + (isFiltered(properties) ? "" : " [" + s + "]")
+                + " for setting ["
+                + key
+                + "] must be >= "
+                + minValue;
+            throw new IllegalArgumentException(err);
+        }
+        if (d > maxValue) {
+            String err = "Failed to parse value"
+                + (isFiltered(properties) ? "" : " [" + s + "]")
+                + " for setting ["
+                + key
+                + "] must be <= "
+                + maxValue;
+            throw new IllegalArgumentException(err);
+        }
+        return d;
     }
 
     @Override

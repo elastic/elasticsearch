@@ -1,0 +1,5 @@
+pr: 83395
+summary: Allow doc-values only search on geo_point fields
+area: Mapping
+type: enhancement
+issues: []

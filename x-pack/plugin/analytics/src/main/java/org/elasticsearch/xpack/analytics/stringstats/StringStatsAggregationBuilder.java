@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -153,5 +154,10 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         if (super.equals(obj) == false) return false;
         StringStatsAggregationBuilder other = (StringStatsAggregationBuilder) obj;
         return showDistribution == other.showDistribution;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_6_0;
     }
 }

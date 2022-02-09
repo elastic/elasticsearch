@@ -90,7 +90,18 @@ public final class DataStreamTestHelper {
         long generation,
         Map<String, Object> metadata
     ) {
-        return new DataStream(name, timeStampField, indices, generation, metadata, false, false, false, false, null);
+        return newInstance(name, timeStampField, indices, generation, metadata, false);
+    }
+
+    public static DataStream newInstance(
+        String name,
+        DataStream.TimestampField timeStampField,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated
+    ) {
+        return new DataStream(name, timeStampField, indices, generation, metadata, false, replicated, false, false, null);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -266,6 +277,17 @@ public final class DataStreamTestHelper {
         Settings settings,
         int replicas
     ) {
+        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, false);
+    }
+
+    public static ClusterState getClusterStateWithDataStreams(
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        long currentTime,
+        Settings settings,
+        int replicas,
+        boolean replicated
+    ) {
         Metadata.Builder builder = Metadata.builder();
 
         List<IndexMetadata> allIndices = new ArrayList<>();
@@ -283,7 +305,8 @@ public final class DataStreamTestHelper {
                 createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
                 dsTuple.v2(),
-                null
+                null,
+                replicated
             );
             builder.put(ds);
         }
@@ -301,7 +324,15 @@ public final class DataStreamTestHelper {
 
     public static ClusterState getClusterStateWithDataStream(String dataStream, List<Tuple<Instant, Instant>> timeSlices) {
         Metadata.Builder builder = Metadata.builder();
+        getClusterStateWithDataStream(builder, dataStream, timeSlices);
+        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
+    }
 
+    public static void getClusterStateWithDataStream(
+        Metadata.Builder builder,
+        String dataStream,
+        List<Tuple<Instant, Instant>> timeSlices
+    ) {
         List<IndexMetadata> backingIndices = new ArrayList<>();
         int generation = 1;
         for (Tuple<Instant, Instant> tuple : timeSlices) {
@@ -331,8 +362,6 @@ public final class DataStreamTestHelper {
             IndexMode.TIME_SERIES
         );
         builder.put(ds);
-
-        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
     }
 
     private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {

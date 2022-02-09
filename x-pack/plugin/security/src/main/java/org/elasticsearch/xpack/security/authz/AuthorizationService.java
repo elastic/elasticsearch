@@ -19,6 +19,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -40,8 +42,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
@@ -129,7 +129,7 @@ public class AuthorizationService {
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
-    private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
+
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -155,13 +155,16 @@ public class AuthorizationService {
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
-        this.rbacEngine = new RBACEngine(settings, rolesStore);
+        this.rbacEngine = new RBACEngine(
+            settings,
+            rolesStore,
+            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings())
+        );
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.requestInterceptors = requestInterceptors;
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
-        this.authzIndicesTimerFactory = new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings());
     }
 
     public void checkPrivileges(
@@ -404,24 +407,15 @@ public class AuthorizationService {
             }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
-            final AsyncSupplier<Set<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener -> {
-                Consumer<Collection<String>> timeChecker = authzIndicesTimerFactory.newTimer(requestInfo);
-                authzEngine.loadAuthorizedIndices(
-                    requestInfo,
-                    authzInfo,
-                    metadata.getIndicesLookup(),
-                    authzIndicesListener.map(authzIndices -> {
-                        timeChecker.accept(authzIndices);
-                        return authzIndices;
-                    })
-                );
-            });
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
                 final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                 } else {
-                    authorizedIndicesSupplier.getAsync(
+                    authzEngine.loadAuthorizedIndices(
+                        requestInfo,
+                        authzInfo,
+                        metadata.getIndicesLookup(),
                         ActionListener.wrap(
                             authorizedIndices -> resolvedIndicesListener.onResponse(
                                 indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)

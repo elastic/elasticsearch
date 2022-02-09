@@ -9,18 +9,22 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterStateTaskExecutorTests extends ESTestCase {
 
-    private class TestTask {
+    private class TestTask implements ClusterStateTaskListener {
         private final String description;
 
         TestTask(String description) {
             this.description = description;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            throw new AssertionError("Should not fail in test", e);
         }
 
         @Override
@@ -32,28 +36,18 @@ public class ClusterStateTaskExecutorTests extends ESTestCase {
     public void testDescribeTasks() {
         final ClusterStateTaskExecutor<TestTask> executor = (currentState, tasks) -> { throw new AssertionError("should not be called"); };
 
-        assertThat("describes an empty list", executor.describeTasks(Collections.emptyList()), equalTo(""));
-        assertThat(
-            "describes a singleton list",
-            executor.describeTasks(Collections.singletonList(new TestTask("a task"))),
-            equalTo("Task{a task}")
-        );
+        assertThat("describes an empty list", executor.describeTasks(List.of()), equalTo(""));
+        assertThat("describes a singleton list", executor.describeTasks(List.of(new TestTask("a task"))), equalTo("Task{a task}"));
         assertThat(
             "describes a list of two tasks",
-            executor.describeTasks(Arrays.asList(new TestTask("a task"), new TestTask("another task"))),
+            executor.describeTasks(List.of(new TestTask("a task"), new TestTask("another task"))),
             equalTo("Task{a task}, Task{another task}")
         );
 
-        assertThat(
-            "skips the only item if it has no description",
-            executor.describeTasks(Collections.singletonList(new TestTask(null))),
-            equalTo("")
-        );
+        assertThat("skips the only item if it has no description", executor.describeTasks(List.of(new TestTask(null))), equalTo(""));
         assertThat(
             "skips an item if it has no description",
-            executor.describeTasks(
-                Arrays.asList(new TestTask("a task"), new TestTask(null), new TestTask("another task"), new TestTask(null))
-            ),
+            executor.describeTasks(List.of(new TestTask("a task"), new TestTask(null), new TestTask("another task"), new TestTask(null))),
             equalTo("Task{a task}, Task{another task}")
         );
     }

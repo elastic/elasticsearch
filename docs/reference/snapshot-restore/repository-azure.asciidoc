@@ -158,6 +158,10 @@ The Azure repository supports following settings:
 
     Specifies the path within container to repository data. Defaults to empty
     (root directory).
++
+NOTE: Don't set `base_path` when configuring a snapshot repository for {ECE}.
+{ECE} automatically generates the `base_path` for each deployment so that
+multiple deployments may share the same bucket.
 
 `chunk_size`::
 

@@ -85,7 +85,7 @@ improvements to indexing speed.
 
 Now it is possible to upload https://pytorch.org/[PyTorch] models that are 
 trained outside {es} and use them for {infer} at ingest time. Third party model 
-support brings modern {ml-docs}/ml-nlp.html[{nlp} (NLP)] and search use cases to 
+support brings modern {ml-docs}/ml-nlp-overview.html[{nlp} (NLP)] and search use cases to 
 the {stack} such as:
 
 * Fill-mask

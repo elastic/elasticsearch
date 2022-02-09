@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.Base64;
 
@@ -22,79 +23,32 @@ import java.util.Base64;
  * Output stream for writing SQL cursors. The output is compressed if it would become larger than {@code compressionThreshold}
  * bytes otherwise (see {@code DEFAULT_COMPRESSION_THRESHOLD}).
  *
- * The wire format is {@code version compressedFlag [payload | compressedPayload]}.
+ * The wire format is {@code version compressedPayload}.
  */
-public class SqlStreamOutput extends StreamOutput {
+public class SqlStreamOutput extends OutputStreamStreamOutput {
 
-    private static final int DEFAULT_COMPRESSION_THRESHOLD = 1000;
+    private final ByteArrayOutputStream bytes;
 
-    private Version version;
-    private ByteArrayOutputStream bytes;
-    private OutputStream out;
-    private boolean compressing;
-    private final int compressionThreshold;
-
-    public SqlStreamOutput(Version version, ZoneId zoneId) throws IOException {
-        this(version, zoneId, DEFAULT_COMPRESSION_THRESHOLD);
+    public static SqlStreamOutput create(Version version, ZoneId zoneId) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        StreamOutput uncompressedOut = new OutputStreamStreamOutput(Base64.getEncoder().wrap(bytes));
+        Version.writeVersion(version, uncompressedOut);
+        OutputStream out = CompressorFactory.COMPRESSOR.threadLocalOutputStream(uncompressedOut);
+        return new SqlStreamOutput(bytes, out, version, zoneId);
     }
 
-    public SqlStreamOutput(Version version, ZoneId zoneId, int compressionThreshold) throws IOException {
+    private SqlStreamOutput(ByteArrayOutputStream bytes, OutputStream out, Version version, ZoneId zoneId) throws IOException {
+        super(out);
+        this.bytes = bytes;
         super.setVersion(version);
-        this.version = version;
-        this.bytes = new ByteArrayOutputStream();
-        this.out = bytes;
-        this.compressing = false;
-        this.compressionThreshold = compressionThreshold;
         this.writeZoneId(zoneId);
-    }
-
-    @Override
-    public void writeByte(byte b) throws IOException {
-        out.write(b);
-        maybeSwitchToCompression();
-    }
-
-    @Override
-    public void writeBytes(byte[] b, int offset, int length) throws IOException {
-        out.write(b, offset, length);
-        maybeSwitchToCompression();
-    }
-
-    private void maybeSwitchToCompression() throws IOException {
-        if (compressing == false && bytes.size() > compressionThreshold) {
-            ByteArrayOutputStream oldBytes = bytes;
-            bytes = new ByteArrayOutputStream(bytes.size());
-            out = CompressorFactory.COMPRESSOR.threadLocalOutputStream(bytes);
-            out.write(oldBytes.toByteArray());
-            compressing = true;
-        }
-    }
-
-    @Override
-    public void flush() throws IOException {
-        out.flush();
-    }
-
-    @Override
-    public void close() throws IOException {
-        out.close();
-    }
-
-    @Override
-    public void reset() throws IOException {
-        throw new UnsupportedOperationException();
     }
 
     /**
      * Should be called _after_ closing the stream - there are no guarantees otherwise.
      */
     public String streamAsString() throws IOException {
-        ByteArrayOutputStream bytesWithHeader = new ByteArrayOutputStream();
-        StreamOutput out = new OutputStreamStreamOutput(bytesWithHeader);
-        Version.writeVersion(version, out);
-        out.writeBoolean(compressing);
-        out.writeBytes(bytes.toByteArray());
-        return Base64.getEncoder().encodeToString(bytesWithHeader.toByteArray());
+        return bytes.toString(StandardCharsets.ISO_8859_1);
     }
 
 }

@@ -34,11 +34,8 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
             throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", inVersion, version);
         }
 
-        boolean compressed = in.readBoolean();
-        if (compressed) {
-            in = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));
-        }
-        return new SqlStreamInput(in, namedWriteableRegistry, inVersion);
+        InputStreamStreamInput uncompressingIn = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));
+        return new SqlStreamInput(uncompressingIn, namedWriteableRegistry, inVersion);
     }
 
     private final ZoneId zoneId;

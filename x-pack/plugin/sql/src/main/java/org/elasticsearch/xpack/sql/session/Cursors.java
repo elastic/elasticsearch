@@ -74,7 +74,7 @@ public final class Cursors {
         if (info == Cursor.EMPTY) {
             return StringUtils.EMPTY;
         }
-        try (SqlStreamOutput output = new SqlStreamOutput(version, zoneId)) {
+        try (SqlStreamOutput output = SqlStreamOutput.create(version, zoneId)) {
             output.writeNamedWriteable(info);
             output.close();
             // return the string only after closing the resource

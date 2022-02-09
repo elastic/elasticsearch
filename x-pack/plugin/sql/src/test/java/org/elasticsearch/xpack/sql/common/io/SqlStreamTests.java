@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
@@ -22,16 +21,14 @@ import java.util.Base64;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class SqlStreamTests extends ESTestCase {
 
     public void testWriteAndRead() throws IOException {
         BytesRef payload = new BytesRef(randomByteArrayOfLength(randomIntBetween(10, 1000)));
-        int threshold = randomIntBetween(10, 1000);
 
-        SqlStreamOutput out = new SqlStreamOutput(Version.CURRENT, randomZone(), threshold);
+        SqlStreamOutput out = SqlStreamOutput.create(Version.CURRENT, randomZone());
         out.writeBytesRef(payload);
         out.close();
         String encoded = out.streamAsString();
@@ -42,37 +39,15 @@ public class SqlStreamTests extends ESTestCase {
         assertArrayEquals(payload.bytes, read.bytes);
     }
 
-    public void testSmallPayloadIsUncompressed() throws IOException {
-        SqlStreamOutput out = new SqlStreamOutput(Version.CURRENT, randomZone(), 1000);
-        writeUniformPayload(out, 200);
-        out.close();
-
-        String result = out.streamAsString();
-        assertThat(result.length(), greaterThan(200));
-    }
-
-    public void testSmallPayloadIsCompressedWhenUsingLowThreshold() throws IOException {
-        SqlStreamOutput out = new SqlStreamOutput(Version.CURRENT, randomZone(), 200);
-        writeUniformPayload(out, 200);
-        out.close();
-
-        String result = out.streamAsString();
-        assertThat(result.length(), lessThan(200));
-    }
-
-    public void testLargePayloadIsCompressed() throws IOException {
-        SqlStreamOutput out = new SqlStreamOutput(Version.CURRENT, randomZone(), 1000);
-        writeUniformPayload(out, 1000);
+    public void testPayloadIsCompressed() throws IOException {
+        SqlStreamOutput out = SqlStreamOutput.create(Version.CURRENT, randomZone());
+        byte[] payload = new byte[1000];
+        Arrays.fill(payload, (byte) 0);
+        out.write(payload);
         out.close();
 
         String result = out.streamAsString();
         assertThat(result.length(), lessThan(1000));
-    }
-
-    private void writeUniformPayload(StreamOutput out, int length) throws IOException {
-        byte[] payload = new byte[length];
-        Arrays.fill(payload, (byte) 0);
-        out.write(payload);
     }
 
     public void testOldCursorProducesVersionMismatchError() {
@@ -94,7 +69,7 @@ public class SqlStreamTests extends ESTestCase {
 
     public void testVersionCanBeReadByOldNodes() throws IOException {
         Version version = randomFrom(Version.V_7_0_0, Version.V_7_2_1, Version.V_8_1_0);
-        SqlStreamOutput out = new SqlStreamOutput(version, randomZone());
+        SqlStreamOutput out = SqlStreamOutput.create(version, randomZone());
         out.writeString("payload");
         out.close();
         String encoded = out.streamAsString();

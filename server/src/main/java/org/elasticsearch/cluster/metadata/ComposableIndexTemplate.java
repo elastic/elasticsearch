@@ -313,7 +313,12 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             "data_stream_template",
             false,
             args -> {
-                IndexMode indexMode = args[2] != null ? IndexMode.fromString((String) args[2]) : null;
+                IndexMode indexMode;
+                if (IndexSettings.isTimeSeriesModeEnabled()) {
+                    indexMode = args[2] != null ? IndexMode.fromString((String) args[2]) : null;
+                } else {
+                    indexMode = null;
+                }
                 return new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1], indexMode);
             }
         );

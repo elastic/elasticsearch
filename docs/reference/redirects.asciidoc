@@ -355,7 +355,7 @@ See <<xpack-ccr,Cross-cluster replication>>.
 === Upgrade API
 
 The `_upgrade` API is no longer useful and will be removed.
-For information about upgrading, see 
+For information about upgrading, see
 {stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].
 
 [role="exclude",id="mapping-parent-field"]
@@ -1734,7 +1734,7 @@ See <<set-jvm-options>>.
 
 See <<search-terms-enum>>.
 
-[role="exclude",id="frozen-indices"]
+[role="exclude",id="frozen-indices",canonical-url="http://elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots.html"]
 === Frozen indices
 
 // tag::frozen-index-redirect[]
@@ -1808,7 +1808,7 @@ See the <<sql-search-api-request-body,request body parameters>> for the
 
 When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
 even if you opt to perform a full-cluster restart instead of a rolling upgrade.
-For more information about upgrading, refer to 
+For more information about upgrading, refer to
 {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 
 [role="exclude",id="rolling-upgrades"]
@@ -1816,7 +1816,7 @@ For more information about upgrading, refer to
 
 When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
 whether you opt to perform a rolling upgrade (upgrade one node at a time) or a full-cluster restart upgrade.
-For more information about upgrading, refer to 
+For more information about upgrading, refer to
 {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 
 [role="exclude",id="reindex-upgrade"]
@@ -1827,7 +1827,7 @@ Before upgrading to {es} 8.0 and later, you must reindex any indices created in
 a 6.x version. We recommend using the **Upgrade Assistant** to guide you
 through this process.
 
-For more information about upgrading, refer to 
+For more information about upgrading, refer to
 {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 //end::upgrade-reindex[]
 

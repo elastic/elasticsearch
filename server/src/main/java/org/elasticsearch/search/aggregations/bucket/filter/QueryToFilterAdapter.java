@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -195,6 +196,10 @@ public class QueryToFilterAdapter<Q extends Query> {
             }
             if (query instanceof IndexOrDocValuesQuery) {
                 query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+                continue;
+            }
+            if (query instanceof BoostQuery) {
+                query = ((BoostQuery) query).getQuery();
                 continue;
             }
             return query;

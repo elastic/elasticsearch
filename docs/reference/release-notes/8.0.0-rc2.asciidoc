@@ -15,7 +15,7 @@ data loss. If you upgrade from a released version, such as 7.16, to a
 pre-release version for testing, discard the contents of the cluster when you are
 done. Do not attempt to upgrade to the final 8.0 release.
 
-* If you installed {es} from an archive on Linux aarch64 or macOS aarch64, the
+* If you installed {es} from an archive on an aarch64 platform like Linux ARM or macOS M1, the
 `elastic` user password and {kib} enrollment token are not generated
 automatically when starting your node for the first time.
 +

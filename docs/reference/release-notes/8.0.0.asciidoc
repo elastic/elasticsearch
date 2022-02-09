@@ -490,6 +490,7 @@ Packaging::
 * Make the Docker build more re-usable in Cloud {es-pull}50277[#50277] (issues: {es-issue}46166[#46166], {es-issue}49926[#49926])
 * Update docker-compose.yml to fix bootstrap check error {es-pull}47650[#47650]
 * Allow total memory to be overridden {es-pull}78750[#78750] (issue: {es-issue}65905[#65905])
+* Convert repository plugins to modules {es-pull}81870[#81870] (issue: {es-issue}81652[#81652])
 
 Recovery::
 * Use Lucene index in peer recovery and resync {es-pull}51189[#51189] (issue: {es-issue}50775[#50775])

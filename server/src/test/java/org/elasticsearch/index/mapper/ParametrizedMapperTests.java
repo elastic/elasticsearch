@@ -27,13 +27,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -127,7 +128,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             true,
             m -> toType(m).restricted,
             "foo",
-            Set.of("foo", "bar")
+            new LinkedHashSet<>(Arrays.asList("foo", "bar"))
         );
 
         final Parameter<DummyEnumType> enumField = Parameter.enumParam(

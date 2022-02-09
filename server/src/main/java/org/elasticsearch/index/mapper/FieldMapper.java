@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -631,12 +630,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final class Parameter<T> implements Supplier<T> {
 
         public final String name;
-        private final List<String> deprecatedNames = new ArrayList<>();
+        private List<String> deprecatedNames = List.of();
         private final Supplier<T> defaultValue;
         private final TriFunction<String, MappingParserContext, Object, T> parser;
         private final Function<FieldMapper, T> initializer;
         private boolean acceptsNull = false;
-        private final List<Consumer<T>> validators = new ArrayList<>();
+        private List<Consumer<T>> validators = List.of();
         private final Serializer<T> serializer;
         private SerializerCheck<T> serializerCheck = (includeDefaults, isConfigured, value) -> includeDefaults || isConfigured;
         private final Function<T, String> conflictSerializer;
@@ -644,8 +643,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
-        private final List<Parameter<?>> requires = new ArrayList<>();
-        private final List<Parameter<?>> precludes = new ArrayList<>();
+        private List<Parameter<?>> requires = List.of();
+        private List<Parameter<?>> precludes = List.of();
 
         /**
          * Creates a new Parameter
@@ -729,7 +728,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * be emitted.  The parameter will be serialized with its main name.
          */
         public Parameter<T> addDeprecatedName(String deprecatedName) {
-            this.deprecatedNames.add(deprecatedName);
+            final int count = deprecatedNames.size();
+            if (count == 0) {
+                this.deprecatedNames = List.of(deprecatedName);
+            } else {
+                final String[] arr = new String[count + 1];
+                deprecatedNames.toArray(arr);
+                arr[count] = deprecatedName;
+                this.deprecatedNames = List.of(arr);
+            }
             return this;
         }
 
@@ -749,7 +756,16 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * validators can be added and all of them will be executed.
          */
         public Parameter<T> addValidator(Consumer<T> validator) {
-            this.validators.add(validator);
+            final int count = validators.size();
+            if (count == 0) {
+                this.validators = List.of(validator);
+            } else {
+                @SuppressWarnings({ "unchecked", "rawtypes" })
+                final Consumer<T>[] arr = new Consumer[count + 1];
+                validators.toArray(arr);
+                arr[count] = validator;
+                this.validators = List.of(arr);
+            }
             return this;
         }
 
@@ -786,13 +802,31 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public Parameter<T> requiresParameters(Parameter<?>... ps) {
-            this.requires.addAll(Arrays.asList(ps));
+        public Parameter<T> requiresParameter(Parameter<?> ps) {
+            final int count = requires.size();
+            if (count == 0) {
+                this.requires = List.of(ps);
+            } else {
+                @SuppressWarnings("rawtypes")
+                final Parameter<?>[] arr = new Parameter[count + 1];
+                requires.toArray(arr);
+                arr[count] = ps;
+                this.requires = List.of(arr);
+            }
             return this;
         }
 
         public Parameter<T> precludesParameters(Parameter<?>... ps) {
-            this.precludes.addAll(Arrays.asList(ps));
+            final int count = precludes.size();
+            if (count == 0) {
+                this.precludes = List.of(ps);
+            } else {
+                @SuppressWarnings("rawtypes")
+                final Parameter<?>[] arr = new Parameter[count + ps.length];
+                precludes.toArray(arr);
+                System.arraycopy(ps, 0, arr, count, ps.length);
+                this.precludes = List.of(arr);
+            }
             return this;
         }
 
@@ -1140,7 +1174,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 initializer,
                 DEFAULT_STRING_ERROR_OPTION,
                 ACCEPTED_STRING_ERROR_OPTIONS
-            ).requiresParameters(dependentScriptParam);
+            ).requiresParameter(dependentScriptParam);
         }
     }
 

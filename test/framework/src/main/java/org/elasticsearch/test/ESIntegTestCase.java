@@ -140,7 +140,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
@@ -169,7 +168,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -1629,13 +1627,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
     }
 
-    public void setSettings(Settings.Builder settings) {
+    public void setClusterSettings(Settings.Builder settings) {
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).execute().actionGet();
-    }
-
-    public <T> Closeable setTestSetting(Setting<T> setting, BiFunction<Settings.Builder, Setting<T>, Settings.Builder> updater) {
-        setSettings(updater.apply(Settings.builder(), setting));
-        return () -> setSettings(Settings.builder().putNull(setting.getKey()));
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {

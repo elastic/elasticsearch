@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.HealthPlugin;
@@ -33,7 +34,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GetHealthActionIT extends ESIntegTestCase {
 
     @Override
@@ -113,7 +114,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
         var client = client();
         var status = randomFrom(HealthStatus.values());
 
-        try (var ignored = setTestSetting(TEST_HEALTH_STATUS, (builder, setting) -> builder.put(setting.getKey(), status))) {
+        try {
+            setClusterSettings(Settings.builder().put(TEST_HEALTH_STATUS.getKey(), status));
+
             var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
 
             assertThat(response.getStatus(), equalTo(status));
@@ -136,6 +139,8 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     )
                 )
             );
+        } finally {
+            setClusterSettings(Settings.builder().putNull(TEST_HEALTH_STATUS.getKey()));
         }
     }
 }

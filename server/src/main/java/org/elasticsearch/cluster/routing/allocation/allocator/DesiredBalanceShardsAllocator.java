@@ -47,29 +47,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
             @Override
             protected void processInput(RerouteInput input) {
-                computeDesiredBalance(input);
+                updateDesiredBalanceAndReroute(input);
             }
         };
-    }
-
-    public static boolean needsRefresh(ClusterState currentState, ClusterState newState) {
-
-        final Set<String> currentDataNodeEphemeralIds = currentState.nodes()
-            .stream()
-            .filter(DiscoveryNode::canContainData)
-            .map(DiscoveryNode::getEphemeralId)
-            .collect(Collectors.toSet());
-        final Set<String> newDataNodeEphemeralIds = newState.nodes()
-            .stream()
-            .filter(DiscoveryNode::canContainData)
-            .map(DiscoveryNode::getEphemeralId)
-            .collect(Collectors.toSet());
-
-        if (currentDataNodeEphemeralIds.equals(newDataNodeEphemeralIds) == false) {
-            return true;
-        }
-
-        return false;
     }
 
     @Override
@@ -92,8 +72,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     record RerouteInput(DiscoveryNodes discoveryNodes, Metadata metadata, RoutingTable routingTable) {}
 
-    private void computeDesiredBalance(RerouteInput input) {
+    private void updateDesiredBalanceAndReroute(RerouteInput rerouteInput) {
         currentDesiredBalance = new DesiredBalance();
+
+        // adjust desired balance according to rerouteInput
+        // if it is changed then call reroute() again
     }
 
     static class DesiredBalance {

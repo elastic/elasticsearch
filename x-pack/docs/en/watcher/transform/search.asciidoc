@@ -71,15 +71,15 @@ The following table lists all available settings for the search
 | `request.indices_options.expand_wildcards`    | no        | `open`            | Determines how to expand indices wildcards. An array
                                                                                   consisting of a combination of `open`, `closed`,
                                                                                   and `hidden`. Alternatively a value of `none` or `all`.
-                                                                                  (see <<multi-index,multi-index support>>)
+                                                                                  (see <<multi-index,multi-target syntax>>)
 
 | `request.indices_options.ignore_unavailable`  | no        | `true`            | A boolean value that determines whether the search
                                                                                   should leniently ignore unavailable indices
-                                                                                  (see <<multi-index,multi-index support>>)
+                                                                                  (see <<multi-index,multi-target syntax>>)
 
 | `request.indices_options.allow_no_indices`    | no        | `true`            | A boolean value that determines whether the search
                                                                                   should leniently return no results when no indices
-                                                                                  are resolved (see <<multi-index,multi-index support>>)
+                                                                                  are resolved (see <<multi-index,multi-target syntax>>)
 
 | `request.template`                            | no        | -                 | The body of the search template. See
                                                                                   <<templates,configure templates>> for more information.

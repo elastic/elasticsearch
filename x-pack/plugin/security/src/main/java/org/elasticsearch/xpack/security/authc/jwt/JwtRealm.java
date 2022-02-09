@@ -372,7 +372,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 signedJwt = SignedJWT.parse(jwtAuthenticationToken.getEndUserSignedJwt().toString());
                 jwtClaimsSet = signedJwt.getJWTClaimsSet();
             } catch (ParseException e) {
-                throw new IllegalArgumentException("Failed to parse JWT", e);
+                listener.onResponse(AuthenticationResult.unsuccessful("Failed to parse JWT", e));
+                return;
             }
 
             final JWSAlgorithm jwsAlgorithm = signedJwt.getHeader().getAlgorithm();

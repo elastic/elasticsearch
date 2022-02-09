@@ -14,7 +14,7 @@ if not "%DIRNAME%" == "bin" (
 for %%I in ("%ES_HOME%..") do set ES_HOME=%%~dpfI
 
 rem now set the classpath
-set ES_CLASSPATH=!ES_HOME!\lib\*;!ES_HOME!\providers
+set ES_CLASSPATH=!ES_HOME!\providers;!ES_HOME!\lib\*
 
 set HOSTNAME=%COMPUTERNAME%
 

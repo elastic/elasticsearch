@@ -68,7 +68,7 @@ Network::
 * Throw `NoSeedNodeLeftException` on proxy failure {es-pull}80961[#80961] (issue: {es-issue}80898[#80898])
 
 Packaging::
-* Add log4j-slf4j-impl to repository-azure {es-pull}83661[#83661] (issue: {es-issue}83652[#83652])
+* Add `log4j-slf4j-impl` to `repository-azure` {es-pull}83661[#83661] (issue: {es-issue}83652[#83652])
 
 Recovery::
 * Add missing `indices.recovery.internal_action_retry_timeout` to list of settings {es-pull}83354[#83354]

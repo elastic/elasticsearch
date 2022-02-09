@@ -29,6 +29,7 @@ import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -65,6 +66,15 @@ public final class ProviderLocator {
     }
 
     private static XContentProvider provider() {
+        // This is a special case for the provider being on the classpath. It is only necessary
+        // for the HLRC, which is only used in tests now. Once it is removed, this shortcircuit loading
+        // can be removed
+        ServiceLoader<XContentProvider> sl = ServiceLoader.load(XContentProvider.class);
+        Optional<XContentProvider> alreadyLoaded = sl.findFirst();
+        if (alreadyLoaded.isPresent()) {
+            return alreadyLoaded.get();
+        }
+
         try {
             PrivilegedExceptionAction<XContentProvider> pa = () -> loadAsNonModule(gatherUrls(providerPath()));
             return AccessController.doPrivileged(pa);

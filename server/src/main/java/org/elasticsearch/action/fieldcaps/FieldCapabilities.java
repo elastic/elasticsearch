@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -296,16 +297,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private final String name;
         private final String type;
         private boolean isMetadataField;
-        private boolean isSearchable;
-        private boolean isAggregatable;
-        private List<IndexCaps> indiceList;
-        private Map<String, Set<String>> meta;
+        private int searchableIndices = 0;
+        private int aggregatableIndices = 0;
+        private final List<IndexCaps> indiceList;
+        private final Map<String, Set<String>> meta;
 
         Builder(String name, String type) {
             this.name = name;
             this.type = type;
-            this.isSearchable = true;
-            this.isAggregatable = true;
             this.indiceList = new ArrayList<>();
             this.meta = new HashMap<>();
         }
@@ -314,53 +313,62 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
          * Collect the field capabilities for an index.
          */
         void add(String index, boolean isMetadataField, boolean search, boolean agg, Map<String, String> meta) {
-            IndexCaps indexCaps = new IndexCaps(index, search, agg);
-            indiceList.add(indexCaps);
-            this.isSearchable &= search;
-            this.isAggregatable &= agg;
+            assert indiceList.isEmpty() || indiceList.get(indiceList.size() - 1).name.compareTo(index) < 0
+                : "indices aren't sorted; previous [" + indiceList.get(indiceList.size() - 1).name + "], current [" + index + "]";
+            if (search) {
+                searchableIndices++;
+            }
+            if (agg) {
+                aggregatableIndices++;
+            }
             this.isMetadataField |= isMetadataField;
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>()).add(entry.getValue());
             }
         }
 
-        List<String> getIndices() {
-            return indiceList.stream().map(c -> c.name).collect(Collectors.toList());
+        void getIndices(Collection<String> indices) {
+            indiceList.forEach(cap -> indices.add(cap.name));
         }
 
         FieldCapabilities build(boolean withIndices) {
             final String[] indices;
-            /* Eclipse can't deal with o -> o.name, maybe because of
-             * https://bugs.eclipse.org/bugs/show_bug.cgi?id=511750 */
-            Collections.sort(indiceList, Comparator.comparing((IndexCaps o) -> o.name));
             if (withIndices) {
                 indices = indiceList.stream().map(caps -> caps.name).toArray(String[]::new);
             } else {
                 indices = null;
             }
 
+            // Iff this field is searchable in some indices AND non-searchable in others
+            // we record the list of non-searchable indices
+            final boolean isSearchable = searchableIndices == indiceList.size();
             final String[] nonSearchableIndices;
-            if (isSearchable == false && indiceList.stream().anyMatch((caps) -> caps.isSearchable)) {
-                // Iff this field is searchable in some indices AND non-searchable in others
-                // we record the list of non-searchable indices
-                nonSearchableIndices = indiceList.stream()
-                    .filter((caps) -> caps.isSearchable == false)
-                    .map(caps -> caps.name)
-                    .toArray(String[]::new);
-            } else {
+            if (isSearchable || searchableIndices == 0) {
                 nonSearchableIndices = null;
+            } else {
+                nonSearchableIndices = new String[indiceList.size() - searchableIndices];
+                int index = 0;
+                for (IndexCaps indexCaps : indiceList) {
+                    if (indexCaps.isSearchable == false) {
+                        nonSearchableIndices[index++] = indexCaps.name;
+                    }
+                }
             }
 
+            // Iff this field is aggregatable in some indices AND non-aggregatable in others
+            // we keep the list of non-aggregatable indices
+            final boolean isAggregatable = aggregatableIndices == indiceList.size();
             final String[] nonAggregatableIndices;
-            if (isAggregatable == false && indiceList.stream().anyMatch((caps) -> caps.isAggregatable)) {
-                // Iff this field is aggregatable in some indices AND non-searchable in others
-                // we keep the list of non-aggregatable indices
-                nonAggregatableIndices = indiceList.stream()
-                    .filter((caps) -> caps.isAggregatable == false)
-                    .map(caps -> caps.name)
-                    .toArray(String[]::new);
-            } else {
+            if (isAggregatable || aggregatableIndices == 0) {
                 nonAggregatableIndices = null;
+            } else {
+                nonAggregatableIndices = new String[indiceList.size() - aggregatableIndices];
+                int index = 0;
+                for (IndexCaps indexCaps : indiceList) {
+                    if (indexCaps.isAggregatable == false) {
+                        nonAggregatableIndices[index++] = indexCaps.name;
+                    }
+                }
             }
             final Function<Map.Entry<String, Set<String>>, Set<String>> entryValueFunction = Map.Entry::getValue;
             Map<String, Set<String>> immutableMeta = Collections.unmodifiableMap(

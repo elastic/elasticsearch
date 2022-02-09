@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -16,9 +17,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCapabilities> {
@@ -109,6 +115,67 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertNull(cap2.nonAggregatableIndices());
             assertEquals(Collections.singletonMap("foo", new HashSet<>(Arrays.asList("bar", "quux"))), cap2.meta());
         }
+    }
+
+    public void testRandomBuilder() {
+        List<String> indices = IntStream.range(0, randomIntBetween(1, 50))
+            .mapToObj(n -> String.format(Locale.ROOT, "index_%2d", n))
+            .collect(Collectors.toList());
+        Set<String> searchableIndices = new HashSet<>(randomSubsetOf(indices));
+        Set<String> aggregatableIndices = new HashSet<>(randomSubsetOf(indices));
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
+        for (String index : indices) {
+            builder.add(
+                index,
+                randomBoolean(),
+                searchableIndices.contains(index),
+                aggregatableIndices.contains(index),
+                Collections.emptyMap()
+            );
+        }
+        FieldCapabilities fieldCaps = builder.build(randomBoolean());
+        // search
+        if (searchableIndices.isEmpty()) {
+            assertFalse(fieldCaps.isSearchable());
+            assertNull(fieldCaps.nonSearchableIndices());
+        } else if (searchableIndices.size() == indices.size()) {
+            assertTrue(fieldCaps.isSearchable());
+            assertNull(fieldCaps.nonSearchableIndices());
+        } else {
+            assertFalse(fieldCaps.isSearchable());
+            assertThat(
+                Sets.newHashSet(fieldCaps.nonSearchableIndices()),
+                equalTo(Sets.difference(Sets.newHashSet(indices), searchableIndices))
+            );
+        }
+        // aggregate
+        if (aggregatableIndices.isEmpty()) {
+            assertFalse(fieldCaps.isAggregatable());
+            assertNull(fieldCaps.nonAggregatableIndices());
+        } else if (aggregatableIndices.size() == indices.size()) {
+            assertTrue(fieldCaps.isAggregatable());
+            assertNull(fieldCaps.nonAggregatableIndices());
+        } else {
+            assertFalse(fieldCaps.isAggregatable());
+            assertThat(
+                Sets.newHashSet(fieldCaps.nonAggregatableIndices()),
+                equalTo(Sets.difference(Sets.newHashSet(indices), aggregatableIndices))
+            );
+        }
+    }
+
+    public void testOutOfOrderIndices() {
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
+        int numIndex = randomIntBetween(1, 5);
+        for (int i = 1; i <= numIndex; i++) {
+            builder.add("index-" + i, randomBoolean(), randomBoolean(), randomBoolean(), Collections.emptyMap());
+        }
+        final String outOfOrderIndex = randomBoolean() ? "abc" : "index-" + randomIntBetween(1, numIndex);
+        AssertionError error = expectThrows(
+            AssertionError.class,
+            () -> { builder.add(outOfOrderIndex, randomBoolean(), randomBoolean(), randomBoolean(), Collections.emptyMap()); }
+        );
+        assertThat(error.getMessage(), containsString("indices aren't sorted"));
     }
 
     static FieldCapabilities randomFieldCaps(String fieldName) {

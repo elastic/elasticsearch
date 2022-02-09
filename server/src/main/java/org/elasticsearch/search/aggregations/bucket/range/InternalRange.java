@@ -158,11 +158,10 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             // NOTE: we would actually need to use Version.V_6_4_0 which is not available, so we use the earliest possible version
-            final String key = this.key == null ? generateKey(from, to, format) : this.key;
-            if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-                out.writeString(key);
-            } else {
+            if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
                 out.writeOptionalString(key);
+            } else {
+                out.writeString(key == null ? generateKey(from, to, format) : key);
             }
             out.writeDouble(from);
             if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
@@ -266,7 +265,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             // NOTE: we would actually need to use Version.V_6_4_0 which is not available, so we use the earliest possible version
-            String key = in.getVersion().onOrAfter(Version.V_7_16_0) ? in.readString() : in.readOptionalString();
+            String key = in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString() : in.readString();
             double from = in.readDouble();
             if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
                 final Double originalFrom = in.readOptionalDouble();

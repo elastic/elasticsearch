@@ -52,6 +52,10 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
     }
 
     private Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (allocation.isSimulating()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
+        }
+
         if (shardRouting.primary()) {
             // Only primary shards are snapshotted
 

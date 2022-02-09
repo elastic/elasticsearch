@@ -114,6 +114,10 @@ public class EnableAllocationDecider extends AllocationDecider {
             );
         }
 
+        if (allocation.isSimulating()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
+        }
+
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         final Allocation enable;
         final boolean usedIndexSetting;
@@ -147,6 +151,10 @@ public class EnableAllocationDecider extends AllocationDecider {
     public Decision canRebalance(RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
             return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of rebalancing");
+        }
+
+        if (allocation.isSimulating()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
         }
 
         if (enableRebalance == Rebalance.NONE) {

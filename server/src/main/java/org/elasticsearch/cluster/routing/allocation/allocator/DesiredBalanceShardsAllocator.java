@@ -10,14 +10,16 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -25,14 +27,15 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
@@ -76,12 +79,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         final var desiredBalance = currentDesiredBalance;
 
         if (desiredBalance == null) {
-            // no desired state yet
+            // no desired state yet but it is on its way and we'll reroute again when its ready
             return;
         }
 
-        // 2. compute next moves towards current desired balance
-
+        // now compute next moves towards current desired balance
+        // 1. allocate unassigned shards first
+        // 2. move any shards that cannot remain where they are
+        // 3. move any other shards that are desired elsewhere
     }
 
     @Override
@@ -97,11 +102,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private void updateDesiredBalanceAndReroute(RerouteInput rerouteInput) {
 
-        final var routingAllocation = rerouteInput.routingAllocation().mutableClone();
+        final var routingAllocation = rerouteInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
         final var ignoredShards = new HashSet<>(rerouteInput.ignoredShards());
         final var desiredBalance = currentDesiredBalance;
         final var changes = routingAllocation.changes();
+        final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 
         // we assume that all ongoing recoveries will complete
         for (final var routingNode : routingNodes) {
@@ -128,10 +134,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             final var shardId = shardAndAssignments.getKey();
             final List<ShardRouting> shardRoutings = shardAndAssignments.getValue();
 
-            // treesets so that we are consistent about the order of future relocations
-            final var targetNodes = new TreeSet<>(desiredBalance.getDesiredNodeIds(shardId));
-            final var shardsToRelocate = new TreeSet<>(Comparator.comparing(ShardRouting::currentNodeId));
             final var shardsToAssign = new ArrayList<ShardRouting>();
+            // treesets so that we are consistent about the order of future relocations
+            final var shardsToRelocate = new TreeSet<>(Comparator.comparing(ShardRouting::currentNodeId));
+            final var targetNodes = new TreeSet<>(desiredBalance.getDesiredNodeIds(shardId));
+            targetNodes.retainAll(knownNodeIds);
 
             for (ShardRouting shardRouting : shardRoutings) {
                 if (shardRouting.started()) {
@@ -169,6 +176,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 final String nodeId = nodeIds.removeFirst();
                 routingNodes.startShard(logger, unassignedIterator.initialize(nodeId, null, 0L, changes), changes);
             }
+            // TODO must also reset failure counter to bypass MaxRetryAllocationDecider
+            // TODO must also bypass ResizeAllocationDecider
+            // TODO must also bypass RestoreInProgressAllocationDecider
         }
 
         boolean hasChanges = true;
@@ -190,24 +200,25 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             // TODO what if we never converge?
         }
 
-        // we are not responsible for allocating existing primaries, just leave them unallocated until the PrimaryShardAllocator gets them
-        // also need to let the ReplicaShardAllocator do its thing.
-
-        // adjust desired balance according to rerouteInput
-        // if it is changed then call reroute() again
-
-        currentDesiredBalance = new DesiredBalance(routingTable);
-    }
-
-    static class DesiredBalance {
-        final RoutingTable routingTable;
-
-        DesiredBalance(RoutingTable routingTable) {
-            this.routingTable = routingTable;
+        final var desiredAssignments = new HashMap<ShardId, List<String>>();
+        for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {
+            desiredAssignments.put(
+                shardAndAssignments.getKey(),
+                shardAndAssignments.getValue().stream().map(ShardRouting::currentNodeId).collect(Collectors.toList())
+            );
         }
 
-        public Set<String> getDesiredNodeIds(ShardId shardId) {
-            throw new UnsupportedOperationException("TODO");
+        final DesiredBalance newDesiredBalance = new DesiredBalance(desiredAssignments);
+        assert desiredBalance == currentDesiredBalance;
+        if (newDesiredBalance.equals(desiredBalance) == false) {
+            currentDesiredBalance = newDesiredBalance;
+            rerouteServiceSupplier.get().reroute("desired balance changed", Priority.HIGH, ActionListener.wrap(() -> {}));
+        }
+    }
+
+    record DesiredBalance(HashMap<ShardId, List<String>> desiredAssignments) {
+        public List<String> getDesiredNodeIds(ShardId shardId) {
+            return desiredAssignments.getOrDefault(shardId, Collections.emptyList());
         }
     }
 }

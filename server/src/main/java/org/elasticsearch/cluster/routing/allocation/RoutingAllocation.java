@@ -61,6 +61,7 @@ public class RoutingAllocation {
     private boolean hasPendingAsyncFetch = false;
 
     private final long currentNanoTime;
+    private final boolean isSimulating;
 
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
@@ -98,12 +99,33 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
+    }
+
+    /**
+     * Creates a new {@link RoutingAllocation}
+     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
+     * @param clusterState cluster state before rerouting
+     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
+     * @param isSimulating {@link true} if "transient" deciders should be ignored because we are simulating the final allocation
+     */
+    private RoutingAllocation(
+        AllocationDeciders deciders,
+        @Nullable RoutingNodes routingNodes,
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime,
+        boolean isSimulating
+    ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.clusterState = clusterState;
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
+        this.isSimulating = isSimulating;
         Map<String, SingleNodeShutdownMetadata> targetNameToShutdown = new HashMap<>();
         for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
             if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
@@ -320,18 +342,27 @@ public class RoutingAllocation {
         this.hasPendingAsyncFetch = true;
     }
 
+    /**
+     * @return {@code true} if this allocation computation is trying to simulate the final allocation and therefore "transient" allocation
+     *                      blockers should be ignored.
+     */
+    public boolean isSimulating() {
+        return isSimulating;
+    }
+
     public RoutingAllocation immutableClone() {
         return new RoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
     }
 
-    public RoutingAllocation mutableClone() {
+    public RoutingAllocation mutableCloneForSimulation() {
         return new RoutingAllocation(
             deciders,
             clusterState.mutableRoutingNodes(),
             clusterState,
             clusterInfo,
             shardSizeInfo,
-            currentNanoTime
+            currentNanoTime,
+            true
         );
     }
 

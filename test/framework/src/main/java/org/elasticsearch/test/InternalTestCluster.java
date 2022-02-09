@@ -1545,6 +1545,9 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, DATA_NODE_PREDICATE);
     }
 
+    /**
+     * Return the instance of the given class &gt;T&lt; from the elected master node. See also {@link #getAnyMasterNodeInstance}.
+     */
     public synchronized <T> T getCurrentMasterNodeInstance(Class<T> clazz) {
         return getInstance(clazz, new NodeNamePredicate(getMasterName()));
     }
@@ -1577,7 +1580,11 @@ public final class InternalTestCluster extends TestCluster {
         return getInstance(clazz, DATA_NODE_PREDICATE);
     }
 
-    public <T> T getMasterNodeInstance(Class<T> clazz) {
+    /**
+     * Return the instance of the given class &gt;T&lt; from any of the master-eligible nodes (not necessarily the elected master). See
+     * also {@link #getCurrentMasterNodeInstance}.
+     */
+    public <T> T getAnyMasterNodeInstance(Class<T> clazz) {
         return getInstance(clazz, MASTER_NODE_PREDICATE);
     }
 

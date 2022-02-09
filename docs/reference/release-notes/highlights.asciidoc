@@ -16,6 +16,23 @@ For detailed information about this release, see the <<es-release-notes>> and
 
 // tag::notable-highlights[] 
 [discrete]
+=== 7.x REST API compatibility
+
+8.0 introduces several breaking changes to the {es} REST APIs. While it's
+important to update your application to account for these changes, finding and
+updating every API call in a single upgrade can be painful and error-prone. To
+make this process easier, we've added support for 7.x compatibility headers to
+our REST APIs. In many cases, these optional headers let you make
+7.x-compatible requests to an 8.0 cluster and receive 7.x-compatible responses.
+
+While we still recommend you update your application to use native 8.0 requests
+and responses, the 7.x API compatibility headers let you safely make these
+changes over a longer period of time.
+
+For more information about the headers and how to use them, see
+{ref}/rest-api-compatibility.html[REST API compatibility].
+
+[discrete]
 === Security features are enabled and configured by default
 
 Running {es} without security leaves your cluster exposed to anyone who can send
@@ -62,6 +79,20 @@ structure used for `geo_point`, `geo_shape`, and range fields. Lucene-level
 benchmarks reported 10-15% faster indexing for these fields types. {es} indices
 and data streams that mostly consist of these fields may see noticeable
 improvements to indexing speed.
+
+[discrete]
+=== PyTorch model support for {nlp} (NLP)
+
+Now it is possible to upload https://pytorch.org/[PyTorch] models that are 
+trained outside {es} and use them for {infer} at ingest time. Third party model 
+support brings modern {ml-docs}/ml-nlp-overview.html[{nlp} (NLP)] and search use 
+cases to the {stack} such as:
+
+* Fill-mask
+* Named entity recognition (NER)
+* Text {classification}
+* Text embedding
+* Zero-shot {classification}
 
 // end::notable-highlights[]
 

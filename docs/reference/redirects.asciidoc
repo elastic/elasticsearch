@@ -354,8 +354,9 @@ See <<xpack-ccr,Cross-cluster replication>>.
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
-The `_upgrade` API is no longer useful and will be removed. Instead, see
-<<reindex-upgrade>>.
+The `_upgrade` API is no longer useful and will be removed.
+For information about upgrading, see 
+{stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].
 
 [role="exclude",id="mapping-parent-field"]
 === `_parent` field
@@ -1802,4 +1803,47 @@ See <<security-api-kibana-enrollment>>.
 See the <<sql-search-api-request-body,request body parameters>> for the
 <<sql-search-api,SQL search API>>.
 
+[role="exclude",id="restart-upgrade"]
+=== Full cluster restart upgrade
 
+When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
+even if you opt to perform a full-cluster restart instead of a rolling upgrade.
+For more information about upgrading, refer to 
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
+
+[role="exclude",id="rolling-upgrades"]
+=== Rolling upgrade
+
+When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
+whether you opt to perform a rolling upgrade (upgrade one node at a time) or a full-cluster restart upgrade.
+For more information about upgrading, refer to 
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
+
+[role="exclude",id="reindex-upgrade"]
+=== Reindex before upgrading
+
+//tag::upgrade-reindex[]
+Before upgrading to {es} 8.0 and later, you must reindex any indices created in
+a 6.x version. We recommend using the **Upgrade Assistant** to guide you
+through this process.
+
+For more information about upgrading, refer to 
+{stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
+//end::upgrade-reindex[]
+
+For more information about reindexing, refer to <<docs-reindex>>.
+
+[role="exclude",id="reindex-upgrade-inplace"]
+=== Reindex in place
+
+include::redirects.asciidoc[tag=upgrade-reindex]
+
+For more information about reindexing, refer to <<docs-reindex>>.
+
+[role="exclude",id="reindex-upgrade-remote"]
+=== Reindex from a remote cluster
+
+include::redirects.asciidoc[tag=upgrade-reindex]
+
+For more information about reindexing from a remote cluster, refer to
+<<reindex-from-remote>>.

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -47,7 +48,8 @@ class FieldCapabilitiesFetcher {
         String[] fieldPatterns,
         QueryBuilder indexFilter,
         long nowInMillis,
-        Map<String, Object> runtimeFields
+        Map<String, Object> runtimeFields,
+        Map<String, Map<String, IndexFieldCapabilities>> mappingHashToFieldCaps
     ) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
@@ -63,7 +65,16 @@ class FieldCapabilitiesFetcher {
             );
 
             if (canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
-                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), Collections.emptyMap(), false);
+                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false);
+            }
+
+            final MappingMetadata mapping = indexService.getMetadata().mapping();
+            final String indexMappingHash = mapping != null ? mapping.getSha256() : null;
+            if (indexMappingHash != null) {
+                final Map<String, IndexFieldCapabilities> existing = mappingHashToFieldCaps.get(indexMappingHash);
+                if (existing != null) {
+                    return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true);
+                }
             }
 
             Set<String> fieldNames = new HashSet<>();
@@ -125,7 +136,7 @@ class FieldCapabilitiesFetcher {
                     }
                 }
             }
-            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), responseMap, true);
+            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true);
         }
     }
 

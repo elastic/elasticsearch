@@ -43,6 +43,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -113,6 +114,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         checkIndexBlocks(clusterState, concreteIndices);
 
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
+        final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
+        final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
+            if (resp.canMatch() && resp.getIndexMappingHash() != null) {
+                Map<String, IndexFieldCapabilities> curr = indexMappingHashToResponses.putIfAbsent(resp.getIndexMappingHash(), resp.get());
+                if (curr != null) {
+                    resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), resp.getIndexMappingHash(), curr, true);
+                }
+            }
+            indexResponses.putIfAbsent(resp.getIndexName(), resp);
+        };
         final FailureCollector indexFailures = new FailureCollector();
         // One for each cluster including the local cluster
         final CountDown completionCounter = new CountDown(1 + remoteClusterIndices.size());
@@ -126,7 +137,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             nowInMillis,
             concreteIndices,
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-            indexResponse -> indexResponses.putIfAbsent(indexResponse.getIndexName(), indexResponse),
+            handleIndexResponse,
             indexFailures::collect,
             countDown
         );
@@ -142,7 +153,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             remoteClusterClient.fieldCaps(remoteRequest, ActionListener.wrap(response -> {
                 for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                     String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
-                    indexResponses.putIfAbsent(indexName, new FieldCapabilitiesIndexResponse(indexName, resp.get(), resp.canMatch()));
+                    handleIndexResponse.accept(
+                        new FieldCapabilitiesIndexResponse(indexName, resp.getIndexMappingHash(), resp.get(), resp.canMatch())
+                    );
                 }
                 for (FieldCapabilitiesFailure failure : response.getFailures()) {
                     Exception ex = failure.getException();
@@ -347,6 +360,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
+                final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
@@ -357,12 +371,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 request.fields(),
                                 request.indexFilter(),
                                 request.nowInMillis(),
-                                request.runtimeFields()
+                                request.runtimeFields(),
+                                indexMappingHashToResponses
                             );
                             if (response.canMatch()) {
                                 unmatched.clear();
                                 failures.clear();
                                 allResponses.add(response);
+                                if (response.getIndexMappingHash() != null) {
+                                    indexMappingHashToResponses.putIfAbsent(response.getIndexMappingHash(), response.get());
+                                }
                                 break;
                             } else {
                                 unmatched.add(shardId);

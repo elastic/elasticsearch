@@ -37,7 +37,7 @@ setup:
             location:
               type: lookup
               lookup_index: ip_locations
-               query_input_field: ip
+              query_input_field: ip
               query_target_field: _id
               fetch_fields: [ "city", "country" ]
           sort: ord

@@ -212,7 +212,7 @@ empty routing_path:
           settings:
             index:
               mode: time_series
-              routing_path: [ ]
+              routing_path: []
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
@@ -232,7 +232,7 @@ empty start end times:
           settings:
             index:
               mode: time_series
-              routing_path: [ ]
+              routing_path: []
               time_series:
                 start_time: ""
                 end_time: ""
@@ -537,7 +537,7 @@ check time_series default time bound value:
           settings:
             index:
               mode: time_series
-              routing_path: [ metricset ]
+              routing_path: [metricset]
               time_series:
                 start_time: -9999-01-01T00:00:00Z
                 end_time: 9999-12-31T23:59:59.999Z
@@ -569,7 +569,7 @@ check time_series empty time bound value:
           settings:
             index:
               mode: time_series
-              routing_path: [ metricset ]
+              routing_path: [metricset]
           mappings:
             properties:
               "@timestamp":

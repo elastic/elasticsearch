@@ -15,14 +15,14 @@
               number_of_shards: 1
               number_of_replicas: 0
           aliases:
-            logs_search: { }
+            logs_search: {}
 
   # index first document and wait for refresh
   - do:
       index:
         index: logs-1
-        id: "1"
-        body: { "foo": "hello world" }
+        id:    "1"
+        body:  { "foo": "hello world" }
         refresh: true
 
   # perform alias rollover with no result
@@ -41,8 +41,8 @@
   - do:
       index:
         index: logs-1
-        id: "2"
-        body: { "foo": "hello world" }
+        id:    "2"
+        body:  { "foo": "hello world" }
         refresh: true
 
   # perform alias rollover

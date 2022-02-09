@@ -3,4 +3,4 @@ summary: Add range checks to interval multiplication operation
 area: SQL
 type: bug
 issues:
-  - 83336
+ - 83336

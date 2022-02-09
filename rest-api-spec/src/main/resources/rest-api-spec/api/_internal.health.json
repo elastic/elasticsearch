@@ -1,5 +1,5 @@
 {
-  "health":{
+  "_internal.health":{
     "documentation":{
       "url": null,
       "description":"Returns the health of the cluster."

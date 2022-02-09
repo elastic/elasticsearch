@@ -154,10 +154,10 @@ public final class ConfigurableClusterPrivileges {
             this.applicationPredicate = StringMatcher.of(applicationNames);
             this.requestPredicate = request -> {
                 if (request instanceof final UpdateProfileDataRequest updateProfileRequest) {
+                    assert null == updateProfileRequest.validate();
                     final Collection<String> requestApplicationNames = updateProfileRequest.getApplicationNames();
-                    return requestApplicationNames.isEmpty()
-                        ? this.applicationNames.contains("*")
-                        : requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
+                    assert false == requestApplicationNames.isEmpty();
+                    return requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
                 }
                 return false;
             };

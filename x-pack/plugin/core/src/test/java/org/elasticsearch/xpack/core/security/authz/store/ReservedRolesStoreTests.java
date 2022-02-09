@@ -55,6 +55,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -161,6 +162,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesReque
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
@@ -209,6 +211,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
@@ -451,7 +454,79 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // User profile
         assertThat(kibanaRole.cluster().check(GetProfileAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(true));
-        assertThat(kibanaRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(true));
+        UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
+            ? new UpdateProfileDataRequest(
+                randomAlphaOfLength(10),
+                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                Map.of(),
+                randomFrom(-1L, randomLong()),
+                randomFrom(-1L, randomLong()),
+                randomFrom(WriteRequest.RefreshPolicy.values())
+            )
+            : new UpdateProfileDataRequest(
+                randomAlphaOfLength(10),
+                Map.of(),
+                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                randomFrom(-1L, randomLong()),
+                randomFrom(-1L, randomLong()),
+                randomFrom(WriteRequest.RefreshPolicy.values())
+            );
+        assertThat(kibanaRole.cluster().check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication), is(true));
+        updateProfileDataRequest = new UpdateProfileDataRequest(
+            randomAlphaOfLength(10),
+            Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+            Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+            randomFrom(-1L, randomLong()),
+            randomFrom(-1L, randomLong()),
+            randomFrom(WriteRequest.RefreshPolicy.values())
+        );
+        assertThat(kibanaRole.cluster().check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication), is(true));
+        updateProfileDataRequest = randomBoolean()
+            ? new UpdateProfileDataRequest(
+                randomAlphaOfLength(10),
+                Map.of(randomAlphaOfLengthBetween(0, 6), mock(Object.class)),
+                Map.of(),
+                randomFrom(-1L, randomLong()),
+                randomFrom(-1L, randomLong()),
+                randomFrom(WriteRequest.RefreshPolicy.values())
+            )
+            : new UpdateProfileDataRequest(
+                randomAlphaOfLength(10),
+                Map.of(),
+                Map.of(randomAlphaOfLengthBetween(0, 6), mock(Object.class)),
+                randomFrom(-1L, randomLong()),
+                randomFrom(-1L, randomLong()),
+                randomFrom(WriteRequest.RefreshPolicy.values())
+            );
+        assertThat(kibanaRole.cluster().check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication), is(false));
+        updateProfileDataRequest = randomBoolean()
+            ? new UpdateProfileDataRequest(
+                randomAlphaOfLength(10),
+                Map.of(
+                    "kibana-" + randomAlphaOfLengthBetween(0, 4),
+                    mock(Object.class),
+                    randomAlphaOfLengthBetween(0, 6),
+                    mock(Object.class)
+                ),
+                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                randomFrom(-1L, randomLong()),
+                randomFrom(-1L, randomLong()),
+                randomFrom(WriteRequest.RefreshPolicy.values())
+            )
+            : new UpdateProfileDataRequest(
+                randomAlphaOfLength(10),
+                Map.of("kibana-" + randomAlphaOfLengthBetween(0, 4), mock(Object.class)),
+                Map.of(
+                    "kibana-" + randomAlphaOfLengthBetween(0, 4),
+                    mock(Object.class),
+                    randomAlphaOfLengthBetween(0, 6),
+                    mock(Object.class)
+                ),
+                randomFrom(-1L, randomLong()),
+                randomFrom(-1L, randomLong()),
+                randomFrom(WriteRequest.RefreshPolicy.values())
+            );
+        assertThat(kibanaRole.cluster().check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication), is(false));
 
         // Everything else
         assertThat(kibanaRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));

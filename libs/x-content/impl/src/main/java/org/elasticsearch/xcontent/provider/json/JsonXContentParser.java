@@ -102,7 +102,11 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public CharBuffer charBuffer() throws IOException {
-        return CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
+        try {
+            return CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
@@ -148,56 +152,92 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public char[] textCharacters() throws IOException {
-        return parser.getTextCharacters();
+        try {
+            return parser.getTextCharacters();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public int textLength() throws IOException {
-        return parser.getTextLength();
+        try {
+            return parser.getTextLength();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public int textOffset() throws IOException {
-        return parser.getTextOffset();
+        try {
+            return parser.getTextOffset();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public Number numberValue() throws IOException {
         try {
             return parser.getNumberValue();
-        } catch (InputCoercionException e) {
+        } catch (InputCoercionException|JsonParseException e) {
             throw newXContentParseException(e);
         }
     }
 
     @Override
     public short doShortValue() throws IOException {
-        return parser.getShortValue();
+        try {
+            return parser.getShortValue();
+        } catch (InputCoercionException|JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public int doIntValue() throws IOException {
-        return parser.getIntValue();
+        try {
+            return parser.getIntValue();
+        } catch (InputCoercionException|JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public long doLongValue() throws IOException {
-        return parser.getLongValue();
+        try {
+            return parser.getLongValue();
+        } catch (InputCoercionException|JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public float doFloatValue() throws IOException {
-        return parser.getFloatValue();
+        try {
+            return parser.getFloatValue();
+        } catch (InputCoercionException|JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public double doDoubleValue() throws IOException {
-        return parser.getDoubleValue();
+        try {
+            return parser.getDoubleValue();
+        } catch (InputCoercionException|JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
     public byte[] binaryValue() throws IOException {
-        return parser.getBinaryValue();
+        try {
+            return parser.getBinaryValue();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override

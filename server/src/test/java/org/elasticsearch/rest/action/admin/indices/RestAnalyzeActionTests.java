@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -97,7 +98,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
             XContentType.JSON
         ).build();
         try (NodeClient client = new NoOpNodeClient(this.getClass().getSimpleName())) {
-            IOException e = expectThrows(IOException.class, () -> action.handleRequest(request, null, client));
+            var e = expectThrows(XContentParseException.class, () -> action.handleRequest(request, null, client));
             assertThat(e.getMessage(), containsString("expecting double-quote"));
         }
     }

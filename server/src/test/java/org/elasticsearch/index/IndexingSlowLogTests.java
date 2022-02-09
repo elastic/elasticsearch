@@ -288,21 +288,9 @@ public class IndexingSlowLogTests extends ESTestCase {
             null
         );
 
-        final UncheckedIOException e = expectThrows(UncheckedIOException.class, () -> IndexingSlowLogMessage.of(index, doc, 10, true, 3));
+        final XContentParseException e = expectThrows(XContentParseException.class, () -> IndexingSlowLogMessage.of(index, doc, 10, true, 3));
         assertThat(
             e,
-            hasToString(
-                containsString(
-                    "_failed_to_convert_[Unrecognized token 'invalid':"
-                        + " was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')\\n"
-                        + " at [Source: "
-                )
-            )
-        );
-        assertNotNull(e.getCause());
-        assertThat(e.getCause(), instanceOf(XContentParseException.class));
-        assertThat(
-            e.getCause(),
             hasToString(
                 containsString(
                     "Unrecognized token 'invalid':"

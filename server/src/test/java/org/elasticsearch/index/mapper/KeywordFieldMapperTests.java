@@ -50,6 +50,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -284,7 +285,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             );
             assertThat(
                 e.getMessage(),
-                containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]")
+                either(containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]"))
+                    .or(
+                        containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [freqs, docs]")
+                    )
             );
         }
     }

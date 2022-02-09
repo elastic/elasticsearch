@@ -33,6 +33,7 @@ import java.util.Map;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FlattenedFieldMapperTests extends MapperTestCase {
@@ -158,7 +159,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getMessage(),
-                containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]")
+                either(containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]"))
+                    .or(
+                        containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [freqs, docs]")
+                    )
             );
         }
     }

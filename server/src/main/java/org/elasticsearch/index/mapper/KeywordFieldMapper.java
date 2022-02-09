@@ -920,10 +920,16 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (binaryValue.length > BYTE_BLOCK_SIZE - 2) {
             byte[] prefix = new byte[30];
             System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
-            String msg = "Document contains at least one immense term in field=\"" + fieldType().name() + "\" (whose " +
-                "UTF8 encoding is longer than the max length " + (BYTE_BLOCK_SIZE - 2) + "), all of which were " +
-                "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense " +
-                "term is: '" + Arrays.toString(prefix) + "...'";
+            String msg = "Document contains at least one immense term in field=\""
+                + fieldType().name()
+                + "\" (whose "
+                + "UTF8 encoding is longer than the max length "
+                + (BYTE_BLOCK_SIZE - 2)
+                + "), all of which were "
+                + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
+                + "term is: '"
+                + Arrays.toString(prefix)
+                + "...'";
             throw new IllegalArgumentException(msg);
         }
 

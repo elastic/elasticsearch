@@ -238,8 +238,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     valuePreview = "null";
                 } else {
                     valuePreview = complexValue.toString();
-                    if (UnicodeUtil.UTF16toUTF8(valuePreview, 0, valuePreview.length(),
-                        new byte[UnicodeUtil.maxUTF8Length(valuePreview.length())]) > BYTE_BLOCK_SIZE-2) {
+                    if (UnicodeUtil.UTF16toUTF8(
+                        valuePreview,
+                        0,
+                        valuePreview.length(),
+                        new byte[UnicodeUtil.maxUTF8Length(valuePreview.length())]
+                    ) > BYTE_BLOCK_SIZE - 2) {
                         valuePreview = valuePreview.substring(0, 30) + "...";
                     }
                 }

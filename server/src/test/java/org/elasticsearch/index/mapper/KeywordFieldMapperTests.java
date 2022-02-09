@@ -612,8 +612,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         for (int i = 0; i <= BYTE_BLOCK_SIZE; i++) {
             stringBuilder.append("a");
         }
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", stringBuilder.toString()))));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", stringBuilder.toString())))
+        );
         assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
     }
 }

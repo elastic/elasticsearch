@@ -37,8 +37,6 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-//tasks.named("jarHell").configure { enabled = false }
-
 tasks.named("javadoc").configure { enabled = false }
 
 tasks.named("thirdPartyAudit").configure {

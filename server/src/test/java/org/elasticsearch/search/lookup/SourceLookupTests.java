@@ -18,12 +18,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SourceLookupTests extends ESTestCase {
@@ -39,14 +41,16 @@ public class SourceLookupTests extends ESTestCase {
 
                 SourceLookup sourceLookup = new SourceLookup();
                 sourceLookup.setSegmentAndDocument(readerContext, 42);
-                sourceLookup.setSource(Map.of("field", "value"));
-                assertNotNull(sourceLookup.source());
+                sourceLookup.setSource(
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject())
+                );
+                assertNotNull(sourceLookup.internalSourceRef());
 
                 // Source should be preserved if we pass in the same reader and document
                 sourceLookup.setSegmentAndDocument(readerContext, 42);
-                assertNotNull(sourceLookup.source());
+                assertNotNull(sourceLookup.internalSourceRef());
 
-                // The stored fields reader should not be loaded eagerly
+                // Check that the stored fields reader is not loaded eagerly
                 LeafReader throwingReader = new SequentialStoredFieldsLeafReader(readerContext.reader()) {
                     @Override
                     protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
@@ -67,6 +71,7 @@ public class SourceLookupTests extends ESTestCase {
                 sourceLookup.setSegmentAndDocument(throwingReader.getContext(), 0);
                 ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, sourceLookup::source);
                 assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
+                assertThat(e.getCause().getMessage(), containsString("attempted to load stored fields reader"));
             }
         }
     }

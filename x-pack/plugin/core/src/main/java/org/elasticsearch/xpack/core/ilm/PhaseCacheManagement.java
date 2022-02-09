@@ -154,7 +154,7 @@ public final class PhaseCacheManagement {
             .indices()
             .values()
             .stream()
-            .filter(meta -> newPolicy.getName().equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
+            .filter(meta -> newPolicy.getName().equals(meta.getLifecyclePolicyName()))
             .filter(meta -> isIndexPhaseDefinitionUpdatable(xContentRegistry, client, meta, newPolicy.getPolicy(), licenseState))
             .collect(Collectors.toList());
 

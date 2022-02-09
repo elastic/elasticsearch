@@ -462,9 +462,12 @@ cluster as the local cluster when running a {ccs}.
 ==== {ccs-cap} during an upgrade
 
 You can still search a remote cluster while performing a
-<<rolling-upgrades,rolling upgrade>> on the local cluster. However, the local
+rolling upgrade on the local cluster. However, the local
 coordinating node's "upgrade from" and "upgrade to" version must be compatible
 with the remote cluster's gateway node.
 
 WARNING: Running multiple versions of {es} in the same cluster beyond the
 duration of an upgrade is not supported.
+
+For more information about upgrades, see
+{stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].

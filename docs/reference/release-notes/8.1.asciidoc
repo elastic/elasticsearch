@@ -207,7 +207,7 @@ Mapping::
 
 Monitoring::
 * Add Enterprise Search monitoring index templates {es-pull}82743[#82743]
-* Add `beats_stats.metrics.apm-server.sampling.tail` to stack monitoring templates {es-pull}82401[#82401]
+* Add `beats_stats.metrics.apm-server.sampling.tail` to Stack Monitoring templates {es-pull}82401[#82401]
 
 Network::
 * Report close connection exceptions at INFO {es-pull}81768[#81768] (issues: {es-issue}51612[#51612], {es-issue}66473[#66473])

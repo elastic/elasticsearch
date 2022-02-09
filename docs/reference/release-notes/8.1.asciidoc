@@ -37,7 +37,7 @@ Geo::
 * Handle bounds properly when grid tiles crosses the dateline {es-pull}83348[#83348] (issue: {es-issue}83299[#83299])
 
 Indices APIs::
-* Simplify and Speed up `ExecutorSelector` {es-pull}83514[#83514] (issue: {es-issue}82450[#82450])
+* Simplify and speed up `ExecutorSelector` {es-pull}83514[#83514] (issue: {es-issue}82450[#82450])
 
 Infra/Core::
 * Copy `trace.id` in threadcontext stash {es-pull}83218[#83218]

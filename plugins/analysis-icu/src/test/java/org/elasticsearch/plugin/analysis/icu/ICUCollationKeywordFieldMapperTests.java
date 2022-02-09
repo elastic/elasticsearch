@@ -35,8 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
 
@@ -211,7 +210,11 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
             );
             assertThat(
                 e.getMessage(),
-                containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]")
+                either(containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]"))
+                    .or(
+                        containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [freqs, docs]")
+                    )
+
             );
         }
     }

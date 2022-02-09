@@ -175,7 +175,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,
-                        "Dimension name must be less than [%s] bytes but [%s] was [%s].",
+                        "Dimension name must be less than [%d] bytes but [%s] was [%s].",
                         DIMENSION_NAME_LIMIT,
                         fieldName.utf8ToString(),
                         fieldName.length

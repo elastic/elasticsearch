@@ -68,6 +68,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -104,6 +105,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
+        public static final String DEFAULT_INDEX_OPTION = "docs";
+        public static final Set<String> ACCEPTED_INDEX_OPTIONS = Set.of(DEFAULT_INDEX_OPTION, "freqs");
+
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
@@ -128,8 +132,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             "index_options",
             false,
             m -> toType(m).indexOptions,
-            "docs",
-            "freqs"
+            DEFAULT_INDEX_OPTION,
+            ACCEPTED_INDEX_OPTIONS
         );
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);

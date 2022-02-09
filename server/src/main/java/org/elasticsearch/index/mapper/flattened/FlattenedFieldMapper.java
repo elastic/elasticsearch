@@ -46,6 +46,7 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -148,8 +149,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             "index_options",
             false,
             m -> builder(m).indexOptions.get(),
-            "docs",
-            "freqs"
+            KeywordFieldMapper.Builder.DEFAULT_INDEX_OPTION,
+            KeywordFieldMapper.Builder.ACCEPTED_INDEX_OPTIONS
         );
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 

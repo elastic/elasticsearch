@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -228,8 +229,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             "index_options",
             false,
             m -> toType(m).indexOptions,
-            "docs",
-            "freqs"
+            KeywordFieldMapper.Builder.DEFAULT_INDEX_OPTION,
+            KeywordFieldMapper.Builder.ACCEPTED_INDEX_OPTIONS
         );
         final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
 

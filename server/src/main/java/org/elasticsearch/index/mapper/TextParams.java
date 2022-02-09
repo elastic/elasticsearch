@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -128,8 +129,11 @@ public final class TextParams {
         ).acceptsNull();
     }
 
+    private static final String DEFAULT_INDEX_OPTION = "positions";
+    private static final Set<String> ACCEPTED_INDEX_OPTIONS = Set.of(DEFAULT_INDEX_OPTION, "docs", "freqs", "offsets");
+
     public static Parameter<String> indexOptions(Function<FieldMapper, String> initializer) {
-        return Parameter.restrictedStringParam("index_options", false, initializer, "positions", "docs", "freqs", "offsets");
+        return Parameter.restrictedStringParam("index_options", false, initializer, DEFAULT_INDEX_OPTION, ACCEPTED_INDEX_OPTIONS);
     }
 
     public static FieldType buildFieldType(
@@ -165,19 +169,19 @@ public final class TextParams {
         throw new IllegalArgumentException("Unknown [index_options] value: [" + indexOptions + "]");
     }
 
+    private static final String DEFAULT_TERM_VECTOR = "no";
+    private static final Set<String> ACCEPTED_TERM_VECTORS = Set.of(
+        DEFAULT_TERM_VECTOR,
+        "yes",
+        "with_positions",
+        "with_offsets",
+        "with_positions_offsets",
+        "with_positions_payloads",
+        "with_positions_offsets_payloads"
+    );
+
     public static Parameter<String> termVectors(Function<FieldMapper, String> initializer) {
-        return Parameter.restrictedStringParam(
-            "term_vector",
-            false,
-            initializer,
-            "no",
-            "yes",
-            "with_positions",
-            "with_offsets",
-            "with_positions_offsets",
-            "with_positions_payloads",
-            "with_positions_offsets_payloads"
-        );
+        return Parameter.restrictedStringParam("term_vector", false, initializer, DEFAULT_TERM_VECTOR, ACCEPTED_TERM_VECTORS);
     }
 
     public static void setTermVectorParams(String configuration, FieldType fieldType) {

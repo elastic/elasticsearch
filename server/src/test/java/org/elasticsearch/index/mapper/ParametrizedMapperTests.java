@@ -33,6 +33,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -121,7 +122,13 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 throw new IllegalArgumentException("field [required] must be specified");
             }
         });
-        final Parameter<String> restricted = Parameter.restrictedStringParam("restricted", true, m -> toType(m).restricted, "foo", "bar");
+        final Parameter<String> restricted = Parameter.restrictedStringParam(
+            "restricted",
+            true,
+            m -> toType(m).restricted,
+            "foo",
+            Set.of("foo", "bar")
+        );
 
         final Parameter<DummyEnumType> enumField = Parameter.enumParam(
             "enum_field",

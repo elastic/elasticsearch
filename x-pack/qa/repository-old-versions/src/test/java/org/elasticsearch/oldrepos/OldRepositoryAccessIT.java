@@ -340,7 +340,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
         assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        ensureGreen("restored_");
+        ensureGreen("restored_" + indexName);
 
         MappingMetadata mapping = client.indices()
             .getMapping(new GetMappingsRequest().indices("restored_" + indexName), RequestOptions.DEFAULT)

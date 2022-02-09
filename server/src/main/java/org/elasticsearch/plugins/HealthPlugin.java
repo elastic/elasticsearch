@@ -6,16 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.health;
+package org.elasticsearch.plugins;
+
+import org.elasticsearch.health.HealthIndicatorService;
+
+import java.util.Collection;
 
 /**
- * This class defines common component names for the health indicators.
+ * An additional extension point for {@link Plugin}s that extends Elasticsearch's health indicators functionality.
  */
-public class ServerHealthComponents {
+public interface HealthPlugin {
 
-    public static final String CLUSTER_COORDINATION = "cluster_coordination";
-    public static final String DATA = "data";
-    public static final String SNAPSHOT = "snapshot";
-
-    private ServerHealthComponents() {}
+    Collection<HealthIndicatorService> getHealthIndicatorServices();
 }

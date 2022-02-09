@@ -8,93 +8,143 @@
 
 package org.elasticsearch.health;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.NoMasterBlockService;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.health.components.controller.ClusterCoordination;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
+import java.util.function.Supplier;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
+import static org.hamcrest.Matchers.equalTo;
+
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GetHealthActionIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(MockTransportService.TestPlugin.class);
+        return appendToCopy(super.nodePlugins(), TestHealthPlugin.class);
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all")
-            .build();
+    public static final Setting<HealthStatus> TEST_HEALTH_STATUS = new Setting<>(
+        "test.health.status",
+        "GREEN",
+        HealthStatus::valueOf,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final class TestHealthPlugin extends Plugin implements HealthPlugin {
+
+        private final SetOnce<FixedStatusHealthIndicatorService> healthIndicatorService = new SetOnce<>();
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(TEST_HEALTH_STATUS);
+        }
+
+        @Override
+        public Collection<Object> createComponents(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier
+        ) {
+            var service = new FixedStatusHealthIndicatorService(clusterService);
+            healthIndicatorService.set(service);
+            return List.of(service);
+        }
+
+        @Override
+        public Collection<HealthIndicatorService> getHealthIndicatorServices() {
+            return List.of(healthIndicatorService.get());
+        }
+    }
+
+    /**
+     * This indicator could be used to pre-define health of the cluster with {@code TEST_HEALTH_STATUS} property
+     * and return it via health API.
+     */
+    public static final class FixedStatusHealthIndicatorService implements HealthIndicatorService {
+
+        private final ClusterService clusterService;
+
+        public FixedStatusHealthIndicatorService(ClusterService clusterService) {
+            this.clusterService = clusterService;
+        }
+
+        @Override
+        public String name() {
+            return "test_indicator";
+        }
+
+        @Override
+        public String component() {
+            return "test_component";
+        }
+
+        @Override
+        public HealthIndicatorResult calculate() {
+            var status = clusterService.getClusterSettings().get(TEST_HEALTH_STATUS);
+            return createIndicator(status, "Health is set to [" + status + "] by test plugin", HealthIndicatorDetails.EMPTY);
+        }
     }
 
     public void testGetHealth() throws Exception {
-        GetHealthAction.Response response = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
-        assertEquals(cluster().getClusterName(), response.getClusterName().value());
-        assertEquals(HealthStatus.GREEN, response.getStatus());
 
-        assertEquals(2, response.getComponents().size());
-
-        for (HealthComponentResult component : response.getComponents()) {
-            assertEquals(HealthStatus.GREEN, component.status());
-        }
-
-        HealthComponentResult controller = response.getComponents()
-            .stream()
-            .filter(c -> c.name().equals("cluster_coordination"))
-            .findAny()
-            .orElseThrow();
-        assertEquals(1, controller.indicators().size());
-        HealthIndicatorResult nodeDoesNotHaveMaster = controller.indicators().get(ClusterCoordination.INSTANCE_HAS_MASTER_NAME);
-        assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_NAME, nodeDoesNotHaveMaster.name());
-        assertEquals(HealthStatus.GREEN, nodeDoesNotHaveMaster.status());
-        assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_GREEN_SUMMARY, nodeDoesNotHaveMaster.summary());
-    }
-
-    public void testGetHealthInstanceNoMaster() throws Exception {
-        // builds the coordinating-only client before disrupting all nodes
-        final Client client = internalCluster().coordOnlyNodeClient();
-
-        final NetworkDisruption disruptionScheme = new NetworkDisruption(
-            new NetworkDisruption.IsolateAllNodes(new HashSet<>(Arrays.asList(internalCluster().getNodeNames()))),
-            NetworkDisruption.DISCONNECT
-        );
-
-        internalCluster().setDisruptionScheme(disruptionScheme);
-        disruptionScheme.startDisrupting();
+        var client = client();
+        var status = randomFrom(HealthStatus.values());
 
         try {
-            assertBusy(() -> {
-                ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+            updateClusterSettings(Settings.builder().put(TEST_HEALTH_STATUS.getKey(), status));
 
-                GetHealthAction.Response response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
-                assertEquals(HealthStatus.RED, response.getStatus());
-                assertEquals(2, response.getComponents().size());
-                HealthComponentResult controller = response.getComponents()
-                    .stream()
-                    .filter(c -> c.name().equals("cluster_coordination"))
-                    .findAny()
-                    .orElseThrow();
-                assertEquals(1, controller.indicators().size());
-                HealthIndicatorResult instanceHasMaster = controller.indicators().get(ClusterCoordination.INSTANCE_HAS_MASTER_NAME);
-                assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_NAME, instanceHasMaster.name());
-                assertEquals(HealthStatus.RED, instanceHasMaster.status());
-                assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_RED_SUMMARY, instanceHasMaster.summary());
-            });
+            var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
+
+            assertThat(response.getStatus(), equalTo(status));
+            assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
+            assertThat(
+                response.findComponent("test_component"),
+                equalTo(
+                    new HealthComponentResult(
+                        "test_component",
+                        status,
+                        List.of(
+                            new HealthIndicatorResult(
+                                "test_indicator",
+                                "test_component",
+                                status,
+                                "Health is set to [" + status + "] by test plugin",
+                                HealthIndicatorDetails.EMPTY
+                            )
+                        )
+                    )
+                )
+            );
         } finally {
-            internalCluster().clearDisruptionScheme(true);
+            updateClusterSettings(Settings.builder().putNull(TEST_HEALTH_STATUS.getKey()));
         }
     }
 }

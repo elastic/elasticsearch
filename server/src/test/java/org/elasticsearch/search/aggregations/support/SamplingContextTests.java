@@ -10,11 +10,8 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SamplingContextTests extends ESTestCase {
     protected static final int NUMBER_OF_TEST_RUNS = 20;
@@ -31,7 +28,7 @@ public class SamplingContextTests extends ESTestCase {
             long rescaled = samplingContext.inverseScale(samplingContext.scale(randomLong));
             assertThat(
                 Double.toString(samplingContext.probability()),
-                (double)rescaled / randomLong,
+                (double) rescaled / randomLong,
                 // No matter how you scale `long` values, the inverse back may be a little off due to rounding
                 closeTo(1.0, 1e-4)
             );

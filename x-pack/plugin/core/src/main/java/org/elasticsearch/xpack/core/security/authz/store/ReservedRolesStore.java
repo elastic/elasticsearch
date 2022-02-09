@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -79,7 +78,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         null,
         new String[] { "*" },
         MetadataUtils.DEFAULT_RESERVED_METADATA,
-        Collections.emptyMap()
+        Map.of()
     );
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
 
@@ -780,7 +779,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("create_index", "delete_index", "read", "index")
                     .build(), },
             null,
-            new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },
+            new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Set.of("kibana-*")) },
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             null
@@ -795,7 +794,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     public Map<String, Object> usageStats() {
-        return Collections.emptyMap();
+        return Map.of();
     }
 
     public RoleDescriptor roleDescriptor(String role) {

@@ -18,6 +18,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege.Category;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
@@ -27,9 +29,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -94,12 +96,20 @@ public final class ConfigurableClusterPrivileges {
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
 
-            expectFieldName(parser, Category.APPLICATION.field);
-            expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
-            expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
+            expectFieldName(parser, Category.APPLICATION.field, Category.PROFILE.field);
+            if (Category.APPLICATION.field.match(parser.currentName(), parser.getDeprecationHandler())) {
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
 
-            expectFieldName(parser, ManageApplicationPrivileges.Fields.MANAGE);
-            privileges.add(ManageApplicationPrivileges.parse(parser));
+                expectFieldName(parser, ManageApplicationPrivileges.Fields.MANAGE);
+                privileges.add(ManageApplicationPrivileges.parse(parser));
+            } else {
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
+
+                expectFieldName(parser, UpdateProfileDataPrivileges.Fields.UPDATE);
+                privileges.add(UpdateProfileDataPrivileges.parse(parser));
+            }
             expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
         }
 
@@ -131,6 +141,110 @@ public final class ConfigurableClusterPrivileges {
         }
     }
 
+    // TODO javadoc
+    public static class UpdateProfileDataPrivileges implements ConfigurableClusterPrivilege {
+        public static final String WRITEABLE_NAME = "update-profile-data-privileges";
+
+        private final Set<String> applicationNames;
+        private final Predicate<String> applicationPredicate;
+        private final Predicate<TransportRequest> requestPredicate;
+
+        public UpdateProfileDataPrivileges(Set<String> applicationNames) {
+            this.applicationNames = Set.copyOf(applicationNames);
+            this.applicationPredicate = StringMatcher.of(applicationNames);
+            this.requestPredicate = request -> {
+                if (request instanceof final UpdateProfileDataRequest updateProfileRequest) {
+                    final Collection<String> requestApplicationNames = updateProfileRequest.getApplicationNames();
+                    return requestApplicationNames.isEmpty()
+                        ? this.applicationNames.contains("*")
+                        : requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
+                }
+                return false;
+            };
+        }
+
+        @Override
+        public Category getCategory() {
+            return Category.PROFILE;
+        }
+
+        public Collection<String> getApplicationNames() {
+            return this.applicationNames;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return WRITEABLE_NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(this.applicationNames, StreamOutput::writeString);
+        }
+
+        public static UpdateProfileDataPrivileges createFrom(StreamInput in) throws IOException {
+            final Set<String> applications = in.readSet(StreamInput::readString);
+            return new UpdateProfileDataPrivileges(applications);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field(Fields.UPDATE.getPreferredName(), Map.of(Fields.APPLICATIONS.getPreferredName(), applicationNames));
+        }
+
+        public static UpdateProfileDataPrivileges parse(XContentParser parser) throws IOException {
+            expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
+            expectFieldName(parser, Fields.UPDATE);
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
+            expectFieldName(parser, Fields.APPLICATIONS);
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+            final String[] applications = XContentUtils.readStringArray(parser, false);
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
+            return new UpdateProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList(applications)));
+        }
+
+        @Override
+        public String toString() {
+            return "{"
+                + getCategory()
+                + ":"
+                + Fields.UPDATE.getPreferredName()
+                + ":"
+                + Fields.APPLICATIONS.getPreferredName()
+                + "="
+                + Strings.collectionToDelimitedString(applicationNames, ",")
+                + "}";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final UpdateProfileDataPrivileges that = (UpdateProfileDataPrivileges) o;
+            return this.applicationNames.equals(that.applicationNames);
+        }
+
+        @Override
+        public int hashCode() {
+            return applicationNames.hashCode();
+        }
+
+        @Override
+        public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+            return builder.add(this, Set.of(UpdateProfileDataAction.NAME), requestPredicate);
+        }
+
+        private interface Fields {
+            ParseField UPDATE = new ParseField("update");
+            ParseField APPLICATIONS = new ParseField("applications");
+        }
+    }
+
     /**
      * The {@code ManageApplicationPrivileges} privilege is a {@link ConfigurableClusterPrivilege} that grants the
      * ability to execute actions related to the management of application privileges (Get, Put, Delete) for a subset
@@ -144,7 +258,7 @@ public final class ConfigurableClusterPrivileges {
         private final Predicate<TransportRequest> requestPredicate;
 
         public ManageApplicationPrivileges(Set<String> applicationNames) {
-            this.applicationNames = Collections.unmodifiableSet(applicationNames);
+            this.applicationNames = Set.copyOf(applicationNames);
             this.applicationPredicate = StringMatcher.of(applicationNames);
             this.requestPredicate = request -> {
                 if (request instanceof final ApplicationPrivilegesRequest privRequest) {
@@ -155,7 +269,6 @@ public final class ConfigurableClusterPrivileges {
                 }
                 return false;
             };
-
         }
 
         @Override
@@ -164,7 +277,7 @@ public final class ConfigurableClusterPrivileges {
         }
 
         public Collection<String> getApplicationNames() {
-            return Collections.unmodifiableCollection(this.applicationNames);
+            return this.applicationNames;
         }
 
         @Override
@@ -184,10 +297,7 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(
-                Fields.MANAGE.getPreferredName(),
-                Collections.singletonMap(Fields.APPLICATIONS.getPreferredName(), applicationNames)
-            );
+            return builder.field(Fields.MANAGE.getPreferredName(), Map.of(Fields.APPLICATIONS.getPreferredName(), applicationNames));
         }
 
         public static ManageApplicationPrivileges parse(XContentParser parser) throws IOException {

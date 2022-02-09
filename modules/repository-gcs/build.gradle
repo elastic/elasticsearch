@@ -50,6 +50,7 @@ dependencies {
   api 'com.google.http-client:google-http-client-gson:1.39.2'
   api 'com.google.http-client:google-http-client-appengine:1.39.2'
   api 'com.google.http-client:google-http-client-jackson2:1.39.2'
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api 'com.google.api:gax-httpjson:0.83.0'
   api 'io.grpc:grpc-context:1.39.0'
   api 'io.opencensus:opencensus-api:0.28.0'
@@ -81,6 +82,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /opencensus.*/, to: 'opencensus'
   mapping from: /protobuf.*/, to: 'protobuf'
   mapping from: /proto-google.*/, to: 'proto-google'
+  mapping from: /jackson.*/, to: 'jackson'
 }
 
 tasks.named("thirdPartyAudit").configure {

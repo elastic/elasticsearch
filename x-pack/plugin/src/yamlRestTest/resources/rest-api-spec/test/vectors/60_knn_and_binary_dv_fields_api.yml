@@ -437,7 +437,7 @@
         body:
           query:
             script_score:
-              query: { "exists": { "field": "bdv" } }
+              query: { match_all: {} }
               script:
                 source: |
                   float sum = 0.0f;
@@ -454,13 +454,15 @@
   - match: { hits.hits.1._score: 4 }
   - match: { hits.hits.2._id: "1" }
   - match: { hits.hits.2._score: 3 }
+  - match: { hits.hits.3._id: "missing_vector" }
+  - match: { hits.hits.3._score: 0 }
 
   - do:
       search:
         body:
           query:
             script_score:
-              query: { "exists": { "field": "bdv" } }
+              query: { match_all: {} }
               script:
                 source: |
                   float sum = 0.0f;
@@ -477,6 +479,8 @@
   - match: { hits.hits.1._score: 4 }
   - match: { hits.hits.2._id: "1" }
   - match: { hits.hits.2._score: 3 }
+  - match: { hits.hits.3._id: "missing_vector" }
+  - match: { hits.hits.3._score: 0 }
 
 ---
 "l1Norm is the same for list and float array":

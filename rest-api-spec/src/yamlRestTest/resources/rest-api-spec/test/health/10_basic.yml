@@ -5,7 +5,7 @@
       reason: "health was only added in 8.2.0"
 
   - do:
-      health: {}
+      _internal.health: {}
 
   - is_true: cluster_name
   - match:   { status: "GREEN" }

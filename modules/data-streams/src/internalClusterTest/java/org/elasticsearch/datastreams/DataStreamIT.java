@@ -75,7 +75,6 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -119,15 +118,6 @@ public class DataStreamIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(DataStreamsPlugin.class);
-    }
-
-    @After
-    public void cleanup() {
-        DeleteDataStreamAction.Request deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
-        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest).actionGet());
-
-        DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
-        assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet());
     }
 
     public void testBasicScenario() throws Exception {

@@ -20,6 +20,7 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -84,7 +85,7 @@ public final class ProviderLocator {
         }
 
         final List<Path> paths;
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             paths = reader.lines().map(dir::resolve).collect(Collectors.toList());
         } catch (IOException e) {
             throw new UncheckedIOException(e);

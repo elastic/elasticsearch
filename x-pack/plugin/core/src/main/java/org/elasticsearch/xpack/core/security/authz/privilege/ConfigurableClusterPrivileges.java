@@ -99,18 +99,22 @@ public final class ConfigurableClusterPrivileges {
             expectFieldName(parser, Category.APPLICATION.field, Category.PROFILE.field);
             if (Category.APPLICATION.field.match(parser.currentName(), parser.getDeprecationHandler())) {
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
 
-                expectFieldName(parser, ManageApplicationPrivileges.Fields.MANAGE);
-                privileges.add(ManageApplicationPrivileges.parse(parser));
+                    expectFieldName(parser, ManageApplicationPrivileges.Fields.MANAGE);
+                    privileges.add(ManageApplicationPrivileges.parse(parser));
+                }
             } else {
+                assert Category.PROFILE.field.match(parser.currentName(), parser.getDeprecationHandler());
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
 
-                expectFieldName(parser, UpdateProfileDataPrivileges.Fields.UPDATE);
-                privileges.add(UpdateProfileDataPrivileges.parse(parser));
+                    expectFieldName(parser, UpdateProfileDataPrivileges.Fields.UPDATE);
+                    privileges.add(UpdateProfileDataPrivileges.parse(parser));
+                }
             }
-            expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
         }
 
         return privileges;

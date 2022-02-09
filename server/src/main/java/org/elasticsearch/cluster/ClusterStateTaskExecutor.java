@@ -123,6 +123,11 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     }
 
     record TaskResult(@Nullable ActionListener<ClusterState> taskListener, @Nullable Exception failure) {
+
+        public TaskResult {
+            assert failure == null ^ taskListener == null;
+        }
+
         public static TaskResult success(ActionListener<ClusterState> taskListener) {
             return new TaskResult(Objects.requireNonNull(taskListener), null);
         }
@@ -132,7 +137,6 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
         }
 
         public boolean isSuccess() {
-            assert failure == null ^ taskListener == null;
             return failure == null;
         }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,6 +40,18 @@ class MatrixStatsResults implements Writeable {
         this.results = stats.clone();
         this.correlation = new HashMap<>();
         this.compute();
+    }
+
+    /** creates and computes the result from the provided stats, scaling as necessary given the sampling context */
+    MatrixStatsResults(RunningStats stats, SamplingContext samplingContext) {
+        this.results = stats.clone();
+        this.correlation = new HashMap<>();
+        this.compute();
+        // Note: it is important to scale counts AFTER compute as scaling before could introduce bias
+        this.results.docCount = samplingContext.inverseScale(this.results.docCount);
+        for (String field : this.results.counts.keySet()) {
+            this.results.counts.computeIfPresent(field, (k, v) -> samplingContext.inverseScale(v));
+        }
     }
 
     /** creates a results object from the given stream */

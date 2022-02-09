@@ -36,8 +36,8 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -219,13 +219,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private FieldCapabilitiesResponse merge(
-        Map<String, FieldCapabilitiesIndexResponse> indexResponses,
+        Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
         boolean includeUnmapped,
         List<FieldCapabilitiesFailure> failures
     ) {
-        String[] indices = indexResponses.keySet().stream().sorted().toArray(String[]::new);
+        final List<FieldCapabilitiesIndexResponse> indexResponses = indexResponsesMap.values()
+            .stream()
+            .sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName))
+            .toList();
+        final String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
-        for (FieldCapabilitiesIndexResponse response : indexResponses.values()) {
+        for (FieldCapabilitiesIndexResponse response : indexResponses) {
             innerMerge(responseMapBuilder, response);
         }
         final Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
@@ -245,14 +249,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {
-        Set<String> unmappedIndices = new HashSet<>(Arrays.asList(indices));
-        typeMap.values().forEach((b) -> b.getIndices().forEach(unmappedIndices::remove));
-        if (unmappedIndices.isEmpty() == false) {
-            FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
-            typeMap.put("unmapped", unmapped);
-            for (String index : unmappedIndices) {
-                unmapped.add(index, false, false, false, false, null, Collections.emptyMap());
+        final Set<String> mappedIndices = new HashSet<>();
+        typeMap.values().forEach(t -> t.getIndices(mappedIndices));
+        if (mappedIndices.size() != indices.length) {
+            final FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
+            for (String index : indices) {
+                if (mappedIndices.contains(index) == false) {
+                    unmapped.add(index, false, false, false, false, null, Collections.emptyMap());
+                }
             }
+            typeMap.put("unmapped", unmapped);
         }
     }
 

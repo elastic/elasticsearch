@@ -62,6 +62,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -69,6 +70,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -911,6 +914,19 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
+
+        // make suer the utf8 length of keyword value is not bigger than 32766 in ES, not in lucene.
+        // See https://github.com/elastic/elasticsearch/issues/80865 details.
+        if (binaryValue.length > BYTE_BLOCK_SIZE - 2) {
+            byte[] prefix = new byte[30];
+            System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
+            String msg = "Document contains at least one immense term in field=\"" + fieldType().name() + "\" (whose " +
+                "UTF8 encoding is longer than the max length " + (BYTE_BLOCK_SIZE - 2) + "), all of which were " +
+                "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense " +
+                "term is: '" + Arrays.toString(prefix) + "...'";
+            throw new IllegalArgumentException(msg);
+        }
+
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
             context.doc().add(field);

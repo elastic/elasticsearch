@@ -49,6 +49,7 @@ import java.util.Map;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -603,5 +604,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 .build()
         );
         mapper.documentMapper().validate(settings, false);  // Doesn't throw
+    }
+
+    public void testKeywordFieldUtf8LongThan32766() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
+        StringBuilder stringBuilder = new StringBuilder(BYTE_BLOCK_SIZE);
+        for (int i = 0; i <= BYTE_BLOCK_SIZE; i++) {
+            stringBuilder.append("a");
+        }
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", stringBuilder.toString()))));
+        assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
     }
 }

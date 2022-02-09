@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -45,6 +46,8 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
@@ -235,6 +238,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     valuePreview = "null";
                 } else {
                     valuePreview = complexValue.toString();
+                    if (UnicodeUtil.UTF16toUTF8(valuePreview, 0, valuePreview.length(),
+                        new byte[UnicodeUtil.maxUTF8Length(valuePreview.length())]) > BYTE_BLOCK_SIZE-2) {
+                        valuePreview = valuePreview.substring(0, 30) + "...";
+                    }
                 }
             } catch (Exception innerException) {
                 throw new MapperParsingException(

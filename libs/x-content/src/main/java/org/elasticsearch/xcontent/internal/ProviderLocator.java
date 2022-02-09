@@ -23,6 +23,9 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -62,9 +65,10 @@ public final class ProviderLocator {
 
     private static XContentProvider provider() {
         try {
-            return loadAsNonModule(gatherUrls(providerPath()));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            PrivilegedExceptionAction<XContentProvider> pa = () -> loadAsNonModule(gatherUrls(providerPath()));
+            return AccessController.doPrivileged(pa);
+        } catch (PrivilegedActionException e) {
+            throw new UncheckedIOException((IOException) e.getCause());
         }
     }
 

@@ -17,13 +17,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
 import java.time.Instant;
 import java.util.Date;
-import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -173,25 +170,5 @@ public class JwtValidateUtilTests extends JwtTestCase {
                 )
             )
         );
-    }
-
-    public void testValidateAlgsJwksHmac() throws Exception {
-        final List<String> algs = randomOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC);
-        final Map<String, List<JWK>> algsToJwks = JwtTestCase.randomJwks(algs);
-        final List<JWK> jwks = algsToJwks.values().stream().flatMap(List::stream).toList();
-        // If HMAC JWKSet and algorithms are present, verify they are accepted
-        final Tuple<List<String>, List<JWK>> filtered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algs);
-        assertThat(algs.size(), equalTo(filtered.v1().size()));
-        assertThat(jwks.size(), equalTo(filtered.v2().size()));
-    }
-
-    public void testValidateAlgsJwksPkc() throws Exception {
-        final List<String> algs = randomOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
-        final Map<String, List<JWK>> algsToJwks = JwtTestCase.randomJwks(algs);
-        final List<JWK> jwks = algsToJwks.values().stream().flatMap(List::stream).toList();
-        // If RSA/EC JWKSet and algorithms are present, verify they are accepted
-        final Tuple<List<String>, List<JWK>> filtered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algs);
-        assertThat(algs.size(), equalTo(filtered.v1().size()));
-        assertThat(jwks.size(), equalTo(filtered.v2().size()));
     }
 }

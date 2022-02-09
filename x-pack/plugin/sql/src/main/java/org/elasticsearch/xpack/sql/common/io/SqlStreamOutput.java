@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.common.io;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.ByteArrayOutputStream;
@@ -20,6 +21,8 @@ import java.util.Base64;
 /**
  * Output stream for writing SQL cursors. The output is compressed if it would become larger than {@code compressionThreshold}
  * bytes otherwise (see {@code DEFAULT_COMPRESSION_THRESHOLD}).
+ *
+ * The wire format is {@code version compressedFlag [payload | compressedPayload]}.
  */
 public class SqlStreamOutput extends StreamOutput {
 
@@ -27,6 +30,7 @@ public class SqlStreamOutput extends StreamOutput {
     public static final byte HEADER_COMPRESSED = 1;
     private static final int DEFAULT_COMPRESSION_THRESHOLD = 1000;
 
+    private Version version;
     private ByteArrayOutputStream bytes;
     private OutputStream out;
     private boolean compressing;
@@ -37,11 +41,12 @@ public class SqlStreamOutput extends StreamOutput {
     }
 
     public SqlStreamOutput(Version version, ZoneId zoneId, int compressionThreshold) throws IOException {
+        super.setVersion(version);
+        this.version = version;
         this.bytes = new ByteArrayOutputStream();
         this.out = bytes;
         this.compressing = false;
         this.compressionThreshold = compressionThreshold;
-        Version.writeVersion(version, this);
         this.writeZoneId(zoneId);
     }
 
@@ -85,12 +90,13 @@ public class SqlStreamOutput extends StreamOutput {
     /**
      * Should be called _after_ closing the stream - there are no guarantees otherwise.
      */
-    public String streamAsString() {
-        byte header = compressing ? HEADER_COMPRESSED : HEADER_UNCOMPRESSED;
-        byte[] bytesWithHeader = new byte[bytes.size() + 1];
-        bytesWithHeader[0] = header;
-        System.arraycopy(bytes.toByteArray(), 0, bytesWithHeader, 1, bytes.size());
-        return Base64.getEncoder().encodeToString(bytesWithHeader);
+    public String streamAsString() throws IOException {
+        ByteArrayOutputStream bytesWithHeader = new ByteArrayOutputStream();
+        StreamOutput out = new OutputStreamStreamOutput(bytesWithHeader);
+        Version.writeVersion(version, out);
+        out.writeByte(compressing ? HEADER_COMPRESSED : HEADER_UNCOMPRESSED);
+        out.writeBytes(bytes.toByteArray());
+        return Base64.getEncoder().encodeToString(bytesWithHeader.toByteArray());
     }
 
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.ZoneId;
 import java.util.Base64;
 
@@ -33,26 +32,26 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
     public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version)
         throws IOException {
         byte[] bytes = Base64.getDecoder().decode(base64encoded);
-        InputStream in = new ByteArrayInputStream(bytes);
-        int header = in.read();
-        if (header == HEADER_COMPRESSED) {
-            in = CompressorFactory.COMPRESSOR.threadLocalInputStream(in);
-        } else if (header != HEADER_UNCOMPRESSED) {
+        StreamInput in = new InputStreamStreamInput(new ByteArrayInputStream(bytes));
+        Version inVersion = Version.readVersion(in);
+        if (version.compareTo(inVersion) != 0) {
+            throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", inVersion, version);
+        }
+
+        int compressed = in.read();
+        if (compressed == HEADER_COMPRESSED) {
+            in = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));
+        } else if (compressed != HEADER_UNCOMPRESSED) {
             throw new SqlIllegalArgumentException("Cursor [{}] does not have a valid header.", base64encoded);
         }
-        return new SqlStreamInput(in, namedWriteableRegistry, version);
+        return new SqlStreamInput(in, namedWriteableRegistry, inVersion);
     }
 
     private final ZoneId zoneId;
 
-    private SqlStreamInput(InputStream input, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
-        super(new InputStreamStreamInput(input), namedWriteableRegistry);
+    private SqlStreamInput(StreamInput input, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
+        super(input, namedWriteableRegistry);
 
-        // version check first
-        Version ver = Version.readVersion(delegate);
-        if (version.compareTo(ver) != 0) {
-            throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", ver, version);
-        }
         delegate.setVersion(version);
         zoneId = delegate.readZoneId();
     }

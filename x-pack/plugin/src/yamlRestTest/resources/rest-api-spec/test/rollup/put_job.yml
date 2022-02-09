@@ -393,7 +393,7 @@ setup:
       jobs:
         - config:
             id: "bar"
-            index_pattern: "foo,bar"
+            index_pattern: "foo,bar*"
             rollup_index: "foo_rollup"
             cron: "*/30 * * * * ?"
             page_size: 10

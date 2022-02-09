@@ -13,6 +13,7 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.resolver.DefaultAddressResolverGroup;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
@@ -164,13 +165,11 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         }
 
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);
-        nettyHttpClient = nettyHttpClient.port(80).wiretap(false);
-
-        nettyHttpClient = nettyHttpClient.tcpConfiguration(tcpClient -> {
-            tcpClient = tcpClient.runOn(eventLoopGroup);
-            tcpClient = tcpClient.option(ChannelOption.ALLOCATOR, byteBufAllocator);
-            return tcpClient;
-        });
+        nettyHttpClient = nettyHttpClient.port(80)
+            .wiretap(false)
+            .resolver(DefaultAddressResolverGroup.INSTANCE)
+            .runOn(eventLoopGroup)
+            .option(ChannelOption.ALLOCATOR, byteBufAllocator);
 
         final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
 

@@ -11,21 +11,30 @@ apply plugin: 'elasticsearch.test.fixtures'
 description = 'Fixture for GeoIPv2 service'
 tasks.named("test").configure { enabled = false }
 
+configurations {
+  providerImpls
+}
+
 dependencies {
   api project(':server')
   api project(':distribution:tools:geoip-cli')
   api project(":libs:elasticsearch-cli")
   api project(":libs:elasticsearch-x-content")
+  providerImpls project(path: ":libs:elasticsearch-x-content:impl", configuration: "providerDir")
 }
 
 tasks.named("preProcessFixture").configure {
-  dependsOn "jar", configurations.runtimeClasspath
+  dependsOn "jar", configurations.runtimeClasspath, configurations.providerImpls
   doLast {
-    file("${testFixturesDir}/shared").mkdirs()
+    file("${testFixturesDir}/shared/providers").mkdirs()
     project.copy {
       from jar
       from configurations.runtimeClasspath
       into "${testFixturesDir}/shared"
+    }
+    project.copy {
+      from configurations.providerImpls
+      into "${testFixturesDir}/shared/providers"
     }
   }
 }

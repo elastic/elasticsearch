@@ -43,6 +43,7 @@ public final class ProviderLocator {
     }
 
     private static Path providerPath() {
+        // TODO: resolve x-content in stream, then expect one
         String classpath = System.getProperty("java.class.path");
         List<Path> path = Arrays.stream(classpath.split(ProviderLocator.pathSeparator()))
             .filter(s -> s.endsWith("providers"))

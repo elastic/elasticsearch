@@ -26,8 +26,6 @@ import java.util.Base64;
  */
 public class SqlStreamOutput extends StreamOutput {
 
-    public static final byte HEADER_UNCOMPRESSED = 0;
-    public static final byte HEADER_COMPRESSED = 1;
     private static final int DEFAULT_COMPRESSION_THRESHOLD = 1000;
 
     private Version version;
@@ -94,7 +92,7 @@ public class SqlStreamOutput extends StreamOutput {
         ByteArrayOutputStream bytesWithHeader = new ByteArrayOutputStream();
         StreamOutput out = new OutputStreamStreamOutput(bytesWithHeader);
         Version.writeVersion(version, out);
-        out.writeByte(compressing ? HEADER_COMPRESSED : HEADER_UNCOMPRESSED);
+        out.writeBoolean(compressing);
         out.writeBytes(bytes.toByteArray());
         return Base64.getEncoder().encodeToString(bytesWithHeader.toByteArray());
     }

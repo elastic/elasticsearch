@@ -15,13 +15,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Base64;
-
-import static org.elasticsearch.xpack.sql.common.io.SqlStreamOutput.HEADER_COMPRESSED;
-import static org.elasticsearch.xpack.sql.common.io.SqlStreamOutput.HEADER_UNCOMPRESSED;
 
 /**
  * SQL-specific stream extension for {@link StreamInput} used for deserializing
@@ -32,17 +28,15 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
     public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version)
         throws IOException {
         byte[] bytes = Base64.getDecoder().decode(base64encoded);
-        StreamInput in = new InputStreamStreamInput(new ByteArrayInputStream(bytes));
+        StreamInput in = StreamInput.wrap(bytes);
         Version inVersion = Version.readVersion(in);
         if (version.compareTo(inVersion) != 0) {
             throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", inVersion, version);
         }
 
-        int compressed = in.read();
-        if (compressed == HEADER_COMPRESSED) {
+        boolean compressed = in.readBoolean();
+        if (compressed) {
             in = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));
-        } else if (compressed != HEADER_UNCOMPRESSED) {
-            throw new SqlIllegalArgumentException("Cursor [{}] does not have a valid header.", base64encoded);
         }
         return new SqlStreamInput(in, namedWriteableRegistry, inVersion);
     }

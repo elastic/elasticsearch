@@ -250,14 +250,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {
-        Set<String> unmappedIndices = new HashSet<>(Arrays.asList(indices));
-        typeMap.values().forEach((b) -> b.getIndices().forEach(unmappedIndices::remove));
-        if (unmappedIndices.isEmpty() == false) {
-            FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
-            typeMap.put("unmapped", unmapped);
-            for (String index : unmappedIndices) {
-                unmapped.add(index, false, false, false, false, null, Collections.emptyMap());
+        final Set<String> mappedIndices = new HashSet<>();
+        typeMap.values().forEach(t -> t.getIndices(mappedIndices));
+        if (mappedIndices.size() != indices.length) {
+            final FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
+            for (String index : indices) {
+                if (mappedIndices.contains(index) == false) {
+                    unmapped.add(index, false, false, false, false, null, Collections.emptyMap());
+                }
             }
+            typeMap.put("unmapped", unmapped);
         }
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -532,8 +533,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
         }
 
-        List<String> getIndices() {
-            return indiceList.stream().map(c -> c.name).collect(Collectors.toList());
+        void getIndices(Collection<String> indices) {
+            indiceList.forEach(cap -> indices.add(cap.name));
         }
 
         FieldCapabilities build(boolean withIndices) {

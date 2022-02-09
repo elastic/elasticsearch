@@ -59,7 +59,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
     public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
         final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
         boolean removed = false;
-        final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.builder();
+        final var resultBuilder = ClusterTasksResult.<Task>builder();
         for (final Task task : tasks) {
             if (currentState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());

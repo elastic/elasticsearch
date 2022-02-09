@@ -9,8 +9,11 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -26,10 +29,11 @@ import java.util.stream.Collectors;
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private final BalancedShardsAllocator balancedShardsAllocator;
-    private final ThreadPool threadPool;
     private final Supplier<RerouteService> rerouteServiceSupplier;
 
-    private DesiredBalance currentDesiredBalance;
+    private final ContinuousComputation<RerouteInput> desiredBalanceComputation;
+
+    private volatile DesiredBalance currentDesiredBalance;
 
     public DesiredBalanceShardsAllocator(
         Settings settings,
@@ -37,9 +41,15 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ThreadPool threadPool,
         Supplier<RerouteService> rerouteServiceSupplier
     ) {
-        this.threadPool = threadPool;
         this.rerouteServiceSupplier = rerouteServiceSupplier;
         this.balancedShardsAllocator = new BalancedShardsAllocator(settings, clusterSettings);
+
+        this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
+            @Override
+            protected void processInput(RerouteInput input) {
+                computeDesiredBalance(input);
+            }
+        };
     }
 
     public static boolean needsRefresh(ClusterState currentState, ClusterState newState) {
@@ -69,7 +79,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         // assert allocation.debugDecision() == false; set to true when called via the reroute API
         assert allocation.ignoreDisable() == false;
 
-        // 1. fork background task to update desired balance
+        desiredBalanceComputation.onNewInput(new RerouteInput(allocation.nodes(), allocation.metadata(), allocation.routingTable()));
+
         // 2. compute next moves towards current desired balance
 
     }
@@ -77,6 +88,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     @Override
     public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
         return balancedShardsAllocator.decideShardAllocation(shard, allocation);
+    }
+
+    record RerouteInput(DiscoveryNodes discoveryNodes, Metadata metadata, RoutingTable routingTable) {}
+
+    private void computeDesiredBalance(RerouteInput input) {
+        currentDesiredBalance = new DesiredBalance();
     }
 
     static class DesiredBalance {

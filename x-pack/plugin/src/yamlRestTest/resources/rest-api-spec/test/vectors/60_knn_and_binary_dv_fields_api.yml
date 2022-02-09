@@ -26,9 +26,9 @@
           - '{"index": {"_id": "1"}}'
           - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
           - '{"index": {"_id": "2"}}'
-          - '{"v": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
           - '{"index": {"_id": "3"}}'
-          - '{"v": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
           - '{"index": {"_id": "missing_vector"}}'
           - '{}'
 
@@ -110,9 +110,9 @@
           - '{"index": {"_id": "1"}}'
           - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
           - '{"index": {"_id": "2"}}'
-          - '{"v": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
           - '{"index": {"_id": "3"}}'
-          - '{"v": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
           - '{"index": {"_id": "missing_vector"}}'
           - '{}'
 
@@ -330,11 +330,11 @@
                   field: bdv
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 22 }
+  - match: { hits.hits.0._score: 27 }
   - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 16 }
+  - match: { hits.hits.1._score: 21 }
   - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 10 }
+  - match: { hits.hits.2._score: 15 }
 
   - do:
       search:
@@ -351,11 +351,11 @@
                   field: bdv
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 22 }
+  - match: { hits.hits.0._score: 27 }
   - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 16 }
+  - match: { hits.hits.1._score: 21 }
   - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 10 }
+  - match: { hits.hits.2._score: 15 }
 
   - do:
       search:
@@ -620,13 +620,17 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  field(params.field).get().l2Norm(params.query)
+                  (int) field(params.field).get().l2Norm(params.query)
                 params:
                   query: [4, 5, 6]
                   field: bdv
 
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._score: 12 }
+  - match: { hits.hits.0._score: 7 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 6 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 5 }
 
   - do:
       search:
@@ -638,12 +642,16 @@
                 source: |
                   float[] query = new float[3];
                   query[0] = 4; query[1] = 5; query[2] = 6;
-                  field(params.field).get().l2Norm(query)
+                  (int) field(params.field).get().l2Norm(query)
                 params:
                   field: bdv
 
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._score: 12 }
+  - match: { hits.hits.0._score: 7 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 6 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 5 }
 
   - do:
       search:
@@ -653,13 +661,17 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  field(params.field).get().l2Norm(params.query)
+                  (int) field(params.field).get().l2Norm(params.query)
                 params:
                   query: [4, 5, 6]
                   field: knn
 
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._score: 12 }
+  - match: { hits.hits.0._score: 7 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 6 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 5 }
 
   - do:
       search:
@@ -671,12 +683,16 @@
                 source: |
                   float[] query = new float[3];
                   query[0] = 4; query[1] = 5; query[2] = 6;
-                  field(params.field).get().l2Norm(query)
+                  (int) field(params.field).get().l2Norm(query)
                 params:
                   field: knn
 
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._score: 12 }
+  - match: { hits.hits.0._score: 7 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 6 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 5 }
 
 ---
 "query vector of wrong type errors":

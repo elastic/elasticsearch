@@ -8,32 +8,32 @@
 package org.elasticsearch.xpack.vectors.query;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Provide consistent access to query vector elements from a backing list or float array.  Used to provide
  * a flexible API for DenseVector in painless, which does not have method overloading.
  */
-public class QueryVector {
-    protected final float[] array;
-    protected final List<?> list;
+public abstract class QueryVector {
+    public abstract int size();
 
-    public QueryVector(float[] vector) {
-        this.array = vector;
-        this.list = null;
+    public abstract float get(int i);
+
+    abstract float[] asFloatArray();
+
+    public static QueryVector fromArray(float[] vector) {
+        return new ArrayQueryVector(vector);
     }
 
-    public QueryVector(List<?> vector) {
-        this.array = null;
-        this.list = vector;
+    public static QueryVector fromList(List<?> vector) {
+        return new ListQueryVector(vector);
     }
 
-    public QueryVector(Object vector) {
+    public static QueryVector fromObject(Object vector) {
         if (vector instanceof List<?> list) {
-            this.array = null;
-            this.list = list;
+            return new ListQueryVector(list);
         } else if (vector instanceof float[] array) {
-            this.array = array;
-            this.list = null;
+            return new ArrayQueryVector(array);
         } else {
             throw new IllegalArgumentException(
                 "Cannot use vector [" + vector + "] with class [" + vector.getClass().getName() + "] as query vector"
@@ -41,50 +41,55 @@ public class QueryVector {
         }
     }
 
-    public int size() {
-        if (array != null) {
-            return array.length;
-        } else {
-            assert list != null;
-            return list.size();
+    protected static class ListQueryVector extends QueryVector {
+        protected final List<?> vector;
+
+        private ListQueryVector(List<?> vector) {
+            this.vector = Objects.requireNonNull(vector);
         }
-    }
 
-    public float get(int i) {
-        if (array != null) {
-            return array[i];
+        public int size() {
+            return vector.size();
         }
-        assert list != null;
-        return getFromList(list, i);
-    }
 
-    protected static float getFromList(List<?> list, int i) {
-        Object element = list.get(i);
-        if (element instanceof Number number) {
-            return number.floatValue();
+        public float get(int i) {
+            Object element = vector.get(i);
+            if (element instanceof Number number) {
+                return number.floatValue();
+            }
+            throw new IllegalArgumentException(badElement(element, i));
         }
-        throw new IllegalArgumentException(badElement(element, i));
-    }
 
-    protected static String badElement(Object element, int index) {
-        return "Cannot treat [" + element + "] at index [" + index + "] of type [" + element.getClass().getName() + "] as Number";
-    }
+        protected static String badElement(Object element, int index) {
+            return "Cannot treat [" + element + "] at index [" + index + "] of type [" + element.getClass().getName() + "] as Number";
+        }
 
-    float[] asFloatArray() {
-        if (array != null) {
+        float[] asFloatArray() {
+            float[] array = new float[vector.size()];
+            for (int i = 0; i < array.length; i++) {
+                array[i] = get(i);
+            }
             return array;
         }
-        assert list != null;
+    }
 
-        float[] array = new float[list.size()];
-        for (int i = 0; i < array.length; i++) {
-            Object element = list.get(i);
-            if (element instanceof Number number) {
-                array[i++] = number.floatValue();
-            } else {
-                throw new IllegalArgumentException(badElement(element, i));
-            }
+    protected static class ArrayQueryVector extends QueryVector {
+        protected final float[] vector;
+
+        private ArrayQueryVector(float[] vector) {
+            this.vector = Objects.requireNonNull(vector);
         }
-        return array;
+
+        public int size() {
+            return vector.length;
+        }
+
+        public float get(int i) {
+            return vector[i];
+        }
+
+        float[] asFloatArray() {
+            return vector;
+        }
     }
 }

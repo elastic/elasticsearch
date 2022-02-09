@@ -60,7 +60,7 @@ public class ScoreScriptUtils {
                 }
             }
 
-            this.queryVector = new QueryVector(queryVectorArray);
+            this.queryVector = QueryVector.fromArray(queryVectorArray);
         }
 
         void setNextVector() {

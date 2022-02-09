@@ -169,7 +169,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         };
     }
 
-    private static BytesRef mockEncodeDenseVector(float[] values, Version indexVersion) {
+    static BytesRef mockEncodeDenseVector(float[] values, Version indexVersion) {
         byte[] bytes = indexVersion.onOrAfter(Version.V_7_5_0)
             ? new byte[VectorEncoderDecoder.INT_BYTES * values.length + VectorEncoderDecoder.INT_BYTES]
             : new byte[VectorEncoderDecoder.INT_BYTES * values.length];

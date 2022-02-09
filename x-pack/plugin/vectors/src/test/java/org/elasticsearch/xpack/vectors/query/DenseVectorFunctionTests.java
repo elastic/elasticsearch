@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.test.ESTestCase;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L1Norm;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L2Norm;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
@@ -27,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 public class DenseVectorFunctionTests extends ESTestCase {
 
-    public void testVectorFunctions() throws IOException {
+    public void testVectorClassBindings() throws IOException {
         String fieldName = "vector";
         int dims = 5;
         float[] docVector = new float[] { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f };
@@ -67,5 +69,40 @@ public class DenseVectorFunctionTests extends ESTestCase {
     private void assertDimensionMismatch(Supplier<ScoreScriptUtils.DenseVectorFunction> supplier) {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, supplier::get);
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
+    }
+
+    public void testQueryVector() {
+        int dims = randomIntBetween(1, 16);
+        float[] docVector = new float[dims];
+        float[] queryVector = new float[dims];
+        List<Number> listQueryVector = new ArrayList<>(dims);
+        for (int i = 0; i < docVector.length; i++) {
+            docVector[i] = randomFloat();
+            float q = randomFloat();
+            queryVector[i] = q;
+            listQueryVector.add(q);
+        }
+
+        QueryVector listQV = QueryVector.fromList(listQueryVector);
+        QueryVector arrayQV = QueryVector.fromArray(queryVector);
+
+        KnnDenseVector knn = new KnnDenseVector(docVector);
+        assertEquals(knn.dotProduct(listQV), knn.dotProduct(arrayQV), 0.001f);
+        assertEquals(knn.dotProduct(queryVector), knn.dotProduct(listQueryVector), 0.001f);
+        assertEquals(knn.l1Norm(listQV), knn.l1Norm(arrayQV), 0.001f);
+        assertEquals(knn.l1Norm(queryVector), knn.l1Norm(listQueryVector), 0.001f);
+        assertEquals(knn.l2Norm(listQV), knn.l2Norm(arrayQV), 0.001f);
+        assertEquals(knn.l2Norm(queryVector), knn.l2Norm(listQueryVector), 0.001f);
+
+        for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
+            BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(docVector, indexVersion);
+            BinaryDenseVector bdv = new BinaryDenseVector(value, dims, indexVersion);
+            assertEquals(bdv.dotProduct(listQV), bdv.dotProduct(arrayQV), 0.001f);
+            assertEquals(bdv.dotProduct(queryVector), bdv.dotProduct(listQueryVector), 0.001f);
+            assertEquals(bdv.l1Norm(listQV), bdv.l1Norm(arrayQV), 0.001f);
+            assertEquals(bdv.l1Norm(queryVector), bdv.l1Norm(listQueryVector), 0.001f);
+            assertEquals(bdv.l2Norm(listQV), bdv.l2Norm(arrayQV), 0.001f);
+            assertEquals(bdv.l2Norm(queryVector), bdv.l2Norm(listQueryVector), 0.001f);
+        }
     }
 }

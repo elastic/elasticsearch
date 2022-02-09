@@ -54,11 +54,11 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     }
 
     public double l1Norm(float[] queryVector) {
-        return getVectorChecked().l1Norm(new QueryVector(queryVector));
+        return getVectorChecked().l1Norm(QueryVector.fromArray(queryVector));
     }
 
     public double l2Norm(float[] queryVector) {
-        return getVectorChecked().l2Norm(new QueryVector(queryVector));
+        return getVectorChecked().l2Norm(QueryVector.fromArray(queryVector));
     }
 
     @Override

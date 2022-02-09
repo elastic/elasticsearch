@@ -26,21 +26,21 @@ public interface DenseVector extends Iterable<Float> {
         if (queryVector instanceof QueryVector qv) {
             return dotProduct(qv);
         }
-        return dotProduct(new QueryVector(queryVector));
+        return dotProduct(QueryVector.fromObject(queryVector));
     }
 
     default double l1Norm(Object queryVector) {
         if (queryVector instanceof QueryVector qv) {
             return l1Norm(qv);
         }
-        return l1Norm(new QueryVector(queryVector));
+        return l1Norm(QueryVector.fromObject(queryVector));
     }
 
     default double l2Norm(Object queryVector) {
         if (queryVector instanceof QueryVector qv) {
             return l2Norm(qv);
         }
-        return l2Norm(new QueryVector(queryVector));
+        return l2Norm(QueryVector.fromObject(queryVector));
     }
 
     float[] getVector();

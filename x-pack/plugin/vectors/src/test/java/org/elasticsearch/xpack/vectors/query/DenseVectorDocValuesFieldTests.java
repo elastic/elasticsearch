@@ -21,7 +21,7 @@ public class DenseVectorDocValuesFieldTests extends ESTestCase {
         assertEquals(dims, field.getScriptDocValues().dims());
 
         DenseVector dv = field.get();
-        QueryVector empty = new QueryVector(new float[0]);
+        QueryVector empty = QueryVector.fromArray(new float[0]);
 
         String message = "Dense vector value missing for a field, use isEmpty() to check for a missing vector value";
         IllegalArgumentException missing = expectThrows(IllegalArgumentException.class, dv::getMagnitude);

@@ -320,6 +320,21 @@ public class RoutingAllocation {
         this.hasPendingAsyncFetch = true;
     }
 
+    public RoutingAllocation immutableClone() {
+        return new RoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+    }
+
+    public RoutingAllocation mutableClone() {
+        return new RoutingAllocation(
+            deciders,
+            clusterState.mutableRoutingNodes(),
+            clusterState,
+            clusterInfo,
+            shardSizeInfo,
+            currentNanoTime
+        );
+    }
+
     public enum DebugMode {
         /**
          * debug mode is off

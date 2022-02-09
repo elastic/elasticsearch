@@ -871,6 +871,13 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         return nodesToShards.size();
     }
 
+    /**
+     * @return collection of {@link ShardRouting}s, keyed by shard ID.
+     */
+    public Map<ShardId, List<ShardRouting>> getAssignedShards() {
+        return Collections.unmodifiableMap(assignedShards);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

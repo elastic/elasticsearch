@@ -11,10 +11,10 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
@@ -43,8 +44,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
@@ -52,9 +51,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.rollup.Rollup;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -98,18 +95,6 @@ public abstract class RollupIntegTestCase extends ESSingleNodeTestCase {
         rollupIndex = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
         docCount = randomIntBetween(10, 1000);
-    }
-
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        if (createdDataStreams.isEmpty() == false) {
-            for (String createdDataStream : createdDataStreams) {
-                deleteDataStream(createdDataStream);
-            }
-            createdDataStreams.clear();
-        }
-        super.tearDown();
     }
 
     protected RollupActionDateHistogramGroupConfig randomRollupActionDateHistogramGroupConfig(String field) {
@@ -333,19 +318,5 @@ public abstract class RollupIntegTestCase extends ESSingleNodeTestCase {
         );
         createdDataStreams.add(dataStreamName);
         return dataStreamName;
-    }
-
-    protected void deleteDataStream(String dataStreamName) throws InterruptedException, java.util.concurrent.ExecutionException {
-        assertTrue(
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { dataStreamName }))
-                .get()
-                .isAcknowledged()
-        );
-        assertTrue(
-            client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request(dataStreamName + "_template")
-            ).actionGet().isAcknowledged()
-        );
     }
 }

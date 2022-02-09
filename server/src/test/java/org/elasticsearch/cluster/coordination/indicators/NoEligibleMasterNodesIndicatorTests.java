@@ -6,12 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.health.components.controller;
+package org.elasticsearch.cluster.coordination.indicators;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.indicators.NoEligibleMasterNodesIndicator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,7 +28,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INGEST_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.MASTER_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.TRANSFORM_ROLE;
 
-public class NoEligibleMasterNodesTests extends ESTestCase {
+public class NoEligibleMasterNodesIndicatorTests extends ESTestCase {
 
     public void testIsGreenIfThereIsMasterNode() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster"))

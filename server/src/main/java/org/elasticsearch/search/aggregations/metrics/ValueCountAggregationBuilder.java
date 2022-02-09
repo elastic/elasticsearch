@@ -70,6 +70,11 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
         return new ValueCountAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Read from a stream.
      */

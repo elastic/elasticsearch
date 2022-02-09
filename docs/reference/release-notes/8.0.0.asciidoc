@@ -449,7 +449,6 @@ Machine Learning::
 * Make ML indices hidden when the node becomes master {es-pull}77416[#77416] (issue: {es-issue}53674[#53674])
 * Add `deployment_stats` to trained model stats {es-pull}80531[#80531]
 * The setting `use_auto_machine_memory_percent` now defaults `max_model_memory_limit` {es-pull}80532[#80532] (issue: {es-issue}80415[#80415])
-* Add `deployment_stats` to trained model stats {es-pull}80531[#80531]
 
 Mapping::
 * Sparse vector to throw exception consistently {es-pull}62646[#62646]

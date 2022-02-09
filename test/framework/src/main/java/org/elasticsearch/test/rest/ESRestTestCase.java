@@ -1419,11 +1419,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      **/
     public static void updateClusterSettings(RestClient client, Settings settings) throws IOException {
         Request request = new Request("PUT", "/_cluster/settings");
-        String entity = String.format("""
-            {
-                "persistent":%s
-            }
-            """, Strings.toString(settings));
+        String entity = "{ \"persistent\":" + Strings.toString(settings) + "}";
         request.setJsonEntity(entity);
         Response response = client.performRequest(request);
         assertOK(response);

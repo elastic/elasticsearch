@@ -338,7 +338,6 @@ Authentication::
 * Enroll Kibana API uses Service Accounts {es-pull}76370[#76370]
 * Add `reset-kibana-system-user` tool {es-pull}77322[#77322]
 * New CLI tool to reset password for built-in users {es-pull}79709[#79709]
-* Upgrade to UnboundID LDAP SDK v6.0.2 {es-pull}79332[#79332]
 * Auto-configure the `elastic` user password {es-pull}78306[#78306]
 
 Authorization::
@@ -551,7 +550,6 @@ Security::
 * Startup check for security implicit behavior change {es-pull}76879[#76879]
 * CLI tool to reconfigure nodes to enroll {es-pull}79690[#79690] (issue: {es-issue}7718[#7718])
 * Security auto-configuration for packaged installations {es-pull}75144[#75144] (issue: {es-issue}78306[#78306])
-* Update to OpenSAML 4 {es-pull}77012[#77012] (issue: {es-issue}71983[#71983])
 
 Snapshot/Restore::
 * Introduce searchable snapshots index setting for cascade deletion of snapshots {es-pull}74977[#74977]
@@ -559,7 +557,6 @@ Snapshot/Restore::
 * Add recovery state tracking for searchable snapshots {es-pull}60505[#60505]
 * Allow listing older repositories {es-pull}78244[#78244]
 * Optimize SLM Policy Queries {es-pull}79341[#79341] (issue: {es-issue}79321[#79321])
-* Upgrade repository-hdfs plugin to Hadoop 3 {es-pull}76897[#76897]
 
 TLS::
 * Add `ChaCha20` TLS ciphers on Java 12+ {es-pull}42155[#42155]
@@ -700,8 +697,17 @@ Search::
 [float]
 === Upgrades
 
+Authentication::
+* Upgrade to UnboundID LDAP SDK v6.0.2 {es-pull}79332[#79332]
+
 Infra/Logging::
 * Upgrade ECS logging layout to latest version {es-pull}80500[#80500]
 
 Search::
 * Upgrade to Lucene 9 {es-pull}81426[#81426]
+
+Security::
+* Update to OpenSAML 4 {es-pull}77012[#77012] (issue: {es-issue}71983[#71983])
+
+Snapshot/Restore::
+* Upgrade repository-hdfs plugin to Hadoop 3 {es-pull}76897[#76897]

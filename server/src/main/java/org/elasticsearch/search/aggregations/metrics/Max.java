@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -46,6 +47,10 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
     @Override
     public String getWriteableName() {
         return MaxAggregationBuilder.NAME;
+    }
+
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     @Override

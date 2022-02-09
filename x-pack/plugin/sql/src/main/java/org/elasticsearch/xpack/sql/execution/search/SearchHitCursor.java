@@ -32,6 +32,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTime;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.deserializeQuery;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.serializeQuery;
+
 public class SearchHitCursor implements Cursor {
 
     private static final Logger log = LogManager.getLogger(SearchHitCursor.class);
@@ -107,7 +113,7 @@ public class SearchHitCursor implements Cursor {
     public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         SearchSourceBuilder q;
         try {
-            q = Querier.deserializeQuery(registry, nextQuery);
+            q = deserializeQuery(registry, nextQuery);
         } catch (Exception ex) {
             listener.onFailure(ex);
             return;
@@ -115,10 +121,10 @@ public class SearchHitCursor implements Cursor {
 
         SearchSourceBuilder query = q;
         if (log.isTraceEnabled()) {
-            log.trace("About to execute composite query {}", StringUtils.toString(query));
+            log.trace("About to execute search hit query {}", StringUtils.toString(query));
         }
 
-        SearchRequest request = Querier.prepareRequest(query, cfg.requestTimeout(), includeFrozen);
+        SearchRequest request = prepareRequest(query, includeFrozen);
 
         client.search(
             request,
@@ -150,7 +156,7 @@ public class SearchHitCursor implements Cursor {
     ) {
 
         if (log.isTraceEnabled()) {
-            Querier.logSearchResponse(response, log);
+            logSearchResponse(response, log);
         }
 
         SearchHit[] hits = response.getHits().getHits();
@@ -158,7 +164,7 @@ public class SearchHitCursor implements Cursor {
         SearchHitRowSet rowSet = makeRowSet.get();
 
         if (rowSet.hasRemaining() == false) {
-            Querier.closePointInTime(
+            closePointInTime(
                 client,
                 response.pointInTimeId(),
                 ActionListener.wrap(r -> listener.onResponse(Page.last(rowSet)), listener::onFailure)
@@ -169,7 +175,7 @@ public class SearchHitCursor implements Cursor {
 
             byte[] nextQuery;
             try {
-                nextQuery = Querier.serializeQuery(source);
+                nextQuery = serializeQuery(source);
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;
@@ -196,13 +202,13 @@ public class SearchHitCursor implements Cursor {
     public void clear(Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener) {
         SearchSourceBuilder query;
         try {
-            query = Querier.deserializeQuery(registry, nextQuery);
+            query = deserializeQuery(registry, nextQuery);
         } catch (IOException e) {
             listener.onFailure(e);
             return;
         }
         Check.isTrue(query.pointInTimeBuilder() != null, "Expected cursor with point-in-time id but got null");
-        Querier.closePointInTime(client, query.pointInTimeBuilder().getEncodedId(), listener);
+        closePointInTime(client, query.pointInTimeBuilder().getEncodedId(), listener);
     }
 
     @Override

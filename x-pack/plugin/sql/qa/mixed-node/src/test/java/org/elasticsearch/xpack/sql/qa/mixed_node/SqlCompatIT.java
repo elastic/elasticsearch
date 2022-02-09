@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
-import org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -164,12 +163,8 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, Version.CURRENT, newNodesClient);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83726")
     public void testCursorFromNewNodeFailsOnOldNode() throws IOException {
-        assumeTrue("""
-            This test fails if bwc test spans ES versions that introduce breaking changes. In this case, requests to new nodes will be
-            redirected to the old nodes which will generate the cursor. Subsequent scroll requests to the new node with this cursor will
-            fail with a version conflict.
-            """, bwcVersion.after(VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG));
         assertCursorNotCompatibleAcrossVersions(Version.CURRENT, newNodesClient, bwcVersion, oldNodesClient);
     }
 

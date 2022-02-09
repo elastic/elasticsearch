@@ -251,6 +251,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 expected.put("columns", singletonList(columnInfo(mode, "tz", "integer", JDBCType.INTEGER, 11)));
                 response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "", mode);
             } else {
+                assertNotNull(cursor);
                 response = runSql(
                     new StringEntity(cursor(cursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
                     StringUtils.EMPTY,
@@ -267,6 +268,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 );
             }
             expected.put("rows", values);
+            assertTrue(response.containsKey("cursor") == false || response.get("cursor") != null);
             cursor = (String) response.remove("cursor");
             assertResponse(expected, response);
         }

@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -120,12 +119,7 @@ public class Querier {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }
 
-        SearchRequest search = prepareRequest(
-            sourceBuilder,
-            cfg.requestTimeout(),
-            query.shouldIncludeFrozen(),
-            Strings.commaDelimitedListToStringArray(index)
-        );
+        SearchRequest search = prepareRequest(sourceBuilder, query.shouldIncludeFrozen(), Strings.commaDelimitedListToStringArray(index));
 
         @SuppressWarnings("rawtypes")
         List<Tuple<Integer, Comparator>> sortingColumns = query.sortingColumns();
@@ -150,23 +144,23 @@ public class Querier {
         final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(search.indicesOptions())
             .keepAlive(cfg.pageTimeout());
 
-        client.execute(OpenPointInTimeAction.INSTANCE, openPitRequest, wrap((openPointInTimeResponse) -> {
+        client.execute(OpenPointInTimeAction.INSTANCE, openPitRequest, wrap(openPointInTimeResponse -> {
             String pitId = openPointInTimeResponse.getPointInTimeId();
             search.indices(Strings.EMPTY_ARRAY);
             search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
-            ActionListener<SearchResponse> closePitOnErrorListener = wrap((searchResponse) -> {
+            ActionListener<SearchResponse> closePitOnErrorListener = wrap(searchResponse -> {
                 try {
                     listener.onResponse(searchResponse);
                 } catch (Exception e) {
                     closePointInTimeAfterError(client, pitId, e, listener);
                 }
-            }, (searchError) -> closePointInTimeAfterError(client, pitId, searchError, listener));
+            }, searchError -> closePointInTimeAfterError(client, pitId, searchError, listener));
             client.search(search, closePitOnErrorListener);
         }, listener::onFailure));
     }
 
     private static void closePointInTimeAfterError(Client client, String pointInTimeId, Exception e, ActionListener<?> listener) {
-        closePointInTime(client, pointInTimeId, wrap((r) -> listener.onFailure(e), (closeError) -> {
+        closePointInTime(client, pointInTimeId, wrap(r -> listener.onFailure(e), closeError -> {
             e.addSuppressed(closeError);
             listener.onFailure(e);
         }));
@@ -187,9 +181,7 @@ public class Querier {
         }
     }
 
-    public static SearchRequest prepareRequest(SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, String... indices) {
-        source.timeout(timeout);
-
+    public static SearchRequest prepareRequest(SearchSourceBuilder source, boolean includeFrozen, String... indices) {
         SearchRequest searchRequest = new SearchRequest(INTRODUCING_UNSIGNED_LONG);
         searchRequest.indices(indices);
         searchRequest.source(source);

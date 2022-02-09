@@ -38,6 +38,11 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.sql.execution.search.Querier.deserializeQuery;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.serializeQuery;
+
 /**
  * Cursor for composite aggregation (GROUP BY).
  * Stores the query that gets updated/slides across requests.
@@ -118,7 +123,7 @@ public class CompositeAggCursor implements Cursor {
     public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         SearchSourceBuilder q;
         try {
-            q = Querier.deserializeQuery(registry, nextQuery);
+            q = deserializeQuery(registry, nextQuery);
         } catch (Exception ex) {
             listener.onFailure(ex);
             return;
@@ -129,7 +134,7 @@ public class CompositeAggCursor implements Cursor {
             log.trace("About to execute composite query {} on {}", StringUtils.toString(query), indices);
         }
 
-        SearchRequest request = Querier.prepareRequest(query, cfg.requestTimeout(), includeFrozen, indices);
+        SearchRequest request = prepareRequest(query, includeFrozen, indices);
 
         client.search(request, new ActionListener.Delegating<>(listener) {
             @Override
@@ -166,7 +171,7 @@ public class CompositeAggCursor implements Cursor {
     ) {
 
         if (log.isTraceEnabled()) {
-            Querier.logSearchResponse(response, log);
+            logSearchResponse(response, log);
         }
         // there are some results
         if (response.getAggregations().asList().isEmpty() == false) {
@@ -184,7 +189,7 @@ public class CompositeAggCursor implements Cursor {
                 byte[] queryAsBytes = null;
                 if (afterKey != null) {
                     updateSourceAfterKey(afterKey, source);
-                    queryAsBytes = Querier.serializeQuery(source);
+                    queryAsBytes = serializeQuery(source);
                 }
 
                 Cursor next = rowSet.remainingData() == 0 ? Cursor.EMPTY : makeCursor.apply(queryAsBytes, rowSet);

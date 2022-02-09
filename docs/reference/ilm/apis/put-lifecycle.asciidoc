@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-put-lifecycle]]
 === Create or update lifecycle policy API
 ++++

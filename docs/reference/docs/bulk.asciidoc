@@ -4,7 +4,7 @@
 <titleabbrev>Bulk</titleabbrev>
 ++++
 
-Performs multiple indexing or delete operations in a single API call. 
+Performs multiple indexing or delete operations in a single API call.
 This reduces overhead and can greatly increase indexing speed.
 
 [source,console]
@@ -71,33 +71,33 @@ optional_source\n
 --------------------------------------------------
 // NOTCONSOLE
 
-The `index` and `create` actions expect a source on the next line, 
-and have the same semantics as the `op_type` parameter in the standard index API: 
+The `index` and `create` actions expect a source on the next line,
+and have the same semantics as the `op_type` parameter in the standard index API:
 `create` fails if a document with the same ID already exists in the target,
-`index` adds or replaces a document as necessary. 
+`index` adds or replaces a document as necessary.
 
 NOTE: <<data-streams,Data streams>> support only the `create` action. To update
 or delete a document in a data stream, you must target the backing index
 containing the document. See <<update-delete-docs-in-a-backing-index>>.
 
-`update` expects that the partial doc, upsert, 
+`update` expects that the partial doc, upsert,
 and script and its options are specified on the next line.
 
-`delete` does not expect a source on the next line and 
+`delete` does not expect a source on the next line and
 has the same semantics as the standard delete API.
 
 [NOTE]
 ====
-The final line of data must end with a newline character `\n`. 
+The final line of data must end with a newline character `\n`.
 Each newline character may be preceded by a carriage return `\r`.
 When sending NDJSON data to the `_bulk` endpoint, use a `Content-Type` header of
 `application/json` or `application/x-ndjson`.
 ====
 
-Because this format uses literal `\n`'s as delimiters, 
+Because this format uses literal `\n`'s as delimiters,
 make sure that the JSON actions and sources are not pretty printed.
 
-If you provide a `<target>` in the request path, 
+If you provide a `<target>` in the request path,
 it is used for any actions that don't explicitly specify an `_index` argument.
 
 A note on the format: The idea here is to make processing of this as
@@ -109,10 +109,10 @@ Client libraries using this protocol should try and strive to do
 something similar on the client side, and reduce buffering as much as
 possible.
 
-There is no "correct" number of actions to perform in a single bulk request. 
+There is no "correct" number of actions to perform in a single bulk request.
 Experiment with different settings to find the optimal size for your particular workload.
 
-When using the HTTP API, make sure that the client does not send HTTP chunks, 
+When using the HTTP API, make sure that the client does not send HTTP chunks,
 as this will slow things down.
 
 [discrete]
@@ -192,8 +192,9 @@ Each bulk item can include the routing value using the
 `routing` field. It automatically follows the behavior of the
 index / delete operation based on the `_routing` mapping.
 
-NOTE: Data streams do not support custom routing. Instead, target the
-appropriate backing index for the stream.
+NOTE: Data streams do not support custom routing unless they were created with
+the <<put-index-template-api-request-body,`allow_custom_routing`>> setting
+enabled in the template.
 
 [discrete]
 [[bulk-wait-for-active-shards]]
@@ -271,13 +272,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 
 [[bulk-api-request-body]]
 ==== {api-request-body-title}
-The request body contains a newline-delimited list of `create`, `delete`, `index`, 
+The request body contains a newline-delimited list of `create`, `delete`, `index`,
 and `update` actions and their associated source data.
 
 `create`::
-(Optional, string) 
+(Optional, string)
 Indexes the specified document if it does not already exist.
-The following line must contain the source data to be indexed. 
+The following line must contain the source data to be indexed.
 +
 --
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
@@ -290,7 +291,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates
 --
 
 `delete`::
-(Optional, string) 
+(Optional, string)
 Removes the specified document from the index.
 +
 --
@@ -303,10 +304,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --
 
 `index`::
-(Optional, string) 
-Indexes the specified document. 
+(Optional, string)
+Indexes the specified document.
 If the document exists, replaces the document and increments the version.
-The following line must contain the source data to be indexed. 
+The following line must contain the source data to be indexed.
 +
 --
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
@@ -319,8 +320,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates
 --
 
 `update`::
-(Optional, string) 
-Performs a partial document update. 
+(Optional, string)
+Performs a partial document update.
 The following line must contain the partial document and update options.
 +
 --
@@ -333,14 +334,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --
 
 `doc`::
-(Optional, object) 
+(Optional, object)
 The partial document to index.
-Required for `update` operations. 
+Required for `update` operations.
 
 `<fields>`::
-(Optional, object) 
+(Optional, object)
 The document source to index.
-Required for `create` and `index` operations. 
+Required for `create` and `index` operations.
 
 [role="child_attributes"]
 [[bulk-api-response-body]]

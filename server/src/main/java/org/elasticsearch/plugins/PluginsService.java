@@ -322,10 +322,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (Files.exists(rootPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
                 for (Path plugin : stream) {
-                    if (FileSystemUtils.isDesktopServicesStore(plugin) || plugin.getFileName().toString().startsWith(".removing-")) {
+                    final String filename = plugin.getFileName().toString();
+                    if (FileSystemUtils.isDesktopServicesStore(plugin)
+                        || filename.startsWith(".removing-")
+                        || filename.equals(".elasticsearch-plugins.yml.cache")) {
                         continue;
                     }
-                    if (seen.add(plugin.getFileName().toString()) == false) {
+                    if (seen.add(filename) == false) {
                         throw new IllegalStateException("duplicate plugin: " + plugin);
                     }
                     plugins.add(plugin);

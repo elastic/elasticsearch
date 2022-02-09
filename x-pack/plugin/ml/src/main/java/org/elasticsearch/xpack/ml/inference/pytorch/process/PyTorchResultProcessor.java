@@ -11,7 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 
 import java.time.Instant;
 import java.util.Iterator;
@@ -19,8 +21,11 @@ import java.util.LongSummaryStatistics;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 public class PyTorchResultProcessor {
+
+    public record ResultStats(LongSummaryStatistics timingStats, int errorCount, int numberOfPendingResults, Instant lastUsed) {}
 
     private static final Logger logger = LogManager.getLogger(PyTorchResultProcessor.class);
 
@@ -29,14 +34,17 @@ public class PyTorchResultProcessor {
     private final String deploymentId;
     private volatile boolean isStopping;
     private final LongSummaryStatistics timingStats;
+    private final Consumer<ThreadSettings> threadSettingsConsumer;
+    private int errorCount;
     private Instant lastUsed;
 
-    public PyTorchResultProcessor(String deploymentId) {
+    public PyTorchResultProcessor(String deploymentId, Consumer<ThreadSettings> threadSettingsConsumer) {
         this.deploymentId = Objects.requireNonNull(deploymentId);
         this.timingStats = new LongSummaryStatistics();
+        this.threadSettingsConsumer = Objects.requireNonNull(threadSettingsConsumer);
     }
 
-    public void registerRequest(String requestId, ActionListener<PyTorchResult> listener) {
+    public void registerRequest(String requestId, ActionListener<PyTorchInferenceResult> listener) {
         pendingResults.computeIfAbsent(requestId, k -> new PendingResult(listener));
     }
 
@@ -46,7 +54,7 @@ public class PyTorchResultProcessor {
      *
      * @param requestId The request ID that is no longer being waited on
      */
-    public void ignoreResposeWithoutNotifying(String requestId) {
+    public void ignoreResponseWithoutNotifying(String requestId) {
         pendingResults.remove(requestId);
     }
 
@@ -55,13 +63,13 @@ public class PyTorchResultProcessor {
             Iterator<PyTorchResult> iterator = process.readResults();
             while (iterator.hasNext()) {
                 PyTorchResult result = iterator.next();
-                logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, result.getRequestId()));
-                processResult(result);
-                PendingResult pendingResult = pendingResults.remove(result.getRequestId());
-                if (pendingResult == null) {
-                    logger.debug(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, result.getRequestId()));
-                } else {
-                    pendingResult.listener.onResponse(result);
+                PyTorchInferenceResult inferenceResult = result.inferenceResult();
+                if (inferenceResult != null) {
+                    processInferenceResult(inferenceResult);
+                }
+                ThreadSettings threadSettings = result.threadSettings();
+                if (threadSettings != null) {
+                    threadSettingsConsumer.accept(threadSettings);
                 }
             }
         } catch (Exception e) {
@@ -70,8 +78,8 @@ public class PyTorchResultProcessor {
                 logger.error(new ParameterizedMessage("[{}] Error processing results", deploymentId), e);
             }
             pendingResults.forEach(
-                (id, pendingResults) -> pendingResults.listener.onResponse(
-                    new PyTorchResult(
+                (id, pendingResult) -> pendingResult.listener.onResponse(
+                    new PyTorchInferenceResult(
                         id,
                         null,
                         null,
@@ -84,8 +92,8 @@ public class PyTorchResultProcessor {
             pendingResults.clear();
         } finally {
             pendingResults.forEach(
-                (id, pendingResults) -> pendingResults.listener.onResponse(
-                    new PyTorchResult(id, null, null, "inference canceled as process is stopping")
+                (id, pendingResult) -> pendingResult.listener.onResponse(
+                    new PyTorchInferenceResult(id, null, null, "inference canceled as process is stopping")
                 )
             );
             pendingResults.clear();
@@ -93,23 +101,33 @@ public class PyTorchResultProcessor {
         logger.debug(() -> new ParameterizedMessage("[{}] Results processing finished", deploymentId));
     }
 
-    public synchronized LongSummaryStatistics getTimingStats() {
-        return new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum());
-    }
-
-    private synchronized void processResult(PyTorchResult result) {
-        if (result.isError() == false) {
-            timingStats.accept(result.getTimeMs());
-            lastUsed = Instant.now();
+    private void processInferenceResult(PyTorchInferenceResult inferenceResult) {
+        logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, inferenceResult.getRequestId()));
+        processResult(inferenceResult);
+        PendingResult pendingResult = pendingResults.remove(inferenceResult.getRequestId());
+        if (pendingResult == null) {
+            logger.debug(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, inferenceResult.getRequestId()));
+        } else {
+            pendingResult.listener.onResponse(inferenceResult);
         }
     }
 
-    public synchronized Instant getLastUsed() {
-        return lastUsed;
+    public synchronized ResultStats getResultStats() {
+        return new ResultStats(
+            new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum()),
+            errorCount,
+            pendingResults.size(),
+            lastUsed
+        );
     }
 
-    public int numberOfPendingResults() {
-        return pendingResults.size();
+    private synchronized void processResult(PyTorchInferenceResult result) {
+        if (result.isError() == false) {
+            timingStats.accept(result.getTimeMs());
+            lastUsed = Instant.now();
+        } else {
+            errorCount++;
+        }
     }
 
     public void stop() {
@@ -117,9 +135,9 @@ public class PyTorchResultProcessor {
     }
 
     public static class PendingResult {
-        public final ActionListener<PyTorchResult> listener;
+        public final ActionListener<PyTorchInferenceResult> listener;
 
-        public PendingResult(ActionListener<PyTorchResult> listener) {
+        public PendingResult(ActionListener<PyTorchInferenceResult> listener) {
             this.listener = Objects.requireNonNull(listener);
         }
     }

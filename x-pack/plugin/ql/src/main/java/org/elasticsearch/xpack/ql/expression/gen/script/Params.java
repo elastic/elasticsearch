@@ -81,13 +81,11 @@ public class Params {
         int aggs = 0;
 
         for (Param<?> p : params) {
-            if (p instanceof Agg) {
-                Agg a = (Agg) p;
+            if (p instanceof Agg a) {
                 String s = a.aggProperty() != null ? a.aggProperty() : a.aggName();
                 map.put(p.prefix() + aggs++, s);
             }
-            if (p instanceof Grouping) {
-                Grouping g = (Grouping) p;
+            if (p instanceof Grouping g) {
                 map.put(p.prefix() + aggs++, g.groupName());
             }
         }

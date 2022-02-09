@@ -720,7 +720,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 threadPool
             );
             if (userSearchFilter.contains("{0}")) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.SECURITY,
                     "ldap_settings",
                     "The use of the account name variable {0} in the setting ["

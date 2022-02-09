@@ -30,7 +30,14 @@ public final class PoolingSessionFactorySettings {
 
     public static final Function<String, Setting.AffixSetting<SecureString>> LEGACY_BIND_PASSWORD = RealmSettings.affixSetting(
         "bind_password",
-        key -> new Setting<>(key, "", SecureString::new, Setting.Property.NodeScope, Setting.Property.Filtered, Setting.Property.Deprecated)
+        key -> new Setting<>(
+            key,
+            "",
+            SecureString::new,
+            Setting.Property.NodeScope,
+            Setting.Property.Filtered,
+            Setting.Property.DeprecatedWarning
+        )
     );
 
     public static final Function<String, Setting.AffixSetting<SecureString>> SECURE_BIND_PASSWORD = realmType -> Setting.affixKeySetting(

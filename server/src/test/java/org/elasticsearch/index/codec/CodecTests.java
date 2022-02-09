@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -86,11 +87,11 @@ public class CodecTests extends ESTestCase {
         MapperService service = new MapperService(
             settings,
             indexAnalyzers,
-            xContentRegistry(),
+            parserConfig(),
             similarityService,
             mapperRegistry,
             () -> null,
-            () -> false,
+            IdFieldMapper.NO_FIELD_DATA,
             ScriptCompiler.NONE
         );
         return new CodecService(service);

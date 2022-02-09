@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[xpack-autoscaling]]
 = Autoscaling
 

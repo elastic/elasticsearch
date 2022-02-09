@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,7 +47,7 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
 
     public static MockDeprecatedQueryBuilder fromXContent(XContentParser parser) {
         try {
-            deprecationLogger.critical(DeprecationCategory.OTHER, "deprecated_mock", DEPRECATION_MESSAGE);
+            deprecationLogger.warn(DeprecationCategory.OTHER, "deprecated_mock", DEPRECATION_MESSAGE);
 
             return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {
@@ -82,5 +83,10 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
     @Override
     protected int doHashCode() {
         return 0;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

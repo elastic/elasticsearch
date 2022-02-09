@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -95,7 +96,11 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
                     cancelSnapshotJobs();
                 }
                 if (slmStopping(state)) {
-                    submitOperationModeUpdate(OperationMode.STOPPED);
+                    clusterService.submitStateUpdateTask(
+                        "slm_operation_mode_update[stopped]",
+                        OperationModeUpdateTask.slmMode(OperationMode.STOPPED),
+                        ClusterStateTaskExecutor.unbatched()
+                    );
                 }
                 return;
             }
@@ -128,10 +133,6 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
             .map(SnapshotLifecycleMetadata::getOperationMode)
             .map(mode -> OperationMode.STOPPING == mode)
             .orElse(false);
-    }
-
-    public void submitOperationModeUpdate(OperationMode mode) {
-        clusterService.submitStateUpdateTask("slm_operation_mode_update", OperationModeUpdateTask.slmMode(mode));
     }
 
     /**

@@ -10,6 +10,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -92,19 +93,19 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         int mergedSize = 0;
-        boolean complete = true;
-        boolean includeSorts = true;
+        boolean reducedComplete = true;
+        boolean reducedIncludeSorts = true;
         List<InternalGeoLine> internalGeoLines = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoLine geoLine = (InternalGeoLine) aggregation;
             internalGeoLines.add(geoLine);
             mergedSize += geoLine.line.length;
-            complete &= geoLine.complete;
-            includeSorts &= geoLine.includeSorts;
+            reducedComplete &= geoLine.complete;
+            reducedIncludeSorts &= geoLine.includeSorts;
         }
-        complete &= mergedSize <= size;
+        reducedComplete &= mergedSize <= size;
         int finalSize = Math.min(mergedSize, size);
 
         MergedGeoLines mergedGeoLines = new MergedGeoLines(internalGeoLines, finalSize, sortOrder);
@@ -118,8 +119,8 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
             mergedGeoLines.getFinalPoints(),
             mergedGeoLines.getFinalSortValues(),
             getMetadata(),
-            complete,
-            includeSorts,
+            reducedComplete,
+            reducedIncludeSorts,
             sortOrder,
             size
         );

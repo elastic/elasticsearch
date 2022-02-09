@@ -75,9 +75,9 @@ public final class MultiShardTermsEnum {
     private void pushTop() throws IOException {
         // call next() on each top, and reorder queue
         for (int i = 0; i < numTop; i++) {
-            TermsEnumWithCurrent top = queue.top();
-            top.current = top.terms.next();
-            if (top.current == null) {
+            TermsEnumWithCurrent termsEnum = queue.top();
+            termsEnum.current = termsEnum.terms.next();
+            if (termsEnum.current == null) {
                 queue.pop();
             } else {
                 queue.updateTop();

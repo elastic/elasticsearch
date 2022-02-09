@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.CustomWordEmbedding;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
@@ -36,6 +37,8 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.divMut;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.sumDoubleArrays;
 import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax;
 
 public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, LenientlyParsedTrainedModel, InferenceModel {
@@ -158,10 +161,13 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         "pa",
         "ku"
     );
+    // The final value for our provided language names indicates if there is no valid text in the string to classify
+    // This value should map back to "zxx", which is the code for "no linguistic content" in the BCP 47
+    // system - see https://tools.ietf.org/search/bcp47
+    private static final int MISSING_VALID_TXT_CLASSIFICATION = LANGUAGE_NAMES.size() - 1;
+    private static final String MISSING_VALID_TXT_CLASSIFICATION_STR = "zxx";
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(LangIdentNeuralNetwork.class);
-
-    private static final int EMBEDDING_VECTOR_LENGTH = 80;
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<LangIdentNeuralNetwork, Void> createParser(boolean lenient) {
@@ -217,28 +223,43 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
             throw ExceptionsHelper.badRequestException("[{}] model only supports classification", NAME.getPreferredName());
         }
         Object vector = fields.get(embeddedVectorFeatureName);
-        if (vector instanceof double[] == false) {
+        if (vector instanceof List<?> == false) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] model could not find non-null numerical array named [{}]",
+                "[{}] model could not find non-null collection of embeddings separated by unicode script type [{}]. "
+                    + "Please verify that the input is a string.",
                 NAME.getPreferredName(),
                 embeddedVectorFeatureName
             );
         }
-        double[] embeddedVector = (double[]) vector;
-        if (embeddedVector.length != EMBEDDING_VECTOR_LENGTH) {
-            throw ExceptionsHelper.badRequestException(
-                "[{}] model is expecting embedding vector of length [{}] but got [{}]",
-                NAME.getPreferredName(),
-                EMBEDDING_VECTOR_LENGTH,
-                embeddedVector.length
+        List<?> embeddedVector = (List<?>) vector;
+        final ClassificationConfig classificationConfig = (ClassificationConfig) config;
+        if (embeddedVector.isEmpty()) {
+            return new ClassificationInferenceResults(
+                MISSING_VALID_TXT_CLASSIFICATION,
+                MISSING_VALID_TXT_CLASSIFICATION_STR,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                classificationConfig,
+                1.0,
+                1.0
             );
         }
-        double[] h0 = hiddenLayer.productPlusBias(false, embeddedVector);
-        double[] scores = softmaxLayer.productPlusBias(true, h0);
-
-        double[] probabilities = softMax(scores);
-
-        ClassificationConfig classificationConfig = (ClassificationConfig) config;
+        double[] probabilities = new double[LANGUAGE_NAMES.size()];
+        int totalLen = 0;
+        for (Object vec : embeddedVector) {
+            if (vec instanceof CustomWordEmbedding.StringLengthAndEmbedding == false) {
+                continue;
+            }
+            CustomWordEmbedding.StringLengthAndEmbedding stringLengthAndEmbedding = (CustomWordEmbedding.StringLengthAndEmbedding) vec;
+            int square = stringLengthAndEmbedding.getUtf8StringLen() * stringLengthAndEmbedding.getUtf8StringLen();
+            totalLen += square;
+            double[] h0 = hiddenLayer.productPlusBias(false, stringLengthAndEmbedding.getEmbedding());
+            double[] score = softmaxLayer.productPlusBias(true, h0);
+            sumDoubleArrays(probabilities, softMax(score), Math.max(square, 1));
+        }
+        if (totalLen != 0) {
+            divMut(probabilities, totalLen);
+        }
         Tuple<InferenceHelpers.TopClassificationValue, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
             probabilities,
             LANGUAGE_NAMES,

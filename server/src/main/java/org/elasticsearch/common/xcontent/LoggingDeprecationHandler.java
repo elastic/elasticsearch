@@ -39,7 +39,7 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
 
     public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
 
-    private TriConsumer<String, Object[], String> deprecationLoggerFunction = (message, params, field_name) -> deprecationLogger.critical(
+    private TriConsumer<String, Object[], String> deprecationLoggerFunction = (message, params, field_name) -> deprecationLogger.warn(
         DeprecationCategory.API,
         "deprecated_field_" + field_name,
         message,

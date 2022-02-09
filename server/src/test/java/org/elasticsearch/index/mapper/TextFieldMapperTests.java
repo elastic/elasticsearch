@@ -245,10 +245,9 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        assertEquals(
-            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\",\"fields\":{\"subfield\":{\"type\":\"long\"}},\"fielddata\":true}}}}",
-            Strings.toString(mapperService.documentMapper().mapping())
-        );
+        assertEquals("""
+            {"_doc":{"properties":{"field":{"type":"text","fields":{"subfield":{"type":"long"}},\
+            "fielddata":true}}}}""", Strings.toString(mapperService.documentMapper().mapping()));
     }
 
     public void testEnableStore() throws IOException {
@@ -289,9 +288,12 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         DocumentMapper mapper = createDocumentMapper(mapping);
         String serialized = Strings.toString(mapper.mapping());
-        assertThat(serialized, containsString("\"offsets\":{\"type\":\"text\",\"index_options\":\"offsets\"}"));
-        assertThat(serialized, containsString("\"freqs\":{\"type\":\"text\",\"index_options\":\"freqs\"}"));
-        assertThat(serialized, containsString("\"docs\":{\"type\":\"text\",\"index_options\":\"docs\"}"));
+        assertThat(serialized, containsString("""
+            "offsets":{"type":"text","index_options":"offsets"}"""));
+        assertThat(serialized, containsString("""
+            "freqs":{"type":"text","index_options":"freqs"}"""));
+        assertThat(serialized, containsString("""
+            "docs":{"type":"text","index_options":"docs"}"""));
 
         ParsedDocument doc = mapper.parse(source(b -> {
             for (String option : supportedOptions.keySet()) {

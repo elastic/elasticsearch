@@ -45,7 +45,7 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
 
         // RestDeleteByQueryAction itself doesn't check for a deprecated type usage
         // checking here for a deprecation from its internal search request
-        assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
 }

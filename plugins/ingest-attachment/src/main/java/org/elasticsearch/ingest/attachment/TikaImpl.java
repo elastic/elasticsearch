@@ -101,10 +101,10 @@ final class TikaImpl {
         } catch (PrivilegedActionException e) {
             // checked exception from tika: unbox it
             Throwable cause = e.getCause();
-            if (cause instanceof TikaException) {
-                throw (TikaException) cause;
-            } else if (cause instanceof IOException) {
-                throw (IOException) cause;
+            if (cause instanceof TikaException tikaException) {
+                throw tikaException;
+            } else if (cause instanceof IOException ioException) {
+                throw ioException;
             } else {
                 throw new AssertionError(cause);
             }
@@ -131,8 +131,8 @@ final class TikaImpl {
             // classpath
             addReadPermissions(perms, JarHell.parseClassPath());
             // plugin jars
-            if (TikaImpl.class.getClassLoader() instanceof URLClassLoader) {
-                URL[] urls = ((URLClassLoader) TikaImpl.class.getClassLoader()).getURLs();
+            if (TikaImpl.class.getClassLoader()instanceof URLClassLoader urlClassLoader) {
+                URL[] urls = urlClassLoader.getURLs();
                 Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
                 if (set.size() != urls.length) {
                     throw new AssertionError("duplicate jars: " + Arrays.toString(urls));

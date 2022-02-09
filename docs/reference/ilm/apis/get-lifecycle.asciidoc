@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-get-lifecycle]]
 === Get lifecycle policy API
 ++++

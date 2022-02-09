@@ -114,14 +114,15 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     @SuppressWarnings("unchecked")
     private List<Integer> runOrderByNullsLastQuery(RestClient queryClient) throws IOException {
         Request putIndex = new Request("PUT", "/test");
-        putIndex.setJsonEntity("{\"settings\":{\"index\":{\"number_of_shards\":3}}}");
+        putIndex.setJsonEntity("""
+            {"settings":{"index":{"number_of_shards":3}}}""");
         client().performRequest(putIndex);
 
         Request indexDocs = new Request("POST", "/test/_bulk");
         indexDocs.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : Arrays.asList("{\"int\":1,\"kw\":\"foo\"}", "{\"int\":2,\"kw\":\"bar\"}", "{\"kw\":\"bar\"}")) {
-            bulk.append("{\"index\":{}\n").append(doc).append("\n");
+            bulk.append("{\"index\":{}}\n").append(doc).append("\n");
         }
         indexDocs.setJsonEntity(bulk.toString());
         client().performRequest(indexDocs);

@@ -38,7 +38,7 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
 
         final int numOfDocs = scaledRandomIntBetween(0, 200);
         if (numOfDocs > 0) {
-            try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), numOfDocs)) {
+            try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), numOfDocs)) {
                 waitForDocs(numOfDocs, indexer);
             }
             refresh(indexName);

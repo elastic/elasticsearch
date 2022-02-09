@@ -15,12 +15,12 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.core.Booleans.parseBoolean;
@@ -57,7 +57,7 @@ public class TransportInfo implements ReportingService.Info {
         address = new BoundTransportAddress(in);
         int size = in.readVInt();
         if (size > 0) {
-            profileAddresses = new HashMap<>(size);
+            profileAddresses = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
                 BoundTransportAddress value = new BoundTransportAddress(in);
@@ -96,7 +96,7 @@ public class TransportInfo implements ReportingService.Info {
         if (InetAddresses.isInetAddress(hostString) == false) {
             publishAddressString = hostString + '/' + publishAddress.toString();
             if (cnameInPublishAddressProperty) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.SETTINGS,
                     "cname_in_publish_address",
                     "es.transport.cname_in_publish_address system property is deprecated and no longer affects "

@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 
 public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedXContentObject {
 
@@ -29,11 +30,12 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
     public static TextEmbeddingConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
         String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());
+        TokenizationUpdate tokenizationUpdate = NlpConfigUpdate.tokenizationFromMap(options);
 
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", options.keySet());
         }
-        return new TextEmbeddingConfigUpdate(resultsField);
+        return new TextEmbeddingConfigUpdate(resultsField, tokenizationUpdate);
     }
 
     private static final ObjectParser<TextEmbeddingConfigUpdate.Builder, Void> STRICT_PARSER = createParser(false);
@@ -45,6 +47,11 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
             TextEmbeddingConfigUpdate.Builder::new
         );
         parser.declareString(TextEmbeddingConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
+        parser.declareNamedObject(
+            TextEmbeddingConfigUpdate.Builder::setTokenizationUpdate,
+            (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient),
+            TOKENIZATION
+        );
         return parser;
     }
 
@@ -54,26 +61,27 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
 
     private final String resultsField;
 
-    public TextEmbeddingConfigUpdate(String resultsField) {
+    public TextEmbeddingConfigUpdate(String resultsField, TokenizationUpdate tokenizationUpdate) {
+        super(tokenizationUpdate);
         this.resultsField = resultsField;
     }
 
     public TextEmbeddingConfigUpdate(StreamInput in) throws IOException {
+        super(in);
         this.resultsField = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeOptionalString(resultsField);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (resultsField != null) {
             builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
         }
-        builder.endObject();
         return builder;
     }
 
@@ -89,7 +97,7 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
 
     @Override
     public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (resultsField == null || resultsField.equals(originalConfig.getResultsField())) {
+        if ((resultsField == null || resultsField.equals(originalConfig.getResultsField())) && super.isNoop()) {
             return originalConfig;
         }
 
@@ -102,7 +110,11 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
         }
 
         TextEmbeddingConfig embeddingConfig = (TextEmbeddingConfig) originalConfig;
-        return new TextEmbeddingConfig(embeddingConfig.getVocabularyConfig(), embeddingConfig.getTokenization(), resultsField);
+        return new TextEmbeddingConfig(
+            embeddingConfig.getVocabularyConfig(),
+            tokenizationUpdate == null ? embeddingConfig.getTokenization() : tokenizationUpdate.apply(embeddingConfig.getTokenization()),
+            resultsField == null ? embeddingConfig.getResultsField() : resultsField
+        );
     }
 
     @Override
@@ -117,7 +129,7 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new Builder().setResultsField(resultsField);
+        return new Builder().setResultsField(resultsField).setTokenizationUpdate(tokenizationUpdate);
     }
 
     @Override
@@ -125,16 +137,17 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TextEmbeddingConfigUpdate that = (TextEmbeddingConfigUpdate) o;
-        return Objects.equals(resultsField, that.resultsField);
+        return Objects.equals(resultsField, that.resultsField) && Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resultsField);
+        return Objects.hash(resultsField, tokenizationUpdate);
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<TextEmbeddingConfigUpdate.Builder, TextEmbeddingConfigUpdate> {
         private String resultsField;
+        private TokenizationUpdate tokenizationUpdate;
 
         @Override
         public Builder setResultsField(String resultsField) {
@@ -142,8 +155,13 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
             return this;
         }
 
+        public TextEmbeddingConfigUpdate.Builder setTokenizationUpdate(TokenizationUpdate tokenizationUpdate) {
+            this.tokenizationUpdate = tokenizationUpdate;
+            return this;
+        }
+
         public TextEmbeddingConfigUpdate build() {
-            return new TextEmbeddingConfigUpdate(this.resultsField);
+            return new TextEmbeddingConfigUpdate(resultsField, tokenizationUpdate);
         }
     }
 }

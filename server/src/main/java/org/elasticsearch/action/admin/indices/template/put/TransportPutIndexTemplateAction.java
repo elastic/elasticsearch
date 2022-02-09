@@ -21,12 +21,15 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Put index template action.
@@ -73,7 +76,7 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         final PutIndexTemplateRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
-    ) {
+    ) throws IOException {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
@@ -85,7 +88,7 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
             new MetadataIndexTemplateService.PutRequest(cause, request.name()).patterns(request.patterns())
                 .order(request.order())
                 .settings(templateSettingsBuilder.build())
-                .mappings(request.mappings())
+                .mappings(request.mappings() == null ? null : new CompressedXContent(request.mappings()))
                 .aliases(request.aliases())
                 .create(request.create())
                 .masterTimeout(request.masterNodeTimeout())

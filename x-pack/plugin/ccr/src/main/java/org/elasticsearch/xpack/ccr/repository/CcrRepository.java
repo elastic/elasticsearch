@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -43,6 +43,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -195,8 +196,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             .setMetadata(true)
             .setNodes(true)
             .get(ccrSettings.getRecoveryActionTimeout());
-        Metadata metadata = response.getState().metadata();
-        ImmutableOpenMap<String, IndexMetadata> indicesMap = metadata.indices();
+        Metadata responseMetadata = response.getState().metadata();
+        ImmutableOpenMap<String, IndexMetadata> indicesMap = responseMetadata.indices();
         List<String> indices = new ArrayList<>(indicesMap.keySet());
 
         // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
@@ -206,7 +207,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     new SnapshotInfo(
                         new Snapshot(this.metadata.name(), SNAPSHOT_ID),
                         indices,
-                        new ArrayList<>(metadata.dataStreams().keySet()),
+                        new ArrayList<>(responseMetadata.dataStreams().keySet()),
                         Collections.emptyList(),
                         response.getState().getNodes().getMaxNodeVersion(),
                         SnapshotState.SUCCESS
@@ -248,12 +249,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         IndexMetadata.Builder imdBuilder = IndexMetadata.builder(leaderIndex);
         // Adding the leader index uuid for each shard as custom metadata:
-        Map<String, String> metadata = new HashMap<>();
-        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", leaderHistoryUUIDs));
-        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetadata.getIndexUUID());
-        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetadata.getIndex().getName());
-        metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteClusterAlias);
-        imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
+        Map<String, String> customMetadata = new HashMap<>();
+        customMetadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", leaderHistoryUUIDs));
+        customMetadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetadata.getIndexUUID());
+        customMetadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetadata.getIndex().getName());
+        customMetadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteClusterAlias);
+        imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, customMetadata);
 
         imdBuilder.settings(leaderIndexMetadata.getSettings());
 
@@ -281,8 +282,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Metadata remoteMetadata = response.getState().getMetadata();
 
             Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
-            Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = new HashMap<>(copiedSnapshotIds.size());
-            Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
+            Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
+            Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
 
             ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
             for (String indexName : remoteMetadata.getConcreteAllIndices()) {

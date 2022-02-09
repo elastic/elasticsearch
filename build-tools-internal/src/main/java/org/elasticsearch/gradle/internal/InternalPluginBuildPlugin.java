@@ -82,6 +82,7 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
                 addNoticeGeneration(p, extension);
             }
 
+            @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);

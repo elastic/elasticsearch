@@ -34,12 +34,17 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
  * and make sure the alias is valid
  */
 public class AliasValidator {
+
+    private AliasValidator() {
+        // utility class
+    }
+
     /**
      * Allows to validate an {@link org.elasticsearch.action.admin.indices.alias.Alias} and make sure
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
      * @throws IllegalArgumentException if the alias is not valid
      */
-    public void validateAlias(Alias alias, String index, Metadata metadata) {
+    public static void validateAlias(Alias alias, String index, Metadata metadata) {
         validateAlias(alias.name(), index, alias.indexRouting(), lookup(metadata));
     }
 
@@ -48,7 +53,7 @@ public class AliasValidator {
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
      * @throws IllegalArgumentException if the alias is not valid
      */
-    public void validateAliasMetadata(AliasMetadata aliasMetadata, String index, Metadata metadata) {
+    public static void validateAliasMetadata(AliasMetadata aliasMetadata, String index, Metadata metadata) {
         validateAlias(aliasMetadata.alias(), index, aliasMetadata.indexRouting(), lookup(metadata));
     }
 
@@ -59,7 +64,7 @@ public class AliasValidator {
      * without validating it as a filter though.
      * @throws IllegalArgumentException if the alias is not valid
      */
-    public void validateAliasStandalone(Alias alias) {
+    public static void validateAliasStandalone(Alias alias) {
         validateAliasStandalone(alias.name(), alias.indexRouting());
         if (Strings.hasLength(alias.filter())) {
             try {
@@ -73,7 +78,7 @@ public class AliasValidator {
     /**
      * Validate a proposed alias.
      */
-    public void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, String> lookup) {
+    public static void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, String> lookup) {
         validateAliasStandalone(alias, indexRouting);
 
         if (Strings.hasText(index) == false) {
@@ -86,7 +91,7 @@ public class AliasValidator {
         }
     }
 
-    void validateAliasStandalone(String alias, String indexRouting) {
+    static void validateAliasStandalone(String alias, String indexRouting) {
         if (Strings.hasText(alias) == false) {
             throw new IllegalArgumentException("alias name is required");
         }
@@ -101,7 +106,7 @@ public class AliasValidator {
      * provided {@link SearchExecutionContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
-    public void validateAliasFilter(
+    public static void validateAliasFilter(
         String alias,
         String filter,
         SearchExecutionContext searchExecutionContext,
@@ -123,7 +128,7 @@ public class AliasValidator {
      * provided {@link SearchExecutionContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
-    public void validateAliasFilter(
+    public static void validateAliasFilter(
         String alias,
         BytesReference filter,
         SearchExecutionContext searchExecutionContext,

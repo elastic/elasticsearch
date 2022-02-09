@@ -105,7 +105,7 @@ final class SimilarityProviders {
                         "Basic model [" + basicModel + "] isn't supported anymore, " + "please use another model."
                     );
                 } else {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.INDICES,
                         basicModel + "_similarity_model_replaced",
                         "Basic model ["
@@ -144,7 +144,7 @@ final class SimilarityProviders {
                         "After effect [" + afterEffect + "] isn't supported anymore, please use another effect."
                     );
                 } else {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.INDICES,
                         afterEffect + "_after_effect_replaced",
                         "After effect ["
@@ -242,7 +242,7 @@ final class SimilarityProviders {
             if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.INDICES,
                     "unknown_similarity_setting",
                     "Unknown settings for similarity of type [" + type + "]: " + unknownSettings

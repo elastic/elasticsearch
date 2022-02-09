@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -80,7 +79,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         }
     }
 
-    public static class GetCcrRestoreFileChunkResponse extends ActionResponse implements RefCounted {
+    public static class GetCcrRestoreFileChunkResponse extends ActionResponse {
 
         private final long offset;
         private final ReleasableBytesReference chunk;

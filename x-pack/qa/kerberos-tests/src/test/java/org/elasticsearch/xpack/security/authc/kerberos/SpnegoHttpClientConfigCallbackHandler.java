@@ -206,8 +206,8 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAsPrivileged(subject, action, acc));
         } catch (PrivilegedActionException pae) {
-            if (pae.getCause() instanceof PrivilegedActionException) {
-                throw (PrivilegedActionException) pae.getCause();
+            if (pae.getCause()instanceof PrivilegedActionException privilegedActionException) {
+                throw privilegedActionException;
             }
             throw pae;
         }
@@ -258,8 +258,7 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
 
         public void handle(final Callback[] callbacks) throws IOException, UnsupportedCallbackException {
             for (Callback callback : callbacks) {
-                if (callback instanceof PasswordCallback) {
-                    PasswordCallback pc = (PasswordCallback) callback;
+                if (callback instanceof PasswordCallback pc) {
                     if (pc.getPrompt().contains(principal)) {
                         pc.setPassword(password.getChars());
                         break;

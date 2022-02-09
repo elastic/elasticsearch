@@ -27,15 +27,21 @@ public final class InferenceIndexConstants {
      * version: 7.10.0: 000003
      *  - adds trained_model_metadata object
      *
-     * version: 8.0.0: 000004
+     * version: 7.16.0: 000004
+     *  - adds model_size_bytes field as a estimated_heap_memory_usage_bytes replacement
+     *
+     * version: 8.0.0: 000005
      *  - adds binary_definition for TrainedModelDefinitionDoc
      */
-    public static final String INDEX_VERSION = "000004";
+    public static final String INDEX_VERSION = "000005";
     public static final String INDEX_NAME_PREFIX = ".ml-inference-";
     public static final String INDEX_PATTERN = INDEX_NAME_PREFIX + "*";
     public static final String LATEST_INDEX_NAME = INDEX_NAME_PREFIX + INDEX_VERSION;
-    public static final String NATIVE_DEFINITION_STORE_INDEX_NAME = INDEX_NAME_PREFIX + "native";
     public static final ParseField DOC_TYPE = new ParseField("doc_type");
+
+    private static final String NATIVE_INDEX_PREFIX = INDEX_NAME_PREFIX + "native-";
+    private static final String NATIVE_INDEX_VERSION = "000001";
+    private static final String NATIVE_LATEST_INDEX = NATIVE_INDEX_PREFIX + NATIVE_INDEX_VERSION;
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
 
@@ -48,7 +54,7 @@ public final class InferenceIndexConstants {
     }
 
     public static String nativeDefinitionStore() {
-        return NATIVE_DEFINITION_STORE_INDEX_NAME;
+        return NATIVE_LATEST_INDEX;
     }
 
     public static Settings settings() {

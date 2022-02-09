@@ -146,8 +146,8 @@ public abstract class TransportTasksAction<
     }
 
     protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
-        if (request.getTaskId().isSet()) {
-            return new String[] { request.getTaskId().getNodeId() };
+        if (request.getTargetTaskId().isSet()) {
+            return new String[] { request.getTargetTaskId().getNodeId() };
         } else {
             return clusterState.nodes().resolveNodes(request.getNodes());
         }
@@ -155,17 +155,17 @@ public abstract class TransportTasksAction<
 
     @SuppressWarnings("unchecked")
     protected void processTasks(TasksRequest request, Consumer<OperationTask> operation) {
-        if (request.getTaskId().isSet()) {
+        if (request.getTargetTaskId().isSet()) {
             // we are only checking one task, we can optimize it
-            Task task = taskManager.getTask(request.getTaskId().getId());
+            Task task = taskManager.getTask(request.getTargetTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
                     operation.accept((OperationTask) task);
                 } else {
-                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.getTaskId());
+                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.getTargetTaskId());
                 }
             } else {
-                throw new ResourceNotFoundException("task [{}] is missing", request.getTaskId());
+                throw new ResourceNotFoundException("task [{}] is missing", request.getTargetTaskId());
             }
         } else {
             for (Task task : taskManager.getTasks().values()) {

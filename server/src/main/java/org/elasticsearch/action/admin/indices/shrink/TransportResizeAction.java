@@ -20,13 +20,14 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -115,13 +116,18 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     ) {
 
         // there is no need to fetch docs stats for split but we keep it simple and do it anyway for simplicity of the code
-        final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
-        final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
+        final String sourceIndex = IndexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
+        final String targetIndex = IndexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
 
         final IndexMetadata sourceMetadata = state.metadata().index(sourceIndex);
         if (sourceMetadata == null) {
             listener.onFailure(new IndexNotFoundException(sourceIndex));
             return;
+        }
+
+        // Index splits are not allowed for time-series indices
+        if (resizeRequest.getResizeType() == ResizeType.SPLIT) {
+            IndexRouting.fromIndexMetadata(sourceMetadata).checkIndexSplitAllowed();
         }
 
         IndicesStatsRequestBuilder statsRequestBuilder = client.admin()

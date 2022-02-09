@@ -16,7 +16,7 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -96,7 +96,7 @@ public class InboundPipelineTests extends ESTestCase {
             actual.clear();
             expected.clear();
             toRelease.clear();
-            try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+            try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
                 while (streamOutput.size() < BYTE_THRESHOLD) {
                     final Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
                     final String value = randomRealisticUnicodeOfCodepointLength(randomIntBetween(200, 400));
@@ -146,8 +146,9 @@ public class InboundPipelineTests extends ESTestCase {
                     }
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
-                    final BytesReference reference = message.serialize(new BytesStreamOutput());
-                    Streams.copy(reference.streamInput(), streamOutput);
+                    try (RecyclerBytesStreamOutput temporaryOutput = new RecyclerBytesStreamOutput(recycler)) {
+                        Streams.copy(message.serialize(temporaryOutput).streamInput(), streamOutput, false);
+                    }
                 }
 
                 final BytesReference networkBytes = streamOutput.bytes();
@@ -182,7 +183,7 @@ public class InboundPipelineTests extends ESTestCase {
                 }
 
                 for (ReleasableBytesReference released : toRelease) {
-                    assertEquals(0, released.refCount());
+                    assertFalse(released.hasReferences());
                 }
             }
 
@@ -212,7 +213,7 @@ public class InboundPipelineTests extends ESTestCase {
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
-        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+        try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
             String actionName = "actionName";
             final Version invalidVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
             final String value = randomAlphaOfLength(1000);
@@ -257,7 +258,7 @@ public class InboundPipelineTests extends ESTestCase {
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
-        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+        try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
             String actionName = "actionName";
             final Version version = Version.CURRENT;
             final String value = randomAlphaOfLength(1000);

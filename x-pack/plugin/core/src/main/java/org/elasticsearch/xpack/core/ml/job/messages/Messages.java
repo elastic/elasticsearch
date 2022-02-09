@@ -115,11 +115,12 @@ public final class Messages {
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
     public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata {0}";
-    public static final String VOCABULARY_NOT_FOUND = "[{0}] Could not find vocabulary document [{1}] for model ";
+    public static final String VOCABULARY_NOT_FOUND = "Could not find vocabulary document [{1}] for trained model [{0}]";
     public static final String INFERENCE_CANNOT_DELETE_ML_MANAGED_MODEL =
         "Unable to delete model [{0}] as it is required by machine learning";
     public static final String MODEL_DEFINITION_TRUNCATED =
         "Model definition truncated. Unable to deserialize trained model definition [{0}]";
+    public static final String UNABLE_TO_DEPLOY_MODEL_BAD_PARTS = "Unable to deploy model, please delete and recreate the model definition";
     public static final String INFERENCE_FAILED_TO_DESERIALIZE = "Could not deserialize trained model [{0}]";
     public static final String INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED =
         "Getting model definition is not supported when getting more than one model";

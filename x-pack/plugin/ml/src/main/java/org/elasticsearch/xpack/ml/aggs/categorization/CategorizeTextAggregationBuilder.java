@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -153,6 +154,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     }
 
     public CategorizeTextAggregationBuilder setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig categorizationAnalyzerConfig) {
+        if (this.categorizationAnalyzerConfig != null) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] cannot be used with [{}] - instead specify them as pattern_replace char_filters in the analyzer",
+                CATEGORIZATION_FILTERS.getPreferredName(),
+                CATEGORIZATION_ANALYZER.getPreferredName()
+            );
+        }
         this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
         return this;
     }
@@ -345,5 +353,10 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_16_0;
     }
 }

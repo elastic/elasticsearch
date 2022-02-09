@@ -35,6 +35,7 @@ public final class DataStream {
     @Nullable
     private final Map<String, Object> metadata;
     private final boolean allowCustomRouting;
+    private final boolean replicated;
 
     public DataStream(
         String name,
@@ -47,7 +48,8 @@ public final class DataStream {
         @Nullable Map<String, Object> metadata,
         boolean hidden,
         boolean system,
-        boolean allowCustomRouting
+        boolean allowCustomRouting,
+        boolean replicated
     ) {
         this.name = name;
         this.timeStampField = timeStampField;
@@ -60,6 +62,7 @@ public final class DataStream {
         this.hidden = hidden;
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
+        this.replicated = replicated;
     }
 
     public String getName() {
@@ -106,6 +109,10 @@ public final class DataStream {
         return allowCustomRouting;
     }
 
+    public boolean isReplicated() {
+        return replicated;
+    }
+
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -117,6 +124,7 @@ public final class DataStream {
     public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
+    public static final ParseField REPLICATED = new ParseField("replicated");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
@@ -132,6 +140,7 @@ public final class DataStream {
         boolean hidden = args[8] != null && (boolean) args[8];
         boolean system = args[9] != null && (boolean) args[9];
         boolean allowCustomRouting = args[10] != null && (boolean) args[10];
+        boolean replicated = args[11] != null && (boolean) args[11];
         return new DataStream(
             dataStreamName,
             timeStampField,
@@ -143,7 +152,8 @@ public final class DataStream {
             metadata,
             hidden,
             system,
-            allowCustomRouting
+            allowCustomRouting,
+            replicated
         );
     });
 
@@ -159,6 +169,7 @@ public final class DataStream {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REPLICATED);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -180,7 +191,8 @@ public final class DataStream {
             && Objects.equals(indexTemplate, that.indexTemplate)
             && Objects.equals(ilmPolicyName, that.ilmPolicyName)
             && Objects.equals(metadata, that.metadata)
-            && allowCustomRouting == that.allowCustomRouting;
+            && allowCustomRouting == that.allowCustomRouting
+            && replicated == that.replicated;
     }
 
     @Override
@@ -196,7 +208,8 @@ public final class DataStream {
             metadata,
             hidden,
             system,
-            allowCustomRouting
+            allowCustomRouting,
+            replicated
         );
     }
 }

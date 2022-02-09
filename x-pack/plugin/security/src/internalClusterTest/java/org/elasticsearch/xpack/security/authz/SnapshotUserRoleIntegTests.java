@@ -12,8 +12,9 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -89,13 +90,19 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         assertThat(getRepositoriesResponse.repositories().size(), is(1));
         assertThat(getRepositoriesResponse.repositories().get(0).name(), is("repo"));
         // view all indices, including restricted ones
-        final GetIndexResponse getIndexResponse = client.admin().indices().prepareGetIndex().setIndices(randomFrom("_all", "*")).get();
+        final GetIndexResponse getIndexResponse = client.admin()
+            .indices()
+            .prepareGetIndex()
+            .setIndices(randomFrom("_all", "*"))
+            .setIndicesOptions(IndicesOptions.strictExpandHidden())
+            .get();
         assertThat(Arrays.asList(getIndexResponse.indices()), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX_7, ordinaryIndex));
         // create snapshot that includes restricted indices
         final CreateSnapshotResponse snapshotResponse = client.admin()
             .cluster()
             .prepareCreateSnapshot("repo", "snap")
             .setIndices(randomFrom("_all", "*"))
+            .setIndicesOptions(IndicesOptions.strictExpandHidden())
             .setWaitForCompletion(true)
             .get();
         assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));

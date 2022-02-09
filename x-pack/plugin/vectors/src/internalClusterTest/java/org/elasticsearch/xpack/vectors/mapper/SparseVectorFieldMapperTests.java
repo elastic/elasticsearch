@@ -121,7 +121,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
         MapperParsingException indexException = expectThrows(
             MapperParsingException.class,
-            () -> mapper.parse(new SourceToParse("index", "id", source, XContentType.JSON))
+            () -> mapper.parse(new SourceToParse("id", source, XContentType.JSON))
         );
         assertThat(indexException.getCause().getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE));
     }

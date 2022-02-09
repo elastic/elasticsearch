@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -45,6 +46,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final Set<ClusterBlock> blocks = new HashSet<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+
+    private boolean performReroute = true;
+
+    private ComposableIndexTemplate matchingTemplate;
 
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
         this.cause = cause;
@@ -175,6 +180,30 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    public boolean performReroute() {
+        return performReroute;
+    }
+
+    public CreateIndexClusterStateUpdateRequest performReroute(boolean performReroute) {
+        this.performReroute = performReroute;
+        return this;
+    }
+
+    /**
+     * @return The composable index template that matches with the index that will be cretaed by this request.
+     */
+    public ComposableIndexTemplate matchingTemplate() {
+        return matchingTemplate;
+    }
+
+    /**
+     * Sets the composable index template that matches with index that will be created by this request.
+     */
+    public CreateIndexClusterStateUpdateRequest setMatchingTemplate(ComposableIndexTemplate matchingTemplate) {
+        this.matchingTemplate = matchingTemplate;
+        return this;
+    }
+
     @Override
     public String toString() {
         return "CreateIndexClusterStateUpdateRequest{"
@@ -206,6 +235,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
             + waitForActiveShards
             + ", systemDataStreamDescriptor="
             + systemDataStreamDescriptor
+            + ", matchingTemplate="
+            + matchingTemplate
             + '}';
     }
 }

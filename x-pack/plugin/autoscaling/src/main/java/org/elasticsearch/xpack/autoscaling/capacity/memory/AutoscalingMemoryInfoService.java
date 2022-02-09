@@ -14,7 +14,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -85,9 +85,7 @@ public class AutoscalingMemoryInfoService {
 
     Set<DiscoveryNode> relevantNodes(ClusterState state) {
         final Set<Set<DiscoveryNodeRole>> roleSets = calculateAutoscalingRoleSets(state);
-        return StreamSupport.stream(state.nodes().spliterator(), false)
-            .filter(n -> roleSets.contains(n.getRoles()))
-            .collect(Collectors.toSet());
+        return state.nodes().stream().filter(n -> roleSets.contains(n.getRoles())).collect(Collectors.toSet());
     }
 
     private Set<DiscoveryNode> addMissingNodes(Set<DiscoveryNode> nodes) {
@@ -181,13 +179,13 @@ public class AutoscalingMemoryInfoService {
     private void addNodeStats(ImmutableOpenMap.Builder<String, Long> builder, NodeStats nodeStats) {
         // we might add nodes that already died here, but those will be removed on next cluster state update anyway and is only a small
         // waste.
-        builder.put(nodeStats.getNode().getEphemeralId(), nodeStats.getOs().getMem().getTotal().getBytes());
+        builder.put(nodeStats.getNode().getEphemeralId(), nodeStats.getOs().getMem().getAdjustedTotal().getBytes());
     }
 
     public AutoscalingMemoryInfo snapshot() {
-        final ImmutableOpenMap<String, Long> nodeToMemory = this.nodeToMemory;
+        final ImmutableOpenMap<String, Long> nodeToMemoryRef = this.nodeToMemory;
         return node -> {
-            Long result = nodeToMemory.get(node.getEphemeralId());
+            Long result = nodeToMemoryRef.get(node.getEphemeralId());
             // noinspection NumberEquality
             if (result == FETCHING_SENTINEL) {
                 return null;

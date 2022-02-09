@@ -170,6 +170,15 @@ public interface TransformConfigManager {
     void getAllOutdatedTransformIds(ActionListener<Tuple<Long, Set<String>>> listener);
 
     /**
+     * This deletes documents corresponding to the transform id (e.g. checkpoints).
+     * Configuration is left intact.
+     *
+     * @param transformId the transform id
+     * @param listener listener to call after inner request returned
+     */
+    void resetTransform(String transformId, ActionListener<Boolean> listener);
+
+    /**
      * This deletes the configuration and all other documents corresponding to the transform id (e.g. checkpoints).
      *
      * @param transformId the transform id

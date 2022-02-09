@@ -149,17 +149,17 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
          */
         MultiplexTokenFilter(TokenStream input, List<Function<TokenStream, TokenStream>> filters) {
             super(input);
-            TokenStream source = new MultiplexerFilter(input);
+            TokenStream sourceFilter = new MultiplexerFilter(input);
             for (int i = 0; i < filters.size(); i++) {
                 final int slot = i;
-                source = new ConditionalTokenFilter(source, filters.get(i)) {
+                sourceFilter = new ConditionalTokenFilter(sourceFilter, filters.get(i)) {
                     @Override
                     protected boolean shouldFilter() {
                         return slot == selector;
                     }
                 };
             }
-            this.source = source;
+            this.source = sourceFilter;
             this.filterCount = filters.size();
             this.selector = filterCount - 1;
         }

@@ -87,23 +87,17 @@ public class TransformLog4jConfigFilter extends FilterReader {
                 }
 
                 switch (keyParts[2]) {
-                    case "type":
+                    case "type" -> {
                         if (value.equals("RollingFile")) {
                             value = "Console";
                         }
                         line = key + " = " + value;
-                        break;
-
-                    case "fileName":
-                    case "filePattern":
-                    case "policies":
-                    case "strategy":
+                    }
+                    case "fileName", "filePattern", "policies", "strategy" -> {
                         // No longer applicable. Omit it.
                         skipNext = line.endsWith("\\");
                         continue;
-
-                    default:
-                        break;
+                    }
                 }
             } else if (line.startsWith("rootLogger.appenderRef")) {
                 String[] parts = line.split("\\s*=\\s*");

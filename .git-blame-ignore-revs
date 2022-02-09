@@ -3,7 +3,7 @@
 #
 # Use this file by running:
 #
-#     git blame --ignore-revs-file=.git-blame-ignore-rev <file>
+#     git blame --ignore-revs-file=.git-blame-ignore-revs <file>
 #
 # or by configuring `blame.ignoreRevsFile`. The latter ought to also work
 # with IDEs such as IntelliJ.

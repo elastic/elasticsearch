@@ -36,9 +36,7 @@ public class DeprecationChecks {
 
     private DeprecationChecks() {}
 
-    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = List.of(
-        ClusterDeprecationChecks::checkTransientSettingsExistence
-    );
+    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = Collections.emptyList();
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS = List.of(
         NodeDeprecationChecks::checkSharedDataPathSetting,
@@ -82,7 +80,9 @@ public class DeprecationChecks {
         NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
         NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
         NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
-        NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting
+        NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
+        NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
+        NodeDeprecationChecks::checkEqlEnabledSetting
     );
 
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(

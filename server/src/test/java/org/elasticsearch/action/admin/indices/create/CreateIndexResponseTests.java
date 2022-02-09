@@ -60,13 +60,15 @@ public class CreateIndexResponseTests extends AbstractSerializingTestCase<Create
     public void testToXContent() {
         CreateIndexResponse response = new CreateIndexResponse(true, false, "index_name");
         String output = Strings.toString(response);
-        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":\"index_name\"}", output);
+        assertEquals("""
+            {"acknowledged":true,"shards_acknowledged":false,"index":"index_name"}""", output);
     }
 
     public void testToAndFromXContentIndexNull() throws IOException {
         CreateIndexResponse response = new CreateIndexResponse(true, false, null);
         String output = Strings.toString(response);
-        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":null}", output);
+        assertEquals("""
+            {"acknowledged":true,"shards_acknowledged":false,"index":null}""", output);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, output)) {
             CreateIndexResponse parsedResponse = CreateIndexResponse.fromXContent(parser);
             assertNull(parsedResponse.index());

@@ -239,7 +239,7 @@ class BulkPrimaryExecutionContext {
         final BulkItemRequest current = getCurrentItem();
         DocWriteRequest<?> docWriteRequest = getRequestToExecute();
         switch (result.getResultType()) {
-            case SUCCESS:
+            case SUCCESS -> {
                 final DocWriteResponse response;
                 if (result.getOperationType() == Engine.Operation.TYPE.INDEX) {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
@@ -269,25 +269,22 @@ class BulkPrimaryExecutionContext {
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
                 executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
-                break;
-            case FAILURE:
-                executionResult = BulkItemResponse.failure(
-                    current.id(),
-                    docWriteRequest.opType(),
-                    // Make sure to use request.index() here, if you
-                    // use docWriteRequest.index() it will use the
-                    // concrete index instead of an alias if used!
-                    new BulkItemResponse.Failure(
-                        request.index(),
-                        docWriteRequest.id(),
-                        result.getFailure(),
-                        result.getSeqNo(),
-                        result.getTerm()
-                    )
-                );
-                break;
-            default:
-                throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());
+            }
+            case FAILURE -> executionResult = BulkItemResponse.failure(
+                current.id(),
+                docWriteRequest.opType(),
+                // Make sure to use request.index() here, if you
+                // use docWriteRequest.index() it will use the
+                // concrete index instead of an alias if used!
+                new BulkItemResponse.Failure(
+                    request.index(),
+                    docWriteRequest.id(),
+                    result.getFailure(),
+                    result.getSeqNo(),
+                    result.getTerm()
+                )
+            );
+            default -> throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());
         }
         currentItemState = ItemProcessingState.EXECUTED;
     }

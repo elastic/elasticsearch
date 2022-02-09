@@ -14,16 +14,6 @@ setup:
                 dims: 5
                 index: true
                 similarity: l2_norm
-              comments:
-                type: nested
-                properties:
-                  body:
-                    type: text
-                  vector:
-                    type: dense_vector
-                    dims: 5
-                    index: true
-                    similarity: l2_norm
 
   - do:
       index:
@@ -31,9 +21,6 @@ setup:
         body:
           name: cow.jpg
           vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
-          comments:
-            - body: "free the cows"
-              vector: [0.75, 100.0, 0.33, 16.2, -10.2]
 
   - do:
       index:
@@ -42,9 +29,6 @@ setup:
         body:
           name: moose.jpg
           vector: [-0.5, 100.0, -13, 14.8, -156.0]
-          comments:
-            - body: "what a great moose"
-              vector: [11.4, 99.0, 1.55, -2.9, -10.2]
 
   - do:
       index:
@@ -107,19 +91,3 @@ setup:
               num_candidates: 1
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "[knn] queries cannot be provided directly, use the [_knn_search] endpoint instead" }
-
----
-"kNN searches on nested fields are disallowed":
-  - do:
-      catch: bad_request
-      knn_search:
-        index: test
-        body:
-          fields: [ "nonexistent" ]
-          knn:
-            field: comments.vector
-            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
-            k: 2
-            num_candidates: 3
-  - match: { error.root_cause.0.type: "query_shard_exception" }
-  - match: { error.root_cause.0.reason: "failed to create query: [knn] queries are not supported on nested fields" }

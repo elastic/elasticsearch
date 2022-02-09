@@ -8,8 +8,9 @@
 
 package org.elasticsearch.legacygeo;
 
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.legacygeo.builders.CircleBuilder;
 import org.elasticsearch.legacygeo.builders.CoordinatesBuilder;
 import org.elasticsearch.legacygeo.builders.EnvelopeBuilder;
@@ -737,39 +738,40 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public void testPolygon3D() {
-        String expected = "{\n"
-            + "  \"type\" : \"polygon\",\n"
-            + "  \"orientation\" : \"right\",\n"
-            + "  \"coordinates\" : [\n"
-            + "    [\n"
-            + "      [\n"
-            + "        -45.0,\n"
-            + "        30.0,\n"
-            + "        100.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        45.0,\n"
-            + "        30.0,\n"
-            + "        75.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        45.0,\n"
-            + "        -30.0,\n"
-            + "        77.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        -45.0,\n"
-            + "        -30.0,\n"
-            + "        101.0\n"
-            + "      ],\n"
-            + "      [\n"
-            + "        -45.0,\n"
-            + "        30.0,\n"
-            + "        110.0\n"
-            + "      ]\n"
-            + "    ]\n"
-            + "  ]\n"
-            + "}";
+        String expected = """
+            {
+              "type" : "polygon",
+              "orientation" : "right",
+              "coordinates" : [
+                [
+                  [
+                    -45.0,
+                    30.0,
+                    100.0
+                  ],
+                  [
+                    45.0,
+                    30.0,
+                    75.0
+                  ],
+                  [
+                    45.0,
+                    -30.0,
+                    77.0
+                  ],
+                  [
+                    -45.0,
+                    -30.0,
+                    101.0
+                  ],
+                  [
+                    -45.0,
+                    30.0,
+                    110.0
+                  ]
+                ]
+              ]
+            }""";
 
         PolygonBuilder pb = new PolygonBuilder(
             new CoordinatesBuilder().coordinate(new Coordinate(-45, 30, 100))
@@ -800,6 +802,6 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public Object buildGeometry(ShapeBuilder<?, ?, ?> builder) {
-        return new GeoShapeIndexer(true, "name").prepareForIndexing(builder.buildGeometry());
+        return GeometryNormalizer.apply(Orientation.CCW, builder.buildGeometry());
     }
 }

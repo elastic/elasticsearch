@@ -12,6 +12,9 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+
 /**
  * A logger that logs deprecation notices. Logger should be initialized with a class or name which will be used
  * for deprecation logger. For instance <code>DeprecationLogger.getLogger("org.elasticsearch.test.SomeClass")</code> will
@@ -94,9 +97,18 @@ public class DeprecationLogger {
     private DeprecationLogger logDeprecation(Level level, DeprecationCategory category, String key, String msg, Object[] params) {
         assert category != DeprecationCategory.COMPATIBLE_API
             : "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
-        ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
-        logger.log(level, deprecationMessage);
+        String opaqueId = HeaderWarning.getXOpaqueId();
+        String productOrigin = HeaderWarning.getProductOrigin();
+        ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, opaqueId, productOrigin, msg, params);
+        doPrivilegedLog(level, deprecationMessage);
         return this;
+    }
+
+    private void doPrivilegedLog(Level level, ESLogMessage deprecationMessage) {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            logger.log(level, deprecationMessage);
+            return null;
+        });
     }
 
     /**
@@ -107,10 +119,21 @@ public class DeprecationLogger {
      * so that it can be returned to the client.
      */
     public DeprecationLogger compatibleCritical(final String key, final String msg, final Object... params) {
-        String opaqueId = HeaderWarning.getXOpaqueId();
-        ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, msg, params);
-        logger.log(CRITICAL, deprecationMessage);
-        return this;
+        return compatible(CRITICAL, key, msg, params);
     }
 
+    /**
+     * Used for handling previous version RestApiCompatible logic.
+     * Logs a message at the given level
+     * that has been broken in previous version.
+     * The message is also sent to the header warning logger,
+     * so that it can be returned to the client.
+     */
+    public DeprecationLogger compatible(final Level level, final String key, final String msg, final Object... params) {
+        String opaqueId = HeaderWarning.getXOpaqueId();
+        String productOrigin = HeaderWarning.getProductOrigin();
+        ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, productOrigin, msg, params);
+        logger.log(level, deprecationMessage);
+        return this;
+    }
 }

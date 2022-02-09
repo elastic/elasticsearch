@@ -14,10 +14,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.io.IOException;
 import java.util.List;
@@ -54,7 +55,7 @@ public class NlpTask {
             int apply(TokenizationResult.Tokenization tokenization, int index);
         }
 
-        Request buildRequest(List<String> inputs, String requestId) throws IOException;
+        Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate) throws IOException;
 
         Request buildRequest(TokenizationResult tokenizationResult, String requestId) throws IOException;
 
@@ -101,7 +102,7 @@ public class NlpTask {
     }
 
     public interface ResultProcessor {
-        InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult);
+        InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult);
     }
 
     public interface Processor {
@@ -123,12 +124,12 @@ public class NlpTask {
         String inputField = input.getFieldNames().get(0);
         Object inputValue = XContentMapValues.extractValue(inputField, doc);
         if (inputValue == null) {
-            throw ExceptionsHelper.badRequestException("no value could be found for input field [{}]", inputField);
+            throw ExceptionsHelper.badRequestException("Input field [{}] does not exist in the source document", inputField);
         }
         if (inputValue instanceof String) {
             return (String) inputValue;
         }
-        throw ExceptionsHelper.badRequestException("input value [{}] for field [{}] is not a string", inputValue, inputField);
+        throw ExceptionsHelper.badRequestException("Input value [{}] for field [{}] must be a string", inputValue, inputField);
     }
 
     public static class Request {

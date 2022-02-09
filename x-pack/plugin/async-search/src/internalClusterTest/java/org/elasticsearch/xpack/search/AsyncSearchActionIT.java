@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.DummyQueryBuilder;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -37,6 +41,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -86,6 +91,14 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             reqs.add(client().prepareIndex(indexName).setSource("terms", keyword, "metric", metric));
         }
         indexRandom(true, true, reqs);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
+            .build();
     }
 
     public void testMaxMinAggregation() throws Exception {
@@ -378,16 +391,18 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
         assertThat(response.getExpirationTime(), greaterThan(now));
+
+        final String searchId = response.getId();
         long expirationTime = response.getExpirationTime();
 
-        response = getAsyncSearch(response.getId());
+        response = getAsyncSearch(searchId);
         assertNotNull(response.getSearchResponse());
         assertFalse(response.isRunning());
         assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
+        response = getAsyncSearch(searchId, TimeValue.timeValueDays(10));
         assertThat(response.getExpirationTime(), greaterThan(expirationTime));
 
         assertFalse(response.isRunning());
@@ -395,10 +410,20 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueMillis(1));
-        assertThat(response.getExpirationTime(), lessThan(expirationTime));
-        ensureTaskNotRunning(response.getId());
-        ensureTaskRemoval(response.getId());
+        try {
+            AsyncSearchResponse finalResponse = getAsyncSearch(searchId, TimeValue.timeValueMillis(1));
+            assertThat(finalResponse.getExpirationTime(), lessThan(expirationTime));
+        } catch (ExecutionException e) {
+            // The 'get async search' method first updates the expiration time, then gets the response. So the
+            // maintenance service might remove the document right after it's updated, which means the get request
+            // fails with a 'not found' error. For now we allow this behavior, since it will be very rare in practice.
+            if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) == null) {
+                throw e;
+            }
+        }
+
+        ensureTaskNotRunning(searchId);
+        ensureTaskRemoval(searchId);
     }
 
     public void testRemoveAsyncIndex() throws Exception {
@@ -454,6 +479,27 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         ensureTaskNotRunning(response.getId());
     }
 
+    public void testSearchPhaseFailureLeak() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
+        request.setKeepOnCompletion(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
+        request.getSearchRequest().allowPartialSearchResults(false);
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().query(
+                    new ThrowingQueryBuilder(randomLong(), new AlreadyClosedException("boom"), between(0, numShards - 1))
+                )
+            );
+        request.getSearchRequest().source().aggregation(terms("f").field("f").size(between(1, 10)));
+
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertFalse(response.isRunning());
+        assertTrue(response.isPartial());
+        assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertNotNull(response.getFailure());
+        ensureTaskNotRunning(response.getId());
+    }
+
     public void testMaxResponseSize() {
         SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
             .aggregation(AggregationBuilders.terms("terms").field("terms.keyword").size(numKeywords));
@@ -484,5 +530,20 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    public void testCCSCheckCompatibility() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new SearchSourceBuilder().query(new DummyQueryBuilder() {
+            @Override
+            public Version getMinimalSupportedVersion() {
+                return Version.CURRENT;
+            }
+        }), indexName);
+
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertFalse(response.isRunning());
+        Exception failure = response.getFailure();
+        assertThat(failure.getMessage(), containsString("error while executing search"));
+        assertThat(failure.getCause().getMessage(), containsString("the 'search.check_ccs_compatibility' setting is enabled"));
     }
 }

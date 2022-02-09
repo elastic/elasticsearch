@@ -112,13 +112,8 @@ by default {es} sets
 <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
 to `data_hot` to automatically allocate the index shards to the hot tier.
 
-You can override the automatic tier-based allocation by specifying
-<<shard-allocation-filtering, shard allocation filtering>>
-settings in the create index request or index template that matches the new index.
-
-You can also explicitly set `index.routing.allocation.include._tier_preference`
+You can explicitly set `index.routing.allocation.include._tier_preference`
 to opt out of the default tier-based allocation.
-If you set the tier preference to `null`, {es} ignores the data tier roles during allocation.
 
 [discrete]
 [[data-tier-migration]]
@@ -127,5 +122,6 @@ If you set the tier preference to `null`, {es} ignores the data tier roles durin
 {ilm-init} automatically transitions managed
 indices through the available data tiers using the <<ilm-migrate, migrate>> action.
 By default, this action is automatically injected in every phase.
-You can explicitly specify the migrate action to override the default behavior,
-or use the <<ilm-allocate, allocate action>> to manually specify allocation rules.
+You can explicitly specify the migrate action with `"enabled": false` to disable automatic migration,
+for example, if you're using the <<ilm-allocate, allocate action>> to manually
+specify allocation rules.

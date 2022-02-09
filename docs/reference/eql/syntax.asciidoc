@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[eql-syntax]]
 == EQL syntax reference
 ++++
@@ -352,6 +351,39 @@ any where true
 ----
 
 [discrete]
+[[eql-syntax-optional-fields]]
+=== Optional fields
+
+By default, an EQL query can only contain fields that exist in the dataset
+you're searching. A field exists in a dataset if it has an
+<<explicit-mapping,explicit>>, <<dynamic-mapping,dynamic>>, or
+<<eql-use-runtime-fields,runtime>> mapping. If an EQL query contains a field
+that doesn't exist, it returns an error.
+
+If you aren't sure if a field exists in a dataset, use the `?` operator to mark
+the field as optional. If an optional field doesn't exist, the query replaces it
+with `null` instead of returning an error.
+
+*Example* +
+In the following query, the `user.id` field is optional.
+
+[source,eql]
+----
+network where ?user.id != null
+----
+
+If the `user.id` field exists in the dataset you're searching, the query matches
+any `network` event that contains a `user.id` value. If the `user.id` field
+doesn't exist in the dataset, EQL interprets the query as:
+
+[source,eql]
+----
+network where null != null
+----
+
+In this case, the query matches no events.
+
+[discrete]
 [[eql-syntax-check-field-exists]]
 ==== Check if a field exists
 
@@ -360,7 +392,7 @@ using the `!=` operator:
 
 [source,eql]
 ----
-my_field != null
+?my_field != null
 ----
 
 To match events that do not contain a field value, compare the field to `null`
@@ -368,11 +400,8 @@ using the `==` operator:
 
 [source,eql]
 ----
-my_field == null
+?my_field == null
 ----
-
-IMPORTANT: To avoid errors, the field must contain a non-`null` value in at
-least one document or be <<explicit-mapping,explicitly mapped>>.
 
 [discrete]
 [[eql-syntax-strings]]
@@ -549,9 +578,10 @@ sequence with maxspan=15m
 [[eql-by-keyword]]
 ==== `by` keyword
 
-You can use the `by` keyword with sequences to only match events that share the
-same field values. If a field value should be shared across all events, you
-can use `sequence by`.
+Use the `by` keyword in a sequence query to only match events that share the
+same values, even if those values are in different fields. These shared values
+are called join keys. If a join key should be in the same field across all
+events, use `sequence by`.
 
 [source,eql]
 ----
@@ -593,8 +623,8 @@ field values and a timespan.
 [source,eql]
 ----
 sequence by field_foo with maxspan=30s
-  [ event_category_1 where condition_1 ] by field_baz
-  [ event_category_2 where condition_2 ] by field_bar
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
   ...
 ----
 
@@ -608,8 +638,37 @@ a sequence of events that:
 [source,eql]
 ----
 sequence by user.name with maxspan=15m
-  [ file where file.extension == "exe" ] by file.path
-  [ process where true ] by process.executable
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+----
+
+[discrete]
+[[eql-syntax-optional-by-fields]]
+==== Optional `by` fields
+
+By default, a join key must be a non-`null` field value. To allow `null` join
+keys, use the `?` operator to mark the `by` field as
+<<eql-syntax-optional-fields,optional>>. This is also helpful if you aren't sure
+the dataset you're searching contains the `by` field.
+
+*Example* +
+The following sequence query uses `sequence by` to constrain matching events
+to:
+
+* Events with the same `process.pid` value, excluding `null` values. If the
+  `process.pid` field doesn't exist in the dataset you're searching, the query
+  returns an error.
+
+* Events with the same `process.entity_id` value, including `null` values. If
+  an event doesn't contain the `process.entity_id` field, its
+  `process.entity_id` value is considered `null`. This applies even if the
+  `process.pid` field doesn't exist in the dataset you're searching.
+
+[source,eql]
+----
+sequence by process.pid, ?process.entity_id
+  [process where process.name == "regsvr32.exe"]
+  [network where true]
 ----
 
 [discrete]
@@ -722,7 +781,7 @@ sequence
 ----
 
 The `runs` value must be between `1` and `100` (inclusive).
- 
+
 You can use a `with runs` statement with the <<eql-by-keyword,`by` keyword>>.
 For example:
 

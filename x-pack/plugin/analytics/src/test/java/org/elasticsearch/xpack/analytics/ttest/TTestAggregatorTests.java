@@ -138,7 +138,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
     public void testNoMatchingField() throws IOException {
@@ -255,17 +255,10 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new SortedNumericDocValuesField("a", 99), new SortedNumericDocValuesField("b", 98)));
         }, tTest -> {
             switch (tTestType) {
-                case PAIRED:
-                    assertEquals(0.4385093524, tTest.getValue(), 0.000001);
-                    break;
-                case HOMOSCEDASTIC:
-                    assertEquals(0.1066843841, tTest.getValue(), 0.000001);
-                    break;
-                case HETEROSCEDASTIC:
-                    assertEquals(0.1068382282, tTest.getValue(), 0.000001);
-                    break;
-                default:
-                    fail("unknown t-test type " + tTestType);
+                case PAIRED -> assertEquals(0.4385093524, tTest.getValue(), 0.000001);
+                case HOMOSCEDASTIC -> assertEquals(0.1066843841, tTest.getValue(), 0.000001);
+                case HETEROSCEDASTIC -> assertEquals(0.1068382282, tTest.getValue(), 0.000001);
+                default -> fail("unknown t-test type " + tTestType);
             }
         });
     }
@@ -288,31 +281,17 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             } else {
                 if (missA) {
                     switch (tTestType) {
-                        case PAIRED:
-                            assertEquals(0.1392089745, tTest.getValue(), 0.000001);
-                            break;
-                        case HOMOSCEDASTIC:
-                            assertEquals(0.04600190799, tTest.getValue(), 0.000001);
-                            break;
-                        case HETEROSCEDASTIC:
-                            assertEquals(0.1392089745, tTest.getValue(), 0.000001);
-                            break;
-                        default:
-                            fail("unknown t-test type " + tTestType);
+                        case PAIRED -> assertEquals(0.1392089745, tTest.getValue(), 0.000001);
+                        case HOMOSCEDASTIC -> assertEquals(0.04600190799, tTest.getValue(), 0.000001);
+                        case HETEROSCEDASTIC -> assertEquals(0.1392089745, tTest.getValue(), 0.000001);
+                        default -> fail("unknown t-test type " + tTestType);
                     }
                 } else {
                     switch (tTestType) {
-                        case PAIRED:
-                            assertEquals(0.7951672353, tTest.getValue(), 0.000001);
-                            break;
-                        case HOMOSCEDASTIC:
-                            assertEquals(0.7705842661, tTest.getValue(), 0.000001);
-                            break;
-                        case HETEROSCEDASTIC:
-                            assertEquals(0.7951672353, tTest.getValue(), 0.000001);
-                            break;
-                        default:
-                            fail("unknown t-test type " + tTestType);
+                        case PAIRED -> assertEquals(0.7951672353, tTest.getValue(), 0.000001);
+                        case HOMOSCEDASTIC -> assertEquals(0.7705842661, tTest.getValue(), 0.000001);
+                        case HETEROSCEDASTIC -> assertEquals(0.7951672353, tTest.getValue(), 0.000001);
+                        default -> fail("unknown t-test type " + tTestType);
                     }
                 }
             }

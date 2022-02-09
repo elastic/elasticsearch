@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
@@ -16,36 +17,64 @@ import java.util.Arrays;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 public class KnnDenseVectorScriptDocValues extends DenseVectorScriptDocValues {
-    private final VectorValues in;
-    private float[] vector;
 
-    KnnDenseVectorScriptDocValues(VectorValues in, int dims) {
-        super(dims);
-        this.in = in;
-    }
+    public static class KnnDenseVectorSupplier implements DenseVectorSupplier<float[]> {
 
-    @Override
-    public void setNextDocId(int docId) throws IOException {
-        int currentDoc = in.docID();
-        if (currentDoc == NO_MORE_DOCS || docId < currentDoc) {
-            vector = null;
-        } else if (docId == currentDoc) {
-            vector = in.vectorValue();
-        } else {
-            currentDoc = in.advance(docId);
-            if (currentDoc == docId) {
+        private final VectorValues in;
+        private float[] vector;
+
+        public KnnDenseVectorSupplier(VectorValues in) {
+            this.in = in;
+        }
+
+        @Override
+        public void setNextDocId(int docId) throws IOException {
+            int currentDoc = in.docID();
+            if (currentDoc == NO_MORE_DOCS || docId < currentDoc) {
+                vector = null;
+            } else if (docId == currentDoc) {
                 vector = in.vectorValue();
             } else {
-                vector = null;
+                currentDoc = in.advance(docId);
+                if (currentDoc == docId) {
+                    vector = in.vectorValue();
+                } else {
+                    vector = null;
+                }
+            }
+        }
+
+        @Override
+        public BytesRef getInternal(int index) {
+            throw new UnsupportedOperationException();
+        }
+
+        public float[] getInternal() {
+            return vector;
+        }
+
+        @Override
+        public int size() {
+            if (vector == null) {
+                return 0;
+            } else {
+                return 1;
             }
         }
     }
 
+    private final KnnDenseVectorSupplier kdvSupplier;
+
+    KnnDenseVectorScriptDocValues(KnnDenseVectorSupplier supplier, int dims) {
+        super(supplier, dims);
+        this.kdvSupplier = supplier;
+    }
+
     private float[] getVectorChecked() {
-        if (vector == null) {
+        if (kdvSupplier.getInternal() == null) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
-        return vector;
+        return kdvSupplier.getInternal();
     }
 
     @Override
@@ -88,10 +117,6 @@ public class KnnDenseVectorScriptDocValues extends DenseVectorScriptDocValues {
 
     @Override
     public int size() {
-        if (vector == null) {
-            return 0;
-        } else {
-            return 1;
-        }
+        return supplier.size();
     }
 }

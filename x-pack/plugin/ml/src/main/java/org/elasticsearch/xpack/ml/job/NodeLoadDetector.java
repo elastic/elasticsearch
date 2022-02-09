@@ -99,7 +99,8 @@ public class NodeLoadDetector {
             );
             for (PersistentTasksCustomMetadata.PersistentTask<?> task : memoryTrackedTasks) {
                 MemoryTrackedTaskState state = MlTasks.getMemoryTrackedTaskState(task);
-                if (state == null || state.consumesMemory()) {
+                assert state != null : "null MemoryTrackedTaskState for memory tracked task with params " + task.getParams();
+                if (state != null && state.consumesMemory()) {
                     MlTaskParams taskParams = (MlTaskParams) task.getParams();
                     nodeLoad.addTask(task.getTaskName(), taskParams.getMlId(), state.isAllocating(), mlMemoryTracker);
                 }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction.Request;
 
+import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction.MAX_NUM_NATIVE_DEFINITION_PARTS;
 import static org.hamcrest.Matchers.containsString;
 
 public class PutTrainedModelDefinitionPartActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
@@ -40,6 +41,20 @@ public class PutTrainedModelDefinitionPartActionRequestTests extends AbstractBWC
 
         exception = badRequest.validate();
         assertThat(exception.getMessage(), containsString("[part] must be less than total_parts"));
+
+        badRequest = new Request(
+            randomAlphaOfLength(10),
+            new BytesArray(randomAlphaOfLength(10)),
+            5,
+            10L,
+            randomIntBetween(MAX_NUM_NATIVE_DEFINITION_PARTS + 1, Integer.MAX_VALUE)
+        );
+
+        exception = badRequest.validate();
+        assertThat(
+            exception.getMessage(),
+            containsString("[total_parts] must be less than or equal to " + MAX_NUM_NATIVE_DEFINITION_PARTS)
+        );
     }
 
     @Override

@@ -52,7 +52,15 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newObjectArray(Math.min(size, 100));
-        this.valueBuilders = bigArrays.newObjectArray(Math.min(size, 100));
+        boolean success = false;
+        try {
+            this.valueBuilders = bigArrays.newObjectArray(Math.min(size, 100));
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
@@ -138,7 +146,10 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value.getClass() == String.class) {
-            afterValue = format.parseBytesRef(value.toString());
+            afterValue = format.parseBytesRef(value);
+        } else if (value.getClass() == BytesRef.class) {
+            // The value may be a bytes reference (eg an encoded tsid field)
+            afterValue = (BytesRef) value;
         } else {
             throw new IllegalArgumentException("invalid value, expected string, got " + value.getClass().getSimpleName());
         }

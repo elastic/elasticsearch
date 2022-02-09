@@ -41,6 +41,7 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
     private final CharArraySet protoWords;
     private final boolean adjustOffsets;
 
+    @SuppressWarnings("HiddenField")
     public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 

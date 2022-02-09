@@ -168,4 +168,10 @@ public interface IndexEventListener {
      * @param indexSettings the shard's index settings
      */
     default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {}
+
+    /**
+     * Called after the raw files have been restored from the repository but any other recovery processing has happened
+     * @param indexShard the shard that is recovering
+     */
+    default void afterFilesRestoredFromRepository(IndexShard indexShard) {}
 }

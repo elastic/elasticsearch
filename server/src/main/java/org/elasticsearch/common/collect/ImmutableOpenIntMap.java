@@ -21,8 +21,14 @@ import com.carrotsearch.hppc.predicates.IntObjectPredicate;
 import com.carrotsearch.hppc.predicates.IntPredicate;
 import com.carrotsearch.hppc.procedures.IntObjectProcedure;
 
+import java.util.AbstractSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Consumer;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -33,6 +39,11 @@ import java.util.Map;
 public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCursor<VType>> {
 
     private final IntObjectHashMap<VType> map;
+
+    /**
+     * Holds cached entrySet().
+     */
+    private Set<Map.Entry<Integer, VType>> entrySet;
 
     private ImmutableOpenIntMap(IntObjectHashMap<VType> map) {
         this.map = map;
@@ -138,6 +149,107 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
      */
     public Iterator<VType> valuesIt() {
         return ImmutableOpenMap.iterator(map.values());
+    }
+
+    public Set<Map.Entry<Integer, VType>> entrySet() {
+        Set<Map.Entry<Integer, VType>> es;
+        return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;
+    }
+
+    private final class ImmutableEntry implements Map.Entry<Integer, VType> {
+        private final int key;
+        private final VType value;
+
+        ImmutableEntry(int key, VType value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        @Override
+        public Integer getKey() {
+            return key;
+        }
+
+        @Override
+        public VType getValue() {
+            return value;
+        }
+
+        @Override
+        public VType setValue(VType value) {
+            throw new UnsupportedOperationException("collection is immutable");
+        }
+    }
+
+    private final class ConversionIterator implements Iterator<Map.Entry<Integer, VType>> {
+
+        private final Iterator<IntObjectCursor<VType>> original;
+
+        ConversionIterator() {
+            this.original = map.iterator();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return original.hasNext();
+        }
+
+        @Override
+        public Map.Entry<Integer, VType> next() {
+            final IntObjectCursor<VType> obj = original.next();
+            if (obj == null) {
+                return null;
+            }
+            return new ImmutableEntry(obj.key, obj.value);
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException("removal is unsupported");
+        }
+    }
+
+    private final class EntrySet extends AbstractSet<Map.Entry<Integer, VType>> {
+        public int size() {
+            return map.size();
+        }
+
+        public void clear() {
+            throw new UnsupportedOperationException("removal is unsupported");
+        }
+
+        public Iterator<Map.Entry<Integer, VType>> iterator() {
+            return new ConversionIterator();
+        }
+
+        @SuppressWarnings("unchecked")
+        public boolean contains(Object o) {
+            if (o instanceof Map.Entry<?, ?> == false) {
+                return false;
+            }
+            Map.Entry<Integer, ?> e = (Map.Entry<Integer, ?>) o;
+            int key = e.getKey();
+            if (map.containsKey(key) == false) {
+                return false;
+            }
+            Object val = map.get(key);
+            return Objects.equals(val, e.getValue());
+        }
+
+        public boolean remove(Object o) {
+            throw new UnsupportedOperationException("removal is not supported");
+        }
+
+        public Spliterator<Map.Entry<Integer, VType>> spliterator() {
+            return Spliterators.spliteratorUnknownSize(iterator(), 0);
+        }
+
+        public void forEach(Consumer<? super Map.Entry<Integer, VType>> action) {
+            map.forEach((Consumer<? super IntObjectCursor<VType>>) cursor -> {
+                ImmutableEntry entry = new ImmutableEntry(cursor.key, cursor.value);
+                action.accept(entry);
+            });
+        }
     }
 
     @Override

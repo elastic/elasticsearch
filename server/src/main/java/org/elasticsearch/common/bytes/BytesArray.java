@@ -56,6 +56,16 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     @Override
+    public int indexOf(byte marker, int from) {
+        for (int i = offset + from; i < offset + length; i++) {
+            if (bytes[i] == marker) {
+                return i - offset;
+            }
+        }
+        return -1;
+    }
+
+    @Override
     public int length() {
         return length;
     }
@@ -71,8 +81,7 @@ public final class BytesArray extends AbstractBytesReference {
         if (this == other) {
             return true;
         }
-        if (other instanceof BytesArray) {
-            final BytesArray that = (BytesArray) other;
+        if (other instanceof final BytesArray that) {
             return Arrays.equals(bytes, offset, offset + length, that.bytes, that.offset, that.offset + that.length);
         }
         return super.equals(other);

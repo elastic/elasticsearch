@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -35,8 +39,8 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     private final TaskParams params;
     private final TrainedModelAllocationNodeService trainedModelAllocationNodeService;
     private volatile boolean stopped;
-    private final SetOnce<String> stoppedReason = new SetOnce<>();
-    private final SetOnce<InferenceConfig> inferenceConfig = new SetOnce<>();
+    private final SetOnce<String> stoppedReasonHolder = new SetOnce<>();
+    private final SetOnce<InferenceConfig> inferenceConfigHolder = new SetOnce<>();
     private final XPackLicenseState licenseState;
     private final LicensedFeature.Persistent licensedFeature;
 
@@ -51,7 +55,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         XPackLicenseState licenseState,
         LicensedFeature.Persistent licensedFeature
     ) {
-        super(id, type, action, MlTasks.trainedModelDeploymentTaskId(taskParams.getModelId()), parentTask, headers);
+        super(id, type, action, MlTasks.trainedModelAllocationTaskDescription(taskParams.getModelId()), parentTask, headers);
         this.params = taskParams;
         this.trainedModelAllocationNodeService = ExceptionsHelper.requireNonNull(
             trainedModelAllocationNodeService,
@@ -62,7 +66,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     void init(InferenceConfig inferenceConfig) {
-        this.inferenceConfig.set(inferenceConfig);
+        this.inferenceConfigHolder.set(inferenceConfig);
         licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
     }
 
@@ -78,18 +82,14 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params;
     }
 
-    public void stop(String reason) {
-        logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
-        licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
-        stopped = true;
-        stoppedReason.trySet(reason);
-        trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason);
+    public void stop(String reason, ActionListener<AcknowledgedResponse> listener) {
+        trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason, listener);
     }
 
-    public void stopWithoutNotification(String reason) {
+    public void markAsStopped(String reason) {
         licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
-        stoppedReason.trySet(reason);
+        stoppedReasonHolder.trySet(reason);
         stopped = true;
     }
 
@@ -98,34 +98,40 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     public Optional<String> stoppedReason() {
-        return Optional.ofNullable(stoppedReason.get());
+        return Optional.ofNullable(stoppedReasonHolder.get());
     }
 
     @Override
     protected void onCancelled() {
         String reason = getReasonCancelled();
-        stop(reason);
+        logger.info("[{}] task cancelled due to reason [{}]", getModelId(), reason);
+        stop(
+            reason,
+            ActionListener.wrap(
+                acknowledgedResponse -> {},
+                e -> logger.error(new ParameterizedMessage("[{}] error stopping the model after task cancellation", getModelId()), e)
+            )
+        );
     }
 
     public void infer(Map<String, Object> doc, InferenceConfigUpdate update, TimeValue timeout, ActionListener<InferenceResults> listener) {
-        if (inferenceConfig.get() == null) {
-            listener.onFailure(
-                ExceptionsHelper.badRequestException("[{}] inference not possible against uninitialized model", params.getModelId())
-            );
+        if (inferenceConfigHolder.get() == null) {
+            listener.onFailure(ExceptionsHelper.conflictStatusException("Trained model [{}] is not initialized", params.getModelId()));
             return;
         }
-        if (update.isSupported(inferenceConfig.get()) == false) {
+        if (update.isSupported(inferenceConfigHolder.get()) == false) {
             listener.onFailure(
-                ExceptionsHelper.badRequestException(
-                    "[{}] inference not possible. Task is configured with [{}] but received update of type [{}]",
+                new ElasticsearchStatusException(
+                    "Trained model [{}] is configured for task [{}] but called with task [{}]",
+                    RestStatus.FORBIDDEN,
                     params.getModelId(),
-                    inferenceConfig.get().getName(),
+                    inferenceConfigHolder.get().getName(),
                     update.getName()
                 )
             );
             return;
         }
-        trainedModelAllocationNodeService.infer(this, update.apply(inferenceConfig.get()), doc, timeout, listener);
+        trainedModelAllocationNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, timeout, listener);
     }
 
     public Optional<ModelStats> modelStats() {

@@ -61,20 +61,20 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     }
 
     private SizedBucketAggregator findSizedBucketAncestor() {
-        SizedBucketAggregator sizedBucketAggregator = null;
+        SizedBucketAggregator aggregator = null;
         for (Aggregator ancestor = parent; ancestor != null; ancestor = ancestor.parent()) {
             if (ancestor instanceof SizedBucketAggregator) {
-                sizedBucketAggregator = (SizedBucketAggregator) ancestor;
+                aggregator = (SizedBucketAggregator) ancestor;
                 break;
             }
         }
-        if (sizedBucketAggregator == null) {
+        if (aggregator == null) {
             throw new IllegalArgumentException(
                 "The rate aggregation can only be used inside a date histogram aggregation or "
                     + "composite aggregation with one date histogram value source"
             );
         }
-        return sizedBucketAggregator;
+        return aggregator;
     }
 
     @Override

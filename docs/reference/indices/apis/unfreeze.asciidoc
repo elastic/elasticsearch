@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[unfreeze-index-api]]
 === Unfreeze index API
 ++++

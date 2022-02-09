@@ -30,7 +30,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         project.getConfigurations().create("forbiddenApisCliJar");
-        project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:3.1");
+        project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:3.2");
         Configuration jdkJarHellConfig = project.getConfigurations().create(JDK_JAR_HELL_CONFIG_NAME);
         if (project.getPath().equals(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH) == false) {
             // Internal projects are not all plugins, so make sure the check is available

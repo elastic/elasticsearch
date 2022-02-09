@@ -529,21 +529,21 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setQuery(QueryProvider queryProvider) {
-            this.queryProvider = queryProvider;
+        public Builder setQuery(QueryProvider query) {
+            this.queryProvider = query;
             return this;
         }
 
-        private Builder setAggregationsSafe(AggProvider aggProvider) {
+        private Builder setAggregationsSafe(AggProvider provider) {
             if (this.aggProvider != null) {
                 throw ExceptionsHelper.badRequestException("Found two aggregation definitions: [aggs] and [aggregations]");
             }
-            setAggregations(aggProvider);
+            setAggregations(provider);
             return this;
         }
 
-        public Builder setAggregations(AggProvider aggProvider) {
-            this.aggProvider = aggProvider;
+        public Builder setAggregations(AggProvider provider) {
+            this.aggProvider = provider;
             return this;
         }
 

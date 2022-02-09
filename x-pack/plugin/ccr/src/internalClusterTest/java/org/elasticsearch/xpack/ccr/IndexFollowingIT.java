@@ -44,8 +44,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
@@ -64,6 +65,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -169,9 +171,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
-        try (
-            BackgroundIndexer indexer = new BackgroundIndexer("index1", "_doc", leaderClient(), firstBatchNumDocs, randomIntBetween(1, 5))
-        ) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("index1", leaderClient(), firstBatchNumDocs, randomIntBetween(1, 5))) {
             waitForDocs(randomInt(firstBatchNumDocs), indexer);
             leaderClient().admin().indices().prepareFlush("index1").setWaitIfOngoing(true).get();
             waitForDocs(firstBatchNumDocs, indexer);
@@ -1224,10 +1224,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         assertBusy(() -> {
             GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
             assertThat(resp.getSetting("follower", "index.max_ngram_diff"), equalTo("2"));
@@ -1288,16 +1288,16 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 settingVersionOnLeader.set(newState.metadata().index("leader").getSettingsVersion());
                 latch.countDown();
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         latch.await();
         assertBusy(() -> assertThat(getFollowTaskSettingsVersion("follower"), equalTo(settingVersionOnLeader.get())));
         GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
@@ -1397,7 +1397,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final Consumer<Collection<ResourceNotFoundException>> exceptionConsumer
     ) throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final Map<String, String> extraSettingsMap = new HashMap<>(2);
+        final Map<String, String> extraSettingsMap = Maps.newMapWithExpectedSize(2);
         extraSettingsMap.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms");
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1), extraSettingsMap);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
@@ -1502,9 +1502,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertTrue(response.isIndexFollowingStarted());
 
         logger.info("Indexing [{}] docs while updating remote config", firstBatchNumDocs);
-        try (
-            BackgroundIndexer indexer = new BackgroundIndexer("index1", "_doc", leaderClient(), firstBatchNumDocs, randomIntBetween(1, 5))
-        ) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("index1", leaderClient(), firstBatchNumDocs, randomIntBetween(1, 5))) {
 
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
             String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
@@ -1664,13 +1662,13 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 TaskInfo taskInfo = null;
                 String expectedId = "id=" + shardFollowTask.getId();
                 for (TaskInfo info : taskInfos) {
-                    if (expectedId.equals(info.getDescription())) {
+                    if (expectedId.equals(info.description())) {
                         taskInfo = info;
                         break;
                     }
                 }
                 assertThat(taskInfo, notNullValue());
-                ShardFollowNodeTaskStatus status = (ShardFollowNodeTaskStatus) taskInfo.getStatus();
+                ShardFollowNodeTaskStatus status = (ShardFollowNodeTaskStatus) taskInfo.status();
                 assertThat(status, notNullValue());
                 assertThat(
                     "incorrect global checkpoint " + shardFollowTaskParams,

@@ -17,6 +17,7 @@ import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
@@ -51,6 +52,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final String path;
     private final String clusterName;
     private final NamedDomainObjectContainer<ElasticsearchNode> nodes;
+    private final FileOperations fileOperations;
     private final File workingDirBase;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
@@ -69,6 +71,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
+        FileOperations fileOperations,
         File workingDirBase,
         Provider<File> runtimeJava
     ) {
@@ -79,6 +82,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
+        this.fileOperations = fileOperations;
         this.workingDirBase = workingDirBase;
         this.runtimeJava = runtimeJava;
         this.nodes = project.container(ElasticsearchNode.class);
@@ -92,6 +96,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 fileSystemOperations,
                 archiveOperations,
                 execOperations,
+                fileOperations,
                 workingDirBase,
                 runtimeJava
             )
@@ -124,6 +129,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     fileSystemOperations,
                     archiveOperations,
                     execOperations,
+                    fileOperations,
                     workingDirBase,
                     runtimeJava
                 )
@@ -329,32 +335,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
-                if (node.getVersion().onOrAfter("7.0.0")) {
-                    node.defaultConfig.keySet()
-                        .stream()
-                        .filter(name -> name.startsWith("discovery.zen."))
-                        .collect(Collectors.toList())
-                        .forEach(node.defaultConfig::remove);
-                    node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
-                    node.defaultConfig.put("discovery.seed_providers", "file");
-                    node.defaultConfig.put("discovery.seed_hosts", "[]");
-                } else {
-                    node.defaultConfig.put("discovery.zen.master_election.wait_for_joins_timeout", "5s");
-                    if (nodes.size() > 1) {
-                        node.defaultConfig.put("discovery.zen.minimum_master_nodes", Integer.toString(nodes.size() / 2 + 1));
-                    }
-                    if (node.getVersion().onOrAfter("6.5.0")) {
-                        node.defaultConfig.put("discovery.zen.hosts_provider", "file");
-                        node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
-                    } else {
-                        if (firstNode == null) {
-                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
-                        } else {
-                            firstNode.waitForAllConditions();
-                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[\"" + firstNode.getTransportPortURI() + "\"]");
-                        }
-                    }
-                }
+                assert node.getVersion().onOrAfter("7.0.0") : node.getVersion();
+                assert node.defaultConfig.keySet().stream().noneMatch(name -> name.startsWith("discovery.zen."));
+                node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+                node.defaultConfig.put("discovery.seed_providers", "file");
+                node.defaultConfig.put("discovery.seed_hosts", "[]");
             }
             if (firstNode == null) {
                 firstNode = node;
@@ -409,6 +394,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void user(Map<String, String> userSpec) {
         nodes.all(node -> node.user(userSpec));
+    }
+
+    @Override
+    public void rolesFile(File rolesYml) {
+        nodes.all(node -> node.rolesFile(rolesYml));
     }
 
     private void writeUnicastHostsFiles() {

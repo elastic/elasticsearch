@@ -8,12 +8,13 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentParser;
@@ -29,7 +30,7 @@ import java.util.Set;
  */
 public abstract class AggregationBuilder
     implements
-        NamedWriteable,
+        VersionedNamedWriteable,
         ToXContentFragment,
         BaseAggregationBuilder,
         Rewriteable<AggregationBuilder> {
@@ -185,8 +186,33 @@ public abstract class AggregationBuilder
         public static final ParseField VALUE_TYPE = new ParseField("value_type");
     }
 
+    /**
+     * Does this aggregation support running with in a sampling context.
+     *
+     * By default, it's false for all aggregations.
+     *
+     * If the sub-classed builder supports sampling, be sure of the following that the resulting internal aggregation objects
+     * override the {@link InternalAggregation#finalizeSampling(SamplingContext)} and scales any values that require scaling.
+     * @return does this aggregation builder support sampling
+     */
+    public boolean supportsSampling() {
+        return false;
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * Return true if any of the child aggregations is a time-series aggregation that requires an in-order execution
+     */
+    public boolean isInSortOrderExecutionRequired() {
+        for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
+            if (builder.isInSortOrderExecutionRequired()) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -18,8 +18,11 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.ReaderSlice;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -29,10 +32,14 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -40,15 +47,25 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.script.field.KeywordDocValuesField;
+import org.elasticsearch.script.field.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -69,6 +86,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
+
+        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
     public static class KeywordField extends Field {
@@ -102,7 +121,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             "ignore_above",
             true,
             m -> toType(m).ignoreAbove,
-            Integer.MAX_VALUE
+            Defaults.IGNORE_ABOVE
         );
 
         private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
@@ -291,8 +310,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = builder.dimension.getValue();
         }
 
-        public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
+            super(name, isIndexed, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
@@ -333,11 +352,126 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isSearchable() {
+            return isIndexed() || hasDocValues();
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.termQuery(value, context);
+            } else {
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+            }
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.termsQuery(values, context);
+            } else {
+                BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
+                return new DocValuesTermsQuery(name(), bytesRefs);
+            }
+        }
+
+        @Override
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
+            } else {
+                return SortedSetDocValuesField.newSlowRangeQuery(
+                    name(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                    includeLower,
+                    includeUpper
+                );
+            }
+        }
+
+        @Override
+        public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
+            } else {
+                return StringScriptFieldFuzzyQuery.build(
+                    new Script(""),
+                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    indexedValueForSearch(value).utf8ToString(),
+                    fuzziness.asDistance(BytesRefs.toString(value)),
+                    prefixLength,
+                    transpositions
+                );
+            }
+        }
+
+        @Override
+        public Query prefixQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.prefixQuery(value, method, caseInsensitive, context);
+            } else {
+                return new StringScriptFieldPrefixQuery(
+                    new Script(""),
+                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    indexedValueForSearch(value).utf8ToString(),
+                    caseInsensitive
+                );
+            }
+        }
+
+        @Override
+        public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.termQueryCaseInsensitive(value, context);
+            } else {
+                return new StringScriptFieldTermQuery(
+                    new Script(""),
+                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    indexedValueForSearch(value).utf8ToString(),
+                    true
+                );
+            }
+        }
+
+        @Override
         public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
             throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
 
-            Terms terms = MultiTerms.getTerms(reader, name());
+            Terms terms = null;
+            if (isIndexed()) {
+                terms = MultiTerms.getTerms(reader, name());
+            } else if (hasDocValues()) {
+                terms = SortedSetDocValuesTerms.getTerms(reader, name());
+            }
             if (terms == null) {
                 // Field does not exist on this shard.
                 return null;
@@ -365,7 +499,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // would work but either leaves us positioned on the seek term (if it exists) or the
         // term after (if the seek term doesn't exist). That complicates any subsequent
         // iteration logic so this class simplifies the pagination use case.
-        final class SearchAfterTermsEnum extends FilteredTermsEnum {
+        static final class SearchAfterTermsEnum extends FilteredTermsEnum {
             private final BytesRef afterRef;
 
             SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
@@ -378,6 +512,109 @@ public final class KeywordFieldMapper extends FieldMapper {
             protected AcceptStatus accept(BytesRef term) {
                 return term.equals(afterRef) ? AcceptStatus.NO : AcceptStatus.YES;
             }
+        }
+
+        /**
+         * A simple terms implementation for SortedSetDocValues that only provides access to {@link TermsEnum} via
+         * {@link #iterator} and {@link #intersect(CompiledAutomaton, BytesRef)} methods.
+         * We have this custom implementation based on {@link MultiTerms} instead of using
+         * {@link org.apache.lucene.index.MultiDocValues#getSortedSetValues(IndexReader, String)}
+         * because {@link org.apache.lucene.index.MultiDocValues} builds global ordinals up-front whereas
+         * {@link MultiTerms}, which exposes the terms enum via {@link org.apache.lucene.index.MultiTermsEnum},
+         * merges terms on the fly.
+         */
+        static class SortedSetDocValuesTerms extends Terms {
+
+            public static Terms getTerms(IndexReader r, String field) throws IOException {
+                final List<LeafReaderContext> leaves = r.leaves();
+                if (leaves.size() == 1) {
+                    SortedSetDocValues sortedSetDocValues = leaves.get(0).reader().getSortedSetDocValues(field);
+                    if (sortedSetDocValues == null) {
+                        return null;
+                    } else {
+                        return new SortedSetDocValuesTerms(sortedSetDocValues);
+                    }
+                }
+
+                final List<Terms> termsPerLeaf = new ArrayList<>(leaves.size());
+                final List<ReaderSlice> slicePerLeaf = new ArrayList<>(leaves.size());
+
+                for (int leafIdx = 0; leafIdx < leaves.size(); leafIdx++) {
+                    LeafReaderContext ctx = leaves.get(leafIdx);
+                    SortedSetDocValues sortedSetDocValues = ctx.reader().getSortedSetDocValues(field);
+                    if (sortedSetDocValues != null) {
+                        termsPerLeaf.add(new SortedSetDocValuesTerms(sortedSetDocValues));
+                        slicePerLeaf.add(new ReaderSlice(ctx.docBase, r.maxDoc(), leafIdx));
+                    }
+                }
+
+                if (termsPerLeaf.isEmpty()) {
+                    return null;
+                } else {
+                    return new MultiTerms(termsPerLeaf.toArray(EMPTY_ARRAY), slicePerLeaf.toArray(ReaderSlice.EMPTY_ARRAY));
+                }
+            }
+
+            private final SortedSetDocValues values;
+
+            SortedSetDocValuesTerms(SortedSetDocValues values) {
+                this.values = values;
+            }
+
+            @Override
+            public TermsEnum iterator() throws IOException {
+                return values.termsEnum();
+            }
+
+            @Override
+            public TermsEnum intersect(CompiledAutomaton compiled, final BytesRef startTerm) throws IOException {
+                if (startTerm == null) {
+                    return values.intersect(compiled);
+                } else {
+                    return super.intersect(compiled, startTerm);
+                }
+            }
+
+            @Override
+            public long size() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long getSumTotalTermFreq() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long getSumDocFreq() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int getDocCount() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean hasFreqs() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean hasOffsets() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean hasPositions() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean hasPayloads() {
+                throw new UnsupportedOperationException();
+            }
+
         }
 
         @Override
@@ -397,7 +634,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+            );
         }
 
         @Override
@@ -461,7 +702,72 @@ public final class KeywordFieldMapper extends FieldMapper {
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            return super.wildcardQuery(value, method, caseInsensitive, true, context);
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.wildcardQuery(value, method, caseInsensitive, true, context);
+            } else {
+                if (getTextSearchInfo().getSearchAnalyzer() != null) {
+                    value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
+                } else {
+                    value = indexedValueForSearch(value).utf8ToString();
+                }
+                return new StringScriptFieldWildcardQuery(
+                    new Script(""),
+                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    value,
+                    caseInsensitive
+                );
+            }
+        }
+
+        @Override
+        public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.normalizedWildcardQuery(value, method, context);
+            } else {
+                if (getTextSearchInfo().getSearchAnalyzer() != null) {
+                    value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
+                } else {
+                    value = indexedValueForSearch(value).utf8ToString();
+                }
+                return new StringScriptFieldWildcardQuery(
+                    new Script(""),
+                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    value,
+                    false
+                );
+            }
+        }
+
+        @Override
+        public Query regexpQuery(
+            String value,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+            } else {
+                if (matchFlags != 0) {
+                    throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
+                }
+                return new StringScriptFieldRegexpQuery(
+                    new Script(""),
+                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    indexedValueForSearch(value).utf8ToString(),
+                    syntaxFlags,
+                    matchFlags,
+                    maxDeterminizedStates
+                );
+            }
         }
 
         @Override
@@ -502,9 +808,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         }
     }
-
-    /** The maximum keyword length allowed for a dimension field */
-    private static final int DIMENSION_MAX_BYTES = 1024;
 
     private final boolean indexed;
     private final boolean hasDocValues;
@@ -587,7 +890,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, String value) {
-
         if (value == null) {
             return;
         }
@@ -598,27 +900,20 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
+        if (dimension) {
+            // Encode the tsid part of the dimension field. Although, it would seem reasonable
+            // to skip the encode part if we don't generate a _tsid field (as we do with number
+            // and ip fields), we keep this test because we must ensure that the value of this
+            // dimension field is not larger than TimeSeriesIdFieldMapper.DIMENSION_VALUE_LIMIT
+            BytesReference bytes = TimeSeriesIdFieldMapper.encodeTsidValue(value);
+            context.doc().addDimensionBytes(fieldType().name(), bytes);
+        }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
-        if (dimension && binaryValue.length > DIMENSION_MAX_BYTES) {
-            throw new IllegalArgumentException(
-                "Dimension field [" + fieldType().name() + "] cannot be more than [" + DIMENSION_MAX_BYTES + "] bytes long."
-            );
-        }
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            if (dimension) {
-                // Check that a dimension field is single-valued and not an array
-                if (context.doc().getByKey(fieldType().name()) != null) {
-                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
-                }
-                // Add dimension field with key so that we ensure it is single-valued.
-                // Dimension fields are always indexed.
-                context.doc().addWithKey(fieldType().name(), field);
-            } else {
-                context.doc().add(field);
-            }
+            context.doc().add(field);
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
@@ -638,25 +933,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
-                throw new IllegalStateException(
-                    "The normalization token stream is "
-                        + "expected to produce exactly 1 token, but got 0 for analyzer "
-                        + normalizer
-                        + " and input \""
-                        + value
-                        + "\""
-                );
+                throw new IllegalStateException(String.format(Locale.ROOT, """
+                    The normalization token stream is expected to produce exactly 1 token, \
+                    but got 0 for analyzer %s and input "%s"
+                    """, normalizer, value));
             }
             final String newValue = termAtt.toString();
             if (ts.incrementToken()) {
-                throw new IllegalStateException(
-                    "The normalization token stream is "
-                        + "expected to produce exactly 1 token, but got 2+ for analyzer "
-                        + normalizer
-                        + " and input \""
-                        + value
-                        + "\""
-                );
+                throw new IllegalStateException(String.format(Locale.ROOT, """
+                    The normalization token stream is expected to produce exactly 1 token, \
+                    but got 2+ for analyzer %s and input "%s"
+                    """, normalizer, value));
             }
             ts.end();
             return newValue;

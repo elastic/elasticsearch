@@ -146,7 +146,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse("id", new BytesArray("{}"), XContentType.JSON)
             );
             // index #3
             orgReplica.applyIndexOperationOnReplica(
@@ -155,7 +155,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-3", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse("id-3", new BytesArray("{}"), XContentType.JSON)
             );
             // Flushing a new commit with local checkpoint=1 allows to delete the translog gen #1.
             orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
@@ -166,7 +166,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-2", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse("id-2", new BytesArray("{}"), XContentType.JSON)
             );
             orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
@@ -177,7 +177,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
                 false,
-                new SourceToParse(indexName, "id-5", new BytesArray("{}"), XContentType.JSON)
+                new SourceToParse("id-5", new BytesArray("{}"), XContentType.JSON)
             );
 
             if (randomBoolean()) {
@@ -295,7 +295,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             Engine.IndexResult result = primaryShard.applyIndexOperationOnPrimary(
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,
-                new SourceToParse(primaryShard.shardId().getIndexName(), Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
+                new SourceToParse(Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 0,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,

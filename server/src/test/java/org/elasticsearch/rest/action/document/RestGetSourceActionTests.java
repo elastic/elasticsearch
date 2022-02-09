@@ -99,7 +99,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
                 .withPath("/some_index/some_type/id/_source")
                 .build();
             dispatchRequest(request);
-            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+            assertCriticalWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
         }
     }
 
@@ -116,7 +116,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
                 .withParams(params)
                 .build();
             dispatchRequest(request);
-            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+            assertCriticalWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
         }
     }
 

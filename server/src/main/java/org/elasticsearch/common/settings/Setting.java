@@ -22,6 +22,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,6 +32,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -486,9 +488,8 @@ public class Setting<T> implements ToXContentObject {
                     map = new HashMap<>();
                     while (it.hasNext()) {
                         final Setting<?> setting = it.next();
-                        if (setting instanceof AffixSetting) {
+                        if (setting instanceof AffixSetting<?> as) {
                             // Collect all possible concrete settings
-                            AffixSetting<?> as = ((AffixSetting<?>) setting);
                             for (String ns : as.getNamespaces(settings)) {
                                 Setting<?> s = as.getConcreteSettingForNamespace(ns);
                                 map.put(s, s.get(settings, false));
@@ -580,8 +581,7 @@ public class Setting<T> implements ToXContentObject {
             final String key = getKey();
             List<String> skipTheseDeprecations = settings.getAsList("deprecation.skip_deprecated_settings");
             if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
-                String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version.";
+                String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
                 if (this.isDeprecatedWarningOnly()) {
                     Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
                 } else {
@@ -830,7 +830,7 @@ public class Setting<T> implements ToXContentObject {
          * @return the raw list of dependencies for this setting
          */
         public Set<AffixSettingDependency> getDependencies() {
-            return Collections.unmodifiableSet(dependencies);
+            return dependencies;
         }
 
         @Override
@@ -1233,6 +1233,15 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, s -> Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
     }
 
+    public static Setting<Version> versionSetting(
+        final String key,
+        Setting<Version> fallbackSetting,
+        Validator<Version> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, fallbackSetting, s -> Version.fromId(Integer.parseInt(s)), properties);
+    }
+
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {
         return new Setting<>(key, (s) -> Float.toString(defaultValue), Float::parseFloat, properties);
     }
@@ -1327,6 +1336,16 @@ public class Setting<T> implements ToXContentObject {
             key,
             (s) -> Long.toString(defaultValue),
             (s) -> parseLong(s, minValue, key, isFiltered(properties)),
+            properties
+        );
+    }
+
+    public static Setting<Instant> dateSetting(String key, Instant defaultValue, Validator<Instant> validator, Property... properties) {
+        return new Setting<>(
+            key,
+            defaultValue.toString(),
+            (s) -> Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(s)),
+            validator,
             properties
         );
     }
@@ -1623,6 +1642,23 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, String defaultPercentage, Property... properties) {
         return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+    }
+
+    public static Setting<List<String>> stringListSetting(String key, Property... properties) {
+        return stringListSetting(key, List.of(), properties);
+    }
+
+    public static Setting<List<String>> stringListSetting(String key, List<String> defValue, Property... properties) {
+        return new ListSetting<>(key, null, s -> defValue, Setting::parseableStringToList, v -> {}, properties) {
+            @Override
+            public List<String> get(Settings settings) {
+                return settings.getAsList(getKey(), defValue);
+            }
+        };
+    }
+
+    public static Setting<List<String>> stringListSetting(String key, Validator<List<String>> validator, Property... properties) {
+        return listSetting(key, List.of(), Function.identity(), validator, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(
@@ -1951,28 +1987,35 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, double maxValue, Property... properties) {
-        return new Setting<>(key, (s) -> Double.toString(defaultValue), (s) -> {
-            final double d = Double.parseDouble(s);
-            if (d < minValue) {
-                String err = "Failed to parse value"
-                    + (isFiltered(properties) ? "" : " [" + s + "]")
-                    + " for setting ["
-                    + key
-                    + "] must be >= "
-                    + minValue;
-                throw new IllegalArgumentException(err);
-            }
-            if (d > maxValue) {
-                String err = "Failed to parse value"
-                    + (isFiltered(properties) ? "" : " [" + s + "]")
-                    + " for setting ["
-                    + key
-                    + "] must be <= "
-                    + maxValue;
-                throw new IllegalArgumentException(err);
-            }
-            return d;
-        }, properties);
+        return new Setting<>(
+            key,
+            (s) -> Double.toString(defaultValue),
+            (s) -> parseDouble(s, minValue, maxValue, key, properties),
+            properties
+        );
+    }
+
+    public static Double parseDouble(String s, double minValue, double maxValue, String key, Property... properties) {
+        final double d = Double.parseDouble(s);
+        if (d < minValue) {
+            String err = "Failed to parse value"
+                + (isFiltered(properties) ? "" : " [" + s + "]")
+                + " for setting ["
+                + key
+                + "] must be >= "
+                + minValue;
+            throw new IllegalArgumentException(err);
+        }
+        if (d > maxValue) {
+            String err = "Failed to parse value"
+                + (isFiltered(properties) ? "" : " [" + s + "]")
+                + " for setting ["
+                + key
+                + "] must be <= "
+                + maxValue;
+            throw new IllegalArgumentException(err);
+        }
+        return d;
     }
 
     @Override
@@ -2040,7 +2083,7 @@ public class Setting<T> implements ToXContentObject {
         protected final String key;
 
         public SimpleKey(String key) {
-            this.key = key;
+            this.key = Settings.internKeyOrValue(key);
         }
 
         @Override
@@ -2131,7 +2174,7 @@ public class Setting<T> implements ToXContentObject {
                 sb.append('.');
                 sb.append(suffix);
             }
-            keyString = sb.toString();
+            keyString = Settings.internKeyOrValue(sb.toString());
         }
 
         @Override

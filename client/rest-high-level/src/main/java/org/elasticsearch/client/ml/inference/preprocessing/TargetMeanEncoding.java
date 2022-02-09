@@ -135,8 +135,8 @@ public class TargetMeanEncoding implements PreProcessor {
         return Objects.hash(field, featureName, meanMap, defaultValue, custom);
     }
 
-    public Builder builder(String field) {
-        return new Builder(field);
+    public Builder builder(String fieldName) {
+        return new Builder(fieldName);
     }
 
     public static class Builder {

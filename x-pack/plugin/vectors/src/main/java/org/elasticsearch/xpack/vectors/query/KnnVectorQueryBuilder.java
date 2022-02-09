@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -84,10 +85,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             );
         }
 
-        if (context.getNestedParent(fieldType.name()) != null) {
-            throw new IllegalArgumentException("[" + NAME + "] queries are not supported on nested fields");
-        }
-
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         return vectorFieldType.createKnnQuery(queryVector, numCands);
     }
@@ -100,5 +97,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     @Override
     protected boolean doEquals(KnnVectorQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) && Arrays.equals(queryVector, other.queryVector) && numCands == other.numCands;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_8_0_0;
     }
 }

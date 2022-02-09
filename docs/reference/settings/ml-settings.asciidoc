@@ -102,7 +102,11 @@ setting. If this setting is `0` or unset, there is no maximum
 requirements for a job, this lack of a maximum memory limit means it's possible
 to create jobs that cannot be assigned to any available nodes. For more
 information about the `model_memory_limit` property, see
-<<ml-put-job,Create {anomaly-jobs}>> or <<put-dfanalytics>>. Defaults to `0`.
+<<ml-put-job,Create {anomaly-jobs}>> or <<put-dfanalytics>>. Defaults to `0` if
+`xpack.ml.use_auto_machine_memory_percent` is `false`. If
+`xpack.ml.use_auto_machine_memory_percent` is `true` and
+`xpack.ml.max_model_memory_limit` is not explicitly set then it will default to
+the largest `model_memory_limit` that could be assigned in the cluster.
 
 [[xpack.ml.max_open_jobs]]
 `xpack.ml.max_open_jobs`::
@@ -193,10 +197,8 @@ users. The minimum value is `5s`. Defaults to `10s`.
 `xpack.ml.max_machine_memory_percent` setting is ignored. Instead, the maximum
 percentage of the machine's memory that can be used for running {ml} analytics
 processes is calculated automatically and takes into account the total node size
-and the size of the JVM on the node. If this setting differs between nodes, the
-value on the current master node is heeded. When the {operator-feature} is
-enabled, this setting can be updated only by operator users. The default value
-is `false`. 
+and the size of the JVM on the node. When the {operator-feature} is enabled, this
+setting can be updated only by operator users. The default value is `false`.
 +
 --
 [IMPORTANT]
@@ -209,6 +211,10 @@ analytics are the main purpose of the node.
 nodes in your cluster, you shouldn't use this setting.
 ====
 --
++
+If this setting is `true` it also affects the default value for
+`xpack.ml.max_model_memory_limit`. In this case `xpack.ml.max_model_memory_limit`
+defaults to the largest size that could be assigned in the current cluster.
 
 [discrete]
 [[model-inference-circuit-breaker]]

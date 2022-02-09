@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.audit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
@@ -189,7 +189,7 @@ public class AuditTrailService {
             String action,
             String indices,
             String requestName,
-            TransportAddress remoteAddress,
+            InetSocketAddress remoteAddress,
             AuthorizationInfo authorizationInfo
         ) {}
 
@@ -416,7 +416,7 @@ public class AuditTrailService {
             String action,
             String indices,
             String requestName,
-            TransportAddress remoteAddress,
+            InetSocketAddress remoteAddress,
             AuthorizationInfo authorizationInfo
         ) {
             for (AuditTrail auditTrail : auditTrails) {

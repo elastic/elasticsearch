@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.field.BooleanDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.BooleanScriptFieldExistsQuery;
@@ -86,14 +87,11 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         if (value == null) {
             return null;
         }
-        switch (value.toString()) {
-            case "F":
-                return false;
-            case "T":
-                return true;
-            default:
-                throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
-        }
+        return switch (value.toString()) {
+            case "F" -> false;
+            case "T" -> true;
+            default -> throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
+        };
     }
 
     @Override
@@ -105,7 +103,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     @Override
     public BooleanScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new BooleanScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
+        return new BooleanScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), BooleanDocValuesField::new);
     }
 
     @Override

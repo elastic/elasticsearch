@@ -126,8 +126,8 @@ public class SocketChannelContextTests extends ESTestCase {
             isAccepted
         );
         InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
-        TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer, config);
-        context.register();
+        TestSocketChannelContext testContext = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer, config);
+        testContext.register();
         if (isAccepted) {
             verify(rawChannel, times(0)).connect(any(InetSocketAddress.class));
         } else {
@@ -205,11 +205,11 @@ public class SocketChannelContextTests extends ESTestCase {
             false
         );
         InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
-        TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer, config);
+        TestSocketChannelContext testContext = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer, config);
         doThrow(new SocketException()).doNothing().when(rawSocket).setReuseAddress(tcpReuseAddress);
-        context.register();
+        testContext.register();
         when(rawChannel.finishConnect()).thenReturn(true);
-        context.connect();
+        testContext.connect();
 
         verify(rawSocket, times(2)).setReuseAddress(tcpReuseAddress);
         verify(rawSocket).setKeepAlive(tcpKeepAlive);
@@ -339,7 +339,7 @@ public class SocketChannelContextTests extends ESTestCase {
             when(channel.getRawChannel()).thenReturn(realChannel);
             when(channel.isOpen()).thenReturn(true);
             InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
-            BytesChannelContext context = new BytesChannelContext(
+            BytesChannelContext bytesChannelContext = new BytesChannelContext(
                 channel,
                 selector,
                 mock(Config.Socket.class),
@@ -347,7 +347,7 @@ public class SocketChannelContextTests extends ESTestCase {
                 handler,
                 buffer
             );
-            context.closeFromSelector();
+            bytesChannelContext.closeFromSelector();
             verify(handler).close();
         }
     }
@@ -360,8 +360,8 @@ public class SocketChannelContextTests extends ESTestCase {
             IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n), closer);
             InboundChannelBuffer buffer = new InboundChannelBuffer(pageAllocator);
             buffer.ensureCapacity(1);
-            TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer);
-            context.closeFromSelector();
+            TestSocketChannelContext testContext = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer);
+            testContext.closeFromSelector();
             verify(closer).close();
         }
     }

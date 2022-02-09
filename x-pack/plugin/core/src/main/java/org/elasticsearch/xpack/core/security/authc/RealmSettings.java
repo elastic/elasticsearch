@@ -12,10 +12,16 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -29,7 +35,13 @@ import java.util.stream.Collectors;
  */
 public class RealmSettings {
 
-    public static final String RESERVED_REALM_NAME_PREFIX = "_";
+    public static final Setting.AffixSetting<List<String>> DOMAIN_TO_REALM_ASSOC_SETTING = Setting.affixKeySetting(
+        "xpack.security.authc.domains.",
+        "realms",
+        key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
+    );
+
+    public static final String RESERVED_REALM_AND_DOMAIN_NAME_PREFIX = "_";
     public static final String PREFIX = "xpack.security.authc.realms.";
 
     public static final Function<String, Setting.AffixSetting<Boolean>> ENABLED_SETTING = affixSetting(
@@ -104,6 +116,74 @@ public class RealmSettings {
     }
 
     /**
+     * Computes the realm name to domain name association.
+     * Also verifies that realms are assigned to at most one domain and that domains do not refer to undefined realms.
+     */
+    public static Map<String, String> computeRealmNameToDomainNameAssociation(Settings globalSettings) {
+        final Set<RealmConfig.RealmIdentifier> allRealmIdentifiers = RealmSettings.getRealmSettings(globalSettings).keySet();
+        final Map<String, Set<String>> realmToDomainsMap = new HashMap<>();
+        for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
+            if (domainName.startsWith(RESERVED_REALM_AND_DOMAIN_NAME_PREFIX)) {
+                throw new IllegalArgumentException(
+                    "Security domain name must not start with \"" + RESERVED_REALM_AND_DOMAIN_NAME_PREFIX + "\""
+                );
+            }
+            Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
+            for (String realmName : realmsByDomainSetting.get(globalSettings)) {
+                realmToDomainsMap.computeIfAbsent(realmName, k -> new TreeSet<>()).add(domainName);
+            }
+        }
+        final StringBuilder realmToMultipleDomainsErrorMessageBuilder = new StringBuilder(
+            "Realms can be associated to at most one domain, but"
+        );
+        boolean realmToMultipleDomains = false;
+        for (Map.Entry<String, Set<String>> realmToDomains : realmToDomainsMap.entrySet()) {
+            if (realmToDomains.getValue().size() > 1) {
+                if (realmToMultipleDomains) {
+                    realmToMultipleDomainsErrorMessageBuilder.append(" and");
+                }
+                realmToMultipleDomainsErrorMessageBuilder.append(" realm [")
+                    .append(realmToDomains.getKey())
+                    .append("] is associated to domains ")
+                    .append(realmToDomains.getValue());
+                realmToMultipleDomains = true;
+            }
+        }
+        if (realmToMultipleDomains) {
+            throw new IllegalArgumentException(realmToMultipleDomainsErrorMessageBuilder.toString());
+        }
+        // default file and native realm names can be used in domain association
+        boolean fileRealmConfigured = false;
+        boolean nativeRealmConfigured = false;
+        Set<String> unknownRealms = new HashSet<>(realmToDomainsMap.keySet());
+        for (RealmConfig.RealmIdentifier identifier : allRealmIdentifiers) {
+            unknownRealms.remove(identifier.getName());
+            if (identifier.getType().equals(FileRealmSettings.TYPE)) {
+                fileRealmConfigured = true;
+            }
+            if (identifier.getType().equals(NativeRealmSettings.TYPE)) {
+                nativeRealmConfigured = true;
+            }
+        }
+        if (false == fileRealmConfigured) {
+            unknownRealms.remove(FileRealmSettings.DEFAULT_NAME);
+        }
+        if (false == nativeRealmConfigured) {
+            unknownRealms.remove(NativeRealmSettings.DEFAULT_NAME);
+        }
+        // verify that domain assignment does not refer to unknown realms
+        if (false == unknownRealms.isEmpty()) {
+            final StringBuilder undefinedRealmsErrorMessageBuilder = new StringBuilder("Undefined realms ").append(unknownRealms)
+                .append(" cannot be assigned to domains");
+            throw new IllegalArgumentException(undefinedRealmsErrorMessageBuilder.toString());
+        }
+        return realmToDomainsMap.entrySet()
+            .stream()
+            .map(e -> Map.entry(e.getKey(), e.getValue().stream().findAny().get()))
+            .collect(Collectors.toUnmodifiableMap(e -> e.getKey(), e -> e.getValue()));
+    }
+
+    /**
      * Performs any necessary verifications on a realms settings that are not automatically applied by Settings validation infrastructure.
      */
     private static void verifyRealmSettings(RealmConfig.RealmIdentifier identifier, Settings realmSettings) {
@@ -143,5 +223,4 @@ public class RealmSettings {
     }
 
     private RealmSettings() {}
-
 }

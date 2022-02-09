@@ -119,8 +119,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             }
 
             private void logFailure(Exception e) {
-                if (e instanceof ResponseException) {
-                    ResponseException re = (ResponseException) e;
+                if (e instanceof ResponseException re) {
                     if (remoteVersion.before(Version.fromId(2000099)) && re.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.debug(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -217,8 +216,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                 public void onFailure(Exception e) {
                     try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
                         assert ctx != null; // eliminates compiler warning
-                        if (e instanceof ResponseException) {
-                            ResponseException re = (ResponseException) e;
+                        if (e instanceof ResponseException re) {
                             int statusCode = re.getResponse().getStatusLine().getStatusCode();
                             e = wrapExceptionToPreserveStatus(statusCode, re.getResponse().getEntity(), re);
                             if (RestStatus.TOO_MANY_REQUESTS.getStatus() == statusCode) {

@@ -1477,7 +1477,7 @@ timestamp falls within the defined range.
 ==== Define a runtime field with a dissect pattern
 If you don't need the power of regular expressions, you can use
 <<dissect-processor,dissect patterns>> instead of grok patterns. Dissect
-patterns match on fixed delimiters but are typically faster that grok.
+patterns match on fixed delimiters but are typically faster than grok.
 
 You can use dissect to achieve the same results as parsing the Apache logs with
 a <<runtime-examples-grok,grok pattern>>. Instead of matching on a log

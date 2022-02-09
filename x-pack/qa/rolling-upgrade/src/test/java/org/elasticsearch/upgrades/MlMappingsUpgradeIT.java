@@ -9,6 +9,7 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -22,12 +23,13 @@ import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -35,10 +37,12 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     @Override
     protected Collection<String> templatesToWaitFor() {
-        List<String> templatesToWaitFor = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)
-            ? XPackRestTestConstants.ML_POST_V7120_TEMPLATES
-            : XPackRestTestConstants.ML_POST_V660_TEMPLATES;
-        return Stream.concat(templatesToWaitFor.stream(), super.templatesToWaitFor().stream()).collect(Collectors.toSet());
+        // We shouldn't wait for ML templates during the upgrade - production won't
+        if (CLUSTER_TYPE != ClusterType.OLD) {
+            return super.templatesToWaitFor();
+        }
+        return Stream.concat(XPackRestTestConstants.ML_POST_V7120_TEMPLATES.stream(), super.templatesToWaitFor().stream())
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -59,6 +63,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 assertUpgradedAnnotationsMappings();
                 closeAndReopenTestJob();
                 assertUpgradedConfigMappings();
+                assertMlLegacyTemplatesDeleted();
                 IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
                 break;
             default:
@@ -165,6 +170,29 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 "keyword",
                 extractValue("mappings.properties.event.type", indexLevel)
             );
+        });
+    }
+
+    private void assertMlLegacyTemplatesDeleted() throws Exception {
+
+        // All the legacy ML templates we created over the years should be deleted now they're no longer needed
+        assertBusy(() -> {
+            Request request = new Request("GET", "/_template/.ml*");
+            try {
+                Response response = client().performRequest(request);
+                Map<String, Object> responseLevel = entityAsMap(response);
+                assertNotNull(responseLevel);
+                // If we get here the test has failed, but it's critical that we find out which templates
+                // existed, hence not using expectThrows() above
+                assertThat(responseLevel.keySet(), empty());
+            } catch (ResponseException e) {
+                // Not found is fine
+                assertThat(
+                    "Unexpected failure getting ML templates: " + e.getResponse().getStatusLine(),
+                    e.getResponse().getStatusLine().getStatusCode(),
+                    is(404)
+                );
+            }
         });
     }
 

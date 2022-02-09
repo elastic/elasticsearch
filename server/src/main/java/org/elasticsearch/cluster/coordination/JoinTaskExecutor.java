@@ -7,11 +7,13 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,28 +39,12 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 
 public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecutor.Task> {
 
-    private final AllocationService allocationService;
+    private static final Logger logger = LogManager.getLogger(JoinTaskExecutor.class);
 
-    private final Logger logger;
+    private final AllocationService allocationService;
     private final RerouteService rerouteService;
 
-    public static class Task {
-
-        private final DiscoveryNode node;
-        private final String reason;
-
-        public Task(DiscoveryNode node, String reason) {
-            this.node = node;
-            this.reason = reason;
-        }
-
-        public DiscoveryNode node() {
-            return node;
-        }
-
-        public String reason() {
-            return reason;
-        }
+    public record Task(DiscoveryNode node, String reason, ActionListener<Void> listener) implements ClusterStateTaskListener {
 
         @Override
         public String toString() {
@@ -82,11 +68,21 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         private static final String BECOME_MASTER_TASK_REASON = "_BECOME_MASTER_TASK_";
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            listener.onResponse(null);
+        }
+
     }
 
-    public JoinTaskExecutor(AllocationService allocationService, Logger logger, RerouteService rerouteService) {
+    public JoinTaskExecutor(AllocationService allocationService, RerouteService rerouteService) {
         this.allocationService = allocationService;
-        this.logger = logger;
         this.rerouteService = rerouteService;
     }
 
@@ -253,7 +249,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     public static Task newBecomeMasterTask() {
-        return new Task(null, Task.BECOME_MASTER_TASK_REASON);
+        return new Task(null, Task.BECOME_MASTER_TASK_REASON, ActionListener.wrap(() -> {}));
     }
 
     /**
@@ -261,7 +257,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * it may be used in combination with {@link JoinTaskExecutor#newBecomeMasterTask()}
      */
     public static Task newFinishElectionTask() {
-        return new Task(null, Task.FINISH_ELECTION_TASK_REASON);
+        return new Task(null, Task.FINISH_ELECTION_TASK_REASON, ActionListener.wrap(() -> {}));
     }
 
     /**
@@ -276,22 +272,22 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // we ensure that all indices in the cluster we join are compatible with us no matter if they are
         // closed or not we can't read mappings of these indices so we need to reject the join...
         for (IndexMetadata idxMetadata : metadata) {
-            if (idxMetadata.getCreationVersion().after(nodeVersion)) {
+            if (idxMetadata.getCompatibilityVersion().after(nodeVersion)) {
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
-                        + idxMetadata.getCreationVersion()
+                        + idxMetadata.getCompatibilityVersion()
                         + " the node version is: "
                         + nodeVersion
                 );
             }
-            if (idxMetadata.getCreationVersion().before(supportedIndexVersion)) {
+            if (idxMetadata.getCompatibilityVersion().before(supportedIndexVersion)) {
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
-                        + idxMetadata.getCreationVersion()
+                        + idxMetadata.getCompatibilityVersion()
                         + " minimum compatible index version is: "
                         + supportedIndexVersion
                 );

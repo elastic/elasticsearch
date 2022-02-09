@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[searchable-snapshots-apis]]
 == Searchable snapshots APIs
 

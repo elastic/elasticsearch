@@ -52,7 +52,7 @@ public class UserAgentProcessorTests extends ESTestCase {
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(
+        UserAgentProcessor userAgentProcessor = new UserAgentProcessor(
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -67,12 +67,12 @@ public class UserAgentProcessorTests extends ESTestCase {
             Collections.singletonMap("source_field", null)
         );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        processor.execute(ingestDocument);
+        userAgentProcessor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
 
     public void testNonExistentWithIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(
+        UserAgentProcessor userAgentProcessor = new UserAgentProcessor(
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -84,12 +84,12 @@ public class UserAgentProcessorTests extends ESTestCase {
         );
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        processor.execute(ingestDocument);
+        userAgentProcessor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
 
     public void testNullWithoutIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(
+        UserAgentProcessor userAgentProcessor = new UserAgentProcessor(
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -104,12 +104,12 @@ public class UserAgentProcessorTests extends ESTestCase {
             Collections.singletonMap("source_field", null)
         );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
+        Exception exception = expectThrows(Exception.class, () -> userAgentProcessor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse user-agent."));
     }
 
     public void testNonExistentWithoutIgnoreMissing() throws Exception {
-        UserAgentProcessor processor = new UserAgentProcessor(
+        UserAgentProcessor userAgentProcessor = new UserAgentProcessor(
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -121,7 +121,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         );
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
+        Exception exception = expectThrows(Exception.class, () -> userAgentProcessor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
     }
 
@@ -303,7 +303,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         InputStream regexStream = UserAgentProcessor.class.getResourceAsStream("/regexes.yml");
         InputStream deviceTypeRegexStream = UserAgentProcessor.class.getResourceAsStream("/device_type_regexes.yml");
         UserAgentParser parser = new UserAgentParser(randomAlphaOfLength(10), regexStream, deviceTypeRegexStream, new UserAgentCache(1000));
-        UserAgentProcessor processor = new UserAgentProcessor(
+        UserAgentProcessor userAgentProcessor = new UserAgentProcessor(
             randomAlphaOfLength(10),
             null,
             "source_field",
@@ -313,7 +313,7 @@ public class UserAgentProcessorTests extends ESTestCase {
             false,
             false
         );
-        processor.execute(ingestDocument);
+        userAgentProcessor.execute(ingestDocument);
         Map<String, Object> data = ingestDocument.getSourceAndMetadata();
 
         assertThat(data, hasKey("target_field"));

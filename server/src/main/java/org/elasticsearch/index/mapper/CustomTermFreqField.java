@@ -28,14 +28,10 @@ public final class CustomTermFreqField extends Field {
         FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
     }
 
-    private int fieldValue;
+    private final int fieldValue;
 
     public CustomTermFreqField(String fieldName, CharSequence term, int fieldValue) {
         super(fieldName, term, FIELD_TYPE);
-        this.fieldValue = fieldValue;
-    }
-
-    public void setFieldValue(int fieldValue) {
         this.fieldValue = fieldValue;
     }
 

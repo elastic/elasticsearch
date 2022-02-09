@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[eql]]
 = EQL search
 ++++

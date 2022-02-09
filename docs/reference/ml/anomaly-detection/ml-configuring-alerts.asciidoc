@@ -228,6 +228,9 @@ The list of top records.
 .Properties of `context.topRecords`
 [%collapsible%open]
 ====
+`actual`:::
+The actual value for the bucket.
+
 `by_field_value`::: 
 The value of the by field.
 
@@ -248,6 +251,9 @@ The field used to segment the analysis.
 `score`:::
 A normalized score between 0-100, which is based on the probability of the 
 anomalousness of this record.
+
+`typical`:::
+The typical value for the bucket, according to analytical modeling.
 ====
 
 [[anomaly-jobs-health-action-variables]]

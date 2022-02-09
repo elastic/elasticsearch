@@ -62,9 +62,10 @@ public class InferenceIngestIT extends ESRestTestCase {
     @Before
     public void setup() throws Exception {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity(
-            "" + "{" + "\"persistent\" : {\n" + "        \"logger.org.elasticsearch.xpack.ml.inference\" : \"TRACE\"\n" + "    }" + "}"
-        );
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "logger.org.elasticsearch.xpack.ml.inference" : "TRACE"
+                }}""");
         client().performRequest(loggingSettings);
         client().performRequest(new Request("GET", "/_cluster/health?wait_for_status=green&timeout=30s"));
     }
@@ -78,9 +79,10 @@ public class InferenceIngestIT extends ESRestTestCase {
     public void cleanUpData() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
         Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity(
-            "" + "{" + "\"persistent\" : {\n" + "        \"logger.org.elasticsearch.xpack.ml.inference\" : null\n" + "    }" + "}"
-        );
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "logger.org.elasticsearch.xpack.ml.inference" : null
+                }}""");
         client().performRequest(loggingSettings);
     }
 
@@ -199,15 +201,16 @@ public class InferenceIngestIT extends ESRestTestCase {
         putModelAlias(modelAlias, regressionModelId2);
         // Need to assert busy as loading the model and then switching the model alias can take time
         assertBusy(() -> {
-            String source = "{\n"
-                + "  \"docs\": [\n"
-                + "    {\"_source\": {\n"
-                + "      \"col1\": \"female\",\n"
-                + "      \"col2\": \"M\",\n"
-                + "      \"col3\": \"none\",\n"
-                + "      \"col4\": 10\n"
-                + "    }}]\n"
-                + "}";
+            String source = """
+                {
+                  "docs": [
+                    {"_source": {
+                      "col1": "female",
+                      "col2": "M",
+                      "col3": "none",
+                      "col4": 10
+                    }}]
+                }""";
             Request request = new Request("POST", "_ingest/pipeline/simple_regression_pipeline/_simulate");
             request.setJsonEntity(source);
             Response response = client().performRequest(request);
@@ -289,53 +292,58 @@ public class InferenceIngestIT extends ESRestTestCase {
         String regressionModelId = "test_regression_simulate";
         putModel(regressionModelId, REGRESSION_CONFIG);
 
-        String source = "{\n"
-            + "  \"pipeline\": {\n"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"target_field\": \"ml.classification\",\n"
-            + "          \"inference_config\": {\"classification\": "
-            + "                {\"num_top_classes\":0, "
-            + "                \"top_classes_results_field\": \"result_class_prob\","
-            + "                \"num_top_feature_importance_values\": 2"
-            + "          }},\n"
-            + "          \"model_id\": \""
-            + classificationModelId
-            + "\",\n"
-            + "          \"field_map\": {\n"
-            + "            \"col1\": \"col1\",\n"
-            + "            \"col2\": \"col2\",\n"
-            + "            \"col3\": \"col3\",\n"
-            + "            \"col4\": \"col4\"\n"
-            + "          }\n"
-            + "        }\n"
-            + "      },\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"target_field\": \"ml.regression\",\n"
-            + "          \"model_id\": \""
-            + regressionModelId
-            + "\",\n"
-            + "          \"inference_config\": {\"regression\":{}},\n"
-            + "          \"field_map\": {\n"
-            + "            \"col1\": \"col1\",\n"
-            + "            \"col2\": \"col2\",\n"
-            + "            \"col3\": \"col3\",\n"
-            + "            \"col4\": \"col4\"\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  },\n"
-            + "  \"docs\": [\n"
-            + "    {\"_source\": {\n"
-            + "      \"col1\": \"female\",\n"
-            + "      \"col2\": \"M\",\n"
-            + "      \"col3\": \"none\",\n"
-            + "      \"col4\": 10\n"
-            + "    }}]\n"
-            + "}";
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "target_field": "ml.classification",
+                      "inference_config": {
+                        "classification": {
+                          "num_top_classes": 0,
+                          "top_classes_results_field": "result_class_prob",
+                          "num_top_feature_importance_values": 2
+                        }
+                      },
+                      "model_id": "%s",
+                      "field_map": {
+                        "col1": "col1",
+                        "col2": "col2",
+                        "col3": "col3",
+                        "col4": "col4"
+                      }
+                    }
+                  },
+                  {
+                    "inference": {
+                      "target_field": "ml.regression",
+                      "model_id": "%s",
+                      "inference_config": {
+                        "regression": {}
+                      },
+                      "field_map": {
+                        "col1": "col1",
+                        "col2": "col2",
+                        "col3": "col3",
+                        "col4": "col4"
+                      }
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {
+                  "_source": {
+                    "col1": "female",
+                    "col2": "M",
+                    "col3": "none",
+                    "col4": 10
+                  }
+                }
+              ]
+            }
+            """.formatted(classificationModelId, regressionModelId);
 
         Response response = client().performRequest(simulateRequest(source));
         String responseString = EntityUtils.toString(response.getEntity());
@@ -348,31 +356,32 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(responseString, containsString("\"importance\":0.944"));
         assertThat(responseString, containsString("\"importance\":0.19999"));
 
-        String sourceWithMissingModel = "{\n"
-            + "  \"pipeline\": {\n"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"model_id\": \"test_classification_missing\",\n"
-            + "          \"inference_config\": {\"classification\":{}},\n"
-            + "          \"field_map\": {\n"
-            + "            \"col1\": \"col1\",\n"
-            + "            \"col2\": \"col2\",\n"
-            + "            \"col3\": \"col3\",\n"
-            + "            \"col4\": \"col4\"\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  },\n"
-            + "  \"docs\": [\n"
-            + "    {\"_source\": {\n"
-            + "      \"col1\": \"female\",\n"
-            + "      \"col2\": \"M\",\n"
-            + "      \"col3\": \"none\",\n"
-            + "      \"col4\": 10\n"
-            + "    }}]\n"
-            + "}";
+        String sourceWithMissingModel = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "test_classification_missing",
+                      "inference_config": {"classification":{}},
+                      "field_map": {
+                        "col1": "col1",
+                        "col2": "col2",
+                        "col3": "col3",
+                        "col4": "col4"
+                      }
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {
+                  "col1": "female",
+                  "col2": "M",
+                  "col3": "none",
+                  "col4": 10
+                }}]
+            }""";
 
         response = client().performRequest(simulateRequest(sourceWithMissingModel));
         responseString = EntityUtils.toString(response.getEntity());
@@ -383,33 +392,37 @@ public class InferenceIngestIT extends ESRestTestCase {
     public void testSimulateWithDefaultMappedField() throws IOException {
         String classificationModelId = "test_classification_default_mapped_field";
         putModel(classificationModelId, CLASSIFICATION_CONFIG);
-        String source = "{\n"
-            + "  \"pipeline\": {\n"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"target_field\": \"ml.classification\",\n"
-            + "          \"inference_config\": {\"classification\": "
-            + "                {\"num_top_classes\":2, "
-            + "                \"top_classes_results_field\": \"result_class_prob\","
-            + "                \"num_top_feature_importance_values\": 2"
-            + "          }},\n"
-            + "          \"model_id\": \""
-            + classificationModelId
-            + "\",\n"
-            + "          \"field_map\": {}\n"
-            + "        }\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  },\n"
-            + "  \"docs\": [\n"
-            + "    {\"_source\": {\n"
-            + "      \"col_1_alias\": \"female\",\n"
-            + "      \"col2\": \"M\",\n"
-            + "      \"col3\": \"none\",\n"
-            + "      \"col4\": 10\n"
-            + "    }}]\n"
-            + "}";
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "target_field": "ml.classification",
+                      "inference_config": {
+                        "classification": {
+                          "num_top_classes": 2,
+                          "top_classes_results_field": "result_class_prob",
+                          "num_top_feature_importance_values": 2
+                        }
+                      },
+                      "model_id": "%s",
+                      "field_map": {}
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {
+                  "_source": {
+                    "col_1_alias": "female",
+                    "col2": "M",
+                    "col3": "none",
+                    "col4": 10
+                  }
+                }
+              ]
+            }""".formatted(classificationModelId);
 
         Response response = client().performRequest(simulateRequest(source));
         String responseString = EntityUtils.toString(response.getEntity());
@@ -421,68 +434,69 @@ public class InferenceIngestIT extends ESRestTestCase {
     }
 
     public void testSimulateLangIdent() throws IOException {
-        String source = "{\n"
-            + "  \"pipeline\": {\n"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"inference_config\": {\"classification\":{}},\n"
-            + "          \"model_id\": \"lang_ident_model_1\",\n"
-            + "          \"field_map\": {}\n"
-            + "        }\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  },\n"
-            + "  \"docs\": [\n"
-            + "    {\"_source\": {\n"
-            + "      \"text\": \"this is some plain text.\"\n"
-            + "    }}]\n"
-            + "}";
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "inference_config": {"classification":{}},
+                      "model_id": "lang_ident_model_1",
+                      "field_map": {}
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {
+                  "text": "this is some plain text."
+                }}]
+            }""";
 
         Response response = client().performRequest(simulateRequest(source));
         assertThat(EntityUtils.toString(response.getEntity()), containsString("\"predicted_value\":\"en\""));
     }
 
     public void testSimulateLangIdentForeach() throws IOException {
-        String source = "{"
-            + "  \"pipeline\": {\n"
-            + "    \"description\": \"detect text lang\",\n"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"foreach\": {\n"
-            + "          \"field\": \"greetings\",\n"
-            + "          \"processor\": {\n"
-            + "            \"inference\": {\n"
-            + "              \"model_id\": \"lang_ident_model_1\",\n"
-            + "              \"inference_config\": {\n"
-            + "                \"classification\": {\n"
-            + "                  \"num_top_classes\": 5\n"
-            + "                }\n"
-            + "              },\n"
-            + "              \"field_map\": {\n"
-            + "                \"_ingest._value.text\": \"text\"\n"
-            + "              }\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  },\n"
-            + "  \"docs\": [\n"
-            + "    {\n"
-            + "      \"_source\": {\n"
-            + "        \"greetings\": [\n"
-            + "          {\n"
-            + "            \"text\": \" a backup credit card by visiting your billing preferences page or visit the adwords help\"\n"
-            + "          },\n"
-            + "          {\n"
-            + "            \"text\": \" 개별적으로 리포트 액세스 권한을 부여할 수 있습니다 액세스 권한 부여사용자에게 프로필 리포트에 \"\n"
-            + "          }\n"
-            + "        ]\n"
-            + "      }\n"
-            + "    }\n"
-            + "  ]\n"
-            + "}";
+        String source = """
+            {  "pipeline": {
+                "description": "detect text lang",
+                "processors": [
+                  {
+                    "foreach": {
+                      "field": "greetings",
+                      "processor": {
+                        "inference": {
+                          "model_id": "lang_ident_model_1",
+                          "inference_config": {
+                            "classification": {
+                              "num_top_classes": 5
+                            }
+                          },
+                          "field_map": {
+                            "_ingest._value.text": "text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {
+                  "_source": {
+                    "greetings": [
+                      {
+                        "text": " a backup credit card by visiting your billing preferences page or visit the adwords help"
+                      },
+                      {
+                        "text": " 개별적으로 리포트 액세스 권한을 부여할 수 있습니다 액세스 권한 부여사용자에게 프로필 리포트에 "
+                      }
+                    ]
+                  }
+                }
+              ]
+            }""";
         Response response = client().performRequest(simulateRequest(source));
         String stringResponse = EntityUtils.toString(response.getEntity());
         assertThat(stringResponse, containsString("\"predicted_value\":\"en\""));
@@ -537,176 +551,189 @@ public class InferenceIngestIT extends ESRestTestCase {
         };
     }
 
-    private static final String REGRESSION_DEFINITION = "{"
-        + "  \"preprocessors\": [\n"
-        + "    {\n"
-        + "      \"one_hot_encoding\": {\n"
-        + "        \"field\": \"col1\",\n"
-        + "        \"hot_map\": {\n"
-        + "          \"male\": \"col1_male\",\n"
-        + "          \"female\": \"col1_female\"\n"
-        + "        }\n"
-        + "      }\n"
-        + "    },\n"
-        + "    {\n"
-        + "      \"target_mean_encoding\": {\n"
-        + "        \"field\": \"col2\",\n"
-        + "        \"feature_name\": \"col2_encoded\",\n"
-        + "        \"target_map\": {\n"
-        + "          \"S\": 5.0,\n"
-        + "          \"M\": 10.0,\n"
-        + "          \"L\": 20\n"
-        + "        },\n"
-        + "        \"default_value\": 5.0\n"
-        + "      }\n"
-        + "    },\n"
-        + "    {\n"
-        + "      \"frequency_encoding\": {\n"
-        + "        \"field\": \"col3\",\n"
-        + "        \"feature_name\": \"col3_encoded\",\n"
-        + "        \"frequency_map\": {\n"
-        + "          \"none\": 0.75,\n"
-        + "          \"true\": 0.10,\n"
-        + "          \"false\": 0.15\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  ],\n"
-        + "  \"trained_model\": {\n"
-        + "    \"ensemble\": {\n"
-        + "      \"feature_names\": [\n"
-        + "        \"col1_male\",\n"
-        + "        \"col1_female\",\n"
-        + "        \"col2_encoded\",\n"
-        + "        \"col3_encoded\",\n"
-        + "        \"col4\"\n"
-        + "      ],\n"
-        + "      \"aggregate_output\": {\n"
-        + "        \"weighted_sum\": {\n"
-        + "          \"weights\": [\n"
-        + "            0.5,\n"
-        + "            0.5\n"
-        + "          ]\n"
-        + "        }\n"
-        + "      },\n"
-        + "      \"target_type\": \"regression\",\n"
-        + "      \"trained_models\": [\n"
-        + "        {\n"
-        + "          \"tree\": {\n"
-        + "            \"feature_names\": [\n"
-        + "              \"col1_male\",\n"
-        + "              \"col1_female\",\n"
-        + "              \"col4\"\n"
-        + "            ],\n"
-        + "            \"tree_structure\": [\n"
-        + "              {\n"
-        + "                \"node_index\": 0,\n"
-        + "                \"split_feature\": 0,\n"
-        + "                \"split_gain\": 12.0,\n"
-        + "                \"threshold\": 10.0,\n"
-        + "                \"decision_type\": \"lte\",\n"
-        + "                \"number_samples\": 300,\n"
-        + "                \"default_left\": true,\n"
-        + "                \"left_child\": 1,\n"
-        + "                \"right_child\": 2\n"
-        + "              },\n"
-        + "              {\n"
-        + "                \"node_index\": 1,\n"
-        + "                \"number_samples\": 100,\n"
-        + "                \"leaf_value\": 1\n"
-        + "              },\n"
-        + "              {\n"
-        + "                \"node_index\": 2,\n"
-        + "                \"number_samples\": 200,\n"
-        + "                \"leaf_value\": 2\n"
-        + "              }\n"
-        + "            ],\n"
-        + "            \"target_type\": \"regression\"\n"
-        + "          }\n"
-        + "        },\n"
-        + "        {\n"
-        + "          \"tree\": {\n"
-        + "            \"feature_names\": [\n"
-        + "              \"col2_encoded\",\n"
-        + "              \"col3_encoded\",\n"
-        + "              \"col4\"\n"
-        + "            ],\n"
-        + "            \"tree_structure\": [\n"
-        + "              {\n"
-        + "                \"node_index\": 0,\n"
-        + "                \"split_feature\": 0,\n"
-        + "                \"split_gain\": 12.0,\n"
-        + "                \"threshold\": 10.0,\n"
-        + "                \"decision_type\": \"lte\",\n"
-        + "                \"default_left\": true,\n"
-        + "                \"number_samples\": 150,\n"
-        + "                \"left_child\": 1,\n"
-        + "                \"right_child\": 2\n"
-        + "              },\n"
-        + "              {\n"
-        + "                \"node_index\": 1,\n"
-        + "                \"number_samples\": 50,\n"
-        + "                \"leaf_value\": 1\n"
-        + "              },\n"
-        + "              {\n"
-        + "                \"node_index\": 2,\n"
-        + "                \"number_samples\": 100,\n"
-        + "                \"leaf_value\": 2\n"
-        + "              }\n"
-        + "            ],\n"
-        + "            \"target_type\": \"regression\"\n"
-        + "          }\n"
-        + "        }\n"
-        + "      ]\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String REGRESSION_DEFINITION = """
+        {  "preprocessors": [
+            {
+              "one_hot_encoding": {
+                "field": "col1",
+                "hot_map": {
+                  "male": "col1_male",
+                  "female": "col1_female"
+                }
+              }
+            },
+            {
+              "target_mean_encoding": {
+                "field": "col2",
+                "feature_name": "col2_encoded",
+                "target_map": {
+                  "S": 5.0,
+                  "M": 10.0,
+                  "L": 20
+                },
+                "default_value": 5.0
+              }
+            },
+            {
+              "frequency_encoding": {
+                "field": "col3",
+                "feature_name": "col3_encoded",
+                "frequency_map": {
+                  "none": 0.75,
+                  "true": 0.10,
+                  "false": 0.15
+                }
+              }
+            }
+          ],
+          "trained_model": {
+            "ensemble": {
+              "feature_names": [
+                "col1_male",
+                "col1_female",
+                "col2_encoded",
+                "col3_encoded",
+                "col4"
+              ],
+              "aggregate_output": {
+                "weighted_sum": {
+                  "weights": [
+                    0.5,
+                    0.5
+                  ]
+                }
+              },
+              "target_type": "regression",
+              "trained_models": [
+                {
+                  "tree": {
+                    "feature_names": [
+                      "col1_male",
+                      "col1_female",
+                      "col4"
+                    ],
+                    "tree_structure": [
+                      {
+                        "node_index": 0,
+                        "split_feature": 0,
+                        "split_gain": 12.0,
+                        "threshold": 10.0,
+                        "decision_type": "lte",
+                        "number_samples": 300,
+                        "default_left": true,
+                        "left_child": 1,
+                        "right_child": 2
+                      },
+                      {
+                        "node_index": 1,
+                        "number_samples": 100,
+                        "leaf_value": 1
+                      },
+                      {
+                        "node_index": 2,
+                        "number_samples": 200,
+                        "leaf_value": 2
+                      }
+                    ],
+                    "target_type": "regression"
+                  }
+                },
+                {
+                  "tree": {
+                    "feature_names": [
+                      "col2_encoded",
+                      "col3_encoded",
+                      "col4"
+                    ],
+                    "tree_structure": [
+                      {
+                        "node_index": 0,
+                        "split_feature": 0,
+                        "split_gain": 12.0,
+                        "threshold": 10.0,
+                        "decision_type": "lte",
+                        "default_left": true,
+                        "number_samples": 150,
+                        "left_child": 1,
+                        "right_child": 2
+                      },
+                      {
+                        "node_index": 1,
+                        "number_samples": 50,
+                        "leaf_value": 1
+                      },
+                      {
+                        "node_index": 2,
+                        "number_samples": 100,
+                        "leaf_value": 2
+                      }
+                    ],
+                    "target_type": "regression"
+                  }
+                }
+              ]
+            }
+          }
+        }""";
 
-    private static final String REGRESSION_CONFIG = "{"
-        + "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]},"
-        + "  \"description\": \"test model for regression\",\n"
-        + "  \"inference_config\": {\"regression\": {}},\n"
-        + "  \"definition\": "
-        + REGRESSION_DEFINITION
-        + "}";
+    private static final String REGRESSION_CONFIG = """
+        {
+            "input": {
+                "field_names": [
+                    "col1",
+                    "col2",
+                    "col3",
+                    "col4"
+                ]
+            },
+            "description": "test model for regression",
+            "inference_config": {
+                "regression": {}
+            },
+            "definition": %s
+        }""".formatted(REGRESSION_DEFINITION);
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
-    private static final String CLASSIFICATION_CONFIG = ""
-        + "{\n"
-        + "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]},"
-        + "  \"description\": \"test model for classification\",\n"
-        + "  \"default_field_map\": {\"col_1_alias\": \"col1\"},\n"
-        + "  \"inference_config\": {\"classification\": {}},\n"
-        + "  \"definition\": "
-        + InferenceDefinitionTests.getClassificationDefinition(false)
-        + "}";
+    private static final String CLASSIFICATION_CONFIG = """
+        {
+          "input": {
+            "field_names": [ "col1", "col2", "col3", "col4" ]
+          },
+          "description": "test model for classification",
+          "default_field_map": {
+            "col_1_alias": "col1"
+          },
+          "inference_config": {
+            "classification": {}
+          },
+          "definition": %s
+        }""".formatted(InferenceDefinitionTests.getClassificationDefinition(false));
 
     private static String pipelineDefinition(String modelId, String inferenceConfig) {
-        return "{"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"model_id\": \""
-            + modelId
-            + "\",\n"
-            + "          \"tag\": \""
-            + inferenceConfig
-            + "\",\n"
-            + "          \"inference_config\": {\""
-            + inferenceConfig
-            + "\": {}},\n"
-            + "          \"field_map\": {\n"
-            + "            \"col1\": \"col1\",\n"
-            + "            \"col2\": \"col2\",\n"
-            + "            \"col3\": \"col3\",\n"
-            + "            \"col4\": \"col4\"\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }]}\n";
+        return """
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s",
+                    "tag": "%s",
+                    "inference_config": {
+                      "%s": {}
+                    },
+                    "field_map": {
+                      "col1": "col1",
+                      "col2": "col2",
+                      "col3": "col3",
+                      "col4": "col4"
+                    }
+                  }
+                }
+              ]
+            }""".formatted(modelId, inferenceConfig, inferenceConfig);
     }
 
     private void putModel(String modelId, String modelConfiguration) throws IOException {

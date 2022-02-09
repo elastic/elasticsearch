@@ -60,8 +60,8 @@ public class BroadcastResponse {
         return PARSER.parse(parser, null);
     }
 
-    protected static <T extends BroadcastResponse> void declareShardsField(ConstructingObjectParser<T, Void> PARSER) {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), Shards.SHARDS_PARSER, SHARDS_FIELD);
+    protected static <T extends BroadcastResponse> void declareShardsField(ConstructingObjectParser<T, Void> parser) {
+        parser.declareObject(ConstructingObjectParser.constructorArg(), Shards.SHARDS_PARSER, SHARDS_FIELD);
     }
 
     /**

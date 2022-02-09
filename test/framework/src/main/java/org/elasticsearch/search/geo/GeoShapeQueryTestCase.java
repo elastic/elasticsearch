@@ -37,7 +37,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
@@ -55,16 +54,12 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        String geo = "\"geo\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
+        String geo = """
+            "geo" : {"type":"polygon", "coordinates":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}""";
 
-        client().prepareIndex("shapes")
-            .setId("1")
-            .setSource(
-                String.format(Locale.ROOT, "{ %s, \"1\" : { %s, \"2\" : { %s, \"3\" : { %s } }} }", geo, geo, geo, geo),
-                XContentType.JSON
-            )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        client().prepareIndex("shapes").setId("1").setSource("""
+            { %s, "1" : { %s, "2" : { %s, "3" : { %s } }} }
+            """.formatted(geo, geo, geo, geo), XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex(defaultIndexName)
             .setId("1")
             .setSource(
@@ -202,31 +197,31 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        String doc1 = "{\"geo\": {\r\n"
-            + "\"coordinates\": [\r\n"
-            + "-33.918711,\r\n"
-            + "18.847685\r\n"
-            + "],\r\n"
-            + "\"type\": \"Point\"\r\n"
-            + "}}";
+        String doc1 = """
+            {
+              "geo": {
+                "coordinates": [ -33.918711, 18.847685 ],
+                "type": "Point"
+              }
+            }""";
         client().index(new IndexRequest(defaultIndexName).id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
-        String doc2 = "{\"geo\": {\r\n"
-            + "\"coordinates\": [\r\n"
-            + "-49.0,\r\n"
-            + "18.847685\r\n"
-            + "],\r\n"
-            + "\"type\": \"Point\"\r\n"
-            + "}}";
+        String doc2 = """
+            {
+              "geo": {
+                "coordinates": [ -49, 18.847685 ],
+                "type": "Point"
+              }
+            }""";
         client().index(new IndexRequest(defaultIndexName).id("2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
-        String doc3 = "{\"geo\": {\r\n"
-            + "\"coordinates\": [\r\n"
-            + "49.0,\r\n"
-            + "18.847685\r\n"
-            + "],\r\n"
-            + "\"type\": \"Point\"\r\n"
-            + "}}";
+        String doc3 = """
+            {
+              "geo": {
+                "coordinates": [ 49, 18.847685 ],
+                "type": "Point"
+              }
+            }""";
         client().index(new IndexRequest(defaultIndexName).id("3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
         @SuppressWarnings("unchecked")

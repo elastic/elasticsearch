@@ -116,7 +116,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
@@ -137,7 +136,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
@@ -158,7 +156,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
                 XContentType.JSON
@@ -181,7 +178,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
                 XContentType.JSON
@@ -200,7 +196,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         );
         ThrowingRunnable runnable = () -> mapper2.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
                 XContentType.JSON
@@ -223,7 +218,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ThrowingRunnable runnable = () -> mapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                 XContentType.JSON
@@ -237,7 +231,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         );
         ParsedDocument doc = mapper2.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
                 XContentType.JSON
@@ -252,7 +245,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
                 XContentType.JSON
@@ -265,7 +257,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         );
         doc = mapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
                 XContentType.JSON
@@ -350,17 +341,12 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
          * range of valid values.
          */
         double v = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
-        switch (between(0, 3)) {
-            case 0:
-                return v;
-            case 1:
-                return (float) v;
-            case 2:
-                return Double.toString(v);
-            case 3:
-                return Float.toString((float) v);
-            default:
-                throw new IllegalArgumentException();
-        }
+        return switch (between(0, 3)) {
+            case 0 -> v;
+            case 1 -> (float) v;
+            case 2 -> Double.toString(v);
+            case 3 -> Float.toString((float) v);
+            default -> throw new IllegalArgumentException();
+        };
     }
 }

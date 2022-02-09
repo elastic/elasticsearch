@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -53,14 +54,14 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return docCount;
         }
 
-        public Bucket reduce(BucketKey key, ReduceContext reduceContext) {
+        public Bucket reduce(BucketKey bucketKey, AggregationReduceContext reduceContext) {
             List<InternalAggregations> innerAggs = new ArrayList<>(toReduce.size());
-            long docCount = 0;
+            long totalDocCount = 0;
             for (Bucket bucket : toReduce) {
                 innerAggs.add(bucket.aggregations);
-                docCount += bucket.docCount;
+                totalDocCount += bucket.docCount;
             }
-            return new Bucket(key, docCount, InternalAggregations.reduce(innerAggs, reduceContext));
+            return new Bucket(bucketKey, totalDocCount, InternalAggregations.reduce(innerAggs, reduceContext));
         }
 
         public DelayedCategorizationBucket add(Bucket bucket) {
@@ -316,7 +317,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    public InternalCategorizationAggregation create(List<Bucket> buckets) {
+    public InternalCategorizationAggregation create(List<Bucket> bucketList) {
         return new InternalCategorizationAggregation(
             name,
             requiredSize,
@@ -325,7 +326,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             maxMatchTokens,
             similarityThreshold,
             super.metadata,
-            buckets
+            bucketList
         );
     }
 
@@ -335,7 +336,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         throw new IllegalArgumentException("For optimization purposes, typical bucket path is not supported");
     }
 
@@ -350,7 +351,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         try (CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()))) {
             CategorizationTokenTree categorizationTokenTree = new CategorizationTokenTree(
                 maxUniqueTokens,

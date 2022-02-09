@@ -1195,8 +1195,12 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
     public static void assertIndexNotManagedByILM(ClusterState clusterState, Index index) {
         Metadata metadata = clusterState.metadata();
         assertNotNull(metadata);
+
         IndexMetadata indexMetadata = metadata.getIndexSafe(index);
         assertNotNull(indexMetadata);
+
+        assertNull(indexMetadata.getLifecyclePolicyName());
+
         Settings indexSettings = indexMetadata.getSettings();
         assertNotNull(indexSettings);
         assertFalse(LifecycleSettings.LIFECYCLE_NAME_SETTING.exists(indexSettings));

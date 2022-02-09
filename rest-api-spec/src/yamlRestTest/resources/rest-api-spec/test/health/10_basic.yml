@@ -17,4 +17,3 @@
   - is_true: components.cluster_coordination.indicators.instance_has_master.details.coordinating_node.name
   - is_true: components.cluster_coordination.indicators.instance_has_master.details.master_node.node_id
   - is_true: components.cluster_coordination.indicators.instance_has_master.details.master_node.name
-  - match:   { components.snapshots.status: "GREEN" }

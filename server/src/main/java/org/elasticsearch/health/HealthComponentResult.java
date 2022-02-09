@@ -52,7 +52,7 @@ public record HealthComponentResult(String name, HealthStatus status, Map<String
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("status", status);
+        builder.field("status", status.xContentValue());
         builder.startObject("indicators");
         for (Map.Entry<String, HealthIndicatorResult> indicator : indicators.entrySet()) {
             builder.field(indicator.getKey());

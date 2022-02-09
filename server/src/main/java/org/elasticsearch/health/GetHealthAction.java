@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
@@ -77,7 +78,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field("status", status);
+            builder.field("status", status.xContentValue());
             builder.field("cluster_name", clusterName.value());
             builder.array("impacts");
             builder.startObject("components");

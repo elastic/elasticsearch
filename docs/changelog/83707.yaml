@@ -1,0 +1,5 @@
+pr: 83707
+summary: Fix template not equals when setting does not start with "index."
+area: Infra/Settings
+type: bug
+issues: []

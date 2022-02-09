@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.ttest;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 public class TTestStatsBuilder implements Releasable {
@@ -23,10 +24,18 @@ public class TTestStatsBuilder implements Releasable {
 
     TTestStatsBuilder(BigArrays bigArrays) {
         counts = bigArrays.newLongArray(1, true);
-        sums = bigArrays.newDoubleArray(1, true);
-        compensations = bigArrays.newDoubleArray(1, true);
-        sumOfSqrs = bigArrays.newDoubleArray(1, true);
-        sumOfSqrCompensations = bigArrays.newDoubleArray(1, true);
+        boolean success = false;
+        try {
+            sums = bigArrays.newDoubleArray(1, true);
+            compensations = bigArrays.newDoubleArray(1, true);
+            sumOfSqrs = bigArrays.newDoubleArray(1, true);
+            sumOfSqrCompensations = bigArrays.newDoubleArray(1, true);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     public TTestStats get(long bucket) {

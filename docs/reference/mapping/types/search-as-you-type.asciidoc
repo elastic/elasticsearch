@@ -1,5 +1,5 @@
 [[search-as-you-type]]
-=== Search-as-you-type datatype
+=== Search-as-you-type field type
 ++++
 <titleabbrev>Search-as-you-type</titleabbrev>
 ++++
@@ -16,7 +16,7 @@ When adding a field of this type to a mapping
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -69,7 +69,7 @@ root field `my_field`.
 
 [source,console]
 --------------------------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "my_field": "quick brown fox jump lazy dog"
 }
@@ -85,7 +85,7 @@ in order in a shingle subfield.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "multi_match": {
@@ -121,7 +121,7 @@ GET my_index/_search
     "max_score" : 0.8630463,
     "hits" : [
       {
-        "_index" : "my_index",
+        "_index" : "my-index-000001",
         "_id" : "1",
         "_score" : 0.8630463,
         "_source" : {
@@ -145,7 +145,7 @@ queries may be less efficient than using the `match_bool_prefix` query.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match_phrase_prefix": {
@@ -180,7 +180,7 @@ More subfields enables more specific queries but increases index size.
 
 The following parameters are accepted in a mapping for the `search_as_you_type`
 field due to its nature as a text-like field, and behave similarly to their
-behavior when configuring a field of the <<text,`text`>> datatype. Unless
+behavior when configuring a field of the <<text,`text`>> data type. Unless
 otherwise noted, these options configure the root fields subfields in
 the same way.
 
@@ -206,7 +206,7 @@ the same way.
     Whether field-length should be taken into account when scoring queries.
     Accepts `true` or `false`. This option configures the root field
     and shingle subfields, where its default is `true`. It does not configure
-    the prefix subfield, where it it `false`.
+    the prefix subfield, where it is `false`.
 
 <<mapping-store,`store`>>::
 

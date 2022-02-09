@@ -134,7 +134,7 @@ filter then removes any duplicate tokens in the same position.
 
 [source,console]
 ----
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {

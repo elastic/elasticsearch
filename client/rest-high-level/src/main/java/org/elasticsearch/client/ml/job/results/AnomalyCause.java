@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.ml.job.config.DetectorFunction;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,8 +50,11 @@ public class AnomalyCause implements ToXContentObject {
      */
     public static final ParseField FIELD_NAME = new ParseField("field_name");
 
-    public static final ObjectParser<AnomalyCause, Void> PARSER =
-        new ObjectParser<>(ANOMALY_CAUSE.getPreferredName(), true, AnomalyCause::new);
+    public static final ObjectParser<AnomalyCause, Void> PARSER = new ObjectParser<>(
+        ANOMALY_CAUSE.getPreferredName(),
+        true,
+        AnomalyCause::new
+    );
 
     static {
         PARSER.declareDouble(AnomalyCause::setProbability, PROBABILITY);
@@ -97,8 +89,7 @@ public class AnomalyCause implements ToXContentObject {
 
     private List<Influence> influencers;
 
-    AnomalyCause() {
-    }
+    AnomalyCause() {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -283,8 +274,22 @@ public class AnomalyCause implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(probability, actual, typical, byFieldName, byFieldValue, correlatedByFieldValue, fieldName, function,
-            functionDescription, overFieldName, overFieldValue, partitionFieldName, partitionFieldValue, influencers);
+        return Objects.hash(
+            probability,
+            actual,
+            typical,
+            byFieldName,
+            byFieldValue,
+            correlatedByFieldValue,
+            fieldName,
+            function,
+            functionDescription,
+            overFieldName,
+            overFieldValue,
+            partitionFieldName,
+            partitionFieldValue,
+            influencers
+        );
     }
 
     @Override
@@ -297,21 +302,21 @@ public class AnomalyCause implements ToXContentObject {
             return false;
         }
 
-        AnomalyCause that = (AnomalyCause)other;
+        AnomalyCause that = (AnomalyCause) other;
 
-        return this.probability == that.probability &&
-            Objects.equals(this.typical, that.typical) &&
-            Objects.equals(this.actual, that.actual) &&
-            Objects.equals(this.function, that.function) &&
-            Objects.equals(this.functionDescription, that.functionDescription) &&
-            Objects.equals(this.fieldName, that.fieldName) &&
-            Objects.equals(this.byFieldName, that.byFieldName) &&
-            Objects.equals(this.byFieldValue, that.byFieldValue) &&
-            Objects.equals(this.correlatedByFieldValue, that.correlatedByFieldValue) &&
-            Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
-            Objects.equals(this.partitionFieldValue, that.partitionFieldValue) &&
-            Objects.equals(this.overFieldName, that.overFieldName) &&
-            Objects.equals(this.overFieldValue, that.overFieldValue) &&
-            Objects.equals(this.influencers, that.influencers);
+        return this.probability == that.probability
+            && Objects.equals(this.typical, that.typical)
+            && Objects.equals(this.actual, that.actual)
+            && Objects.equals(this.function, that.function)
+            && Objects.equals(this.functionDescription, that.functionDescription)
+            && Objects.equals(this.fieldName, that.fieldName)
+            && Objects.equals(this.byFieldName, that.byFieldName)
+            && Objects.equals(this.byFieldValue, that.byFieldValue)
+            && Objects.equals(this.correlatedByFieldValue, that.correlatedByFieldValue)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
+            && Objects.equals(this.overFieldName, that.overFieldName)
+            && Objects.equals(this.overFieldValue, that.overFieldValue)
+            && Objects.equals(this.influencers, that.influencers);
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.lucene.search.function;
@@ -48,8 +37,13 @@ public class FieldValueFactorFunction extends ScoreFunction {
     private final Double missing;
     private final IndexNumericFieldData indexFieldData;
 
-    public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, Double missing,
-            IndexNumericFieldData indexFieldData) {
+    public FieldValueFactorFunction(
+        String field,
+        float boostFactor,
+        Modifier modifierType,
+        Double missing,
+        IndexNumericFieldData indexFieldData
+    ) {
         super(CombineFunction.MULTIPLY);
         this.field = field;
         this.boostFactor = boostFactor;
@@ -61,7 +55,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
         final SortedNumericDoubleValues values;
-        if(indexFieldData == null) {
+        if (indexFieldData == null) {
             values = FieldData.emptySortedNumericDoubles();
         } else {
             values = this.indexFieldData.load(ctx).getDoubleValues();
@@ -84,8 +78,12 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 double val = value * boostFactor;
                 double result = modifier.apply(val);
                 if (result < 0f) {
-                    String message = "field value function must not produce negative scores, but got: " +
-                            "[" + result + "] for field value: [" + value + "]";
+                    String message = "field value function must not produce negative scores, but got: "
+                        + "["
+                        + result
+                        + "] for field value: ["
+                        + value
+                        + "]";
                     if (modifier == Modifier.LN) {
                         message += "; consider using ln1p or ln2p instead of ln to avoid negative scores";
                     } else if (modifier == Modifier.LOG) {
@@ -102,9 +100,16 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 String defaultStr = missing != null ? "?:" + missing : "";
                 double score = score(docId, subQueryScore.getValue().floatValue());
                 return Explanation.match(
-                        (float) score,
-                        String.format(Locale.ROOT,
-                                "field value function: %s(doc['%s'].value%s * factor=%s)", modifierStr, field, defaultStr, boostFactor));
+                    (float) score,
+                    String.format(
+                        Locale.ROOT,
+                        "field value function: %s(doc['%s'].value%s * factor=%s)",
+                        modifierStr,
+                        field,
+                        defaultStr,
+                        boostFactor
+                    )
+                );
             }
         };
     }
@@ -117,9 +122,9 @@ public class FieldValueFactorFunction extends ScoreFunction {
     @Override
     protected boolean doEquals(ScoreFunction other) {
         FieldValueFactorFunction fieldValueFactorFunction = (FieldValueFactorFunction) other;
-        return this.boostFactor == fieldValueFactorFunction.boostFactor &&
-                Objects.equals(this.field, fieldValueFactorFunction.field) &&
-                Objects.equals(this.modifier, fieldValueFactorFunction.modifier);
+        return this.boostFactor == fieldValueFactorFunction.boostFactor
+            && Objects.equals(this.field, fieldValueFactorFunction.field)
+            && Objects.equals(this.modifier, fieldValueFactorFunction.modifier);
     }
 
     @Override

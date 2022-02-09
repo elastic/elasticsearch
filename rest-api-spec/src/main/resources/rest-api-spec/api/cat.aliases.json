@@ -5,6 +5,10 @@
       "description":"Shows information about currently configured aliases to indices including filter and routing infos."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

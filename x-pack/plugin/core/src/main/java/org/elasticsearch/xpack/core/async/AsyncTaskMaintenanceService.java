@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.async;
@@ -9,20 +10,24 @@ package org.elasticsearch.xpack.core.async;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 
@@ -34,33 +39,46 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.EXPIRATIO
  * Since we will have several injected implementation of this class injected into different transports, and we bind components created
  * by {@linkplain org.elasticsearch.plugins.Plugin#createComponents} to their classes, we need to implement one class per binding.
  */
-public abstract class AsyncTaskMaintenanceService extends AbstractLifecycleComponent implements ClusterStateListener {
+public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent implements ClusterStateListener {
+
+    /**
+     * Controls the interval at which the cleanup is scheduled.
+     * Defaults to 1h. It is an undocumented/expert setting that
+     * is mainly used by integration tests to make the garbage
+     * collection of search responses more reactive.
+     */
+    public static final Setting<TimeValue> ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING = Setting.timeSetting(
+        "async_search.index_cleanup_interval",
+        TimeValue.timeValueHours(1),
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(AsyncTaskMaintenanceService.class);
 
     private final ClusterService clusterService;
     private final String index;
     private final String localNodeId;
     private final ThreadPool threadPool;
-    private final AsyncTaskIndexService<?> indexService;
+    private final Client clientWithOrigin;
     private final TimeValue delay;
 
     private boolean isCleanupRunning;
     private volatile Scheduler.Cancellable cancellable;
 
-    public AsyncTaskMaintenanceService(ClusterService clusterService,
-                                       String index,
-                                       String localNodeId,
-                                       ThreadPool threadPool,
-                                       AsyncTaskIndexService<?> indexService,
-                                       TimeValue delay) {
+    public AsyncTaskMaintenanceService(
+        ClusterService clusterService,
+        String localNodeId,
+        Settings nodeSettings,
+        ThreadPool threadPool,
+        Client clientWithOrigin
+    ) {
         this.clusterService = clusterService;
-        this.index = index;
+        this.index = XPackPlugin.ASYNC_RESULTS_INDEX;
         this.localNodeId = localNodeId;
         this.threadPool = threadPool;
-        this.indexService = indexService;
-        this.delay = delay;
+        this.clientWithOrigin = clientWithOrigin;
+        this.delay = ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING.get(nodeSettings);
     }
-
 
     @Override
     protected void doStart() {
@@ -74,8 +92,7 @@ public abstract class AsyncTaskMaintenanceService extends AbstractLifecycleCompo
     }
 
     @Override
-    protected final void doClose() throws IOException {
-    }
+    protected final void doClose() throws IOException {}
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
@@ -110,10 +127,10 @@ public abstract class AsyncTaskMaintenanceService extends AbstractLifecycleCompo
     synchronized void executeNextCleanup() {
         if (isCleanupRunning) {
             long nowInMillis = System.currentTimeMillis();
-            DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index)
-                .setQuery(QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis));
-            indexService.getClient()
-                .execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(this::scheduleNextCleanup));
+            DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index).setQuery(
+                QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis)
+            );
+            clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(this::scheduleNextCleanup));
         }
     }
 

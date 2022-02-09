@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action;
 
@@ -26,21 +27,20 @@ public class SecurityActionMapper {
      */
     public String action(String action, TransportRequest request) {
         switch (action) {
-            case ClearScrollAction.NAME:
+            case ClearScrollAction.NAME -> {
                 assert request instanceof ClearScrollRequest;
-                boolean isClearAllScrollRequest =  ((ClearScrollRequest) request).scrollIds().contains("_all");
+                boolean isClearAllScrollRequest = ((ClearScrollRequest) request).scrollIds().contains("_all");
                 if (isClearAllScrollRequest) {
                     return CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME;
                 }
-                break;
-            case AnalyzeAction.NAME:
-            case AnalyzeAction.NAME + "[s]":
+            }
+            case AnalyzeAction.NAME, AnalyzeAction.NAME + "[s]" -> {
                 assert request instanceof AnalyzeAction.Request;
                 String[] indices = ((AnalyzeAction.Request) request).indices();
                 if (indices == null || (indices.length == 1 && indices[0] == null)) {
                     return CLUSTER_PERMISSION_ANALYZE;
                 }
-                break;
+            }
         }
         return action;
     }

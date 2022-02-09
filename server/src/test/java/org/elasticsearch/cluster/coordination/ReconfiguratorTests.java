@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -109,7 +98,7 @@ public class ReconfiguratorTests extends ESTestCase {
     }
 
     public void testAutoShrinking() {
-        final String[] allNodes = new String[]{"a", "b", "c", "d", "e", "f", "g"};
+        final String[] allNodes = new String[] { "a", "b", "c", "d", "e", "f", "g" };
 
         final String[] liveNodes = new String[randomIntBetween(1, allNodes.length)];
         randomSubsetOf(liveNodes.length, allNodes).toArray(liveNodes);
@@ -127,8 +116,12 @@ public class ReconfiguratorTests extends ESTestCase {
 
         final int quorumSize = Math.max(liveNodes.length / 2 + 1, initialVotingNodes.length < 3 ? 1 : 2);
 
-        final VotingConfiguration finalConfig = reconfigurator.reconfigure(liveNodesSet, emptySet(),
-            randomFrom(liveNodesSet), initialConfig);
+        final VotingConfiguration finalConfig = reconfigurator.reconfigure(
+            liveNodesSet,
+            emptySet(),
+            randomFrom(liveNodesSet),
+            initialConfig
+        );
 
         final String description = "reconfigure " + liveNodesSet + " from " + initialConfig + " yielded " + finalConfig;
 
@@ -141,7 +134,7 @@ public class ReconfiguratorTests extends ESTestCase {
     }
 
     public void testManualShrinking() {
-        final String[] allNodes = new String[]{"a", "b", "c", "d", "e", "f", "g"};
+        final String[] allNodes = new String[] { "a", "b", "c", "d", "e", "f", "g" };
 
         final String[] liveNodes = new String[randomIntBetween(1, allNodes.length)];
         randomSubsetOf(liveNodes.length, allNodes).toArray(liveNodes);
@@ -149,15 +142,20 @@ public class ReconfiguratorTests extends ESTestCase {
         final String[] initialVotingNodes = new String[randomIntBetween(1, allNodes.length)];
         randomSubsetOf(initialVotingNodes.length, allNodes).toArray(initialVotingNodes);
 
-        final Reconfigurator reconfigurator
-            = makeReconfigurator(Settings.builder().put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), false).build());
+        final Reconfigurator reconfigurator = makeReconfigurator(
+            Settings.builder().put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), false).build()
+        );
         final Set<DiscoveryNode> liveNodesSet = nodes(liveNodes);
         final VotingConfiguration initialConfig = conf(initialVotingNodes);
 
         final int quorumSize = Math.max(liveNodes.length, initialVotingNodes.length) / 2 + 1;
 
-        final VotingConfiguration finalConfig = reconfigurator.reconfigure(liveNodesSet, emptySet(), randomFrom(liveNodesSet),
-            initialConfig);
+        final VotingConfiguration finalConfig = reconfigurator.reconfigure(
+            liveNodesSet,
+            emptySet(),
+            randomFrom(liveNodesSet),
+            initialConfig
+        );
 
         final String description = "reconfigure " + liveNodesSet + " from " + initialConfig + " yielded " + finalConfig;
 
@@ -185,28 +183,52 @@ public class ReconfiguratorTests extends ESTestCase {
         return Arrays.stream(nodes).collect(Collectors.toSet());
     }
 
-    private void check(Set<DiscoveryNode> liveNodes, VotingConfiguration config, boolean autoShrinkVotingConfiguration,
-                       VotingConfiguration expectedConfig) {
+    private void check(
+        Set<DiscoveryNode> liveNodes,
+        VotingConfiguration config,
+        boolean autoShrinkVotingConfiguration,
+        VotingConfiguration expectedConfig
+    ) {
         check(liveNodes, retired(), config, autoShrinkVotingConfiguration, expectedConfig);
     }
 
-    private void check(Set<DiscoveryNode> liveNodes, Set<String> retired, VotingConfiguration config,
-                       boolean autoShrinkVotingConfiguration, VotingConfiguration expectedConfig) {
+    private void check(
+        Set<DiscoveryNode> liveNodes,
+        Set<String> retired,
+        VotingConfiguration config,
+        boolean autoShrinkVotingConfiguration,
+        VotingConfiguration expectedConfig
+    ) {
         final DiscoveryNode master = liveNodes.stream().sorted(Comparator.comparing(DiscoveryNode::getId)).findFirst().get();
         check(liveNodes, retired, master.getId(), config, autoShrinkVotingConfiguration, expectedConfig);
     }
 
-    private void check(Set<DiscoveryNode> liveNodes, Set<String> retired, String masterId, VotingConfiguration config,
-                       boolean autoShrinkVotingConfiguration, VotingConfiguration expectedConfig) {
-        final Reconfigurator reconfigurator = makeReconfigurator(Settings.builder()
-            .put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), autoShrinkVotingConfiguration)
-            .build());
+    private void check(
+        Set<DiscoveryNode> liveNodes,
+        Set<String> retired,
+        String masterId,
+        VotingConfiguration config,
+        boolean autoShrinkVotingConfiguration,
+        VotingConfiguration expectedConfig
+    ) {
+        final Reconfigurator reconfigurator = makeReconfigurator(
+            Settings.builder().put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), autoShrinkVotingConfiguration).build()
+        );
 
         final DiscoveryNode master = liveNodes.stream().filter(n -> n.getId().equals(masterId)).findFirst().get();
         final VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, master, config);
-        assertEquals(new ParameterizedMessage("[liveNodes={}, retired={}, master={}, config={}, autoShrinkVotingConfiguration={}]",
-                liveNodes, retired, master, config, autoShrinkVotingConfiguration).getFormattedMessage(),
-            expectedConfig, adaptedConfig);
+        assertEquals(
+            new ParameterizedMessage(
+                "[liveNodes={}, retired={}, master={}, config={}, autoShrinkVotingConfiguration={}]",
+                liveNodes,
+                retired,
+                master,
+                config,
+                autoShrinkVotingConfiguration
+            ).getFormattedMessage(),
+            expectedConfig,
+            adaptedConfig
+        );
     }
 
     private Reconfigurator makeReconfigurator(Settings settings) {
@@ -226,18 +248,24 @@ public class ReconfiguratorTests extends ESTestCase {
 
         // update to "false"
         clusterSettings.applySettings(Settings.builder().put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), "false").build());
-        assertThat(reconfigurator.reconfigure(twoNodes, retired(), randomFrom(twoNodes), initialConfig),
-            sameInstance(initialConfig)); // no quorum
-        assertThat(reconfigurator.reconfigure(threeNodes, retired(), randomFrom(threeNodes), initialConfig),
-            equalTo(conf("a", "b", "c", "d", "e")));
-        assertThat(reconfigurator.reconfigure(threeNodes, retired("d"), randomFrom(threeNodes), initialConfig),
-            equalTo(conf("a", "b", "c", "e")));
+        // no quorum
+        assertThat(reconfigurator.reconfigure(twoNodes, retired(), randomFrom(twoNodes), initialConfig), sameInstance(initialConfig));
+        assertThat(
+            reconfigurator.reconfigure(threeNodes, retired(), randomFrom(threeNodes), initialConfig),
+            equalTo(conf("a", "b", "c", "d", "e"))
+        );
+        assertThat(
+            reconfigurator.reconfigure(threeNodes, retired("d"), randomFrom(threeNodes), initialConfig),
+            equalTo(conf("a", "b", "c", "e"))
+        );
 
         // explicitly set to "true"
         clusterSettings.applySettings(Settings.builder().put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), "true").build());
         assertThat(reconfigurator.reconfigure(twoNodes, retired(), randomFrom(twoNodes), initialConfig), equalTo(conf("a", "b", "c")));
 
-        expectThrows(IllegalArgumentException.class, () ->
-            clusterSettings.applySettings(Settings.builder().put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), "blah").build()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(Settings.builder().put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), "blah").build())
+        );
     }
 }

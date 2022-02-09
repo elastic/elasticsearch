@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -18,6 +19,8 @@
  */
 
 package org.elasticsearch.core.internal.io;
+
+import org.elasticsearch.core.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -65,6 +68,15 @@ public final class IOUtils {
     }
 
     /**
+     * @see #close(Closeable...)
+     */
+    public static void close(@Nullable Closeable closeable) throws IOException {
+        if (closeable != null) {
+            closeable.close();
+        }
+    }
+
+    /**
      * Closes all given {@link Closeable}s. Some of the {@linkplain Closeable}s may be null; they are
      * ignored. After everything is closed, the method adds any exceptions as suppressed to the
      * original exception, or throws the first exception it hit if {@code Exception} is null. If
@@ -102,9 +114,7 @@ public final class IOUtils {
         Exception firstException = ex;
         for (final Closeable object : objects) {
             try {
-                if (object != null) {
-                    object.close();
-                }
+                close(object);
             } catch (final IOException | RuntimeException e) {
                 if (firstException == null) {
                     firstException = e;
@@ -142,15 +152,18 @@ public final class IOUtils {
      */
     public static void closeWhileHandlingException(final Iterable<? extends Closeable> objects) {
         for (final Closeable object : objects) {
-            // noinspection EmptyCatchBlock
-            try {
-                if (object != null) {
-                    object.close();
-                }
-            } catch (final IOException | RuntimeException e) {
-
-            }
+            closeWhileHandlingException(object);
         }
+    }
+
+    /**
+     * @see #closeWhileHandlingException(Closeable...)
+     */
+    public static void closeWhileHandlingException(final Closeable closeable) {
+        // noinspection EmptyCatchBlock
+        try {
+            close(closeable);
+        } catch (final IOException | RuntimeException e) {}
     }
 
     /**
@@ -186,21 +199,17 @@ public final class IOUtils {
      * @throws IOException if any of the given files (or their sub-hierarchy files in case of directories) cannot be removed.
      */
     public static void rm(final Path... locations) throws IOException {
-        final LinkedHashMap<Path,Throwable> unremoved = rm(new LinkedHashMap<>(), locations);
-        if (!unremoved.isEmpty()) {
+        final LinkedHashMap<Path, Throwable> unremoved = rm(new LinkedHashMap<>(), locations);
+        if (unremoved.isEmpty() == false) {
             final StringBuilder b = new StringBuilder("could not remove the following files (in the order of attempts):\n");
-            for (final Map.Entry<Path,Throwable> kv : unremoved.entrySet()) {
-                b.append("   ")
-                        .append(kv.getKey().toAbsolutePath())
-                        .append(": ")
-                        .append(kv.getValue())
-                        .append("\n");
+            for (final Map.Entry<Path, Throwable> kv : unremoved.entrySet()) {
+                b.append("   ").append(kv.getKey().toAbsolutePath()).append(": ").append(kv.getValue()).append("\n");
             }
             throw new IOException(b.toString());
         }
     }
 
-    private static LinkedHashMap<Path,Throwable> rm(final LinkedHashMap<Path,Throwable> unremoved, final Path... locations) {
+    private static LinkedHashMap<Path, Throwable> rm(final LinkedHashMap<Path, Throwable> unremoved, final Path... locations) {
         if (locations != null) {
             for (final Path location : locations) {
                 // TODO: remove this leniency
@@ -267,6 +276,21 @@ public final class IOUtils {
      *                   systems and operating systems allow to fsync on a directory)
      */
     public static void fsync(final Path fileToSync, final boolean isDir) throws IOException {
+        fsync(fileToSync, isDir, true);
+    }
+
+    /**
+     * Ensure that any writes to the given file is written to the storage device that contains it. The {@code isDir} parameter specifies
+     * whether or not the path to sync is a directory. This is needed because we open for read and ignore an {@link IOException} since not
+     * all filesystems and operating systems support fsyncing on a directory. For regular files we must open for write for the fsync to have
+     * an effect.
+     *
+     * @param fileToSync the file to fsync
+     * @param isDir      if true, the given file is a directory (we open for read and ignore {@link IOException}s, because not all file
+     *                   systems and operating systems allow to fsync on a directory)
+     * @param metaData   if {@code true} both the file's content and metadata will be sync, otherwise only the file's content will be sync
+     */
+    public static void fsync(final Path fileToSync, final boolean isDir, final boolean metaData) throws IOException {
         if (isDir && WINDOWS) {
             // opening a directory on Windows fails, directories can not be fsynced there
             if (Files.exists(fileToSync) == false) {
@@ -277,12 +301,13 @@ public final class IOUtils {
         }
         try (FileChannel file = FileChannel.open(fileToSync, isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {
             try {
-                file.force(true);
+                file.force(metaData);
             } catch (final IOException e) {
                 if (isDir) {
-                    assert (LINUX || MAC_OS_X) == false :
-                            "on Linux and MacOSX fsyncing a directory should not throw IOException, "+
-                                    "we just don't want to rely on that in production (undocumented); got: " + e;
+                    assert (LINUX || MAC_OS_X) == false
+                        : "on Linux and MacOSX fsyncing a directory should not throw IOException, "
+                            + "we just don't want to rely on that in production (undocumented); got: "
+                            + e;
                     // ignore exception if it is a directory
                     return;
                 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  * This Java port of CLD3 was derived from Google's CLD3 project at https://github.com/google/cld3
  */
 
@@ -22,18 +23,18 @@ import static java.lang.Character.UnicodeBlock.KATAKANA;
  */
 public final class ScriptDetector {
 
-    private ScriptDetector() { }
+    private ScriptDetector() {}
 
-    // Unicode scripts we care about.  To get compact and fast code, we detect only
+    // Unicode scripts we care about. To get compact and fast code, we detect only
     // a few Unicode scripts that offer a strong indication about the language of
     // the text (e.g., Hiragana -> Japanese).
     public enum Script {
         // Special value to indicate internal errors in the script detection code.
         kScriptError(0),
 
-        // Special values for all Unicode scripts that we do not detect.  One special
+        // Special values for all Unicode scripts that we do not detect. One special
         // value for Unicode characters of 1, 2, 3, respectively 4 bytes (as we
-        // already have that information, we use it).  kScriptOtherUtf8OneByte means
+        // already have that information, we use it). kScriptOtherUtf8OneByte means
         // ~Latin and kScriptOtherUtf8FourBytes means ~Han.
         kScriptOtherUtf8OneByte(1),
         kScriptOtherUtf8TwoBytes(2),
@@ -59,7 +60,7 @@ public final class ScriptDetector {
         }
 
         public static Script fromCodePoint(int codePoint) {
-            // Using blocks for the HANGUL vs HANGUL_JANO distinctions
+            // Using blocks for the HANGUL vs HANGUL_JAMO distinctions
             // If one exists. Needs investigated
             Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
             if (GREEK.equals(block)) {

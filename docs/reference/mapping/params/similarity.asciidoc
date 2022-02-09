@@ -1,12 +1,12 @@
 [[similarity]]
 === `similarity`
 
-Elasticsearch allows you to configure a scoring algorithm or _similarity_ per
-field. The `similarity` setting provides a simple way of choosing a similarity
-algorithm other than the default `BM25`, such as `boolean`.
+{es} allows you to configure a text scoring algorithm or _similarity_
+per field. The `similarity` setting provides a simple way of choosing a
+text similarity algorithm other than the default `BM25`, such as `boolean`.
 
-Similarities are mostly useful for <<text,`text`>> fields, but can also apply
-to other field types.
+Only text-based field types like <<text,`text`>> and <<keyword,`keyword`>>
+support this configuration.
 
 Custom similarities can be configured by tuning the parameters of the built-in
 similarities. For more details about this expert options, see the
@@ -16,7 +16,7 @@ The only similarities which can be used out of the box, without any further
 configuration are:
 
 `BM25`::
-The https://en.wikipedia.org/wiki/Okapi_BM25[Okapi BM25 algorithm]. The
+The {wikipedia}/Okapi_BM25[Okapi BM25 algorithm]. The
 algorithm used by default in {es} and Lucene.
 
 `boolean`::
@@ -30,7 +30,7 @@ as follows:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {

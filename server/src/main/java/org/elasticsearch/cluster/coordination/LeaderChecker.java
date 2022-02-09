@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -22,19 +11,23 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.logging.log4j.util.MessageSupplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
@@ -49,9 +42,9 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
  * The LeaderChecker is responsible for allowing followers to check that the currently elected leader is still connected and healthy. We are
@@ -66,41 +59,64 @@ public class LeaderChecker {
     static final String LEADER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/leader_check";
 
     // the time between checks sent to the leader
-    public static final Setting<TimeValue> LEADER_CHECK_INTERVAL_SETTING =
-        Setting.timeSetting("cluster.fault_detection.leader_check.interval",
-            TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(100), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> LEADER_CHECK_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.fault_detection.leader_check.interval",
+        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(100),
+        Setting.Property.NodeScope
+    );
 
     // the timeout for each check sent to the leader
-    public static final Setting<TimeValue> LEADER_CHECK_TIMEOUT_SETTING =
-        Setting.timeSetting("cluster.fault_detection.leader_check.timeout",
-            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> LEADER_CHECK_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.fault_detection.leader_check.timeout",
+        TimeValue.timeValueMillis(10000),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
 
     // the number of failed checks that must happen before the leader is considered to have failed.
-    public static final Setting<Integer> LEADER_CHECK_RETRY_COUNT_SETTING =
-        Setting.intSetting("cluster.fault_detection.leader_check.retry_count", 3, 1, Setting.Property.NodeScope);
+    public static final Setting<Integer> LEADER_CHECK_RETRY_COUNT_SETTING = Setting.intSetting(
+        "cluster.fault_detection.leader_check.retry_count",
+        3,
+        1,
+        Setting.Property.NodeScope
+    );
 
     private final TimeValue leaderCheckInterval;
     private final TimeValue leaderCheckTimeout;
     private final int leaderCheckRetryCount;
     private final TransportService transportService;
-    private final Consumer<Exception> onLeaderFailure;
+    private final LeaderFailureListener leaderFailureListener;
+    private final NodeHealthService nodeHealthService;
 
-    private AtomicReference<CheckScheduler> currentChecker = new AtomicReference<>();
+    private final AtomicReference<CheckScheduler> currentChecker = new AtomicReference<>();
 
     private volatile DiscoveryNodes discoveryNodes;
 
-    LeaderChecker(final Settings settings, final TransportService transportService, final Consumer<Exception> onLeaderFailure) {
+    LeaderChecker(
+        final Settings settings,
+        final TransportService transportService,
+        final LeaderFailureListener leaderFailureListener,
+        final NodeHealthService nodeHealthService
+    ) {
         leaderCheckInterval = LEADER_CHECK_INTERVAL_SETTING.get(settings);
         leaderCheckTimeout = LEADER_CHECK_TIMEOUT_SETTING.get(settings);
         leaderCheckRetryCount = LEADER_CHECK_RETRY_COUNT_SETTING.get(settings);
         this.transportService = transportService;
-        this.onLeaderFailure = onLeaderFailure;
+        this.leaderFailureListener = leaderFailureListener;
+        this.nodeHealthService = nodeHealthService;
 
-        transportService.registerRequestHandler(LEADER_CHECK_ACTION_NAME, Names.SAME, false, false, LeaderCheckRequest::new,
+        transportService.registerRequestHandler(
+            LEADER_CHECK_ACTION_NAME,
+            Names.SAME,
+            false,
+            false,
+            LeaderCheckRequest::new,
             (request, channel, task) -> {
                 handleLeaderCheck(request);
                 channel.sendResponse(Empty.INSTANCE);
-            });
+            }
+        );
 
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
@@ -154,15 +170,18 @@ public class LeaderChecker {
     private void handleLeaderCheck(LeaderCheckRequest request) {
         final DiscoveryNodes discoveryNodes = this.discoveryNodes;
         assert discoveryNodes != null;
-
-        if (discoveryNodes.isLocalNodeElectedMaster() == false) {
-            logger.debug("rejecting leader check on non-master {}", request);
-            throw new CoordinationStateRejectedException(
-                "rejecting leader check from [" + request.getSender() + "] sent to a node that is no longer the master");
+        final StatusInfo statusInfo = nodeHealthService.getHealth();
+        if (statusInfo.getStatus() == UNHEALTHY) {
+            logger.debug("this node is unhealthy [{}], rejecting leader check: {}", statusInfo.getInfo(), request);
+            throw new NodeHealthCheckFailureException(statusInfo.getInfo());
+        } else if (discoveryNodes.isLocalNodeElectedMaster() == false) {
+            logger.debug("rejecting leader check on non-master: {}", request);
+            throw new CoordinationStateRejectedException("no longer the elected master");
         } else if (discoveryNodes.nodeExists(request.getSender()) == false) {
             logger.debug("rejecting leader check from removed node: {}", request);
             throw new CoordinationStateRejectedException(
-                "rejecting leader check since [" + request.getSender() + "] has been removed from the cluster");
+                "rejecting check since [" + request.getSender().descriptionWithoutAttributes() + "] has been removed from the cluster"
+            );
         } else {
             logger.trace("handling {}", request);
         }
@@ -177,11 +196,14 @@ public class LeaderChecker {
         }
     }
 
+    private static final String RESTARTING_DISCOVERY_TEXT = "restarting discovery; more details may be available in the master node logs";
+
     private class CheckScheduler implements Releasable {
 
-        private final AtomicBoolean isClosed = new AtomicBoolean();
-        private final AtomicLong failureCountSinceLastSuccess = new AtomicLong();
         private final DiscoveryNode leader;
+        private final AtomicBoolean isClosed = new AtomicBoolean();
+        private int rejectedCountSinceLastSuccess;
+        private int timeoutCountSinceLastSuccess;
 
         CheckScheduler(final DiscoveryNode leader) {
             this.leader = leader;
@@ -204,24 +226,22 @@ public class LeaderChecker {
 
             logger.trace("checking {} with [{}] = {}", leader, LEADER_CHECK_TIMEOUT_SETTING.getKey(), leaderCheckTimeout);
 
-            transportService.sendRequest(leader, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(transportService.getLocalNode()),
-                TransportRequestOptions.builder().withTimeout(leaderCheckTimeout).withType(Type.PING).build(),
-
-                new TransportResponseHandler<TransportResponse.Empty>() {
-
-                    @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
+            transportService.sendRequest(
+                leader,
+                LEADER_CHECK_ACTION_NAME,
+                new LeaderCheckRequest(transportService.getLocalNode()),
+                TransportRequestOptions.of(leaderCheckTimeout, Type.PING),
+                new TransportResponseHandler.Empty() {
 
                     @Override
-                    public void handleResponse(Empty response) {
+                    public void handleResponse(TransportResponse.Empty response) {
                         if (isClosed.get()) {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;
                         }
 
-                        failureCountSinceLastSuccess.set(0);
+                        rejectedCountSinceLastSuccess = 0;
+                        timeoutCountSinceLastSuccess = 0;
                         scheduleNextWakeUp(); // logs trace message indicating success
                     }
 
@@ -233,40 +253,88 @@ public class LeaderChecker {
                         }
 
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                            logger.debug(new ParameterizedMessage(
-                                "leader [{}] disconnected during check", leader), exp);
-                            leaderFailed(new ConnectTransportException(leader, "disconnected during check", exp));
+                            logger.debug(new ParameterizedMessage("leader [{}] disconnected during check", leader), exp);
+                            leaderFailed(
+                                () -> new ParameterizedMessage(
+                                    "master node [{}] disconnected, restarting discovery [{}]",
+                                    leader.descriptionWithoutAttributes(),
+                                    ExceptionsHelper.unwrapCause(exp).getMessage()
+                                ),
+                                exp
+                            );
+                            return;
+                        } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
+                            logger.debug(new ParameterizedMessage("leader [{}] health check failed", leader), exp);
+                            leaderFailed(
+                                () -> new ParameterizedMessage(
+                                    "master node [{}] reported itself as unhealthy [{}], {}",
+                                    leader.descriptionWithoutAttributes(),
+                                    exp.getCause().getMessage(),
+                                    RESTARTING_DISCOVERY_TEXT
+                                ),
+                                exp
+                            );
                             return;
                         }
 
-                        long failureCount = failureCountSinceLastSuccess.incrementAndGet();
+                        if (exp instanceof ReceiveTimeoutTransportException) {
+                            timeoutCountSinceLastSuccess += 1;
+                        } else {
+                            rejectedCountSinceLastSuccess += 1;
+                        }
+
+                        long failureCount = rejectedCountSinceLastSuccess + timeoutCountSinceLastSuccess;
                         if (failureCount >= leaderCheckRetryCount) {
-                            logger.debug(new ParameterizedMessage(
-                                "leader [{}] has failed {} consecutive checks (limit [{}] is {}); last failure was:",
-                                leader, failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount), exp);
-                            leaderFailed(new ElasticsearchException(
-                                "node [" + leader + "] failed [" + failureCount + "] consecutive checks", exp));
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "leader [{}] failed {} consecutive checks (rejected [{}], timed out [{}], limit [{}] is {})",
+                                    leader,
+                                    failureCount,
+                                    rejectedCountSinceLastSuccess,
+                                    timeoutCountSinceLastSuccess,
+                                    LEADER_CHECK_RETRY_COUNT_SETTING.getKey(),
+                                    leaderCheckRetryCount
+                                ),
+                                exp
+                            );
+                            leaderFailed(
+                                () -> new ParameterizedMessage(
+                                    "[{}] consecutive checks of the master node [{}] were unsuccessful ([{}] rejected, [{}] timed out), "
+                                        + "{} [last unsuccessful check: {}]",
+                                    failureCount,
+                                    leader.descriptionWithoutAttributes(),
+                                    rejectedCountSinceLastSuccess,
+                                    timeoutCountSinceLastSuccess,
+                                    RESTARTING_DISCOVERY_TEXT,
+                                    ExceptionsHelper.unwrapCause(exp).getMessage()
+                                ),
+                                exp
+                            );
                             return;
                         }
 
-                        logger.debug(new ParameterizedMessage("{} consecutive failures (limit [{}] is {}) with leader [{}]",
-                            failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount, leader), exp);
+                        logger.debug(
+                            new ParameterizedMessage(
+                                "{} consecutive failures (limit [{}] is {}) with leader [{}]",
+                                failureCount,
+                                LEADER_CHECK_RETRY_COUNT_SETTING.getKey(),
+                                leaderCheckRetryCount,
+                                leader
+                            ),
+                            exp
+                        );
                         scheduleNextWakeUp();
                     }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
-                    }
-                });
+                }
+            );
         }
 
-        void leaderFailed(Exception e) {
+        void leaderFailed(MessageSupplier messageSupplier, Exception e) {
             if (isClosed.compareAndSet(false, true)) {
                 transportService.getThreadPool().generic().execute(new Runnable() {
                     @Override
                     public void run() {
-                        onLeaderFailure.accept(e);
+                        leaderFailureListener.onLeaderFailure(messageSupplier, e);
                     }
 
                     @Override
@@ -282,7 +350,13 @@ public class LeaderChecker {
         void handleDisconnectedNode(DiscoveryNode discoveryNode) {
             if (discoveryNode.equals(leader)) {
                 logger.debug("leader [{}] disconnected", leader);
-                leaderFailed(new NodeDisconnectedException(discoveryNode, "disconnected"));
+                leaderFailed(
+                    () -> new ParameterizedMessage(
+                        "master node [{}] disconnected, restarting discovery",
+                        leader.descriptionWithoutAttributes()
+                    ),
+                    new NodeDisconnectedException(discoveryNode, "disconnected")
+                );
             }
         }
 
@@ -340,10 +414,20 @@ public class LeaderChecker {
 
         @Override
         public String toString() {
-            return "LeaderCheckRequest{" +
-                "sender=" + sender +
-                '}';
+            return "LeaderCheckRequest{" + "sender=" + sender + '}';
         }
     }
-}
 
+    @FunctionalInterface
+    interface LeaderFailureListener {
+        /**
+         * Called when a leader failure is detected. Checking the leader health is somewhat asynchronous, so this method may report a leader
+         * failure after the node has already decided there's no known leader for some other reason. This method is called on the {@code
+         * GENERIC} thread pool.
+         *
+         * @param messageSupplier The message to log if prior to this failure there was a known master in the cluster.
+         * @param exception       An exception that gives more detail of the leader failure.
+         */
+        void onLeaderFailure(MessageSupplier messageSupplier, Exception exception);
+    }
+}

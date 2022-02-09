@@ -1,0 +1,190 @@
+---
+setup:
+  - do:
+      indices.create:
+          index:  test
+          body:
+            mappings:
+              properties:
+                bigint:
+                  type: keyword
+
+
+  - do:
+      index:
+        index:  test_1
+        id:     1
+        body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1, "bigint": 72057594037927936, d: 3.14 }
+  - do:
+      indices.refresh: {}
+
+---
+"_source: true":
+
+  - do:
+      search:
+        body: { _source: true, query: { match_all: {} } }
+
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._source.count: 1 }
+
+---
+"_source: false":
+  - do: { search: { body: { _source: false, query: { match_all: {} } } } }
+  - length:   { hits.hits: 1  }
+  - is_false: hits.hits.0._source
+
+---
+"no filtering":
+  - do: { search: { body: { query: { match_all: {} } } } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._source.count: 1 }
+
+---
+"_source in body":
+  - do: { search: { body: { _source: include.field1, query: { match_all: {} } } } }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - is_false: hits.hits.0._source.include.field2
+
+---
+"_source_includes and _source in body":
+  - do: { search: { _source_includes: include.field1, body: { _source: include.field2, query: { match_all: {} } } } }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - is_false: hits.hits.0._source.include.field2
+
+---
+"_source_includes":
+  - do: { search: { _source_includes: include.field1, body: { query: { match_all: {} } } } }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - is_false: hits.hits.0._source.include.field2
+
+---
+"_source_excludes":
+  - do: { search: { _source_excludes: count, body: { query: { match_all: {} } } } }
+  - match:  { hits.hits.0._source.include: { field1 : v1 , field2: v2 }}
+  - is_false: hits.hits.0._source.count
+
+---
+"_source field1 field2":
+  - do:
+      search:
+        body:
+          _source: [ include.field1, include.field2 ]
+          query: { match_all: {} }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - match:  { hits.hits.0._source.include.field2: v2 }
+  - is_false: hits.hits.0._source.count
+
+---
+"_source.include field1 field2":
+  - do:
+      search:
+        body:
+          _source:
+            includes: [ include.field1, include.field2 ]
+          query: { match_all: {} }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - match:  { hits.hits.0._source.include.field2: v2 }
+  - is_false: hits.hits.0._source.count
+
+---
+"_source includes and excludes":
+  - do:
+      search:
+        body:
+          _source:
+            includes: include
+            excludes: "*.field2"
+          query: { match_all: {} }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - is_false:  hits.hits.0._source.include.field2
+
+---
+"_source include on bigint":
+  - do:
+      search:
+        body:
+          _source:
+            includes: bigint
+          query: { match_all: {} }
+  - match:  { hits.hits.0._source.bigint: 72057594037927936 }
+  - is_false:  hits.hits.0._source.include.field2
+
+
+---
+"_source filtering on bigint":
+- do:
+    search:
+      body:
+        _source: ["bigint"]
+        query: { match_all: {} }
+- match:  { hits.hits.0._source.bigint: 72057594037927936 }
+
+---
+"fields in body":
+  - do:
+      search:
+        body:
+          stored_fields: [ include.field2 ]
+          query: { match_all: {} }
+  - is_false:  hits.hits.0._source
+
+---
+"fields in body with source":
+  - do:
+        search:
+          body:
+            stored_fields: [ include.field2, _source ]
+            query: { match_all: {} }
+  - match: { hits.hits.0._source.include.field2: v2 }
+  - is_true:  hits.hits.0._source
+
+---
+"docvalue_fields":
+
+  - do:
+      search:
+        body:
+          docvalue_fields: [ "count" ]
+  - match: { hits.hits.0.fields.count: [1] }
+
+---
+"multiple docvalue_fields":
+
+  - do:
+      search:
+        body:
+          docvalue_fields: [ "count", "include.field1.keyword" ]
+  - match: { hits.hits.0.fields.count: [1] }
+
+---
+"docvalue_fields as url param":
+
+  - do:
+      search:
+        docvalue_fields: [ "count" ]
+  - match: { hits.hits.0.fields.count: [1] }
+
+---
+"docvalue_fields with explicit format":
+
+  - do:
+      search:
+        body:
+          docvalue_fields:
+            - field: "count"
+              format: "#.0"
+  - match: { hits.hits.0.fields.count: ["1.0"] }
+
+---
+"docvalue_fields - double":
+
+  - do:
+      search:
+        body:
+          docvalue_fields: [ "d" ]
+  # Doc values produce floating point errors.
+  # When this test is run during runtime-field's tests we *don't* get floating point errors. Thus the funny assertion here that matches both.
+  - lt: { hits.hits.0.fields.d.0: 3.141 }
+  - gte: { hits.hits.0.fields.d.0: 3.14 }
+

@@ -11,7 +11,7 @@ Indices are sorted into priority order as follows:
 This means that, by default, newer indices will be recovered before older indices.
 
 Use the per-index dynamically updatable `index.priority` setting to customise
-the index prioritization order.  For instance:
+the index prioritization order. For instance:
 
 [source,console]
 ------------------------------

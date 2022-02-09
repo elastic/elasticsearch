@@ -1,0 +1,2 @@
+include 'sample_jars'
+include 'libs:elasticsearch-core'

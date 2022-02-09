@@ -1,0 +1,245 @@
+---
+"Test start given missing config":
+  - do:
+      catch: missing
+      ml.start_data_frame_analytics:
+        id: "missing_config"
+
+---
+"Test start given missing source index":
+
+  - do:
+      indices.create:
+        index: missing
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "missing_index"
+        body: >
+          {
+            "source": {
+              "index": "missing"
+            },
+            "dest": {
+              "index": "missing-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      indices.delete:
+        index: missing
+
+  - do:
+      catch: /.*Validation Failed.* no such index \[missing\]/
+      ml.start_data_frame_analytics:
+        id: "missing_index"
+
+---
+"Test start outlier_detection given source index has no fields":
+
+  - do:
+      indices.create:
+        index: empty-index
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo"
+        body: >
+          {
+            "source": {
+              "index": "empty-index"
+            },
+            "dest": {
+              "index": "empty-index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      catch: /at least one field must be included in the analysis/
+      ml.start_data_frame_analytics:
+        id: "foo"
+
+---
+"Test start regression given source index only has dependent variable":
+
+  - do:
+      indices.create:
+        index: index-with-dep-var-only
+        body:
+          mappings:
+            properties:
+              my_dep_var: { type: "long" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo"
+        body: >
+          {
+            "source": {
+              "index": "index-with-dep-var-only"
+            },
+            "dest": {
+              "index": "results"
+            },
+            "analysis": {
+              "regression":{
+                "dependent_variable": "my_dep_var"
+              }
+            }
+          }
+
+  - do:
+      catch: /at least one field must be included in the analysis \(excluding fields \[my_dep_var\]\)/
+      ml.start_data_frame_analytics:
+        id: "foo"
+
+---
+"Test start with compatible fields but no data":
+  - do:
+      indices.create:
+        index: empty-index-with-compatible-fields
+        body:
+          mappings:
+            properties:
+              long_field: { type: "long" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "empty-with-compatible-fields"
+        body: >
+          {
+            "source": {
+              "index": "empty-index-with-compatible-fields"
+            },
+            "dest": {
+              "index": "empty-index-with-compatible-fields-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      catch: /Unable to start empty-with-compatible-fields as no documents in the source indices \[empty-index-with-compatible-fields\] contained all the fields selected for analysis/
+      ml.start_data_frame_analytics:
+        id: "empty-with-compatible-fields"
+
+---
+"Test start with inconsistent body/param ids":
+
+  - do:
+      catch: /Inconsistent id; 'body_id' specified in the body differs from 'url_id' specified as a URL argument/
+      ml.start_data_frame_analytics:
+        id: "url_id"
+        body: >
+          {
+            "id": "body_id"
+          }
+
+---
+"Test start given dest index is not empty":
+
+  - do:
+      index:
+        index: non-empty-source
+        refresh: ""
+        body:  >
+          {
+            "numeric": 42.0
+          }
+
+  - do:
+      index:
+        index: non-empty-dest
+        refresh: ""
+        body:  >
+          {
+            "numeric": 42.0
+          }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "start_given_empty_dest_index"
+        body: >
+          {
+            "source": {
+              "index": "non-empty-source"
+            },
+            "dest": {
+              "index": "non-empty-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      catch: /dest index \[non-empty-dest\] must be empty/
+      ml.start_data_frame_analytics:
+        id: "start_given_empty_dest_index"
+
+---
+"Test start classification analysis when the dependent variable cardinality is too low":
+  - do:
+      indices.create:
+        index: index-with-dep-var-with-too-high-card
+        body:
+          mappings:
+            properties:
+              numeric_field: { type: "long" }
+              keyword_field: { type: "keyword" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "classification-cardinality-limits"
+        body: >
+          {
+            "source": {
+              "index": "index-with-dep-var-with-too-high-card"
+            },
+            "dest": {
+              "index": "index-with-dep-var-with-too-high-card-dest"
+            },
+            "analysis": { "classification": { "dependent_variable": "keyword_field" } }
+          }
+
+  - do:
+      index:
+        index: index-with-dep-var-with-too-high-card
+        body: { numeric_field: 1.0, keyword_field: "class_a" }
+
+  - do:
+      indices.refresh:
+        index: index-with-dep-var-with-too-high-card
+
+  - do:
+      catch: /Field \[keyword_field\] must have at least \[2\] distinct values but there were \[1\]/
+      ml.start_data_frame_analytics:
+        id: "classification-cardinality-limits"
+
+---
+"Test start classification analysis when the dependent variable is missing":
+  - do:
+      indices.create:
+        index: index-with-missing-dep-var
+        body:
+          mappings:
+            properties:
+              numeric_field: { type: "long" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "classification-missing-dep-var"
+        body: >
+          {
+            "source": {
+              "index": "index-with-missing-dep-var"
+            },
+            "dest": {
+              "index": "index-with-missing-dep-var-dest"
+            },
+            "analysis": { "classification": { "dependent_variable": "missing" } }
+          }
+
+  - do:
+      catch: /no mappings could be found for field \[missing\]/
+      ml.start_data_frame_analytics:
+        id: "classification-missing-dep-var"

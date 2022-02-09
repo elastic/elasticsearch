@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.indexing;
@@ -11,15 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -57,7 +55,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private final AtomicReference<IndexerState> state;
     private final AtomicReference<JobPosition> position;
     private final ThreadPool threadPool;
-    private final String executorName;
+    private final Object lock;
 
     // throttling implementation
     private volatile float currentMaxDocsPerSecond;
@@ -70,27 +68,25 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      */
     class ScheduledRunnable {
         private final ThreadPool threadPool;
-        private final String executorName;
         private final Runnable command;
         private Scheduler.ScheduledCancellable scheduled;
 
-        ScheduledRunnable(ThreadPool threadPool, String executorName, TimeValue delay, Runnable command) {
+        ScheduledRunnable(ThreadPool threadPool, TimeValue delay, Runnable command) {
             this.threadPool = threadPool;
-            this.executorName = executorName;
 
             // with wrapping the command in RunOnce we ensure the command isn't executed twice, e.g. if the
             // future is already running and cancel returns true
             this.command = new RunOnce(command);
-            this.scheduled = threadPool.schedule(() -> { command.run(); }, delay, executorName);
+            this.scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
         }
 
         public void reschedule(TimeValue delay) {
             // note: cancel return true if the runnable is currently executing
             if (scheduled.cancel()) {
                 if (delay.duration() > 0) {
-                    scheduled = threadPool.schedule(() -> command.run(), delay, executorName);
+                    scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
                 } else {
-                    threadPool.executor(executorName).execute(() -> command.run());
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(command::run);
                 }
             }
         }
@@ -99,16 +95,25 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     protected AsyncTwoPhaseIndexer(
         ThreadPool threadPool,
-        String executorName,
         AtomicReference<IndexerState> initialState,
         JobPosition initialPosition,
         JobStats jobStats
     ) {
+        this(threadPool, initialState, initialPosition, jobStats, new Object());
+    }
+
+    protected AsyncTwoPhaseIndexer(
+        ThreadPool threadPool,
+        AtomicReference<IndexerState> initialState,
+        JobPosition initialPosition,
+        JobStats jobStats,
+        Object lock
+    ) {
         this.threadPool = threadPool;
-        this.executorName = executorName;
         this.state = initialState;
         this.position = new AtomicReference<>(initialPosition);
         this.stats = jobStats;
+        this.lock = lock;
     }
 
     /**
@@ -140,7 +145,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * @return The new state for the indexer (STARTED, INDEXING or ABORTING if the
      *         job was already aborted).
      */
-    public synchronized IndexerState start() {
+    public IndexerState start() {
         state.compareAndSet(IndexerState.STOPPED, IndexerState.STARTED);
         return state.get();
     }
@@ -154,7 +159,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      *
      * @return The new state for the indexer (STOPPED, STOPPING or ABORTING if the job was already aborted).
      */
-    public synchronized IndexerState stop() {
+    public IndexerState stop() {
         IndexerState indexerState = state.updateAndGet(previousState -> {
             if (previousState == IndexerState.INDEXING) {
                 return IndexerState.STOPPING;
@@ -166,9 +171,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         });
 
         // a throttled search might be waiting to be executed, stop it
-        if (scheduledNextSearch != null) {
-            scheduledNextSearch.reschedule(TimeValue.ZERO);
-        }
+        runSearchImmediately();
 
         return indexerState;
     }
@@ -183,7 +186,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * @return true if the indexer is aborted, false if a background job is running
      *         and abort is delayed.
      */
-    public synchronized boolean abort() {
+    public boolean abort() {
         IndexerState prevState = state.getAndUpdate((prev) -> IndexerState.ABORTING);
         return prevState == IndexerState.STOPPED || prevState == IndexerState.STARTED;
     }
@@ -198,50 +201,73 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      *            complete buckets)
      * @return true if a job has been triggered, false otherwise
      */
-    public synchronized boolean maybeTriggerAsyncJob(long now) {
-        final IndexerState currentState = state.get();
-        switch (currentState) {
-        case INDEXING:
-        case STOPPING:
-        case ABORTING:
-            logger.warn("Schedule was triggered for job [" + getJobId() + "], but prior indexer is still running " +
-                "(with state [" + currentState + "]");
-            return false;
-
-        case STOPPED:
-            logger.debug("Schedule was triggered for job [" + getJobId() + "] but job is stopped.  Ignoring trigger.");
-            return false;
-
-        case STARTED:
-            logger.debug("Schedule was triggered for job [" + getJobId() + "], state: [" + currentState + "]");
-            stats.incrementNumInvocations(1);
-
-            if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
-                // fire off the search. Note this is async, the method will return from here
-                threadPool.executor(executorName).execute(() -> {
-                    onStart(now, ActionListener.wrap(r -> {
-                        assert r != null;
-                        if (r) {
-                            nextSearch();
-                        } else {
-                            onFinish(ActionListener.wrap(
-                                onFinishResponse -> doSaveState(finishAndSetState(), position.get(), () -> {}),
-                                onFinishFailure -> doSaveState(finishAndSetState(), position.get(), () -> {})));
-                        }
-                    },
-                    this::finishWithFailure));
-                });
-                logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
-                return true;
-            } else {
-                logger.debug("Could not move from STARTED to INDEXING state because current state is [" + state.get() + "]");
-                return false;
+    public boolean maybeTriggerAsyncJob(long now) {
+        synchronized (lock) {
+            final IndexerState currentState = state.get();
+            switch (currentState) {
+                case INDEXING, STOPPING, ABORTING -> {
+                    logger.warn(
+                        "Schedule was triggered for job ["
+                            + getJobId()
+                            + "], but prior indexer is still running "
+                            + "(with state ["
+                            + currentState
+                            + "]"
+                    );
+                    return false;
+                }
+                case STOPPED -> {
+                    logger.debug("Schedule was triggered for job [" + getJobId() + "] but job is stopped.  Ignoring trigger.");
+                    return false;
+                }
+                case STARTED -> {
+                    logger.debug("Schedule was triggered for job [" + getJobId() + "], state: [" + currentState + "]");
+                    stats.incrementNumInvocations(1);
+                    if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
+                        // fire off the search. Note this is async, the method will return from here
+                        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                            onStart(now, ActionListener.wrap(r -> {
+                                assert r != null;
+                                if (r) {
+                                    nextSearch();
+                                } else {
+                                    onFinish(
+                                        ActionListener.wrap(
+                                            onFinishResponse -> doSaveState(
+                                                finishAndSetState(),
+                                                position.get(),
+                                                this::afterFinishOrFailure
+                                            ),
+                                            onFinishFailure -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)
+                                        )
+                                    );
+                                }
+                            }, this::finishWithFailure));
+                        });
+                        logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
+                        return true;
+                    } else {
+                        logger.debug("Could not move from STARTED to INDEXING state because current state is [" + state.get() + "]");
+                        return false;
+                    }
+                }
+                default -> {
+                    logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
+                    throw new IllegalStateException("Job encountered an illegal state [" + currentState + "]");
+                }
             }
-
-        default:
-            logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
-            throw new IllegalStateException("Job encountered an illegal state [" + currentState + "]");
         }
+    }
+
+    /**
+     * Checks if the state should be persisted, if true doSaveState is called before continuing. Inherited classes
+     * can override this, to provide a better logic, when state should be saved.
+     *
+     * @return true if state should be saved, false if not.
+     */
+    protected boolean triggerSaveState() {
+        // implementors can overwrite this with something more intelligent than every-50
+        return (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0);
     }
 
     /**
@@ -257,9 +283,27 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         reQueueThrottledSearch();
     }
 
+    /**
+     * Re-schedules the current search request to run immediately, iff one is scheduled.
+     *
+     * Call this if you need the indexer to fast forward a scheduled(in case it's throttled) search once in order to
+     * complete a full cycle.
+     */
+    protected void runSearchImmediately() {
+        ScheduledRunnable runnable = scheduledNextSearch;
+        if (runnable != null) {
+            runnable.reschedule(TimeValue.ZERO);
+        }
+    }
+
     // protected, so it can be overwritten by tests
     protected long getTimeNanos() {
         return System.nanoTime();
+    }
+
+    // only for testing purposes
+    protected ScheduledRunnable getScheduledNextSearch() {
+        return scheduledNextSearch;
     }
 
     /**
@@ -288,17 +332,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract IterationResult<JobPosition> doProcess(SearchResponse searchResponse);
 
     /**
-     * Called to build the next search request.
-     *
-     * In case the indexer is throttled waitTimeInNanos can be used as hint for building a less resource hungry
-     * search request.
-     *
-     * @param waitTimeInNanos duration in nanoseconds the indexer has waited due to throttling.
-     * @return SearchRequest to be passed to the search phase.
-     */
-    protected abstract SearchRequest buildSearchRequest(long waitTimeInNanos);
-
-    /**
      * Called at startup after job has been triggered using {@link #maybeTriggerAsyncJob(long)} and the
      * internal state is {@link IndexerState#STARTED}.
      *
@@ -310,15 +343,18 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract void onStart(long now, ActionListener<Boolean> listener);
 
     /**
-     * Executes the {@link SearchRequest} and calls <code>nextPhase</code> with the
+     * Executes the next search and calls <code>nextPhase</code> with the
      * response or the exception if an error occurs.
      *
-     * @param request
-     *            The search request to execute
+     * In case the indexer is throttled waitTimeInNanos can be used as hint for doing a less resource hungry
+     * search.
+     *
+     * @param waitTimeInNanos
+     *            Duration in nanoseconds the indexer has waited due to throttling
      * @param nextPhase
      *            Listener for the next phase
      */
-    protected abstract void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase);
+    protected abstract void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase);
 
     /**
      * Executes the {@link BulkRequest} and calls <code>nextPhase</code> with the
@@ -363,12 +399,16 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract void onFinish(ActionListener<Void> listener);
 
     /**
+     * Called after onFinish or after onFailure and all the following steps - in particular state persistence - are completed.
+     */
+    protected void afterFinishOrFailure() {}
+
+    /**
      * Called when the indexer is stopped. This is only called when the indexer is stopped
      * via {@link #stop()} as opposed to {@link #onFinish(ActionListener)} which is called
      * when the indexer's work is done.
      */
-    protected void onStop() {
-    }
+    protected void onStop() {}
 
     /**
      * Called when a background job detects that the indexer is aborted causing the
@@ -379,18 +419,19 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private void finishWithSearchFailure(Exception exc) {
         stats.incrementSearchFailures();
         onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), () -> {});
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private void finishWithIndexingFailure(Exception exc) {
         stats.incrementIndexingFailures();
         onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), () -> {});
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private void finishWithFailure(Exception exc) {
         onFailure(exc);
         finishAndSetState();
+        afterFinishOrFailure();
     }
 
     private IndexerState finishAndSetState() {
@@ -400,30 +441,30 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             callOnAbort.set(false);
             callOnStop.set(false);
             switch (prev) {
-            case INDEXING:
-                // ready for another job
-                return IndexerState.STARTED;
+                case INDEXING:
+                    // ready for another job
+                    return IndexerState.STARTED;
 
-            case STOPPING:
-                callOnStop.set(true);
-                // must be started again
-                return IndexerState.STOPPED;
+                case STOPPING:
+                    callOnStop.set(true);
+                    // must be started again
+                    return IndexerState.STOPPED;
 
-            case ABORTING:
-                callOnAbort.set(true);
-                // abort and exit
-                return IndexerState.ABORTING; // This shouldn't matter, since onAbort() will kill the task first
+                case ABORTING:
+                    callOnAbort.set(true);
+                    // abort and exit
+                    return IndexerState.ABORTING; // This shouldn't matter, since onAbort() will kill the task first
 
-            case STOPPED:
-                // No-op. Shouldn't really be possible to get here (should have to go through
-                // STOPPING
-                // first which will be handled) but is harmless to no-op and we don't want to
-                // throw exception here
-                return IndexerState.STOPPED;
+                case STOPPED:
+                    // No-op. Shouldn't really be possible to get here (should have to go through
+                    // STOPPING
+                    // first which will be handled) but is harmless to no-op and we don't want to
+                    // throw exception here
+                    return IndexerState.STOPPED;
 
-            default:
-                // any other state is unanticipated at this point
-                throw new IllegalStateException("Indexer job encountered an illegal state [" + prev + "]");
+                default:
+                    // any other state is unanticipated at this point
+                    throw new IllegalStateException("Indexer job encountered an illegal state [" + prev + "]");
             }
         });
 
@@ -440,6 +481,19 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         stats.markEndSearch();
         try {
             if (checkState(getState()) == false) {
+                return;
+            }
+
+            // searchResponse may be null if the search was optimized to a noop
+            if (searchResponse == null) {
+                logger.debug("No indexing necessary for job [{}], saving state and shutting down.", getJobId());
+                // execute finishing tasks
+                onFinish(
+                    ActionListener.wrap(
+                        r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                        e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)
+                    )
+                );
                 return;
             }
 
@@ -460,19 +514,21 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 position.set(iterationResult.getPosition());
                 stats.markEndProcessing();
                 // execute finishing tasks
-                onFinish(ActionListener.wrap(
-                        r -> doSaveState(finishAndSetState(), position.get(), () -> {}),
-                        e -> doSaveState(finishAndSetState(), position.get(), () -> {})));
+                onFinish(
+                    ActionListener.wrap(
+                        r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                        e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)
+                    )
+                );
                 return;
             }
 
-            final List<IndexRequest> docs = iterationResult.getToIndex();
+            final BulkRequest bulkRequest = new BulkRequest();
+            iterationResult.getToIndex().forEach(bulkRequest::add);
+            stats.markEndProcessing();
 
             // an iteration result might return an empty set of documents to be indexed
-            if (docs.isEmpty() == false) {
-                final BulkRequest bulkRequest = new BulkRequest();
-                docs.forEach(bulkRequest::add);
-                stats.markEndProcessing();
+            if (bulkRequest.numberOfActions() > 0) {
                 stats.markStartIndexing();
                 doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
                     // TODO we should check items in the response and move after accordingly to
@@ -481,25 +537,26 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                         logger.warn("Error while attempting to bulk index documents: {}", bulkResponse.buildFailureMessage());
                     }
                     stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
-
-                    // check if indexer has been asked to stop, state {@link IndexerState#STOPPING}
-                    if (checkState(getState()) == false) {
-                        return;
-                    }
-
+                    // There is no reason to do a `checkState` here and prevent the indexer from continuing
+                    // As we have already indexed the documents, updated the stats, etc.
+                    // We do an another `checkState` in `onBulkResponse` which will stop the indexer if necessary
+                    // And, we will still be at our new position due to setting it here.
                     JobPosition newPosition = iterationResult.getPosition();
                     position.set(newPosition);
 
                     onBulkResponse(bulkResponse, newPosition);
                 }, this::finishWithIndexingFailure));
             } else {
-                stats.markEndProcessing();
                 // no documents need to be indexed, continue with search
                 try {
                     JobPosition newPosition = iterationResult.getPosition();
                     position.set(newPosition);
 
-                    nextSearch();
+                    if (triggerSaveState()) {
+                        doSaveState(IndexerState.INDEXING, newPosition, this::nextSearch);
+                    } else {
+                        nextSearch();
+                    }
                 } catch (Exception e) {
                     finishWithFailure(e);
                 }
@@ -509,7 +566,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         }
     }
 
-    private void onBulkResponse(BulkResponse response, JobPosition position) {
+    private void onBulkResponse(BulkResponse response, JobPosition jobPosition) {
         stats.markEndIndexing();
 
         // check if we should stop
@@ -518,11 +575,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         }
 
         try {
-            // TODO probably something more intelligent than every-50 is needed
-            if (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0) {
-                doSaveState(IndexerState.INDEXING, position, () -> {
-                    nextSearch();
-                });
+            if (triggerSaveState()) {
+                doSaveState(IndexerState.INDEXING, jobPosition, this::nextSearch);
             } else {
                 nextSearch();
             }
@@ -542,23 +596,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             );
 
             if (executionDelay.duration() > 0) {
-                logger.debug(
-                    "throttling job [{}], wait for {} ({} {})",
-                    getJobId(),
-                    executionDelay,
-                    currentMaxDocsPerSecond,
-                    lastDocCount
-                );
-                scheduledNextSearch = new ScheduledRunnable(
-                    threadPool,
-                    executorName,
-                    executionDelay,
-                    () -> triggerNextSearch(executionDelay.getNanos())
-                );
+                logger.debug("throttling job [{}], wait for {} ({} {})", getJobId(), executionDelay, currentMaxDocsPerSecond, lastDocCount);
+                scheduledNextSearch = new ScheduledRunnable(threadPool, executionDelay, () -> triggerNextSearch(executionDelay.getNanos()));
 
-                // corner case: if for whatever reason stop() has been called meanwhile fast forward
-                if (getState().equals(IndexerState.STOPPING)) {
-                    scheduledNextSearch.reschedule(TimeValue.ZERO);
+                // corner case: if meanwhile stop() has been called or state persistence has been requested: fast forward, run search now
+                if (getState().equals(IndexerState.STOPPING) || triggerSaveState()) {
+                    runSearchImmediately();
                 }
                 return;
             }
@@ -572,13 +615,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             return;
         }
 
+        // cleanup the scheduled runnable
+        scheduledNextSearch = null;
         stats.markStartSearch();
         lastSearchStartTimeNanos = getTimeNanos();
 
-        // ensure that partial results are not accepted and cause a search failure
-        SearchRequest searchRequest = buildSearchRequest(waitTimeInNanos).allowPartialSearchResults(false);
-
-        doNextSearch(searchRequest, searchResponseListener);
+        doNextSearch(waitTimeInNanos, searchResponseListener);
     }
 
     /**
@@ -587,34 +629,35 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      */
     private boolean checkState(IndexerState currentState) {
         switch (currentState) {
-        case INDEXING:
-            // normal state;
-            return true;
+            case INDEXING:
+                // normal state;
+                return true;
 
-        case STOPPING:
-            logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-            doSaveState(finishAndSetState(), getPosition(), () -> {});
-            return false;
+            case STOPPING:
+                logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
+                doSaveState(finishAndSetState(), getPosition(), this::afterFinishOrFailure);
+                return false;
 
-        case STOPPED:
-            return false;
+            case STOPPED:
+                return false;
 
-        case ABORTING:
-            logger.info("Requested shutdown of indexer for job [" + getJobId() + "]");
-            onAbort();
-            return false;
+            case ABORTING:
+                logger.info("Requested shutdown of indexer for job [" + getJobId() + "]");
+                onAbort();
+                return false;
 
-        default:
-            // Anything other than indexing, aborting or stopping is unanticipated
-            logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
-            throw new IllegalStateException("Indexer job encountered an illegal state [" + currentState + "]");
+            default:
+                // Anything other than indexing, aborting or stopping is unanticipated
+                logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
+                throw new IllegalStateException("Indexer job encountered an illegal state [" + currentState + "]");
         }
     }
 
-    private synchronized void reQueueThrottledSearch() {
+    private void reQueueThrottledSearch() {
         currentMaxDocsPerSecond = getMaxDocsPerSecond();
 
-        if (scheduledNextSearch != null) {
+        ScheduledRunnable runnable = scheduledNextSearch;
+        if (runnable != null) {
             TimeValue executionDelay = calculateThrottlingDelay(
                 currentMaxDocsPerSecond,
                 lastDocCount,
@@ -622,12 +665,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 getTimeNanos()
             );
 
-            logger.trace(
-                "[{}] rethrottling job, wait {} until next search",
-                getJobId(),
-                executionDelay
-            );
-            scheduledNextSearch.reschedule(executionDelay);
+            logger.trace("[{}] rethrottling job, wait {} until next search", getJobId(), executionDelay);
+            runnable.reschedule(executionDelay);
         }
     }
 

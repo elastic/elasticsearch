@@ -1,0 +1,211 @@
+[[queries]]
+name = "basic"
+query = '''
+  sequence by transID
+    [ REQUEST where true ]
+    [ ERROR where true ]
+    [ STAT where true ]
+'''
+expected_event_ids  = [1,2,3,4,5,6]
+join_keys = ["1234","1235"]
+
+[[queries]]
+name = "basicWithFilter"
+query = '''
+  sequence by transID
+    [ REQUEST where transID == 1234 ]
+    [ ERROR where true ]
+    [ STAT where true ]
+'''
+expected_event_ids  = [1,2,3]
+join_keys = ["1234"]
+
+[[queries]]
+name = "basicWithFilters"
+query = '''
+  sequence by transID
+    [ REQUEST where transID == 1234 ]
+    [ ERROR where transID == 1234 ]
+    [ STAT where transID == 1234 ]
+'''
+expected_event_ids  = [1,2,3]
+join_keys = ["1234"]
+
+[[queries]]
+name = "optionalNoDocsFieldNullEquality"
+query = '''
+  OPTIONAL where ?optional_field_mapping_only == null
+'''
+expected_event_ids  = [7,8,9]
+
+[[queries]]
+name = "optionalNoDocsFieldNumericEquality"
+query = '''
+  OPTIONAL where ?optional_field_mapping_only == 123
+'''
+expected_event_ids  = []
+
+[[queries]]
+name = "optionalDefaultNullValueFieldEqualNull"
+query = '''
+  OPTIONAL where ?optional_field_default_null == null
+'''
+expected_event_ids  = [8]
+
+[[queries]]
+name = "optionalDefaultNullValueFieldEqualDefaultValue"
+query = '''
+  OPTIONAL where ?optional_field_default_null == "NULL"
+'''
+expected_event_ids  = [7,9]
+
+[[queries]]
+name = "optionalMissingFieldNullEquality"
+query = '''
+  OPTIONAL where ?inexistent_field == null
+'''
+expected_event_ids  = [7,8,9]
+
+[[queries]]
+name = "optionalMissingFieldImplicitBooleanEquality"
+query = '''
+  OPTIONAL where ?inexistent_field
+'''
+expected_event_ids  = []
+
+[[queries]]
+name = "sequenceOptionalFieldAsKeyAndFirstFilter"
+query = '''
+sequence by ?x 
+  [OPTIONAL where ?x == null]
+  [OPTIONAL where true]
+'''
+expected_event_ids  = [7,8,8,9]
+join_keys = ["null","null"]
+
+[[queries]]
+name = "sequenceOptionalFieldAsKeyAndSecondFilter"
+query = '''
+sequence by ?x
+  [REQUEST where transID == 1234]
+  [OPTIONAL where ?x == null]
+'''
+expected_event_ids  = [1,7]
+join_keys = ["null"]
+
+[[queries]]
+name = "sequenceOptionalFieldAsQueryKeys"
+query = '''
+sequence by ?x, transID
+  [ERROR where true] by ?x
+  [OPTIONAL where true] by ?y
+'''
+expected_event_ids  = [5,8]
+join_keys = ["null","1235","null"]
+
+[[queries]]
+name = "sequenceOptionalFieldAsKeyAndMultipleConditions"
+query = '''
+sequence by ?x, ?y
+  [ERROR where ?x == null or ?y == null]
+  [OPTIONAL where ?y == null and ?x == null]
+'''
+expected_event_ids  = [5,7]
+join_keys = ["null","null"]
+
+[[queries]]
+name = "sequenceOptionalFieldAsQueryKeysOnly"
+query = '''
+sequence by transID
+  [ REQUEST where transID == 1234 ] by ?z
+  [ ERROR where ?x == ?y ] by ?y
+  [ STAT where true ] by ?x
+'''
+expected_event_ids  = [1,2,3]
+join_keys = ["1234","null"]
+
+[[queries]]
+name = "sequenceAllKeysOptional"
+query = '''
+sequence by ?process.entity_id, ?process.pid
+  [process where transID == 2]
+  [file where transID == 0] with runs=2
+'''
+expected_event_ids  = [12,13,14,
+                       11,16,17,
+                       18,19,20]
+join_keys = ["null","123",
+             "null","null",
+             "512","123"]
+             
+[[queries]]
+name = "sequenceOneKeyOptional_1"
+query = '''
+sequence by process.entity_id, ?process.pid
+  [process where transID == 2]
+  [file where transID == 0] with runs=2
+'''
+expected_event_ids  = [18,19,20]
+join_keys = ["512","123"]
+
+[[queries]]
+name = "sequenceOneKeyOptional_2"
+query = '''
+sequence by ?process.entity_id, process.pid
+  [process where transID == 2]
+  [file where transID == 0] with runs=2
+'''
+expected_event_ids  = [12,13,14,
+                       18,19,20]
+join_keys = ["null","123",
+             "512","123"]
+             
+[[queries]]
+name = "sequenceNoOptionalKeys"
+query = '''
+sequence by process.entity_id, process.pid
+  [process where transID == 2]
+  [file where transID == 0] with runs=2
+'''
+expected_event_ids  = [18,19,20]
+join_keys = ["512","123"]
+
+# Known issue: same key used as both optional and non-optional doesn't work as expected. Does it even make sense such scenario?
+#[[queries]]
+#name = "sequenceSameKeyBothOptionalAndNonOptional"
+#query = '''
+#sequence by ?process.entity_id, ?process.pid, process.entity_id
+#  [process where ?process.entity_id == 512 or transID == 2]
+#  [file where ?process.pid == 123 or transID == 0] with runs=2
+#'''
+#expected_event_ids  = [18,19,20]
+#join_keys = ["512","123","512"]
+
+[[queries]]
+name = "sequenceWithOptionalFieldsAndUntil_1"
+query = '''
+sequence by ?process.entity_id, ?process.pid
+  [process where transID == 2]
+  [file where transID == 0] with runs=2
+  until [file where `sequence` == 20]
+'''
+expected_event_ids  = [12,13,14,
+                       11,16,17,
+                       18,19,20]
+join_keys = ["null","123",
+             "null","null",
+             "512","123"]
+             
+[[queries]]
+name = "sequenceWithOptionalFieldsAndUntil_2"
+query = '''
+sequence by ?process.entity_id, ?process.pid
+  [process where transID == 2]
+  [file where transID == 0] with runs=2
+  until [file where `sequence` == 19]
+'''
+expected_event_ids  = [12,13,14,
+                       11,16,17]
+join_keys = ["null","123",
+             "null","null"]
+

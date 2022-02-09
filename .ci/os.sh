@@ -31,12 +31,6 @@ cp -v .ci/init.gradle $HOME/.gradle/init.d
 
 unset JAVA_HOME
 
-if ! [ -e "/usr/bin/bats" ] ; then
-  git clone https://github.com/sstephenson/bats /tmp/bats
-  sudo /tmp/bats/install.sh /usr
-fi
-
-
 if [ -f "/etc/os-release" ] ; then
     cat /etc/os-release
     . /etc/os-release
@@ -54,16 +48,9 @@ else
 fi
 
 sudo bash -c 'cat > /etc/sudoers.d/elasticsearch_vars'  << SUDOERS_VARS
-    Defaults   env_keep += "ZIP"
-    Defaults   env_keep += "TAR"
-    Defaults   env_keep += "RPM"
-    Defaults   env_keep += "DEB"
-    Defaults   env_keep += "PACKAGING_ARCHIVES"
-    Defaults   env_keep += "PACKAGING_TESTS"
-    Defaults   env_keep += "BATS_UTILS"
-    Defaults   env_keep += "BATS_TESTS"
-    Defaults   env_keep += "SYSTEM_JAVA_HOME"
+    Defaults   env_keep += "ES_JAVA_HOME"
     Defaults   env_keep += "JAVA_HOME"
+    Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS
 sudo chmod 0440 /etc/sudoers.d/elasticsearch_vars
 
@@ -77,6 +64,7 @@ sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln 
 sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   RUNTIME_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
+  --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
   ./gradlew -g $HOME/.gradle --scan --parallel --continue $@

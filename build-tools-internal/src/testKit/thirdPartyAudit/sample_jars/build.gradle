@@ -1,0 +1,49 @@
+plugins {
+  id 'java'
+}
+repositories {
+  mavenCentral()
+}
+dependencies {
+  implementation 'org.apache.logging.log4j:log4j-core:2.11.1'
+}
+
+["0.0.1", "0.0.2"].forEach { v ->
+  ["elasticsearch", "other"].forEach { p ->
+    tasks.register("dummy-${p}-${v}", Jar) {
+      destinationDirectory = file("${buildDir}/testrepo/org/${p}/gradle/dummy-io/${v}/")
+      archiveFileName = "dummy-io-${v}.jar"
+      from sourceSets.main.output
+      include "**/TestingIO.class"
+      if (v == "0.0.2") {
+        manifest {
+          attributes(
+            "X-Different": "Different manifest, different jar"
+          )
+        }
+      }
+    }
+    build.dependsOn("dummy-${p}-${v}")
+  }
+}
+
+["0.0.1"].forEach { v ->
+  ["elasticsearch", "other"].forEach { p ->
+    tasks.register("broken-log4j-${p}-${v}", Jar) {
+      destinationDir = file("${buildDir}/testrepo/org/${p}/gradle/broken-log4j/${v}/")
+      archiveFileName = "broken-log4j-${v}.jar"
+      from sourceSets.main.output
+      include "**/TestingLog4j.class"
+    }
+    build.dependsOn("broken-log4j-${p}-${v}")
+  }
+}
+
+tasks.register("jarhellJdk", Jar) {
+  destinationDir = file("${buildDir}/testrepo/org/other/gradle/jarhellJdk/0.0.1/")
+  archiveFileName = "jarhellJdk-0.0.1.jar"
+  from sourceSets.main.output
+  include "**/String.class"
+  into "java/lang"
+}
+build.dependsOn("jarhellJdk")

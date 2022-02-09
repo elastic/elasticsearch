@@ -1,0 +1,67 @@
+---
+setup:
+  - skip:
+      features: headers
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      security.put_user:
+        username: "token_joe"
+        body:  >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "token_admin" ]
+          }
+  - do:
+      security.put_role:
+        name: "token_admin"
+        body:  >
+          {
+            "cluster": ["manage_token"],
+            "indices": [
+              {
+                "names": "*",
+                "privileges": ["all"]
+              }
+            ]
+          }
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "token_joe"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "token_admin"
+        ignore: 404
+
+---
+"Test user changing their password authenticating with token not allowed":
+
+  - do:
+      headers:
+        Authorization: "Basic dG9rZW5fam9lOnMza3JpdC1wYXNzd29yZA=="
+      security.get_token:
+        body:
+          grant_type: "password"
+          username: "token_joe"
+          password: "s3krit-password"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: token }
+  - match: { expires_in: 1200 }
+  - is_false: scope
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      catch: forbidden
+      security.change_password:
+        username: "joe"
+        body:  >
+          {
+            "password" : "s3krit-password2"
+          }

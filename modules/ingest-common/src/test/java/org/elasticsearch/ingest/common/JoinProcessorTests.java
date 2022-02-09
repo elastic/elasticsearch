@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -34,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class JoinProcessorTests extends ESTestCase {
 
-    private static final String[] SEPARATORS = new String[]{"-", "_", "."};
+    private static final String[] SEPARATORS = new String[] { "-", "_", "." };
 
     public void testJoinStrings() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
@@ -51,7 +40,7 @@ public class JoinProcessorTests extends ESTestCase {
             }
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, separator, fieldName);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, fieldName, separator, fieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedResult));
     }
@@ -71,7 +60,7 @@ public class JoinProcessorTests extends ESTestCase {
             }
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, separator, fieldName);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, fieldName, separator, fieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedResult));
     }
@@ -80,10 +69,10 @@ public class JoinProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, randomAlphaOfLengthBetween(1, 10));
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, "-", fieldName);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, fieldName, "-", fieldName);
         try {
             processor.execute(ingestDocument);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [" + fieldName + "] of type [java.lang.String] cannot be cast to [java.util.List]"));
         }
     }
@@ -91,20 +80,20 @@ public class JoinProcessorTests extends ESTestCase {
     public void testJoinNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, "-", fieldName);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, fieldName, "-", fieldName);
         try {
             processor.execute(ingestDocument);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
         }
     }
 
     public void testJoinNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), "field", "-", "field");
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, "field", "-", "field");
         try {
             processor.execute(ingestDocument);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [field] is null, cannot join."));
         }
     }
@@ -125,7 +114,7 @@ public class JoinProcessorTests extends ESTestCase {
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         String targetFieldName = fieldName + randomAlphaOfLength(5);
-        Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, separator, targetFieldName);
+        Processor processor = new JoinProcessor(randomAlphaOfLength(10), null, fieldName, separator, targetFieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(targetFieldName, String.class), equalTo(expectedResult));
     }

@@ -49,13 +49,11 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * @since 2.0
  */
 public final class Modules {
-    private Modules() {
-    }
+    private Modules() {}
 
     public static final Module EMPTY_MODULE = new Module() {
         @Override
-        public void configure(Binder binder) {
-        }
+        public void configure(Binder binder) {}
     };
 
     /**
@@ -152,7 +150,7 @@ public final class Modules {
                     final List<Element> elements = Elements.getElements(baseModules);
                     final List<Element> overrideElements = Elements.getElements(overrides);
 
-                    final Set<Key> overriddenKeys = new HashSet<>();
+                    final Set<Key<?>> overriddenKeys = new HashSet<>();
                     final Set<Class<? extends Annotation>> overridesScopeAnnotations = new HashSet<>();
 
                     // execute the overrides module, keeping track of which keys and scopes are bound
@@ -184,7 +182,7 @@ public final class Modules {
                     new ModuleWriter(binder()) {
                         @Override
                         public <T> Void visit(Binding<T> binding) {
-                            if (!overriddenKeys.remove(binding.getKey())) {
+                            if (overriddenKeys.remove(binding.getKey()) == false) {
                                 super.visit(binding);
 
                                 // Record when a scope instance is used in a binding
@@ -199,8 +197,7 @@ public final class Modules {
 
                         @Override
                         public Void visit(PrivateElements privateElements) {
-                            PrivateBinder privateBinder = binder.withSource(privateElements.getSource())
-                                    .newPrivateBinder();
+                            PrivateBinder privateBinder = binder.withSource(privateElements.getSource()).newPrivateBinder();
 
                             Set<Key<?>> skippedExposes = new HashSet<>();
 
@@ -215,8 +212,7 @@ public final class Modules {
                             // we're not skipping deep exposes, but that should be okay. If we ever need to, we
                             // have to search through this set of elements for PrivateElements, recursively
                             for (Element element : privateElements.getElements()) {
-                                if (element instanceof Binding
-                                        && skippedExposes.contains(((Binding) element).getKey())) {
+                                if (element instanceof Binding && skippedExposes.contains(((Binding) element).getKey())) {
                                     continue;
                                 }
                                 element.applyTo(privateBinder);
@@ -237,14 +233,16 @@ public final class Modules {
                     new ModuleWriter(binder()) {
                         @Override
                         public Void visit(ScopeBinding scopeBinding) {
-                            if (!overridesScopeAnnotations.remove(scopeBinding.getAnnotationType())) {
+                            if (overridesScopeAnnotations.remove(scopeBinding.getAnnotationType()) == false) {
                                 super.visit(scopeBinding);
                             } else {
                                 Object source = scopeInstancesInUse.get(scopeBinding.getScope());
                                 if (source != null) {
-                                    binder().withSource(source).addError(
+                                    binder().withSource(source)
+                                        .addError(
                                             "The scope for @%s is bound directly and cannot be overridden.",
-                                            scopeBinding.getAnnotationType().getSimpleName());
+                                            scopeBinding.getAnnotationType().getSimpleName()
+                                        );
                                 }
                             }
                             return null;

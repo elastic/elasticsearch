@@ -1,0 +1,314 @@
+[[migrate-to-java-time]]
+=== Java time migration guide
+
+With 7.0, {es} switched from joda time to java time for date-related parsing,
+formatting, and calculations. This guide is designed to help you determine
+if your cluster is impacted and, if so, prepare for the upgrade.
+
+
+[discrete]
+[[java-time-convert-date-formats]]
+==== Convert date formats
+
+To upgrade to {es} 8, you'll need to convert any joda-time date formats
+to their java-time equivalents.
+
+[discrete]
+[[java-time-migration-impacted-features]]
+=== Impacted features
+The switch to java time only impacts custom <<date,`date`>> and
+<<date_nanos,`date_nanos`>> formats.
+
+These formats are commonly used in:
+
+* <<mapping,Index mappings>>
+* <<index-templates,Index templates>>
+* <<ingest,Ingest pipelines>>
+
+If you don't use custom date formats, you can skip the rest of this guide.
+Most custom date formats are compatible. However, several require
+an update.
+
+To see if your date format is impacted, use the <<migration-api-deprecation,deprecation info API>>
+or the {kibana-ref-all}/{prev-major-last}/upgrade-assistant.html[Kibana Upgrade Assistant].
+
+[discrete]
+[[java-time-migration-incompatible-date-formats]]
+=== Incompatible date formats
+Custom date formats containing the following joda-time literals should be
+migrated.
+
+`Y` (Year of era)::
++
+--
+Replace with `y`.
+
+*Example:*
+`YYYY-MM-dd` should become `yyyy-MM-dd`.
+
+In java time, `Y` is used for
+https://docs.oracle.com/javase/8/docs/api/java/time/temporal/WeekFields.html[week-based year].
+Using `Y` in place of `y` could result in off-by-one errors in year calculation.
+
+For pattern `YYYY-ww` and date `2019-01-01T00:00:00.000Z`  will give `2019-01`
+For pattern `YYYY-ww` and date `2018-12-31T00:00:00.000Z`  will give `2019-01` (counter-intuitive) because there is >4 days of that week in 2019
+--
+
+`y` (Year)::
++
+--
+Replace with `u`.
+
+*Example:*
+`yyyy-MM-dd` should become `uuuu-MM-dd`.
+
+In java time, `y` is used for year of era. `u` can contain non-positive
+values while `y` cannot. `y` can also be associated with an era field.
+--
+
+
+`C` (Century of era)::
++
+--
+Century of era is not supported in java time.
+There is no replacement. Instead, we recommend you preprocess your input.
+--
+
+`x` (Week year)::
++
+--
+Replace with `Y`.
+
+In java time, `x` means https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[zone-offset].
+
+[WARNING]
+====
+Failure to properly convert `x` (Week year) to `Y` could result in data loss.
+====
+--
+
+`Z` (Zone offset/id)::
++
+--
+Replace with multiple `X`'s.
+
+`Z` has a similar meaning in java time. However, java time expects different
+numbers of literals to parse different forms.
+
+Consider migrating to `X`, which gives you more control over how time is parsed.
+For example, the joda-time format `YYYY-MM-dd'T'hh:mm:ssZZ` accepts the following dates:
+
+```
+2010-01-01T01:02:03Z
+2010-01-01T01:02:03+01
+2010-01-01T01:02:03+01:02
+2010-01-01T01:02:03+01:02:03
+```
+
+In java time, you cannot parse all these dates using a single format
+Instead, you must specify 3 separate formats:
+
+```
+2010-01-01T01:02:03Z
+2010-01-01T01:02:03+01
+both parsed with yyyy-MM-dd'T'hh:mm:ssX
+
+2010-01-01T01:02:03+01:02
+yyyy-MM-dd'T'hh:mm:ssXXX
+
+2010-01-01T01:02:03+01:02:03
+yyyy-MM-dd'T'hh:mm:ssXXXXX
+```
+
+
+The formats must then be delimited using `||`:
+[source,txt]
+--------------------------------------------------
+yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXXX||yyyy-MM-dd'T'hh:mm:ssXXXXX
+--------------------------------------------------
+
+The same applies if you expect your pattern to occur without a colon (`:`):
+For example, the `YYYY-MM-dd'T'hh:mm:ssZ` format accepts the following date forms:
+```
+2010-01-01T01:02:03Z
+2010-01-01T01:02:03+01
+2010-01-01T01:02:03+0102
+2010-01-01T01:02:03+010203
+```
+To accept all these forms in java time, you must use the `||` delimiter:
+[source,txt]
+--------------------------------------------------
+yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXX||yyyy-MM-dd'T'hh:mm:ssXXXX
+--------------------------------------------------
+--
+
+`d` (Day)::
++
+--
+In java time, `d` is still interpreted as "day" but is less flexible.
+
+For example, the joda-time date format `YYYY-MM-dd` accepts `2010-01-01` or
+`2010-01-1`.
+
+In java time, you must use the `||` delimiter to provide specify each format:
+
+[source,txt]
+--------------------------------------------------
+yyyy-MM-dd||yyyy-MM-d
+--------------------------------------------------
+
+In java time, `d` also does not accept more than 2 digits. To accept days with more
+than two digits, you must include a text literal in your java-time date format.
+For example, to parse `2010-01-00001`, you must use the following java-time date format:
+
+[source,txt]
+--------------------------------------------------
+yyyy-MM-'000'dd
+--------------------------------------------------
+--
+
+`e` (Name of day)::
++
+--
+In java time, `e` is still interpreted as "name of day" but does not parse
+short- or full-text forms.
+
+For example, the joda-time date format `EEE YYYY-MM` accepts both
+`Wed 2020-01` and `Wednesday 2020-01`.
+
+To accept both of these dates in java time, you must specify each format using
+the `||` delimiter:
+
+[source,txt]
+--------------------------------------------------
+cccc yyyy-MM||ccc yyyy-MM
+--------------------------------------------------
+
+The joda-time literal `E` is interpreted as "day of week."
+The java-time literal `c` is interpreted as "localized day of week."
+`E` does not accept full-text day formats, such as `Wednesday`.
+--
+
+`EEEE` and similar text forms::
++
+--
+Support for full-text forms depends on the locale data provided with your Java
+Development Kit (JDK) and other implementation details. We recommend you
+test formats containing these patterns carefully before upgrading.
+--
+
+`z` (Time zone text)::
++
+--
+In java time, `z` outputs 'Z' for Zulu when given a UTC timezone.
+--
+
+[discrete]
+[[java-time-migration-test]]
+=== Test with your data
+
+We strongly recommend you test any date format changes using real data before
+deploying in production.
+
+[discrete]
+[[java-time-migrate-update-mappings]]
+=== Update index mappings
+To update joda-time date formats in index mappings, you must create a new index
+with an updated mapping and reindex your data to it.
+
+The following `my-index-000001` index contains a mapping for the `datetime` field, a
+`date` field with a custom joda-time date format.
+////
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "datetime": {
+        "type": "date",
+        "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
+      }
+    }
+  }
+}
+--------------------------------------------------
+////
+
+[source,console]
+--------------------------------------------------
+GET my-index-000001/_mapping
+--------------------------------------------------
+// TEST[continued]
+
+[source,console-result]
+--------------------------------------------------
+{
+  "my-index-000001" : {
+    "mappings" : {
+      "properties" : {
+         "datetime": {
+           "type": "date",
+           "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
+         }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+
+To change the date format for the `datetime` field, create a separate index
+containing an updated mapping and date format.
+
+For example, the following `my-index-000002` index changes the `datetime` field's
+date format to `uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis`.
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000002
+{
+  "mappings": {
+    "properties": {
+      "datetime": {
+        "type": "date",
+        "format": "uuuu/MM/dd HH:mm:ss||uuuu/MM/dd||epoch_millis"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+Next, reindex data from the old index to the new index.
+
+The following <<docs-reindex,reindex>> API request reindexes data from
+`my-index-000001` to `my-index-000002`.
+
+[source,console]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "my-index-000001"
+  },
+  "dest": {
+    "index": "my-index-000002"
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+If you use index aliases, update them to point to the new index.
+
+[source,console]
+--------------------------------------------------
+POST /_aliases
+{
+  "actions" : [
+    { "remove" : { "index" : "my-index-000001", "alias" : "my-index" } },
+    { "add" : { "index" : "my-index-000002", "alias" : "my-index" } }
+  ]
+}
+--------------------------------------------------
+// TEST[continued]

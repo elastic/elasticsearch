@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matcher;
@@ -22,8 +24,7 @@ import static org.junit.Assert.assertThat;
 
 public class SecurityTestsUtils {
 
-    private SecurityTestsUtils() {
-    }
+    private SecurityTestsUtils() {}
 
     public static void assertAuthenticationException(ElasticsearchSecurityException e) {
         assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
@@ -38,14 +39,37 @@ public class SecurityTestsUtils {
     }
 
     public static void assertThrowsAuthorizationException(LuceneTestCase.ThrowingRunnable throwingRunnable, String action, String user) {
-        assertThrowsAuthorizationException(throwingRunnable,
-                containsString("[" + action + "] is unauthorized for user [" + user + "]"));
+        assertThrowsAuthorizationException(null, throwingRunnable, action, user);
     }
 
-    public static void assertThrowsAuthorizationExceptionRunAs(LuceneTestCase.ThrowingRunnable throwingRunnable,
-                                                               String action, String user, String runAs) {
-        assertThrowsAuthorizationException(throwingRunnable,
-                containsString("[" + action + "] is unauthorized for user [" + user + "] run as [" + runAs + "]"));
+    public static void assertThrowsAuthorizationException(
+        String context,
+        LuceneTestCase.ThrowingRunnable throwingRunnable,
+        String action,
+        String user
+    ) {
+        String message = "Expected authorization failure for user=[" + user + "], action=[" + action + "]";
+        if (Strings.hasText(context)) {
+            message += " - " + context;
+        }
+        assertThrowsAuthorizationException(
+            message,
+            throwingRunnable,
+            containsString("[" + action + "] is unauthorized for user [" + user + "]")
+        );
+    }
+
+    public static void assertThrowsAuthorizationExceptionRunAs(
+        LuceneTestCase.ThrowingRunnable throwingRunnable,
+        String action,
+        String user,
+        String runAs
+    ) {
+        assertThrowsAuthorizationException(
+            "Expected authorization failure for user=[" + user + "], run-as=[" + runAs + "], action=[" + action + "]",
+            throwingRunnable,
+            containsString("[" + action + "] is unauthorized for user [" + user + "] run as [" + runAs + "]")
+        );
     }
 
     public static void assertThrowsAuthorizationExceptionDefaultUsers(LuceneTestCase.ThrowingRunnable throwingRunnable, String action) {
@@ -54,14 +78,26 @@ public class SecurityTestsUtils {
     }
 
     public static void assertAuthorizationExceptionDefaultUsers(Throwable throwable, String action) {
-        assertAuthorizationException(throwable, either(containsString("[" + action + "] is unauthorized for user ["
-                + SecuritySettingsSource.TEST_USER_NAME + "]")).or(containsString("[" + action + "] is unauthorized for user ["
-                + SecuritySettingsSource.DEFAULT_TRANSPORT_CLIENT_USER_NAME + "]")));
+        assertAuthorizationException(
+            throwable,
+            either(containsString("[" + action + "] is unauthorized for user [" + SecuritySettingsSource.TEST_USER_NAME + "]")).or(
+                containsString(
+                    "[" + action + "] is unauthorized for user [" + SecuritySettingsSource.DEFAULT_TRANSPORT_CLIENT_USER_NAME + "]"
+                )
+            )
+        );
     }
 
-    public static void assertThrowsAuthorizationException(LuceneTestCase.ThrowingRunnable throwingRunnable,
-                                                           Matcher<String> messageMatcher) {
-        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, throwingRunnable);
+    public static void assertThrowsAuthorizationException(
+        String failureMessageIfNoException,
+        LuceneTestCase.ThrowingRunnable throwingRunnable,
+        Matcher<String> messageMatcher
+    ) {
+        ElasticsearchSecurityException securityException = expectThrows(
+            ElasticsearchSecurityException.class,
+            failureMessageIfNoException,
+            throwingRunnable
+        );
         assertAuthorizationException(securityException, messageMatcher);
     }
 

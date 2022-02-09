@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.support;
 
@@ -9,14 +10,17 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.apache.lucene.util.automaton.Transition;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
-import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 import static org.elasticsearch.xpack.core.security.support.Automatons.pattern;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.predicate;
@@ -64,6 +68,13 @@ public class AutomatonsTests extends ESTestCase {
         assertMatch(wildcard("t\\*st"), "t*st");
     }
 
+    public void testUnicode() throws Exception {
+        assertMatch(wildcard("*ξη"), "λέξη");
+        assertMatch(wildcard("сл*во"), "слово");
+        assertMatch(wildcard("စကာ*"), "စကားလုံး");
+        assertMatch(wildcard("וואָרט"), "וואָרט");
+    }
+
     public void testPredicateToString() throws Exception {
         assertThat(predicate("a.*z").toString(), equalTo("a.*z"));
         assertThat(predicate("a.*z", "A.*Z").toString(), equalTo("a.*z|A.*Z"));
@@ -71,7 +82,9 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     public void testPatternComplexity() {
-        List<String> patterns = Arrays.asList("*", "filebeat*de-tst-chatclassification*",
+        List<String> patterns = Arrays.asList(
+            "*",
+            "filebeat*de-tst-chatclassification*",
             "metricbeat*de-tst-chatclassification*",
             "packetbeat*de-tst-chatclassification*",
             "heartbeat*de-tst-chatclassification*",
@@ -94,19 +107,20 @@ public class AutomatonsTests extends ESTestCase {
             "filebeat*bender-minio-test-1*",
             "metricbeat*bender-minio-test-1*",
             "packetbeat*bender-minio-test-1*",
-            "heartbeat*bender-minio-test-1*");
+            "heartbeat*bender-minio-test-1*"
+        );
         final Automaton automaton = Automatons.patterns(patterns);
         assertTrue(Operations.isTotal(automaton));
         assertTrue(automaton.isDeterministic());
     }
 
     private void assertMatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertTrue(runAutomaton.run(text));
     }
 
     private void assertMismatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertFalse(runAutomaton.run(text));
     }
 
@@ -142,12 +156,12 @@ public class AutomatonsTests extends ESTestCase {
             Automatons.updateConfiguration(settings);
             assertEquals(10000, Automatons.getMaxDeterminizedStates());
 
-            final List<String> names = new ArrayList<>(1024);
-            for (int i = 0; i < 1024; i++) {
-                names.add(randomAlphaOfLength(48));
+            final List<String> names = new ArrayList<>(4096);
+            for (int i = 0; i < 4096; i++) {
+                names.add(randomAlphaOfLength(64));
             }
             TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class, () -> Automatons.patterns(names));
-            assertThat(e.getMaxDeterminizedStates(), equalTo(10000));
+            assertThat(e.getDeterminizeWorkLimit(), equalTo(10000));
         } finally {
             Automatons.updateConfiguration(Settings.EMPTY);
             assertEquals(100000, Automatons.getMaxDeterminizedStates());
@@ -172,9 +186,7 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     public void testConfigurationOfCacheSize() {
-        final Settings settings = Settings.builder()
-            .put(Automatons.CACHE_SIZE.getKey(), 2)
-            .build();
+        final Settings settings = Settings.builder().put(Automatons.CACHE_SIZE.getKey(), 2).build();
         Automatons.updateConfiguration(settings);
 
         String pattern1 = "a";
@@ -199,13 +211,28 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     public void testDisableCache() {
-        final Settings settings = Settings.builder()
-            .put(Automatons.CACHE_ENABLED.getKey(), false)
-            .build();
+        final Settings settings = Settings.builder().put(Automatons.CACHE_ENABLED.getKey(), false).build();
         Automatons.updateConfiguration(settings);
 
         final String pattern = randomAlphaOfLengthBetween(5, 10);
         final Automaton automaton = Automatons.pattern(pattern);
         assertThat(Automatons.pattern(pattern), not(sameInstance(automaton)));
+    }
+
+    // This isn't use directly in the code, but it's sometimes needed when debugging failing tests
+    // (and it is annoying to have to rewrite it each time it's needed)
+    public static <A extends Appendable> A debug(Automaton a, A out) throws IOException {
+        out.append("Automaton {");
+        out.append(String.format(Locale.ROOT, "States:%d  Deterministic:%s", a.getNumStates(), a.isDeterministic()));
+        for (int s = 0; s < a.getNumStates(); s++) {
+            out.append(String.format(Locale.ROOT, " [State#%d %s", s, a.isAccept(s) ? "(accept)" : ""));
+            for (int t = 0; t < a.getNumTransitions(s); t++) {
+                Transition transition = new Transition();
+                a.getTransition(s, t, transition);
+                out.append(String.format(Locale.ROOT, " (%05d - %05d => %s)", transition.min, transition.max, transition.dest));
+            }
+            out.append("]");
+        }
+        return out;
     }
 }

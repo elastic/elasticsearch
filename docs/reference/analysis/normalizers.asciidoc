@@ -16,7 +16,7 @@ following: `arabic_normalization`, `asciifolding`, `bengali_normalization`,
 Elasticsearch ships with a `lowercase` built-in normalizer. For other forms of
 normalization a custom configuration is required.
 
-[float]
+[discrete]
 === Custom normalizers
 
 Custom normalizers take a list of

@@ -1,10 +1,14 @@
 [[search-aggregations-bucket-geotilegrid-aggregation]]
-=== GeoTile Grid Aggregation
+=== Geotile grid aggregation
+++++
+<titleabbrev>Geotile grid</titleabbrev>
+++++
 
-A multi-bucket aggregation that works on `geo_point` fields and groups points into
-buckets that represent cells in a grid. The resulting grid can be sparse and only
+A multi-bucket aggregation that groups <<geo-point,`geo_point`>> and
+<<geo-shape,`geo_shape`>> values into buckets that represent a grid.
+The resulting grid can be sparse and only
 contains cells that have matching data. Each cell corresponds to a
-https://en.wikipedia.org/wiki/Tiled_web_map[map tile] as used by many online map
+{wikipedia}/Tiled_web_map[map tile] as used by many online map
 sites. Each cell is labeled using a "{zoom}/{x}/{y}" format, where zoom is equal
 to the user-specified precision.
 
@@ -23,9 +27,9 @@ costly in terms of RAM and result sizes. Please see the example below on how
 to first filter the aggregation to a smaller geographic area before requesting
 high-levels of detail.
 
-The specified field must be of type `geo_point` (which can only be set
-explicitly in the mappings) and it can also hold an array of `geo_point`
-fields, in which case all points will be taken into account during aggregation.
+You can only use `geotile_grid` to aggregate an explicitly mapped `geo_point` or
+`geo_shape` field. If the `geo_point` field contains an array, `geotile_grid`
+aggregates all the array values.
 
 
 ==== Simple low-precision request
@@ -34,13 +38,13 @@ fields, in which case all points will be taken into account during aggregation.
 --------------------------------------------------
 PUT /museums
 {
-    "mappings": {
-          "properties": {
-              "location": {
-                  "type": "geo_point"
-              }
-          }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_point"
+      }
     }
+  }
 }
 
 POST /museums/_bulk?refresh
@@ -59,14 +63,14 @@ POST /museums/_bulk?refresh
 
 POST /museums/_search?size=0
 {
-    "aggregations" : {
-        "large-grid" : {
-            "geotile_grid" : {
-                "field" : "location",
-                "precision" : 8
-            }
-        }
+  "aggregations": {
+    "large-grid": {
+      "geotile_grid": {
+        "field": "location",
+        "precision": 8
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -75,25 +79,25 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "large-grid": {
-            "buckets": [
-                {
-                  "key" : "8/131/84",
-                  "doc_count" : 3
-                },
-                {
-                  "key" : "8/129/88",
-                  "doc_count" : 2
-                },
-                {
-                  "key" : "8/131/85",
-                  "doc_count" : 1
-                }
-            ]
+  ...
+  "aggregations": {
+    "large-grid": {
+      "buckets": [
+        {
+          "key": "8/131/84",
+          "doc_count": 3
+        },
+        {
+          "key": "8/129/88",
+          "doc_count": 2
+        },
+        {
+          "key": "8/131/85",
+          "doc_count": 1
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -109,26 +113,26 @@ will be created and returned.
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggregations" : {
-        "zoomed-in" : {
-            "filter" : {
-                "geo_bounding_box" : {
-                    "location" : {
-                        "top_left" : "52.4, 4.9",
-                        "bottom_right" : "52.3, 5.0"
-                    }
-                }
-            },
-            "aggregations":{
-                "zoom1":{
-                    "geotile_grid" : {
-                        "field": "location",
-                        "precision": 22
-                    }
-                }
-            }
+  "aggregations": {
+    "zoomed-in": {
+      "filter": {
+        "geo_bounding_box": {
+          "location": {
+            "top_left": "52.4, 4.9",
+            "bottom_right": "52.3, 5.0"
+          }
         }
+      },
+      "aggregations": {
+        "zoom1": {
+          "geotile_grid": {
+            "field": "location",
+            "precision": 22
+          }
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -136,28 +140,28 @@ POST /museums/_search?size=0
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "zoomed-in" : {
-            "doc_count" : 3,
-            "zoom1" : {
-                "buckets" : [
-                    {
-                      "key" : "22/2154412/1378379",
-                      "doc_count" : 1
-                    },
-                    {
-                      "key" : "22/2154385/1378332",
-                      "doc_count" : 1
-                    },
-                    {
-                      "key" : "22/2154259/1378425",
-                      "doc_count" : 1
-                    }
-                ]
-            }
-        }
+  ...
+  "aggregations": {
+    "zoomed-in": {
+      "doc_count": 3,
+      "zoom1": {
+        "buckets": [
+          {
+            "key": "22/2154412/1378379",
+            "doc_count": 1
+          },
+          {
+            "key": "22/2154385/1378332",
+            "doc_count": 1
+          },
+          {
+            "key": "22/2154259/1378425",
+            "doc_count": 1
+          }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -165,11 +169,11 @@ POST /museums/_search?size=0
 ==== Requests with additional bounding box filtering
 
 The `geotile_grid` aggregation supports an optional `bounds` parameter
-that restricts the points considered to those that fall within the
+that restricts the cells considered to those that intersects the
 bounds provided. The `bounds` parameter accepts the bounding box in
 all the same <<query-dsl-geo-bounding-box-query-accepted-formats,accepted formats>> of the
 bounds specified in the Geo Bounding Box Query. This bounding box can be used with or
-without an additional `geo_bounding_box` query filtering the points prior to aggregating.
+without an additional `geo_bounding_box` query for filtering the points prior to aggregating.
 It is an independent bounding box that can intersect with, be equal to, or be disjoint
 to any additional `geo_bounding_box` queries defined in the context of the aggregation.
 
@@ -177,18 +181,18 @@ to any additional `geo_bounding_box` queries defined in the context of the aggre
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggregations" : {
-        "tiles-in-bounds" : {
-            "geotile_grid" : {
-                "field" : "location",
-                "precision" : 22,
-                "bounds": {
-                  "top_left" : "52.4, 4.9",
-                  "bottom_right" : "52.3, 5.0"
-                }
-            }
+  "aggregations": {
+    "tiles-in-bounds": {
+      "geotile_grid": {
+        "field": "location",
+        "precision": 22,
+        "bounds": {
+          "top_left": "52.4, 4.9",
+          "bottom_right": "52.3, 5.0"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -196,28 +200,39 @@ POST /museums/_search?size=0
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "tiles-in-bounds" : {
-           "buckets" : [
-               {
-                 "key" : "22/2154412/1378379",
-                 "doc_count" : 1
-               },
-               {
-                 "key" : "22/2154385/1378332",
-                 "doc_count" : 1
-               },
-               {
-                 "key" : "22/2154259/1378425",
-                 "doc_count" : 1
-               }
-           ]
+  ...
+  "aggregations": {
+    "tiles-in-bounds": {
+      "buckets": [
+        {
+          "key": "22/2154412/1378379",
+          "doc_count": 1
+        },
+        {
+          "key": "22/2154385/1378332",
+          "doc_count": 1
+        },
+        {
+          "key": "22/2154259/1378425",
+          "doc_count": 1
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+
+[discrete]
+[role="xpack"]
+==== Aggregating `geo_shape` fields
+
+Aggregating on <<geo-shape>> fields works just as it does for points, except that a single
+shape can be counted for in multiple tiles. A shape will contribute to the count of matching values
+if any part of its shape intersects with that tile. Below is an image that demonstrates this:
+
+
+image:images/spatial/geoshape_grid.png[]
 
 ==== Options
 

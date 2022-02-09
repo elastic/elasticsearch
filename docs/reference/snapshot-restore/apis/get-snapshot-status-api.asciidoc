@@ -1,0 +1,421 @@
+[[get-snapshot-status-api]]
+=== Get snapshot status API
+++++
+<titleabbrev>Get snapshot status</titleabbrev>
+++++
+
+Retrieves a detailed description of the current state for each shard participating in the snapshot.
+
+////
+[source,console]
+----
+PUT /index_1
+
+PUT /index_1/_doc/1
+{
+  "title": "Elastic, Vol.1", "category": "Non-Fiction",
+  "author": {
+    "first_name": "Elk",
+    "last_name": "Stack"
+  }
+}
+
+PUT /index_1/_doc/2
+{
+  "title": "Elastic, Vol.2", "category": "Non-Fiction",
+  "author": {
+    "first_name": "Elk",
+    "last_name": "Stack"
+  }
+}
+
+PUT /index_1/_doc/3
+{
+  "title": "Elastic, Vol.3", "category": "Non-Fiction",
+  "author": {
+    "first_name": "Elk",
+    "last_name": "Stack"
+  }
+}
+
+PUT /index_1/_doc/4
+{
+  "title": "Elastic, Vol.4", "category": "Non-Fiction",
+  "author": {
+    "first_name": "Elk",
+    "last_name": "Stack"
+  }
+}
+
+PUT /_snapshot/my_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+
+PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
+
+PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
+{
+  "indices": ["index_1"],
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "metadata": {
+    "taken_by": "Elastic Machine",
+    "taken_because": "backup testing"
+  }
+}
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+GET _snapshot/_status
+----
+
+[[get-snapshot-status-api-request]]
+==== {api-request-title}
+
+`GET _snapshot/_status`
+
+`GET _snapshot/<repository>/_status`
+
+`GET _snapshot/<repository>/<snapshot>/_status`
+
+[[get-snapshot-status-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor_snapshot`, `create_snapshot`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[get-snapshot-status-api-desc]]
+==== {api-description-title}
+
+Use the get snapshot status API to get detailed information about the shards
+participating in a snapshot.
+
+If you omit the `<snapshot>` request path parameter, the request only retrieves
+information for currently running snapshots. This usage is preferred.
+
+If needed, you can specify `<repository>` and `<snapshot>` to retrieve
+information for specific snapshots, even if they're not currently running.
+
+[WARNING]
+====
+Using the API to return the status of any snapshots other than currently running
+snapshots can be expensive. The API requires a read from the repository for each
+shard in each snapshot. For example, if you have 100 snapshots with 1,000 shards
+each, an API request that includes all snapshots will require 100,000 reads (100
+snapshots * 1,000 shards).
+
+Depending on the latency of your storage, such requests can take an extremely
+long time to return results. These requests can also tax machine resources
+and, when using cloud storage, incur high processing costs.
+====
+
+[[get-snapshot-status-api-path-params]]
+==== {api-path-parms-title}
+
+`<repository>`::
+(Optional, string)
+Snapshot repository name used to limit the request. Supports wildcards (`*`) if
+`<snapshot>` isn't specified.
+
+`<snapshot>`::
+(Optional, string)
+Comma-separated list of snapshots to retrieve status for. Defaults to
+currently running snapshots. Wildcards (`*`) are not supported.
+
+[role="child_attributes"]
+[[get-snapshot-status-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+`ignore_unavailable`::
+(Optional, Boolean)
+If `false`, the request returns an error for any snapshots that are unavailable. Defaults to `false`.
++
+If `true`, the request ignores snapshots that are unavailable, such as those that are corrupted or temporarily cannot be returned.
+
+[role="child_attributes"]
+[[get-snapshot-status-api-response-body]]
+==== {api-response-body-title}
+`repository`::
+(string)
+Name of the repository that includes the snapshot.
+
+`snapshot`::
+(string)
+Name of the snapshot.
+
+`uuid`::
+(string)
+Universally unique identifier (UUID) of the snapshot.
+
+`state`::
++
+--
+(string)
+Indicates the current snapshot state.
+
+.Values for `state`
+[%collapsible%open]
+====
+`FAILED`::
+  The snapshot finished with an error and failed to store any data.
+
+`IN_PROGRESS`::
+  The snapshot is currently running.
+
+`PARTIAL`::
+  The global cluster state was stored, but data of at least one shard was not stored successfully.
+  The <<get-snapshot-api-response-failures,`failures`>> section of the response contains more detailed information about shards
+  that were not processed correctly.
+
+`SUCCESS`::
+  The snapshot finished and all shards were stored successfully.
+====
+--
+
+`include_global_state`::
+(Boolean)
+Indicates whether the current cluster state is included in the snapshot.
+
+[[get-snapshot-status-shards-stats]]
+`shards_stats`::
+(object)
+Contains a count of shards in the snapshot.
++
+.Properties of `shards_stats`
+[%collapsible%open]
+====
+`initializing`::
+(integer)
+Number of shards that are still initializing.
+
+`started`::
+(integer)
+Number of shards that have started but not are not finalized.
+
+`finalizing`::
+(integer)
+Number of shards that are finalizing but are not done.
+
+`done`::
+(integer)
+Number of shards that initialized, started, and finalized successfully.
+
+`failed`::
+(integer)
+Number of shards that failed to be included in the snapshot.
+
+`total`::
+(integer)
+Total number of shards included in the snapshot.
+====
+
+[[get-snapshot-status-stats]]
+`stats`::
+(object)
+Provides details on the number (`file_count`) and size (`size_in_bytes`) of files included in the snapshot.
++
+.Properties of `stats`
+[%collapsible%open]
+====
+`incremental`::
+(object)
+Number and size of files that still need to be copied as part of the incremental snapshot.
++
+For completed snapshots, this property indicates the number and size
+of files that were not already in the repository and were copied as
+part of the incremental snapshot.
+
+`processed`::
+(object)
+Number and size of files that have already been uploaded to the snapshot. After a file is uploaded, the processed `file_count` and `size_in_bytes` are incremented in `stats`.
+
+`total`::
+(object)
+Total number and size of files that are referenced by the snapshot.
+
+[[get-snapshot-status-start-time]]
+`start_time_in_millis`::
+(long)
+The time, in milliseconds, when the snapshot creation process started.
+
+[[get-snapshot-status-total-time]]
+`time_in_millis`::
+(long)
+The total time, in milliseconds, that it took for the snapshot process
+to complete.
+====
+
+`<index>`::
+(list of objects)
+List of objects containing information about the
+indices included in the snapshot.
++
+.Properties of `<index>`
+[%collapsible%open]
+====
+`shards_stats`::
+(object)
+See <<get-snapshot-status-shards-stats,`shards_stats`>>.
+
+`stats`::
+(object)
+See <<get-snapshot-status-stats,`stats`>>.
+
+`shards`::
+(list of objects)
+List of objects containing information about the
+shards that include the snapshot.
++
+.Properties of `shards`
+[%collapsible%open]
+=====
+`stage`::
+(string)
+Indicates the current state of the shards that include the snapshot.
++
+.Properties of `stage`
+[%collapsible%open]
+======
+`DONE`::
+Number of shards in the snapshot that were successfully stored in the repository.
+
+`FAILURE`::
+Number of shards in the snapshot that were not successfully stored in
+the repository.
+
+`FINALIZE`::
+Number of shards in the snapshot that are in the finalizing stage
+of being stored in the repository.
+
+`INIT`::
+Number of shards in the snapshot that are in the initializing stage
+of being stored in the repository.
+
+`STARTED`::
+Number of shards in the snapshot that are in the started stage
+of being stored in the repository.
+======
+`stats`::
+(object)
+See <<get-snapshot-status-stats,`stats`>>.
+
+`total`::
+(object)
+Total number and size of files that are referenced by the snapshot.
+
+`start_time_in_millis`::
+(long)
+See <<get-snapshot-status-start-time,`start_time_in_millis`>>.
+
+`time_in_millis`::
+(long)
+See <<get-snapshot-status-total-time,`time_in_millis`>>.
+=====
+====
+
+[[get-snapshot-status-api-example]]
+==== {api-example-title}
+
+The following request returns detailed status information for `snapshot_2` in the `my_repository` repository. This response includes additional information beyond the <<get-snapshot-api,Get snapshot API>>, such as shard status and file statistics.
+
+[source,console]
+----
+GET _snapshot/my_repository/snapshot_2/_status
+----
+
+[source,console-result]
+----
+{
+  "snapshots" : [
+    {
+      "snapshot" : "snapshot_2",
+      "repository" : "my_repository",
+      "uuid" : "lNeQD1SvTQCqqJUMQSwmGg",
+      "state" : "SUCCESS",
+      "include_global_state" : false,
+      "shards_stats" : {
+        "initializing" : 0,
+        "started" : 0,
+        "finalizing" : 0,
+        "done" : 1,
+        "failed" : 0,
+        "total" : 1
+      },
+      "stats" : {
+        "incremental" : {
+          "file_count" : 3,
+          "size_in_bytes" : 5969
+        },
+        "total" : {
+          "file_count" : 4,
+          "size_in_bytes" : 6024
+        },
+        "start_time_in_millis" : 1594829326691,
+        "time_in_millis" : 205
+      },
+      "indices" : {
+        "index_1" : {
+          "shards_stats" : {
+            "initializing" : 0,
+            "started" : 0,
+            "finalizing" : 0,
+            "done" : 1,
+            "failed" : 0,
+            "total" : 1
+          },
+          "stats" : {
+            "incremental" : {
+              "file_count" : 3,
+              "size_in_bytes" : 5969
+            },
+            "total" : {
+              "file_count" : 4,
+              "size_in_bytes" : 6024
+            },
+            "start_time_in_millis" : 1594829326896,
+            "time_in_millis" : 0
+          },
+          "shards" : {
+            "0" : {
+              "stage" : "DONE",
+              "stats" : {
+                "incremental" : {
+                  "file_count" : 3,
+                  "size_in_bytes" : 5969
+                },
+                "total" : {
+                  "file_count" : 4,
+                  "size_in_bytes" : 6024
+                },
+                "start_time_in_millis" : 1594829326896,
+                "time_in_millis" : 0
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"uuid" : "lNeQD1SvTQCqqJUMQSwmGg"/"uuid" : $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"size_in_bytes" : 6024/"size_in_bytes" : $body.snapshots.0.stats.total.size_in_bytes/]
+// TESTRESPONSE[s/"done" : 10/"done" : $body.snapshots.0.shards_stats.done/]
+// TESTRESPONSE[s/"total" : 10/"total" : $body.snapshots.0.shards_stats.total/]
+// TESTRESPONSE[s/"start_time_in_millis" : 1594829326691/"start_time_in_millis" : $body.snapshots.0.stats.start_time_in_millis/]
+// TESTRESPONSE[s/"time_in_millis" : 205/"time_in_millis" : $body.snapshots.0.stats.time_in_millis/]
+// TESTRESPONSE[s/"time_in_millis" : 0/"time_in_millis" : $body.$_path/]
+// TESTRESPONSE[s/"file_count" : 3/"file_count" : $body.snapshots.0.stats.incremental.file_count/]
+// TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.stats.total.file_count/]
+// TESTRESPONSE[s/"size_in_bytes" : 5969/"size_in_bytes" : $body.snapshots.0.stats.incremental.size_in_bytes/]
+// TESTRESPONSE[s/"start_time_in_millis" : 1594829326896/"start_time_in_millis" : $body.snapshots.0.indices.index_1.stats.start_time_in_millis/]

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.checkpoint;
@@ -23,7 +24,7 @@ class RemoteClusterResolver extends RemoteClusterAware {
 
     private final CopyOnWriteArraySet<String> clusters;
 
-    class ResolvedIndices {
+    static class ResolvedIndices {
         private final Map<String, List<String>> remoteIndicesPerClusterAlias;
         private final List<String> localIndices;
 
@@ -32,15 +33,15 @@ class RemoteClusterResolver extends RemoteClusterAware {
             this.remoteIndicesPerClusterAlias = remoteIndicesPerClusterAlias;
         }
 
-        public Map<String, List<String>> getRemoteIndicesPerClusterAlias() {
+        Map<String, List<String>> getRemoteIndicesPerClusterAlias() {
             return remoteIndicesPerClusterAlias;
         }
 
-        public List<String> getLocalIndices() {
+        List<String> getLocalIndices() {
             return localIndices;
         }
 
-        public int numClusters() {
+        int numClusters() {
             return remoteIndicesPerClusterAlias.size() + (localIndices.isEmpty() ? 0 : 1);
         }
     }

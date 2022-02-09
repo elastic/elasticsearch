@@ -1,0 +1,151 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  # Create some privileges
+  - do:
+      security.put_privileges:
+        body: >
+          {
+            "app01": {
+              "user": {
+                "application": "app01",
+                "name": "user",
+                "actions": [ "action:login" ]
+              },
+              "read": {
+                "application": "app01",
+                "name": "read",
+                "actions": [ "data:read/*" ]
+              },
+              "write": {
+                "application": "app01",
+                "name": "write",
+                "actions": [ "data:write/*" ]
+              }
+            },
+            "app02": {
+              "user": {
+                "application": "app02",
+                "name": "user",
+                "actions": [ "action:login" ]
+              },
+              "read": {
+                "application": "app02",
+                "name": "read",
+                "actions": [ "data:read/*" ]
+              },
+              "write": {
+                "application": "app02",
+                "name": "write",
+                "actions": [ "data:write/*" ]
+              }
+            }
+          }
+
+  # And a superuser
+  - do:
+      security.put_user:
+          username: "my_admin"
+          body:  >
+              {
+                "password": "admin01-password",
+                "roles" : [ "superuser" ]
+              }
+  - do:
+      security.put_user:
+          username: "eng_write"
+          body:  >
+              {
+                "password": "s3cr3t-p@ssw0rd",
+                "roles" : [ "myapp_engineering_write" ]
+              }
+
+---
+teardown:
+  - do:
+      security.delete_privileges:
+        application: app01
+        name: "user,read,write"
+        ignore: 404
+  - do:
+      security.delete_privileges:
+        application: app02
+        name: "user,read,write"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "my_admin"
+        ignore: 404
+
+---
+"Test superuser has all application-privileges":
+  - do:
+      headers: { Authorization: "Basic bXlfYWRtaW46YWRtaW4wMS1wYXNzd29yZA==" } # my_admin
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": [ "manage" ],
+            "index": [
+              {
+                "names" :[ "*"  ],
+                "privileges" : [ "read", "index", "write" ]
+              }
+            ],
+            "application": [
+              {
+                "application" : "app01",
+                "resources" : [ "*" ],
+                "privileges" : [ "action:login", "data:read/secrets" ]
+              },
+              {
+                "application" : "app02",
+                "resources" : [ "thing/1" ],
+                "privileges" : [ "data:write/thing" ]
+              },
+              {
+                "application" : "app01",
+                "resources" : [ "foo" ],
+                "privileges" : [ "dne", "data:dne" ]
+              },
+              {
+                "application" : "app-dne",
+                "resources" : [ "bar" ],
+                "privileges" : [ "anything", "action:anything" ]
+              }
+            ]
+          }
+
+  - match: { "username" : "my_admin" }
+  - match: { "has_all_requested" : true }
+  - match: { "application" : {
+      "app01" : {
+        "*" : {
+          "action:login" : true,
+          "data:read/secrets" : true
+        },
+        "foo" : {
+          "dne" : true,
+          "data:dne" : true
+        }
+      },
+      "app02" : {
+        "thing/1" : {
+          "data:write/thing" : true
+        }
+      },
+      "app-dne" : {
+        "bar" : {
+          "anything" : true,
+          "action:anything" : true
+        }
+      }
+    }
+  }

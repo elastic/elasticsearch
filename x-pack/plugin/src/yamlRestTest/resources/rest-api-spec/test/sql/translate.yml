@@ -1,0 +1,26 @@
+---
+"Translate SQL":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test
+              _id:    1
+          - str: test1
+            int: 1
+
+  - do:
+      sql.translate:
+        body:
+          query: "SELECT * FROM test ORDER BY int asc"
+  - match:
+      $body:
+        size: 1000
+        _source: false
+        fields: [ {"field" : "int" }, {"field" : "str" } ]
+        sort:
+          - int:
+              order: asc
+              missing: _last
+              unmapped_type: long

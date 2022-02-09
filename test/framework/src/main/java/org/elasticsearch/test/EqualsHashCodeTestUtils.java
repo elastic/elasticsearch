@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
@@ -67,20 +56,21 @@ public class EqualsHashCodeTestUtils {
      * from the input in one aspect. The output of this call is used to check that it is not equal()
      * to the input object
      */
-    public static <T> void checkEqualsAndHashCode(T original, CopyFunction<T> copyFunction,
-            MutateFunction<T> mutationFunction) {
+    public static <T> void checkEqualsAndHashCode(T original, CopyFunction<T> copyFunction, MutateFunction<T> mutationFunction) {
         try {
             String objectName = original.getClass().getSimpleName();
             assertFalse(objectName + " is equal to null", original.equals(null));
             // TODO not sure how useful the following test is
             assertFalse(objectName + " is equal to incompatible type", original.equals(ESTestCase.randomFrom(someObjects)));
             assertTrue(objectName + " is not equal to self", original.equals(original));
-            assertThat(objectName + " hashcode returns different values if called multiple times", original.hashCode(),
-                    equalTo(original.hashCode()));
+            assertThat(
+                objectName + " hashcode returns different values if called multiple times",
+                original.hashCode(),
+                equalTo(original.hashCode())
+            );
             if (mutationFunction != null) {
                 T mutation = mutationFunction.mutate(original);
-                assertThat(objectName + " mutation should not be equal to original", mutation,
-                        not(equalTo(original)));
+                assertThat(objectName + " mutation should not be equal to original", mutation, not(equalTo(original)));
             }
 
             T copy = copyFunction.copy(original);

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 
@@ -20,7 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IncidentEventTests extends ESTestCase {
@@ -61,8 +62,17 @@ public class IncidentEventTests extends ESTestCase {
 
         HttpProxy proxy = rarely() ? null : HttpProxy.NO_PROXY;
 
-        IncidentEvent event = new IncidentEvent(description, eventType, incidentKey, client, clientUrl, account,
-            attachPayload, contexts, proxy);
+        IncidentEvent event = new IncidentEvent(
+            description,
+            eventType,
+            incidentKey,
+            client,
+            clientUrl,
+            account,
+            attachPayload,
+            contexts,
+            proxy
+        );
 
         XContentBuilder jsonBuilder = jsonBuilder();
         jsonBuilder.startObject(); // since its a snippet
@@ -74,19 +84,22 @@ public class IncidentEventTests extends ESTestCase {
         ObjectPath objectPath = ObjectPath.createFromXContent(jsonBuilder.contentType().xContent(), BytesReference.bytes(jsonBuilder));
 
         String actualServiceKey = objectPath.evaluate(IncidentEvent.Fields.ROUTING_KEY.getPreferredName());
-        String actualWatchId = objectPath.evaluate(IncidentEvent.Fields.PAYLOAD.getPreferredName()
-            + "." + IncidentEvent.Fields.SOURCE.getPreferredName());
+        String actualWatchId = objectPath.evaluate(
+            IncidentEvent.Fields.PAYLOAD.getPreferredName() + "." + IncidentEvent.Fields.SOURCE.getPreferredName()
+        );
         if (actualWatchId == null) {
             actualWatchId = "watcher"; // hardcoded if the SOURCE is null
         }
-        String actualDescription = objectPath.evaluate(IncidentEvent.Fields.PAYLOAD.getPreferredName()
-            + "." + IncidentEvent.Fields.SUMMARY.getPreferredName());
+        String actualDescription = objectPath.evaluate(
+            IncidentEvent.Fields.PAYLOAD.getPreferredName() + "." + IncidentEvent.Fields.SUMMARY.getPreferredName()
+        );
         String actualEventType = objectPath.evaluate(IncidentEvent.Fields.EVENT_ACTION.getPreferredName());
         String actualIncidentKey = objectPath.evaluate(IncidentEvent.Fields.DEDUP_KEY.getPreferredName());
         String actualClient = objectPath.evaluate(IncidentEvent.Fields.CLIENT.getPreferredName());
         String actualClientUrl = objectPath.evaluate(IncidentEvent.Fields.CLIENT_URL.getPreferredName());
-        String actualSeverity = objectPath.evaluate(IncidentEvent.Fields.PAYLOAD.getPreferredName()
-            + "." + IncidentEvent.Fields.SEVERITY.getPreferredName());
+        String actualSeverity = objectPath.evaluate(
+            IncidentEvent.Fields.PAYLOAD.getPreferredName() + "." + IncidentEvent.Fields.SEVERITY.getPreferredName()
+        );
         Map<String, Object> payloadDetails = objectPath.evaluate("payload.custom_details.payload");
         Payload actualPayload = null;
 
@@ -95,7 +108,7 @@ public class IncidentEventTests extends ESTestCase {
         }
 
         List<IncidentEventContext> actualLinks = new ArrayList<>();
-        List<Map<String, String>> linkMap = (List<Map<String, String>>) objectPath.evaluate(IncidentEvent.Fields.LINKS.getPreferredName());
+        List<Map<String, String>> linkMap = objectPath.evaluate(IncidentEvent.Fields.LINKS.getPreferredName());
         if (linkMap != null) {
             for (Map<String, String> iecValue : linkMap) {
                 actualLinks.add(IncidentEventContext.link(iecValue.get("href"), iecValue.get("text")));
@@ -103,7 +116,7 @@ public class IncidentEventTests extends ESTestCase {
         }
 
         List<IncidentEventContext> actualImages = new ArrayList<>();
-        List<Map<String, String>> imgMap = (List<Map<String, String>>) objectPath.evaluate(IncidentEvent.Fields.IMAGES.getPreferredName());
+        List<Map<String, String>> imgMap = objectPath.evaluate(IncidentEvent.Fields.IMAGES.getPreferredName());
         if (imgMap != null) {
             for (Map<String, String> iecValue : imgMap) {
                 actualImages.add(IncidentEventContext.image(iecValue.get("src"), iecValue.get("href"), iecValue.get("alt")));

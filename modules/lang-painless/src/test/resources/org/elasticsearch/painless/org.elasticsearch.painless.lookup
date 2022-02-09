@@ -1,0 +1,52 @@
+class int @no_import {
+}
+
+class java.lang.Object {
+}
+
+class java.lang.String {
+}
+
+class org.elasticsearch.painless.LookupTests$A {
+}
+
+class org.elasticsearch.painless.LookupTests$C {
+  String getString0()
+}
+
+class org.elasticsearch.painless.LookupTests$D {
+  String getString0()
+  String getString1(int)
+}
+
+class org.elasticsearch.painless.LookupTests$Z {
+}
+
+class org.elasticsearch.painless.LookupTests$V {
+}
+
+class org.elasticsearch.painless.LookupTests$U {
+  String getString2(int, int);
+  String getString1(int);
+}
+
+class org.elasticsearch.painless.LookupTests$T {
+  String getString1(int);
+  int getInt0();
+}
+
+class org.elasticsearch.painless.LookupTests$S {
+}
+
+class org.elasticsearch.painless.LookupTests$AA {
+}
+
+class org.elasticsearch.painless.LookupTests$AC {
+  String getString2(int, int);
+}
+
+class org.elasticsearch.painless.LookupTests$AD {
+  String getString2(int, int)
+  String getString1(int)
+  int getInt0()
+}

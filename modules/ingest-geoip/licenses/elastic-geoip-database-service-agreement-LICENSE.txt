@@ -1,0 +1,2 @@
+By using the GeoIP Database Service, you agree to the Elastic GeoIP Database Service Agreement,
+available at www.elastic.co/elastic-geoip-database-service-terms.

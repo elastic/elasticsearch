@@ -1,8 +1,15 @@
 [[search-aggregations-metrics-top-hits-aggregation]]
-=== Top Hits Aggregation
+=== Top hits aggregation
+++++
+<titleabbrev>Top hits</titleabbrev>
+++++
 
 A `top_hits` metric aggregator keeps track of the most relevant document being aggregated. This aggregator is intended
 to be used as a sub aggregator, so that the top matching documents can be aggregated per bucket.
+
+TIP: We do not recommend using `top_hits` as a top-level aggregation. If you
+want to group search hits, use the <<collapse-search-results,`collapse`>>
+parameter instead.
 
 The `top_hits` aggregator can effectively be used to group result sets by certain fields via a bucket aggregator.
 One or more bucket aggregators determines by which properties a result set get sliced into.
@@ -17,53 +24,59 @@ One or more bucket aggregators determines by which properties a result set get s
 
 The top_hits aggregation returns regular search hits, because of this many per hit features can be supported:
 
-* <<request-body-search-highlighting,Highlighting>>
+* <<highlighting,Highlighting>>
 * <<request-body-search-explain,Explain>>
-* <<request-body-search-queries-and-filters,Named filters and queries>>
-* <<request-body-search-source-filtering,Source filtering>>
-* <<request-body-search-stored-fields,Stored fields>>
-* <<request-body-search-script-fields,Script fields>>
-* <<request-body-search-docvalue-fields,Doc value fields>>
+* <<named-queries,Named queries>>
+* <<search-fields-param,Search fields>>
+* <<source-filtering,Source filtering>>
+* <<stored-fields,Stored fields>>
+* <<script-fields,Script fields>>
+* <<docvalue-fields,Doc value fields>>
 * <<request-body-search-version,Include versions>>
 * <<request-body-search-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 
 IMPORTANT: If you *only* need `docvalue_fields`, `size`, and `sort` then
 <<search-aggregations-metrics-top-metrics>> might be a more efficient choice than the Top Hits Aggregation.
 
+`top_hits` does not support the <<rescore,`rescore`>> parameter. Query rescoring
+applies only to search hits, not aggregation results. To change the scores used
+by aggregations, use a <<query-dsl-function-score-query,`function_score`>> or
+<<query-dsl-script-score-query,`script_score`>> query.
+
 ==== Example
 
-In the following example we group the sales by type and per type we show the last sale. 
+In the following example we group the sales by type and per type we show the last sale.
 For each sale only the date and price fields are being included in the source.
 
 [source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs": {
-        "top_tags": {
-            "terms": {
-                "field": "type",
-                "size": 3
-            },
-            "aggs": {
-                "top_sales_hits": {
-                    "top_hits": {
-                        "sort": [
-                            {
-                                "date": {
-                                    "order": "desc"
-                                }
-                            }
-                        ],
-                        "_source": {
-                            "includes": [ "date", "price" ]
-                        },
-                        "size" : 1
-                    }
+  "aggs": {
+    "top_tags": {
+      "terms": {
+        "field": "type",
+        "size": 3
+      },
+      "aggs": {
+        "top_sales_hits": {
+          "top_hits": {
+            "sort": [
+              {
+                "date": {
+                  "order": "desc"
                 }
-            }
+              }
+            ],
+            "_source": {
+              "includes": [ "date", "price" ]
+            },
+            "size": 1
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -241,18 +254,18 @@ Let's see how it works with a real sample. Considering the following mapping:
 --------------------------------------------------
 PUT /sales
 {
-    "mappings": {
-        "properties" : {
-            "tags" : { "type" : "keyword" },
-            "comments" : { <1>
-                "type" : "nested",
-                "properties" : {
-                    "username" : { "type" : "keyword" },
-                    "comment" : { "type" : "text" }
-                }
-            }
+  "mappings": {
+    "properties": {
+      "tags": { "type": "keyword" },
+      "comments": {                           <1>
+        "type": "nested",
+        "properties": {
+          "username": { "type": "keyword" },
+          "comment": { "type": "text" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -264,12 +277,12 @@ And some documents:
 --------------------------------------------------
 PUT /sales/_doc/1?refresh
 {
-    "tags": ["car", "auto"],
-    "comments": [
-        {"username": "baddriver007", "comment": "This car could have better brakes"},
-        {"username": "dr_who", "comment": "Where's the autopilot? Can't find it"},
-        {"username": "ilovemotorbikes", "comment": "This car has two extra wheels"}
-    ]
+  "tags": [ "car", "auto" ],
+  "comments": [
+    { "username": "baddriver007", "comment": "This car could have better brakes" },
+    { "username": "dr_who", "comment": "Where's the autopilot? Can't find it" },
+    { "username": "ilovemotorbikes", "comment": "This car has two extra wheels" }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -280,29 +293,29 @@ It's now possible to execute the following `top_hits` aggregation (wrapped in a 
 --------------------------------------------------
 POST /sales/_search
 {
-    "query": {
-        "term": { "tags": "car" }
-    },
-    "aggs": {
-        "by_sale": {
-            "nested" : {
-                "path" : "comments"
-            },
-            "aggs": {
-                "by_user": {
-                    "terms": {
-                        "field": "comments.username",
-                        "size": 1
-                    },
-                    "aggs": {
-                        "by_nested": {
-                            "top_hits":{}
-                        }
-                    }
-                }
+  "query": {
+    "term": { "tags": "car" }
+  },
+  "aggs": {
+    "by_sale": {
+      "nested": {
+        "path": "comments"
+      },
+      "aggs": {
+        "by_user": {
+          "terms": {
+            "field": "comments.username",
+            "size": 1
+          },
+          "aggs": {
+            "by_nested": {
+              "top_hits": {}
             }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]

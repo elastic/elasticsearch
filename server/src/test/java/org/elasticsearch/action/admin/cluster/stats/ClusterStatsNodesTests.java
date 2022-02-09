@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -25,8 +14,9 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -49,22 +39,23 @@ public class ClusterStatsNodesTests extends ESTestCase {
      */
     public void testNetworkTypesToXContent() throws Exception {
         ClusterStatsNodes.NetworkTypes stats = new ClusterStatsNodes.NetworkTypes(emptyList());
-        assertEquals("{\"transport_types\":{},\"http_types\":{}}",
-                toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
+        assertEquals("{\"transport_types\":{},\"http_types\":{}}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
 
         List<NodeInfo> nodeInfos = singletonList(createNodeInfo("node_0", null, null));
         stats = new ClusterStatsNodes.NetworkTypes(nodeInfos);
-        assertEquals("{\"transport_types\":{},\"http_types\":{}}",
-                toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
+        assertEquals("{\"transport_types\":{},\"http_types\":{}}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
 
-        nodeInfos = Arrays.asList(createNodeInfo("node_1", "", ""),
-                                  createNodeInfo("node_2", "custom", "custom"),
-                                  createNodeInfo("node_3", null, "custom"));
+        nodeInfos = Arrays.asList(
+            createNodeInfo("node_1", "", ""),
+            createNodeInfo("node_2", "custom", "custom"),
+            createNodeInfo("node_3", null, "custom")
+        );
         stats = new ClusterStatsNodes.NetworkTypes(nodeInfos);
-        assertEquals("{"
-                + "\"transport_types\":{\"custom\":1},"
-                + "\"http_types\":{\"custom\":2}"
-        + "}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
+        assertEquals(
+            """
+                {"transport_types":{"custom":1},"http_types":{"custom":2}}""",
+            toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString()
+        );
     }
 
     public void testIngestStats() throws Exception {
@@ -74,8 +65,11 @@ public class ClusterStatsNodesTests extends ESTestCase {
             stats.forEach(stat -> {
                 processorStats.compute(stat.getType(), (key, value) -> {
                     if (value == null) {
-                        return new long[] { stat.getStats().getIngestCount(), stat.getStats().getIngestFailedCount(),
-                            stat.getStats().getIngestCurrent(), stat.getStats().getIngestTimeInMillis()};
+                        return new long[] {
+                            stat.getStats().getIngestCount(),
+                            stat.getStats().getIngestFailedCount(),
+                            stat.getStats().getIngestCurrent(),
+                            stat.getStats().getIngestTimeInMillis() };
                     } else {
                         value[0] += stat.getStats().getIngestCount();
                         value[1] += stat.getStats().getIngestFailedCount();
@@ -89,7 +83,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
 
         ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(Collections.singletonList(nodeStats));
         assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().getProcessorStats().size()));
-        String processorStatsString = "{";
+        StringBuilder processorStatsString = new StringBuilder("{");
         Iterator<Map.Entry<String, long[]>> iter = processorStats.entrySet().iterator();
         while (iter.hasNext()) {
             Map.Entry<String, long[]> entry = iter.next();
@@ -98,35 +92,124 @@ public class ClusterStatsNodesTests extends ESTestCase {
             long failedCount = statValues[1];
             long current = statValues[2];
             long timeInMillis = statValues[3];
-            processorStatsString += "\"" + entry.getKey() + "\":{\"count\":" + count
-                + ",\"failed\":" + failedCount
-                + ",\"current\":" + current
-                + ",\"time_in_millis\":" + timeInMillis
-                + "}";
+            processorStatsString.append("""
+                "%s":{"count":%s,"failed":%s,"current":%s,"time_in_millis":%s}\
+                """.formatted(entry.getKey(), count, failedCount, current, timeInMillis));
             if (iter.hasNext()) {
-                processorStatsString += ",";
+                processorStatsString.append(",");
             }
         }
-        processorStatsString += "}";
-        assertThat(toXContent(stats, XContentType.JSON, false).utf8ToString(), equalTo(
-            "{\"ingest\":{"
-                + "\"number_of_pipelines\":" + stats.pipelineCount + ","
-                + "\"processor_stats\":" + processorStatsString
-                + "}}"));
+        processorStatsString.append("}");
+        assertThat(toXContent(stats, XContentType.JSON, false).utf8ToString(), equalTo("""
+            {"ingest":{"number_of_pipelines":%s,"processor_stats":%s}}\
+            """.formatted(stats.pipelineCount, processorStatsString)));
+    }
+
+    public void testIndexPressureStats() throws Exception {
+        List<NodeStats> nodeStats = Arrays.asList(
+            randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats),
+            randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats)
+        );
+        long[] expectedStats = new long[12];
+        for (NodeStats nodeStat : nodeStats) {
+            IndexingPressureStats indexingPressureStats = nodeStat.getIndexingPressureStats();
+            if (indexingPressureStats != null) {
+                expectedStats[0] += indexingPressureStats.getCurrentCombinedCoordinatingAndPrimaryBytes();
+                expectedStats[1] += indexingPressureStats.getCurrentCoordinatingBytes();
+                expectedStats[2] += indexingPressureStats.getCurrentPrimaryBytes();
+                expectedStats[3] += indexingPressureStats.getCurrentReplicaBytes();
+
+                expectedStats[4] += indexingPressureStats.getTotalCombinedCoordinatingAndPrimaryBytes();
+                expectedStats[5] += indexingPressureStats.getTotalCoordinatingBytes();
+                expectedStats[6] += indexingPressureStats.getTotalPrimaryBytes();
+                expectedStats[7] += indexingPressureStats.getTotalReplicaBytes();
+
+                expectedStats[8] += indexingPressureStats.getCoordinatingRejections();
+                expectedStats[9] += indexingPressureStats.getPrimaryRejections();
+                expectedStats[10] += indexingPressureStats.getReplicaRejections();
+
+                expectedStats[11] += indexingPressureStats.getMemoryLimit();
+            }
+        }
+
+        ClusterStatsNodes.IndexPressureStats indexPressureStats = new ClusterStatsNodes.IndexPressureStats(nodeStats);
+        assertThat(
+            toXContent(indexPressureStats, XContentType.JSON, false).utf8ToString(),
+            equalTo(
+                "{\"indexing_pressure\":{"
+                    + "\"memory\":{"
+                    + "\"current\":{"
+                    + "\"combined_coordinating_and_primary_in_bytes\":"
+                    + expectedStats[0]
+                    + ","
+                    + "\"coordinating_in_bytes\":"
+                    + expectedStats[1]
+                    + ","
+                    + "\"primary_in_bytes\":"
+                    + expectedStats[2]
+                    + ","
+                    + "\"replica_in_bytes\":"
+                    + expectedStats[3]
+                    + ","
+                    + "\"all_in_bytes\":"
+                    + (expectedStats[3] + expectedStats[0])
+                    + "},"
+                    + "\"total\":{"
+                    + "\"combined_coordinating_and_primary_in_bytes\":"
+                    + expectedStats[4]
+                    + ","
+                    + "\"coordinating_in_bytes\":"
+                    + expectedStats[5]
+                    + ","
+                    + "\"primary_in_bytes\":"
+                    + expectedStats[6]
+                    + ","
+                    + "\"replica_in_bytes\":"
+                    + expectedStats[7]
+                    + ","
+                    + "\"all_in_bytes\":"
+                    + (expectedStats[7] + expectedStats[4])
+                    + ","
+                    + "\"coordinating_rejections\":"
+                    + expectedStats[8]
+                    + ","
+                    + "\"primary_rejections\":"
+                    + expectedStats[9]
+                    + ","
+                    + "\"replica_rejections\":"
+                    + expectedStats[10]
+                    + "},"
+                    + "\"limit_in_bytes\":"
+                    + expectedStats[11]
+                    + "}"
+                    + "}}"
+            )
+        );
     }
 
     private static NodeInfo createNodeInfo(String nodeId, String transportType, String httpType) {
         Settings.Builder settings = Settings.builder();
         if (transportType != null) {
-            settings.put(randomFrom(NetworkModule.TRANSPORT_TYPE_KEY,
-                    NetworkModule.TRANSPORT_TYPE_DEFAULT_KEY), transportType);
+            settings.put(randomFrom(NetworkModule.TRANSPORT_TYPE_KEY, NetworkModule.TRANSPORT_TYPE_DEFAULT_KEY), transportType);
         }
         if (httpType != null) {
-            settings.put(randomFrom(NetworkModule.HTTP_TYPE_KEY,
-                    NetworkModule.HTTP_TYPE_DEFAULT_KEY), httpType);
+            settings.put(randomFrom(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_TYPE_DEFAULT_KEY), httpType);
         }
-        return new NodeInfo(null, null,
-                new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), null),
-                settings.build(), null, null, null, null, null, null, null, null, null);
+        return new NodeInfo(
+            null,
+            null,
+            new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), null),
+            settings.build(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 }

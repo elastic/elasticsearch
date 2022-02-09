@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.action;
@@ -14,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 
 import java.io.IOException;
@@ -30,24 +31,34 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
     private final SamlServiceProviderDocument document;
     private final WriteRequest.RefreshPolicy refreshPolicy;
 
-    public static PutSamlServiceProviderRequest fromXContent(String entityId, WriteRequest.RefreshPolicy refreshPolicy,
-                                                             XContentParser parser) throws IOException {
+    public static PutSamlServiceProviderRequest fromXContent(
+        String entityId,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        XContentParser parser
+    ) throws IOException {
         final SamlServiceProviderDocument document = SamlServiceProviderDocument.fromXContent(null, parser);
         if (document.entityId == null) {
             document.setEntityId(entityId);
         } else if (entityId != null) {
             if (entityId.equals(document.entityId) == false) {
                 throw new ElasticsearchParseException(
-                    "Entity id [{}] inside request body and entity id [{}] from parameter do not match", document.entityId, entityId);
+                    "Entity id [{}] inside request body and entity id [{}] from parameter do not match",
+                    document.entityId,
+                    entityId
+                );
             }
         }
         if (document.created != null) {
             throw new ElasticsearchParseException(
-                "Field [{}] may not be specified in a request", SamlServiceProviderDocument.Fields.CREATED_DATE);
+                "Field [{}] may not be specified in a request",
+                SamlServiceProviderDocument.Fields.CREATED_DATE
+            );
         }
         if (document.lastModified != null) {
             throw new ElasticsearchParseException(
-                "Field [{}] may not be specified in a request", SamlServiceProviderDocument.Fields.LAST_MODIFIED);
+                "Field [{}] may not be specified in a request",
+                SamlServiceProviderDocument.Fields.LAST_MODIFIED
+            );
         }
         document.setCreatedMillis(System.currentTimeMillis());
         document.setLastModifiedMillis(System.currentTimeMillis());
@@ -92,7 +103,9 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
                 final URL url = new URL(document.acs);
                 if (url.getProtocol().equals("https") == false) {
                     validationException = addValidationError(
-                        "[" + SamlServiceProviderDocument.Fields.ACS + "] must use the [https] protocol", validationException);
+                        "[" + SamlServiceProviderDocument.Fields.ACS + "] must use the [https] protocol",
+                        validationException
+                    );
                 }
             } catch (MalformedURLException e) {
                 String error = "[" + SamlServiceProviderDocument.Fields.ACS + "] must be a valid URL";
@@ -106,13 +119,15 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
         if (document.certificates.identityProviderSigning.isEmpty() == false) {
             validationException = addValidationError(
                 "[" + SamlServiceProviderDocument.Fields.Certificates.IDP_SIGNING + "] certificates may not be specified",
-                validationException);
+                validationException
+            );
         }
 
         if (document.certificates.identityProviderMetadataSigning.isEmpty() == false) {
             validationException = addValidationError(
                 "[" + SamlServiceProviderDocument.Fields.Certificates.IDP_METADATA + "] certificates may not be specified",
-                validationException);
+                validationException
+            );
         }
 
         return validationException;

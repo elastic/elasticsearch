@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -64,7 +53,7 @@ public class ElvisTests extends ScriptTestCase {
         assertEquals(2, exec("return params.a + 1 ?: 2 + 2", singletonMap("a", 1), true)); // Yes, this is silly, but it should be valid
 
         // Weird casts
-        assertEquals(1,     exec("int i = params.i;     String s = params.s; return s ?: i", singletonMap("i", 1), true));
+        assertEquals(1, exec("int i = params.i;     String s = params.s; return s ?: i", singletonMap("i", 1), true));
         assertEquals("str", exec("Integer i = params.i; String s = params.s; return s ?: i", singletonMap("s", "str"), true));
 
         // Combining
@@ -75,6 +64,8 @@ public class ElvisTests extends ScriptTestCase {
     }
 
     public void testWithNullSafeDereferences() {
+        assertEquals(false, exec("Map x = ['0': 0]; x?.0 > 5.0"));
+        assertEquals(false, exec("List x = [0]; x?.0 > 5.0"));
         assertEquals(1, exec("return params.a?.b ?: 1"));
         assertEquals(1, exec("return params.a?.b ?: 2", singletonMap("a", singletonMap("b", 1)), true));
 
@@ -83,8 +74,10 @@ public class ElvisTests extends ScriptTestCase {
 
     public void testLazy() {
         assertEquals(1, exec("def fail() {throw new RuntimeException('test')} return params.a ?: fail()", singletonMap("a", 1), true));
-        Exception e = expectScriptThrows(RuntimeException.class, () ->
-            exec("def fail() {throw new RuntimeException('test')} return params.a ?: fail()"));
+        Exception e = expectScriptThrows(
+            RuntimeException.class,
+            () -> exec("def fail() {throw new RuntimeException('test')} return params.a ?: fail()")
+        );
         assertEquals(e.getMessage(), "test");
     }
 
@@ -106,8 +99,10 @@ public class ElvisTests extends ScriptTestCase {
         assertThat(disassembled, firstLookup, greaterThan(-1));
         int firstElvisDestinationLabelIndex = disassembled.indexOf("IFNONNULL L", firstLookup);
         assertThat(disassembled, firstElvisDestinationLabelIndex, greaterThan(-1));
-        String firstElvisDestinationLabel = disassembled.substring(firstElvisDestinationLabelIndex + "IFNONNULL ".length(),
-                disassembled.indexOf('\n', firstElvisDestinationLabelIndex));
+        String firstElvisDestinationLabel = disassembled.substring(
+            firstElvisDestinationLabelIndex + "IFNONNULL ".length(),
+            disassembled.indexOf('\n', firstElvisDestinationLabelIndex)
+        );
         int firstElvisDestionation = disassembled.indexOf("   " + firstElvisDestinationLabel);
         assertThat(disassembled, firstElvisDestionation, greaterThan(-1));
         int ifAfterFirstElvisDestination = disassembled.indexOf("IF", firstElvisDestionation);

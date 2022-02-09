@@ -1,5 +1,5 @@
 ////
-This is a template for query DSL reference documentation.
+This is a template for Query DSL reference documentation.
 
 To document a new query type, copy this file, remove comments like this, and
 replace "sample" with the appropriate query name.
@@ -40,12 +40,12 @@ Guidelines
 ----
 GET _search
 {
-    "query": {
-        "sample": {
-            "foo": "baz",
-            "bar": true
-        }
+  "query": {
+    "sample": {
+      "foo": "baz",
+      "bar": true
     }
+  }
 }
 ----
 // TEST[skip: REMOVE THIS COMMENT.]
@@ -98,21 +98,21 @@ Guidelines
 By default, {es} changes the values of `text` fields during analysis. For
 example, ...
 
-===== Using the `sample` query on time-series data
+===== Using the `sample` query on time series data
 
-You can use the `sample` query to perform searches on time-series data.
+You can use the `sample` query to perform searches on time series data.
 For example:
 
 [source,console]
 ----
 GET my_time_series_index/_search
 {
-    "query": {
-        "sample": {
-            "foo": "baz",
-            "bar": false
-        }
+  "query": {
+    "sample": {
+      "foo": "baz",
+      "bar": false
     }
+  }
 }
 ----
 // TEST[skip: REMOVE THIS COMMENT.]

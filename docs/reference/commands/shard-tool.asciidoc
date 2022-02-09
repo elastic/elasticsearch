@@ -7,11 +7,11 @@ shard if a good copy of the shard cannot be recovered automatically or restored
 from backup.
 
 [WARNING]
-You will lose the corrupted data when you run `elasticsearch-shard`.  This tool
+You will lose the corrupted data when you run `elasticsearch-shard`. This tool
 should only be used as a last resort if there is no way to recover from another
 copy of the shard or restore a snapshot.
 
-[float]
+[discrete]
 === Synopsis
 
 [source,shell]
@@ -23,7 +23,7 @@ bin/elasticsearch-shard remove-corrupted-data
   [-h, --help] ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
 
-[float]
+[discrete]
 === Description
 
 When {es} detects that a shard's data is corrupted, it fails that shard copy and
@@ -44,7 +44,7 @@ There are two ways to specify the path:
 * Use the `--dir` option to specify the full path to the corrupted index or
   translog files.
 
-[float]
+[discrete]
 ==== Removing corrupted data
 
 `elasticsearch-shard` analyses the shard copy and provides an overview of the
@@ -57,7 +57,7 @@ operation that removes corrupted data from the shard.
 
 [source,txt]
 --------------------------------------------------
-$ bin/elasticsearch-shard remove-corrupted-data --index twitter --shard-id 0
+$ bin/elasticsearch-shard remove-corrupted-data --index my-index-000001 --shard-id 0
 
 
     WARNING: Elasticsearch MUST be stopped before running this tool.

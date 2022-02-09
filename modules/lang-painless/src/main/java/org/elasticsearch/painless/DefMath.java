@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -64,19 +53,18 @@ public class DefMath {
 
     private static Object not(Object unary) {
         if (unary instanceof Long) {
-            return ~(Long)unary;
+            return ~(Long) unary;
         } else if (unary instanceof Integer) {
-            return ~(Integer)unary;
+            return ~(Integer) unary;
         } else if (unary instanceof Short) {
-            return ~(Short)unary;
+            return ~(Short) unary;
         } else if (unary instanceof Character) {
-            return ~(Character)unary;
+            return ~(Character) unary;
         } else if (unary instanceof Byte) {
-            return ~(Byte)unary;
+            return ~(Byte) unary;
         }
 
-        throw new ClassCastException("Cannot apply [~] operation to type " +
-                "[" + unary.getClass().getCanonicalName() + "].");
+        throw new ClassCastException("Cannot apply [~] operation to type " + "[" + unary.getClass().getCanonicalName() + "].");
     }
 
     // unary negation and plus: applicable to all numeric types
@@ -103,23 +91,22 @@ public class DefMath {
 
     private static Object neg(final Object unary) {
         if (unary instanceof Double) {
-            return -(double)unary;
+            return -(double) unary;
         } else if (unary instanceof Long) {
-            return -(long)unary;
+            return -(long) unary;
         } else if (unary instanceof Integer) {
-            return -(int)unary;
+            return -(int) unary;
         } else if (unary instanceof Float) {
-            return -(float)unary;
+            return -(float) unary;
         } else if (unary instanceof Short) {
-            return -(short)unary;
+            return -(short) unary;
         } else if (unary instanceof Character) {
-            return -(char)unary;
+            return -(char) unary;
         } else if (unary instanceof Byte) {
-            return -(byte)unary;
+            return -(byte) unary;
         }
 
-        throw new ClassCastException("Cannot apply [-] operation to type " +
-                "[" + unary.getClass().getCanonicalName() + "].");
+        throw new ClassCastException("Cannot apply [-] operation to type " + "[" + unary.getClass().getCanonicalName() + "].");
     }
 
     private static int plus(int v) {
@@ -144,23 +131,22 @@ public class DefMath {
 
     private static Object plus(final Object unary) {
         if (unary instanceof Double) {
-            return +(double)unary;
+            return +(double) unary;
         } else if (unary instanceof Long) {
-            return +(long)unary;
+            return +(long) unary;
         } else if (unary instanceof Integer) {
-            return +(int)unary;
+            return +(int) unary;
         } else if (unary instanceof Float) {
-            return +(float)unary;
+            return +(float) unary;
         } else if (unary instanceof Short) {
-            return +(short)unary;
+            return +(short) unary;
         } else if (unary instanceof Character) {
-            return +(char)unary;
+            return +(char) unary;
         } else if (unary instanceof Byte) {
-            return +(byte)unary;
+            return +(byte) unary;
         }
 
-        throw new ClassCastException("Cannot apply [+] operation to type " +
-                "[" + unary.getClass().getCanonicalName() + "].");
+        throw new ClassCastException("Cannot apply [+] operation to type " + "[" + unary.getClass().getCanonicalName() + "].");
     }
 
     // multiplication/division/remainder/subtraction: applicable to all integer types
@@ -189,43 +175,49 @@ public class DefMath {
         if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() * ((Number)right).doubleValue();
+                    return ((Number) left).doubleValue() * ((Number) right).doubleValue();
                 } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() * ((Number)right).floatValue();
+                    return ((Number) left).floatValue() * ((Number) right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() * ((Number)right).longValue();
+                    return ((Number) left).longValue() * ((Number) right).longValue();
                 } else {
-                    return ((Number)left).intValue() * ((Number)right).intValue();
+                    return ((Number) left).intValue() * ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
-                    return ((Number)left).doubleValue() * (char)right;
+                    return ((Number) left).doubleValue() * (char) right;
                 } else if (left instanceof Long) {
-                    return ((Number)left).longValue() * (char)right;
+                    return ((Number) left).longValue() * (char) right;
                 } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() * (char)right;
+                    return ((Number) left).floatValue() * (char) right;
                 } else {
-                    return ((Number)left).intValue() * (char)right;
+                    return ((Number) left).intValue() * (char) right;
                 }
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
                 if (right instanceof Double) {
-                    return (char)left * ((Number)right).doubleValue();
+                    return (char) left * ((Number) right).doubleValue();
                 } else if (right instanceof Long) {
-                    return (char)left * ((Number)right).longValue();
+                    return (char) left * ((Number) right).longValue();
                 } else if (right instanceof Float) {
-                    return (char)left * ((Number)right).floatValue();
+                    return (char) left * ((Number) right).floatValue();
                 } else {
-                    return (char)left * ((Number)right).intValue();
+                    return (char) left * ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                return (char)left * (char)right;
+                return (char) left * (char) right;
             }
         }
 
-        throw new ClassCastException("Cannot apply [*] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException(
+            "Cannot apply [*] operation to types "
+                + "["
+                + left.getClass().getCanonicalName()
+                + "] and ["
+                + right.getClass().getCanonicalName()
+                + "]."
+        );
     }
 
     private static int div(int a, int b) {
@@ -252,43 +244,49 @@ public class DefMath {
         if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() / ((Number)right).doubleValue();
+                    return ((Number) left).doubleValue() / ((Number) right).doubleValue();
                 } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() / ((Number)right).floatValue();
+                    return ((Number) left).floatValue() / ((Number) right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() / ((Number)right).longValue();
+                    return ((Number) left).longValue() / ((Number) right).longValue();
                 } else {
-                    return ((Number)left).intValue() / ((Number)right).intValue();
+                    return ((Number) left).intValue() / ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
-                    return ((Number)left).doubleValue() / (char)right;
+                    return ((Number) left).doubleValue() / (char) right;
                 } else if (left instanceof Long) {
-                    return ((Number)left).longValue() / (char)right;
+                    return ((Number) left).longValue() / (char) right;
                 } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() / (char)right;
+                    return ((Number) left).floatValue() / (char) right;
                 } else {
-                    return ((Number)left).intValue() / (char)right;
+                    return ((Number) left).intValue() / (char) right;
                 }
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
                 if (right instanceof Double) {
-                    return (char)left / ((Number)right).doubleValue();
+                    return (char) left / ((Number) right).doubleValue();
                 } else if (right instanceof Long) {
-                    return (char)left / ((Number)right).longValue();
+                    return (char) left / ((Number) right).longValue();
                 } else if (right instanceof Float) {
-                    return (char)left / ((Number)right).floatValue();
+                    return (char) left / ((Number) right).floatValue();
                 } else {
-                    return (char)left / ((Number)right).intValue();
+                    return (char) left / ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                return (char)left / (char)right;
+                return (char) left / (char) right;
             }
         }
 
-        throw new ClassCastException("Cannot apply [/] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException(
+            "Cannot apply [/] operation to types "
+                + "["
+                + left.getClass().getCanonicalName()
+                + "] and ["
+                + right.getClass().getCanonicalName()
+                + "]."
+        );
     }
 
     private static int rem(int a, int b) {
@@ -315,43 +313,49 @@ public class DefMath {
         if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() % ((Number)right).doubleValue();
+                    return ((Number) left).doubleValue() % ((Number) right).doubleValue();
                 } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() % ((Number)right).floatValue();
+                    return ((Number) left).floatValue() % ((Number) right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() % ((Number)right).longValue();
+                    return ((Number) left).longValue() % ((Number) right).longValue();
                 } else {
-                    return ((Number)left).intValue() % ((Number)right).intValue();
+                    return ((Number) left).intValue() % ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
-                    return ((Number)left).doubleValue() % (char)right;
+                    return ((Number) left).doubleValue() % (char) right;
                 } else if (left instanceof Long) {
-                    return ((Number)left).longValue() % (char)right;
+                    return ((Number) left).longValue() % (char) right;
                 } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() % (char)right;
+                    return ((Number) left).floatValue() % (char) right;
                 } else {
-                    return ((Number)left).intValue() % (char)right;
+                    return ((Number) left).intValue() % (char) right;
                 }
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
                 if (right instanceof Double) {
-                    return (char)left % ((Number)right).doubleValue();
+                    return (char) left % ((Number) right).doubleValue();
                 } else if (right instanceof Long) {
-                    return (char)left % ((Number)right).longValue();
+                    return (char) left % ((Number) right).longValue();
                 } else if (right instanceof Float) {
-                    return (char)left % ((Number)right).floatValue();
+                    return (char) left % ((Number) right).floatValue();
                 } else {
-                    return (char)left % ((Number)right).intValue();
+                    return (char) left % ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                return (char)left % (char)right;
+                return (char) left % (char) right;
             }
         }
 
-        throw new ClassCastException("Cannot apply [%] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException(
+            "Cannot apply [%] operation to types "
+                + "["
+                + left.getClass().getCanonicalName()
+                + "] and ["
+                + right.getClass().getCanonicalName()
+                + "]."
+        );
     }
 
     // addition: applicable to all numeric types.
@@ -385,43 +389,49 @@ public class DefMath {
         } else if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() + ((Number)right).doubleValue();
+                    return ((Number) left).doubleValue() + ((Number) right).doubleValue();
                 } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() + ((Number)right).floatValue();
+                    return ((Number) left).floatValue() + ((Number) right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() + ((Number)right).longValue();
+                    return ((Number) left).longValue() + ((Number) right).longValue();
                 } else {
-                    return ((Number)left).intValue() + ((Number)right).intValue();
+                    return ((Number) left).intValue() + ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
-                    return ((Number)left).doubleValue() + (char)right;
+                    return ((Number) left).doubleValue() + (char) right;
                 } else if (left instanceof Long) {
-                    return ((Number)left).longValue() + (char)right;
+                    return ((Number) left).longValue() + (char) right;
                 } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() + (char)right;
+                    return ((Number) left).floatValue() + (char) right;
                 } else {
-                    return ((Number)left).intValue() + (char)right;
+                    return ((Number) left).intValue() + (char) right;
                 }
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
                 if (right instanceof Double) {
-                    return (char)left + ((Number)right).doubleValue();
+                    return (char) left + ((Number) right).doubleValue();
                 } else if (right instanceof Long) {
-                    return (char)left + ((Number)right).longValue();
+                    return (char) left + ((Number) right).longValue();
                 } else if (right instanceof Float) {
-                    return (char)left + ((Number)right).floatValue();
+                    return (char) left + ((Number) right).floatValue();
                 } else {
-                    return (char)left + ((Number)right).intValue();
+                    return (char) left + ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                return (char)left + (char)right;
+                return (char) left + (char) right;
             }
         }
 
-        throw new ClassCastException("Cannot apply [+] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException(
+            "Cannot apply [+] operation to types "
+                + "["
+                + left.getClass().getCanonicalName()
+                + "] and ["
+                + right.getClass().getCanonicalName()
+                + "]."
+        );
     }
 
     private static int sub(int a, int b) {
@@ -448,43 +458,49 @@ public class DefMath {
         if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() - ((Number)right).doubleValue();
+                    return ((Number) left).doubleValue() - ((Number) right).doubleValue();
                 } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() - ((Number)right).floatValue();
+                    return ((Number) left).floatValue() - ((Number) right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() - ((Number)right).longValue();
+                    return ((Number) left).longValue() - ((Number) right).longValue();
                 } else {
-                    return ((Number)left).intValue() - ((Number)right).intValue();
+                    return ((Number) left).intValue() - ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
-                    return ((Number)left).doubleValue() - (char)right;
+                    return ((Number) left).doubleValue() - (char) right;
                 } else if (left instanceof Long) {
-                    return ((Number)left).longValue() - (char)right;
+                    return ((Number) left).longValue() - (char) right;
                 } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() - (char)right;
+                    return ((Number) left).floatValue() - (char) right;
                 } else {
-                    return ((Number)left).intValue() - (char)right;
+                    return ((Number) left).intValue() - (char) right;
                 }
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
                 if (right instanceof Double) {
-                    return (char)left - ((Number)right).doubleValue();
+                    return (char) left - ((Number) right).doubleValue();
                 } else if (right instanceof Long) {
-                    return (char)left - ((Number)right).longValue();
+                    return (char) left - ((Number) right).longValue();
                 } else if (right instanceof Float) {
-                    return (char)left - ((Number)right).floatValue();
+                    return (char) left - ((Number) right).floatValue();
                 } else {
-                    return (char)left - ((Number)right).intValue();
+                    return (char) left - ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                return (char)left - (char)right;
+                return (char) left - (char) right;
             }
         }
 
-        throw new ClassCastException("Cannot apply [-] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException(
+            "Cannot apply [-] operation to types "
+                + "["
+                + left.getClass().getCanonicalName()
+                + "] and ["
+                + right.getClass().getCanonicalName()
+                + "]."
+        );
     }
 
     // eq: applicable to any arbitrary type, including nulls for both arguments!!!
@@ -513,50 +529,50 @@ public class DefMath {
         if (left != null && right != null) {
             if (left instanceof Double) {
                 if (right instanceof Number) {
-                    return (double)left == ((Number)right).doubleValue();
+                    return (double) left == ((Number) right).doubleValue();
                 } else if (right instanceof Character) {
-                    return (double)left == (char)right;
+                    return (double) left == (char) right;
                 }
             } else if (right instanceof Double) {
                 if (left instanceof Number) {
-                    return ((Number)left).doubleValue() == (double)right;
+                    return ((Number) left).doubleValue() == (double) right;
                 } else if (left instanceof Character) {
-                    return (char)left == ((Number)right).doubleValue();
+                    return (char) left == ((Number) right).doubleValue();
                 }
             } else if (left instanceof Float) {
                 if (right instanceof Number) {
-                    return (float)left == ((Number)right).floatValue();
+                    return (float) left == ((Number) right).floatValue();
                 } else if (right instanceof Character) {
-                    return (float)left == (char)right;
+                    return (float) left == (char) right;
                 }
             } else if (right instanceof Float) {
                 if (left instanceof Number) {
-                    return ((Number)left).floatValue() == (float)right;
+                    return ((Number) left).floatValue() == (float) right;
                 } else if (left instanceof Character) {
-                    return (char)left == ((Number)right).floatValue();
+                    return (char) left == ((Number) right).floatValue();
                 }
             } else if (left instanceof Long) {
                 if (right instanceof Number) {
-                    return (long)left == ((Number)right).longValue();
+                    return (long) left == ((Number) right).longValue();
                 } else if (right instanceof Character) {
-                    return (long)left == (char)right;
+                    return (long) left == (char) right;
                 }
             } else if (right instanceof Long) {
                 if (left instanceof Number) {
-                    return ((Number)left).longValue() == (long)right;
+                    return ((Number) left).longValue() == (long) right;
                 } else if (left instanceof Character) {
-                    return (char)left == ((Number)right).longValue();
+                    return (char) left == ((Number) right).longValue();
                 }
             } else if (left instanceof Number) {
                 if (right instanceof Number) {
-                    return ((Number)left).intValue() == ((Number)right).intValue();
+                    return ((Number) left).intValue() == ((Number) right).intValue();
                 } else if (right instanceof Character) {
-                    return ((Number)left).intValue() == (char)right;
+                    return ((Number) left).intValue() == (char) right;
                 }
             } else if (right instanceof Number && left instanceof Character) {
-                return (char)left == ((Number)right).intValue();
+                return (char) left == ((Number) right).intValue();
             } else if (left instanceof Character && right instanceof Character) {
-                return (char)left == (char)right;
+                return (char) left == (char) right;
             }
 
             return left.equals(right);
@@ -591,43 +607,49 @@ public class DefMath {
         if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() < ((Number)right).doubleValue();
+                    return ((Number) left).doubleValue() < ((Number) right).doubleValue();
                 } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() < ((Number)right).floatValue();
+                    return ((Number) left).floatValue() < ((Number) right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() < ((Number)right).longValue();
+                    return ((Number) left).longValue() < ((Number) right).longValue();
                 } else {
-                    return ((Number)left).intValue() < ((Number)right).intValue();
+                    return ((Number) left).intValue() < ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
-                    return ((Number)left).doubleValue() < (char)right;
+                    return ((Number) left).doubleValue() < (char) right;
                 } else if (left instanceof Long) {
-                    return ((Number)left).longValue() < (char)right;
+                    return ((Number) left).longValue() < (char) right;
                 } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() < (char)right;
+                    return ((Number) left).floatValue() < (char) right;
                 } else {
-                    return ((Number)left).intValue() < (char)right;
+                    return ((Number) left).intValue() < (char) right;
                 }
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
                 if (right instanceof Double) {
-                    return (char)left < ((Number)right).doubleValue();
+                    return (char) left < ((Number) right).doubleValue();
                 } else if (right instanceof Long) {
-                    return (char)left < ((Number)right).longValue();
+                    return (char) left < ((Number) right).longValue();
                 } else if (right instanceof Float) {
-                    return (char)left < ((Number)right).floatValue();
+                    return (char) left < ((Number) right).floatValue();
                 } else {
-                    return (char)left < ((Number)right).intValue();
+                    return (char) left < ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                return (char)left < (char)right;
+                return (char) left < (char) right;
             }
         }
 
-        throw new ClassCastException("Cannot apply [<] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException(
+            "Cannot apply [<] operation to types "
+                + "["
+                + left.getClass().getCanonicalName()
+                + "] and ["
+                + right.getClass().getCanonicalName()
+                + "]."
+        );
     }
 
     private static boolean lte(int a, int b) {
@@ -654,43 +676,49 @@ public class DefMath {
         if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() <= ((Number)right).doubleValue();
+                    return ((Number) left).doubleValue() <= ((Number) right).doubleValue();
                 } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() <= ((Number)right).floatValue();
+                    return ((Number) left).floatValue() <= ((Number) right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() <= ((Number)right).longValue();
+                    return ((Number) left).longValue() <= ((Number) right).longValue();
                 } else {
-                    return ((Number)left).intValue() <= ((Number)right).intValue();
+                    return ((Number) left).intValue() <= ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
-                    return ((Number)left).doubleValue() <= (char)right;
+                    return ((Number) left).doubleValue() <= (char) right;
                 } else if (left instanceof Long) {
-                    return ((Number)left).longValue() <= (char)right;
+                    return ((Number) left).longValue() <= (char) right;
                 } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() <= (char)right;
+                    return ((Number) left).floatValue() <= (char) right;
                 } else {
-                    return ((Number)left).intValue() <= (char)right;
+                    return ((Number) left).intValue() <= (char) right;
                 }
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
                 if (right instanceof Double) {
-                    return (char)left <= ((Number)right).doubleValue();
+                    return (char) left <= ((Number) right).doubleValue();
                 } else if (right instanceof Long) {
-                    return (char)left <= ((Number)right).longValue();
+                    return (char) left <= ((Number) right).longValue();
                 } else if (right instanceof Float) {
-                    return (char)left <= ((Number)right).floatValue();
+                    return (char) left <= ((Number) right).floatValue();
                 } else {
-                    return (char)left <= ((Number)right).intValue();
+                    return (char) left <= ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                return (char)left <= (char)right;
+                return (char) left <= (char) right;
             }
         }
 
-        throw new ClassCastException("Cannot apply [<=] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException(
+            "Cannot apply [<=] operation to types "
+                + "["
+                + left.getClass().getCanonicalName()
+                + "] and ["
+                + right.getClass().getCanonicalName()
+                + "]."
+        );
     }
 
     private static boolean gt(int a, int b) {
@@ -717,43 +745,49 @@ public class DefMath {
         if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() > ((Number)right).doubleValue();
+                    return ((Number) left).doubleValue() > ((Number) right).doubleValue();
                 } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() > ((Number)right).floatValue();
+                    return ((Number) left).floatValue() > ((Number) right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() > ((Number)right).longValue();
+                    return ((Number) left).longValue() > ((Number) right).longValue();
                 } else {
-                    return ((Number)left).intValue() > ((Number)right).intValue();
+                    return ((Number) left).intValue() > ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
-                    return ((Number)left).doubleValue() > (char)right;
+                    return ((Number) left).doubleValue() > (char) right;
                 } else if (left instanceof Long) {
-                    return ((Number)left).longValue() > (char)right;
+                    return ((Number) left).longValue() > (char) right;
                 } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() > (char)right;
+                    return ((Number) left).floatValue() > (char) right;
                 } else {
-                    return ((Number)left).intValue() > (char)right;
+                    return ((Number) left).intValue() > (char) right;
                 }
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
                 if (right instanceof Double) {
-                    return (char)left > ((Number)right).doubleValue();
+                    return (char) left > ((Number) right).doubleValue();
                 } else if (right instanceof Long) {
-                    return (char)left > ((Number)right).longValue();
+                    return (char) left > ((Number) right).longValue();
                 } else if (right instanceof Float) {
-                    return (char)left > ((Number)right).floatValue();
+                    return (char) left > ((Number) right).floatValue();
                 } else {
-                    return (char)left > ((Number)right).intValue();
+                    return (char) left > ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                return (char)left > (char)right;
+                return (char) left > (char) right;
             }
         }
 
-        throw new ClassCastException("Cannot apply [>] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException(
+            "Cannot apply [>] operation to types "
+                + "["
+                + left.getClass().getCanonicalName()
+                + "] and ["
+                + right.getClass().getCanonicalName()
+                + "]."
+        );
     }
 
     private static boolean gte(int a, int b) {
@@ -780,43 +814,49 @@ public class DefMath {
         if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
-                    return ((Number)left).doubleValue() >= ((Number)right).doubleValue();
+                    return ((Number) left).doubleValue() >= ((Number) right).doubleValue();
                 } else if (left instanceof Float || right instanceof Float) {
-                    return ((Number)left).floatValue() >= ((Number)right).floatValue();
+                    return ((Number) left).floatValue() >= ((Number) right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() >= ((Number)right).longValue();
+                    return ((Number) left).longValue() >= ((Number) right).longValue();
                 } else {
-                    return ((Number)left).intValue() >= ((Number)right).intValue();
+                    return ((Number) left).intValue() >= ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
-                    return ((Number)left).doubleValue() >= (char)right;
+                    return ((Number) left).doubleValue() >= (char) right;
                 } else if (left instanceof Long) {
-                    return ((Number)left).longValue() >= (char)right;
+                    return ((Number) left).longValue() >= (char) right;
                 } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() >= (char)right;
+                    return ((Number) left).floatValue() >= (char) right;
                 } else {
-                    return ((Number)left).intValue() >= (char)right;
+                    return ((Number) left).intValue() >= (char) right;
                 }
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
                 if (right instanceof Double) {
-                    return (char)left >= ((Number)right).doubleValue();
+                    return (char) left >= ((Number) right).doubleValue();
                 } else if (right instanceof Long) {
-                    return (char)left >= ((Number)right).longValue();
+                    return (char) left >= ((Number) right).longValue();
                 } else if (right instanceof Float) {
-                    return (char)left >= ((Number)right).floatValue();
+                    return (char) left >= ((Number) right).floatValue();
                 } else {
-                    return (char)left >= ((Number)right).intValue();
+                    return (char) left >= ((Number) right).intValue();
                 }
             } else if (right instanceof Character) {
-                return (char)left >= (char)right;
+                return (char) left >= (char) right;
             }
         }
 
-        throw new ClassCastException("Cannot apply [>] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException(
+            "Cannot apply [>] operation to types "
+                + "["
+                + left.getClass().getCanonicalName()
+                + "] and ["
+                + right.getClass().getCanonicalName()
+                + "]."
+        );
     }
 
     // helper methods to convert an integral according to numeric promotion
@@ -824,11 +864,11 @@ public class DefMath {
 
     private static long longIntegralValue(Object o) {
         if (o instanceof Long) {
-            return (long)o;
+            return (long) o;
         } else if (o instanceof Integer || o instanceof Short || o instanceof Byte) {
-            return ((Number)o).longValue();
+            return ((Number) o).longValue();
         } else if (o instanceof Character) {
-            return (char)o;
+            return (char) o;
         } else {
             throw new ClassCastException("Cannot convert [" + o.getClass().getCanonicalName() + "] to an integral value.");
         }
@@ -836,9 +876,9 @@ public class DefMath {
 
     private static int intIntegralValue(Object o) {
         if (o instanceof Integer || o instanceof Short || o instanceof Byte) {
-            return ((Number)o).intValue();
+            return ((Number) o).intValue();
         } else if (o instanceof Character) {
-            return (char)o;
+            return (char) o;
         } else {
             throw new ClassCastException("Cannot convert [" + o.getClass().getCanonicalName() + "] to an integral value.");
         }
@@ -868,7 +908,7 @@ public class DefMath {
 
     private static Object and(Object left, Object right) {
         if (left instanceof Boolean && right instanceof Boolean) {
-            return (boolean)left & (boolean)right;
+            return (boolean) left & (boolean) right;
         } else if (left instanceof Long || right instanceof Long) {
             return longIntegralValue(left) & longIntegralValue(right);
         } else {
@@ -898,7 +938,7 @@ public class DefMath {
 
     private static Object xor(Object left, Object right) {
         if (left instanceof Boolean && right instanceof Boolean) {
-            return (boolean)left ^ (boolean)right;
+            return (boolean) left ^ (boolean) right;
         } else if (left instanceof Long || right instanceof Long) {
             return longIntegralValue(left) ^ longIntegralValue(right);
         } else {
@@ -928,7 +968,7 @@ public class DefMath {
 
     private static Object or(Object left, Object right) {
         if (left instanceof Boolean && right instanceof Boolean) {
-            return (boolean)left | (boolean)right;
+            return (boolean) left | (boolean) right;
         } else if (left instanceof Long || right instanceof Long) {
             return longIntegralValue(left) | longIntegralValue(right);
         } else {
@@ -961,7 +1001,7 @@ public class DefMath {
 
     public static Object lsh(Object left, long right) {
         if (left instanceof Long) {
-            return (long)(left) << right;
+            return (long) (left) << right;
         } else {
             return intIntegralValue(left) << right;
         }
@@ -989,7 +1029,7 @@ public class DefMath {
 
     public static Object rsh(Object left, long right) {
         if (left instanceof Long) {
-            return (long)left >> right;
+            return (long) left >> right;
         } else {
             return intIntegralValue(left) >> right;
         }
@@ -1017,7 +1057,7 @@ public class DefMath {
 
     public static Object ush(Object left, long right) {
         if (left instanceof Long) {
-            return (long)(left) >>> right;
+            return (long) (left) >>> right;
         } else {
             return intIntegralValue(left) >>> right;
         }
@@ -1071,35 +1111,35 @@ public class DefMath {
 
     private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
 
-    private static final Map<Class<?>,Map<String,MethodHandle>> TYPE_OP_MAPPING = Collections.unmodifiableMap(
+    private static final Map<Class<?>, Map<String, MethodHandle>> TYPE_OP_MAPPING = Collections.unmodifiableMap(
         Stream.of(boolean.class, int.class, long.class, float.class, double.class, Object.class)
             .collect(Collectors.toMap(Function.identity(), type -> {
                 try {
-                    Map<String,MethodHandle> map = new HashMap<>();
+                    Map<String, MethodHandle> map = new HashMap<>();
                     MethodType unary = MethodType.methodType(type, type);
                     MethodType binary = MethodType.methodType(type, type, type);
                     MethodType comparison = MethodType.methodType(boolean.class, type, type);
                     MethodType shift = MethodType.methodType(type, type, long.class);
                     Class<?> clazz = PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass();
-                    map.put("not",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "not",  unary));
-                    map.put("neg",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "neg",  unary));
-                    map.put("plus",  PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "plus", unary));
-                    map.put("mul",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "mul",  binary));
-                    map.put("div",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "div",  binary));
-                    map.put("rem",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "rem",  binary));
-                    map.put("add",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "add",  binary));
-                    map.put("sub",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "sub",  binary));
-                    map.put("and",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "and",  binary));
-                    map.put("or",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "or",   binary));
-                    map.put("xor",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "xor",  binary));
-                    map.put("eq",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "eq",   comparison));
-                    map.put("lt",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lt",   comparison));
-                    map.put("lte",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lte",  comparison));
-                    map.put("gt",    PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "gt",   comparison));
-                    map.put("gte",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "gte",  comparison));
-                    map.put("lsh",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lsh",  shift));
-                    map.put("rsh",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "rsh",  shift));
-                    map.put("ush",   PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "ush",  shift));
+                    map.put("not", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "not", unary));
+                    map.put("neg", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "neg", unary));
+                    map.put("plus", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "plus", unary));
+                    map.put("mul", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "mul", binary));
+                    map.put("div", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "div", binary));
+                    map.put("rem", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "rem", binary));
+                    map.put("add", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "add", binary));
+                    map.put("sub", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "sub", binary));
+                    map.put("and", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "and", binary));
+                    map.put("or", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "or", binary));
+                    map.put("xor", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "xor", binary));
+                    map.put("eq", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "eq", comparison));
+                    map.put("lt", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lt", comparison));
+                    map.put("lte", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lte", comparison));
+                    map.put("gt", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "gt", comparison));
+                    map.put("gte", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "gte", comparison));
+                    map.put("lsh", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "lsh", shift));
+                    map.put("rsh", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "rsh", shift));
+                    map.put("ush", PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(clazz, "ush", shift));
                     return map;
                 } catch (ReflectiveOperationException e) {
                     throw new AssertionError(e);
@@ -1176,9 +1216,9 @@ public class DefMath {
     /** Slowly returns a Number for o. Just for supporting dynamicCast */
     static Number getNumber(Object o) {
         if (o instanceof Number) {
-            return (Number)o;
+            return (Number) o;
         } else if (o instanceof Character) {
-            return Integer.valueOf((char)o);
+            return Integer.valueOf((char) o);
         } else {
             throw new ClassCastException("Cannot convert [" + o.getClass() + "] to a Number");
         }
@@ -1189,12 +1229,16 @@ public class DefMath {
     static {
         final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
         try {
-            DYNAMIC_CAST = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(),
-                                                          "dynamicCast",
-                                                          MethodType.methodType(Object.class, Class.class, Object.class));
-            DYNAMIC_RECEIVER_CAST = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(),
-                                                                   "dynamicReceiverCast",
-                                                                   MethodType.methodType(Object.class, Object.class, Object.class));
+            DYNAMIC_CAST = methodHandlesLookup.findStatic(
+                methodHandlesLookup.lookupClass(),
+                "dynamicCast",
+                MethodType.methodType(Object.class, Class.class, Object.class)
+            );
+            DYNAMIC_RECEIVER_CAST = methodHandlesLookup.findStatic(
+                methodHandlesLookup.lookupClass(),
+                "dynamicReceiverCast",
+                MethodType.methodType(Object.class, Object.class, Object.class)
+            );
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
@@ -1203,9 +1247,9 @@ public class DefMath {
     /** Looks up generic method, with a dynamic cast to the receiver's type. (compound assignment) */
     public static MethodHandle dynamicCast(MethodHandle target) {
         // adapt dynamic receiver cast to the generic method
-        MethodHandle cast = DYNAMIC_RECEIVER_CAST.asType(MethodType.methodType(target.type().returnType(),
-                                                                      target.type().returnType(),
-                                                                      target.type().parameterType(0)));
+        MethodHandle cast = DYNAMIC_RECEIVER_CAST.asType(
+            MethodType.methodType(target.type().returnType(), target.type().returnType(), target.type().parameterType(0))
+        );
         // drop the RHS parameter
         cast = MethodHandles.dropArguments(cast, 2, target.type().parameterType(1));
         // combine: f(x,y) -> g(f(x,y), x, y);

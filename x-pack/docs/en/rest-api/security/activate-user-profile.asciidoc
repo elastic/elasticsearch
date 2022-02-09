@@ -1,0 +1,10 @@
+[role="xpack"]
+[[security-api-activiate-user-profile]]
+=== Activate user profile API
+++++
+<titleabbrev>Activate user profile</titleabbrev>
+++++
+
+Creates or updates the user profile on behalf of another user
+
+coming::[8.2.0]

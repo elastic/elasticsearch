@@ -1,0 +1,14 @@
+[role="xpack"]
+[[transform-apis]]
+= {transform-cap} APIs
+
+* <<put-transform>> 
+* <<delete-transform>>
+* <<get-transform>>
+* <<get-transform-stats>>
+* <<preview-transform>>
+* <<reset-transform>>
+* <<start-transform>>
+* <<stop-transform>>
+* <<update-transform>>
+* <<upgrade-transforms>>

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
@@ -10,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -36,7 +38,8 @@ public final class EnrichStore {
     private EnrichStore() {}
 
     /**
-     * Adds a new enrich policy or overwrites an existing policy if there is already a policy with the same name.
+     * Adds a new enrich policy. If a policy already exists with the same name then
+     * this method throws an {@link IllegalArgumentException}.
      * This method can only be invoked on the elected master node.
      *
      * @param name      The unique name of the policy
@@ -111,10 +114,10 @@ public final class EnrichStore {
             }
 
             final Map<String, EnrichPolicy> policies = getPolicies(current);
-            if (policies.get(name) != null) {
+            EnrichPolicy existing = policies.putIfAbsent(name, finalPolicy);
+            if (existing != null) {
                 throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
             }
-            policies.put(name, finalPolicy);
             return policies;
         });
     }
@@ -193,14 +196,14 @@ public final class EnrichStore {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 handler.accept(null);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 handler.accept(e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.ml.dataframe;
@@ -23,20 +12,19 @@ import org.elasticsearch.client.ml.NodeAttributes;
 import org.elasticsearch.client.ml.dataframe.stats.AnalysisStats;
 import org.elasticsearch.client.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.client.ml.dataframe.stats.common.MemoryUsage;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.internal.ToStringBuilder;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DataFrameAnalyticsStats {
 
@@ -55,27 +43,25 @@ public class DataFrameAnalyticsStats {
     static final ParseField ASSIGNMENT_EXPLANATION = new ParseField("assignment_explanation");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataFrameAnalyticsStats, Void> PARSER =
-        new ConstructingObjectParser<>("data_frame_analytics_stats", true,
-            args -> new DataFrameAnalyticsStats(
-                (String) args[0],
-                (DataFrameAnalyticsState) args[1],
-                (String) args[2],
-                (List<PhaseProgress>) args[3],
-                (DataCounts) args[4],
-                (MemoryUsage) args[5],
-                (AnalysisStats) args[6],
-                (NodeAttributes) args[7],
-                (String) args[8]));
+    private static final ConstructingObjectParser<DataFrameAnalyticsStats, Void> PARSER = new ConstructingObjectParser<>(
+        "data_frame_analytics_stats",
+        true,
+        args -> new DataFrameAnalyticsStats(
+            (String) args[0],
+            (DataFrameAnalyticsState) args[1],
+            (String) args[2],
+            (List<PhaseProgress>) args[3],
+            (DataCounts) args[4],
+            (MemoryUsage) args[5],
+            (AnalysisStats) args[6],
+            (NodeAttributes) args[7],
+            (String) args[8]
+        )
+    );
 
     static {
         PARSER.declareString(constructorArg(), ID);
-        PARSER.declareField(constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return DataFrameAnalyticsState.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, STATE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(constructorArg(), DataFrameAnalyticsState::fromString, STATE);
         PARSER.declareString(optionalConstructorArg(), FAILURE_REASON);
         PARSER.declareObjectArray(optionalConstructorArg(), PhaseProgress.PARSER, PROGRESS);
         PARSER.declareObject(optionalConstructorArg(), DataCounts.PARSER, DATA_COUNTS);
@@ -86,10 +72,10 @@ public class DataFrameAnalyticsStats {
     }
 
     private static AnalysisStats parseAnalysisStats(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         AnalysisStats analysisStats = parser.namedObject(AnalysisStats.class, parser.currentName(), true);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return analysisStats;
     }
 
@@ -103,10 +89,17 @@ public class DataFrameAnalyticsStats {
     private final NodeAttributes node;
     private final String assignmentExplanation;
 
-    public DataFrameAnalyticsStats(String id, DataFrameAnalyticsState state, @Nullable String failureReason,
-                                   @Nullable List<PhaseProgress> progress, @Nullable DataCounts dataCounts,
-                                   @Nullable MemoryUsage memoryUsage, @Nullable AnalysisStats analysisStats, @Nullable NodeAttributes node,
-                                   @Nullable String assignmentExplanation) {
+    public DataFrameAnalyticsStats(
+        String id,
+        DataFrameAnalyticsState state,
+        @Nullable String failureReason,
+        @Nullable List<PhaseProgress> progress,
+        @Nullable DataCounts dataCounts,
+        @Nullable MemoryUsage memoryUsage,
+        @Nullable AnalysisStats analysisStats,
+        @Nullable NodeAttributes node,
+        @Nullable String assignmentExplanation
+    ) {
         this.id = id;
         this.state = state;
         this.failureReason = failureReason;
@@ -181,8 +174,7 @@ public class DataFrameAnalyticsStats {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(getClass())
-            .add("id", id)
+        return new ToStringBuilder(getClass()).add("id", id)
             .add("state", state)
             .add("failureReason", failureReason)
             .add("progress", progress)

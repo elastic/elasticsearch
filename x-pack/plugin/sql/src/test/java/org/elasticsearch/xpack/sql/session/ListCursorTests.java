@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.session;
 
@@ -31,9 +32,7 @@ public class ListCursorTests extends AbstractSqlWireSerializingTestCase<ListCurs
 
     @Override
     protected ListCursor mutateInstance(ListCursor instance) throws IOException {
-        return new ListCursor(instance.data(),
-                randomValueOtherThan(instance.pageSize(), () -> between(1, 20)),
-                instance.columnCount());
+        return new ListCursor(instance.data(), randomValueOtherThan(instance.pageSize(), () -> between(1, 20)), instance.columnCount());
     }
 
     @Override

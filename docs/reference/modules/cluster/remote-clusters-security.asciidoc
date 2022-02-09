@@ -1,0 +1,50 @@
+[[remote-clusters-security]]
+=== Configure remote clusters with security
+To use {ccr} or {ccs} safely with remote clusters, enable security on all 
+connected clusters and configure Transport Layer Security (TLS) on every node.
+Configuring TLS security on the transport interface is minimally required for
+remote clusters. For additional security, configure TLS on the
+<<security-basic-setup-https,HTTP interface>> as well.
+
+All connected clusters must trust one another and be mutually authenticated
+with TLS on the transport interface. This means that the local cluster
+trusts the certificate  authority (CA) of the remote cluster, and the remote
+cluster trusts the CA of the local cluster. When establishing a connection, all
+nodes will verify certificates from nodes on the other side. This mutual trust
+is required to securely connect a remote cluster, because all connected nodes
+effectively form a single security domain.
+
+User authentication is performed on the local cluster and the user and user’s 
+roles names are passed to the remote clusters. A remote cluster checks the user’s
+role names against its local role definitions to determine which indices the user is 
+allowed to access.
+
+Before using {ccr} or {ccs} with secured {es} clusters, complete the following 
+configuration tasks:
+
+. Enable the {es} {security-features} on every node in each connected cluster by
+setting `xpack.security.enabled` to `true` in `elasticsearch.yml`. Refer to the
+<<general-security-settings,{es} security settings>>.
+
+. Configure Transport Layer Security (TLS) on every node to encrypt internode
+traffic and authenticate nodes in the local cluster with nodes in all remote
+clusters. Refer to 
+<<security-basic-setup,set up basic security for the {stack}>> for the required
+steps to configure security.
++
+NOTE: This procedure uses the same CA to generate certificates for all nodes.
+Alternatively, you can add the certificates from the local cluster as a
+trusted CA in each remote cluster. You must also add the certificates from
+remote clusters as a trusted CA on the local cluster. Using the same CA to
+generate certificates for all nodes simplifies this task.
+
+After enabling and configuring security, you can 
+<<remote-clusters-connect,connect remote clusters>> from a local cluster.
+
+With your clusters connected, you'll need to 
+<<remote-clusters-privileges,configure users and privileges>> on both the local
+and remote clusters.
+
+If you're configuring a remote cluster for {ccr}, you need to 
+<<ccr-getting-started-follower-index,configure a follower index>> on your local
+cluster to replicate the leader index on a remote cluster.

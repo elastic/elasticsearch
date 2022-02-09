@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security;
 
-import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -20,11 +20,9 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.ServiceConfigurationError;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -40,19 +38,26 @@ public interface SecurityExtension {
     interface SecurityComponents {
         /** Global settings for the current node */
         Settings settings();
+
         /** Provides access to key filesystem paths */
         Environment environment();
+
         /** An internal client for retrieving information/data from this cluster */
         Client client();
+
         /** The Elasticsearch thread pools */
         ThreadPool threadPool();
+
         /** Provides the ability to monitor files for changes */
         ResourceWatcherService resourceWatcherService();
+
         /** Access to listen to changes in cluster state and settings  */
         ClusterService clusterService();
+
         /** Provides support for mapping users' roles from groups and metadata */
         UserRoleMapper roleMapper();
     }
+
     /**
      * Returns authentication realm implementations added by this extension.
      *
@@ -101,8 +106,7 @@ public interface SecurityExtension {
      *
      * @param components Access to components that may be used to build roles
      */
-    default List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
-        getRolesProviders(SecurityComponents components) {
+    default List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> getRolesProviders(SecurityComponents components) {
         return Collections.emptyList();
     }
 
@@ -118,21 +122,7 @@ public interface SecurityExtension {
         return null;
     }
 
-    /**
-     * Loads the XPackSecurityExtensions from the given class loader
-     */
-    static List<SecurityExtension> loadExtensions(ClassLoader loader) {
-        SPIClassIterator<SecurityExtension> iterator = SPIClassIterator.get(SecurityExtension.class, loader);
-        List<SecurityExtension> extensions = new ArrayList<>();
-        while (iterator.hasNext()) {
-            final Class<? extends SecurityExtension> c = iterator.next();
-            try {
-                extensions.add(c.getConstructor().newInstance());
-            } catch (Exception e) {
-                throw new ServiceConfigurationError("failed to load security extension [" + c.getName() + "]", e);
-            }
-        }
-        return extensions;
+    default String extensionName() {
+        return getClass().getName();
     }
-
 }

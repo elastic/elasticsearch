@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.throttler;
 
@@ -46,8 +47,9 @@ public class AckThrottlerTests extends ESTestCase {
         WatchExecutionContext ctx = mockExecutionContext("_watch", Payload.EMPTY);
         Watch watch = ctx.watch();
         ActionStatus actionStatus = mock(ActionStatus.class);
-        when(actionStatus.ackStatus()).thenReturn(new ActionStatus.AckStatus(timestamp,
-                ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+        when(actionStatus.ackStatus()).thenReturn(
+            new ActionStatus.AckStatus(timestamp, ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION)
+        );
         WatchStatus watchStatus = mock(WatchStatus.class);
         when(watchStatus.actionStatus("_action")).thenReturn(actionStatus);
         when(watch.status()).thenReturn(watchStatus);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.shards;
 
@@ -29,8 +30,7 @@ import java.util.List;
  */
 public class ShardsCollector extends Collector {
 
-    public ShardsCollector(final ClusterService clusterService,
-                           final XPackLicenseState licenseState) {
+    public ShardsCollector(final ClusterService clusterService, final XPackLicenseState licenseState) {
         super(ShardMonitoringDoc.TYPE, clusterService, null, licenseState);
     }
 
@@ -40,9 +40,8 @@ public class ShardsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
-                                                  final long interval,
-                                                  final ClusterState clusterState) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState)
+        throws Exception {
         final List<MonitoringDoc> results = new ArrayList<>(1);
         if (clusterState != null) {
             RoutingTable routingTable = clusterState.routingTable();

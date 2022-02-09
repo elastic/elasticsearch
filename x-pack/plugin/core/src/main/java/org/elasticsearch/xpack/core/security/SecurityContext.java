@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security;
 
@@ -9,21 +10,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
-import java.util.Objects;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -31,7 +31,8 @@ import java.util.function.Function;
  * A lightweight utility that can find the current user and authentication information for the local thread.
  */
 public class SecurityContext {
-    private final Logger logger = LogManager.getLogger(SecurityContext.class);
+
+    private static final Logger logger = LogManager.getLogger(SecurityContext.class);
 
     private final ThreadContext threadContext;
     private final AuthenticationContextSerializer authenticationSerializer;
@@ -94,38 +95,30 @@ public class SecurityContext {
      * Sets the user forcefully to the provided user. There must not be an existing user in the ThreadContext otherwise an exception
      * will be thrown. This method is package private for testing.
      */
-    public void setUser(User user, Version version) {
-        Objects.requireNonNull(user);
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__attach", "__attach", nodeName);
-        final Authentication.RealmRef lookedUpBy;
-        if (user.isRunAs()) {
-            lookedUpBy = authenticatedBy;
-        } else {
-            lookedUpBy = null;
-        }
-        setAuthentication(
-            new Authentication(user, authenticatedBy, lookedUpBy, version, AuthenticationType.INTERNAL, Collections.emptyMap()));
-    }
-
-    /** Writes the authentication to the thread context */
-    private void setAuthentication(Authentication authentication) {
-        try {
-            authentication.writeToContext(threadContext);
-        } catch (IOException e) {
-            throw new AssertionError("how can we have a IOException with a user we set", e);
-        }
+    public void setInternalUser(User internalUser, Version version) {
+        assert User.isInternal(internalUser);
+        setAuthentication(Authentication.newInternalAuthentication(internalUser, version, nodeName));
     }
 
     /**
      * Runs the consumer in a new context as the provided user. The original context is provided to the consumer. When this method
      * returns, the original context is restored.
      */
-    public void executeAsUser(User user, Consumer<StoredContext> consumer, Version version) {
+    public void executeAsInternalUser(User internalUser, Version version, Consumer<StoredContext> consumer) {
+        assert User.isInternal(internalUser);
         final StoredContext original = threadContext.newStoredContext(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            setUser(user, version);
+            setInternalUser(internalUser, version);
             consumer.accept(original);
         }
+    }
+
+    public void executeAsSystemUser(Consumer<StoredContext> consumer) {
+        executeAsSystemUser(Version.CURRENT, consumer);
+    }
+
+    public void executeAsSystemUser(Version version, Consumer<StoredContext> consumer) {
+        executeAsInternalUser(SystemUser.INSTANCE, version, consumer);
     }
 
     /**
@@ -145,12 +138,27 @@ public class SecurityContext {
      * The original context is provided to the consumer. When this method returns, the original context is restored.
      */
     public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
+        // Preserve request headers other than authentication
+        final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
         final StoredContext original = threadContext.newStoredContext(true);
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            setAuthentication(new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
-                authentication.getLookedUpBy(), version, authentication.getAuthenticationType(), authentication.getMetadata()));
+            setAuthentication(authentication.maybeRewriteForOlderVersion(version));
+            existingRequestHeaders.forEach((k, v) -> {
+                if (threadContext.getHeader(k) == null) {
+                    threadContext.putHeader(k, v);
+                }
+            });
             consumer.accept(original);
+        }
+    }
+
+    /** Writes the authentication to the thread context */
+    private void setAuthentication(Authentication authentication) {
+        try {
+            authentication.writeToContext(threadContext);
+        } catch (IOException e) {
+            throw new AssertionError("how can we have a IOException with a user we set", e);
         }
     }
 }

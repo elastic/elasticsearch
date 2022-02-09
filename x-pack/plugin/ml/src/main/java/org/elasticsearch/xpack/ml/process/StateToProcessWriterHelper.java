@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -20,7 +21,7 @@ public final class StateToProcessWriterHelper {
     private StateToProcessWriterHelper() {}
 
     public static void writeStateToStream(BytesReference source, OutputStream stream) throws IOException {
-        // The source bytes are already UTF-8.  The C++ process wants UTF-8, so we
+        // The source bytes are already UTF-8. The C++ process wants UTF-8, so we
         // can avoid converting to a Java String only to convert back again.
         BytesRefIterator iterator = source.iterator();
         for (BytesRef ref = iterator.next(); ref != null; ref = iterator.next()) {

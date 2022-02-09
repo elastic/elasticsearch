@@ -1,0 +1,58 @@
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.rest-test'
+
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+dependencies {
+  testImplementation project(':x-pack:qa')
+}
+
+// Only run tests for 7.9+, since the node.roles setting was introduced in 7.9.0
+BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.9.0") &&
+        v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
+
+  def baseCluster = testClusters.register(baseName) {
+    versions = [bwcVersion.toString(), project.version]
+    numberOfNodes = 3
+    testDistribution = 'DEFAULT'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    nodes."${baseName}-0".setting 'node.roles', '["master"]'
+    // data_* roles were introduced in 7.10.0, so use 'data' for older versions
+    if (bwcVersion.before('7.10.0')) {
+      nodes."${baseName}-1".setting 'node.roles', '["data"]'
+    } else {
+      nodes."${baseName}-1".setting 'node.roles', '["data_content", "data_hot"]'
+    }
+    nodes."${baseName}-2".setting 'node.roles', '["master"]'
+  }
+
+  tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
+    useCluster baseCluster
+    mustRunAfter("precommit")
+    doFirst {
+      // Getting the endpoints causes a wait for the cluster
+      println "Endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
+      baseCluster.get().nextNodeToNextVersion()
+
+      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.clustername', baseName)
+    }
+    onlyIf { project.bwc_tests_enabled }
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn "${baseName}#mixedClusterTest"
+  }
+}
+
+// Security is explicitly disabled, do not run tests in FIPS mode
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false}
+}

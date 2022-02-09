@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 
 import java.util.Arrays;
 import java.util.Date;
@@ -52,8 +53,7 @@ class DummyDataCountsReporter extends DataCountsReporter {
     }
 
     private static Job createJob() {
-        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(
-                Arrays.asList(new Detector.Builder("metric", "field").build()));
+        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
         acBuilder.setBucketSpan(TimeValue.timeValueSeconds(300));
         acBuilder.setLatency(TimeValue.ZERO);
         acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));

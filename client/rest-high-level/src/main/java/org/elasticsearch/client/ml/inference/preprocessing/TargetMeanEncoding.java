@@ -1,35 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
 
 /**
  * PreProcessor for target mean encoding a set of categorical values for a given field.
@@ -41,19 +29,24 @@ public class TargetMeanEncoding implements PreProcessor {
     public static final ParseField FEATURE_NAME = new ParseField("feature_name");
     public static final ParseField TARGET_MAP = new ParseField("target_map");
     public static final ParseField DEFAULT_VALUE = new ParseField("default_value");
+    public static final ParseField CUSTOM = new ParseField("custom");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<TargetMeanEncoding, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new TargetMeanEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2], (Double)a[3]));
+        a -> new TargetMeanEncoding((String) a[0], (String) a[1], (Map<String, Double>) a[2], (Double) a[3], (Boolean) a[4])
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
+        PARSER.declareObject(
+            ConstructingObjectParser.constructorArg(),
             (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
-            TARGET_MAP);
+            TARGET_MAP
+        );
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), DEFAULT_VALUE);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CUSTOM);
     }
 
     public static TargetMeanEncoding fromXContent(XContentParser parser) {
@@ -64,12 +57,14 @@ public class TargetMeanEncoding implements PreProcessor {
     private final String featureName;
     private final Map<String, Double> meanMap;
     private final double defaultValue;
+    private final Boolean custom;
 
-    public TargetMeanEncoding(String field, String featureName, Map<String, Double> meanMap, Double defaultValue) {
+    TargetMeanEncoding(String field, String featureName, Map<String, Double> meanMap, Double defaultValue, Boolean custom) {
         this.field = Objects.requireNonNull(field);
         this.featureName = Objects.requireNonNull(featureName);
         this.meanMap = Collections.unmodifiableMap(Objects.requireNonNull(meanMap));
         this.defaultValue = Objects.requireNonNull(defaultValue);
+        this.custom = custom;
     }
 
     /**
@@ -100,6 +95,10 @@ public class TargetMeanEncoding implements PreProcessor {
         return featureName;
     }
 
+    public Boolean getCustom() {
+        return custom;
+    }
+
     @Override
     public String getName() {
         return NAME;
@@ -112,6 +111,9 @@ public class TargetMeanEncoding implements PreProcessor {
         builder.field(FEATURE_NAME.getPreferredName(), featureName);
         builder.field(TARGET_MAP.getPreferredName(), meanMap);
         builder.field(DEFAULT_VALUE.getPreferredName(), defaultValue);
+        if (custom != null) {
+            builder.field(CUSTOM.getPreferredName(), custom);
+        }
         builder.endObject();
         return builder;
     }
@@ -124,16 +126,17 @@ public class TargetMeanEncoding implements PreProcessor {
         return Objects.equals(field, that.field)
             && Objects.equals(featureName, that.featureName)
             && Objects.equals(meanMap, that.meanMap)
-            && Objects.equals(defaultValue, that.defaultValue);
+            && Objects.equals(defaultValue, that.defaultValue)
+            && Objects.equals(custom, that.custom);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, featureName, meanMap, defaultValue);
+        return Objects.hash(field, featureName, meanMap, defaultValue, custom);
     }
 
-    public Builder builder(String field) {
-        return new Builder(field);
+    public Builder builder(String fieldName) {
+        return new Builder(fieldName);
     }
 
     public static class Builder {
@@ -142,6 +145,7 @@ public class TargetMeanEncoding implements PreProcessor {
         private String featureName;
         private Map<String, Double> meanMap = new HashMap<>();
         private double defaultValue;
+        private Boolean custom;
 
         public Builder(String field) {
             this.field = field;
@@ -176,8 +180,13 @@ public class TargetMeanEncoding implements PreProcessor {
             return this;
         }
 
+        public Builder setCustom(boolean custom) {
+            this.custom = custom;
+            return this;
+        }
+
         public TargetMeanEncoding build() {
-            return new TargetMeanEncoding(field, featureName, meanMap, defaultValue);
+            return new TargetMeanEncoding(field, featureName, meanMap, defaultValue, custom);
         }
     }
 }

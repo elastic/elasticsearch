@@ -5,7 +5,7 @@
 TIP: To complete these steps, you must obtain a license that includes the
 {alert-features}. For more information about Elastic license levels, see 
 https://www.elastic.co/subscriptions and
-{stack-ov}/license-management.html[License management].
+{kibana-ref}/managing-licenses.html[License management].
 
 [[watch-log-data]]
 To set up a watch to start sending alerts:
@@ -16,7 +16,7 @@ needs to be sent.
 * <<log-take-action, Configure an action>> to send an alert when the
 condition is met.
 
-[float]
+[discrete]
 [[log-add-input]]
 === Schedule the watch and define an input
 
@@ -73,7 +73,7 @@ GET .watcher-history*/_search?pretty
 ------------------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[log-add-condition]]
 === Add a condition
 
@@ -103,7 +103,7 @@ PUT _watcher/watch/log_error_watch
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }} <1>
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }} <1>
   }
 }
 --------------------------------------------------
@@ -119,10 +119,10 @@ adds a 404 error to the `logs` index:
 --------------------------------------------------
 POST logs/_doc
 {
-    "timestamp" : "2015-05-17T18:12:07.613Z",
-    "request" : "GET index.html",
-    "status_code" : 404,
-    "message" : "Error: File not found"
+  "timestamp": "2015-05-17T18:12:07.613Z",
+  "request": "GET index.html",
+  "status_code": 404,
+  "message": "Error: File not found"
 }
 --------------------------------------------------
 // TEST[continued]
@@ -148,7 +148,7 @@ GET .watcher-history*/_search?pretty
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[log-take-action]]
 === Configure an action
 
@@ -180,19 +180,19 @@ PUT _watcher/watch/log_error_watch
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
   },
   "actions" : {
     "log_error" : {
       "logging" : {
-        "text" : "Found {{ctx.payload.hits.total.value}} errors in the logs"
+        "text" : "Found {{ctx.payload.hits.total}} errors in the logs"
       }
     }
   }
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[log-delete]]
 === Delete the Watch
 
@@ -209,7 +209,7 @@ DELETE _watcher/watch/log_error_watch
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[required-security-privileges]]
 === Required security privileges
 To enable users to create and manipulate watches, assign them the `watcher_admin`
@@ -220,7 +220,7 @@ To allow users to view watches and the watch history, assign them the `watcher_u
 security role. Watcher users cannot create or manipulate watches; they are only
 allowed to execute read-only watch operations.
 
-[float]
+[discrete]
 [[next-steps]]
 === Where to go next
 

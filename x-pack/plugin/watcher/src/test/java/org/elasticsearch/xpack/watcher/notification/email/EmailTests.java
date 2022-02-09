@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -25,7 +26,7 @@ public class EmailTests extends ESTestCase {
         String id = "test-id";
         Email.Address from = randomFrom(new Email.Address("from@from.com"), null);
         List<Email.Address> addresses = new ArrayList<>();
-        for( int i = 0; i < randomIntBetween(1, 5); ++i){
+        for (int i = 0; i < randomIntBetween(1, 5); ++i) {
             addresses.add(new Email.Address("address" + i + "@test.com"));
         }
         Email.AddressList possibleList = new Email.AddressList(addresses);

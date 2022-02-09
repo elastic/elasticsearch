@@ -1,26 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
+
 public class RawInferenceResults implements InferenceResults {
 
     public static final String NAME = "raw";
 
     private final double[] value;
-    private final Map<String, double[]> featureImportance;
+    private final double[][] featureImportance;
 
-    public RawInferenceResults(double[] value, Map<String, double[]> featureImportance) {
+    public RawInferenceResults(double[] value, double[][] featureImportance) {
         this.value = value;
         this.featureImportance = featureImportance;
     }
@@ -29,7 +32,7 @@ public class RawInferenceResults implements InferenceResults {
         return value;
     }
 
-    public Map<String, double[]> getFeatureImportance() {
+    public double[][] getFeatureImportance() {
         return featureImportance;
     }
 
@@ -40,11 +43,14 @@ public class RawInferenceResults implements InferenceResults {
 
     @Override
     public boolean equals(Object object) {
-        if (object == this) { return true; }
-        if (object == null || getClass() != object.getClass()) { return false; }
+        if (object == this) {
+            return true;
+        }
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
         RawInferenceResults that = (RawInferenceResults) object;
-        return Arrays.equals(value, that.value)
-            && Objects.equals(featureImportance, that.featureImportance);
+        return Arrays.equals(value, that.value) && Arrays.deepEquals(featureImportance, that.featureImportance);
     }
 
     @Override
@@ -53,8 +59,18 @@ public class RawInferenceResults implements InferenceResults {
     }
 
     @Override
-    public void writeResult(IngestDocument document, String parentResultField) {
-        throw new UnsupportedOperationException("[raw] does not support writing inference results");
+    public String getResultsField() {
+        return DEFAULT_RESULTS_FIELD;
+    }
+
+    @Override
+    public Map<String, Object> asMap() {
+        throw new UnsupportedOperationException("[raw] does not support map conversion");
+    }
+
+    @Override
+    public Object predictedValue() {
+        return null;
     }
 
     @Override
@@ -62,4 +78,8 @@ public class RawInferenceResults implements InferenceResults {
         return NAME;
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        throw new UnsupportedOperationException("[raw] does not support toXContent");
+    }
 }

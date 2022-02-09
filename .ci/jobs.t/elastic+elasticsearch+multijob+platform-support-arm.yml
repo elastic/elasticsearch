@@ -1,0 +1,30 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+multijob+platform-support-arm
+    display-name: "elastic / elasticsearch # %BRANCH% - arm compatibility"
+    description: "Elasticsearch %BRANCH% ARM (aarch64) compatibility testing.\n"
+    child-workspace: "/dev/shm/elastic+elasticsearch+%BRANCH%+multijob+platform-support-arm"
+    project-type: matrix
+    node: master
+    scm:
+      - git:
+          wipe-workspace: false
+    axes:
+      - axis:
+          type: label-expression
+          name: os
+          values:
+            - "almalinux-8-aarch64&&immutable"
+            - "ubuntu-1804-aarch64&&immutable"
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions-aarch64.properties'
+          properties-content: |
+            COMPOSE_HTTP_TIMEOUT=120
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA11_HOME=$HOME/.java/jdk11
+            JAVA16_HOME=$HOME/.java/jdk16
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check

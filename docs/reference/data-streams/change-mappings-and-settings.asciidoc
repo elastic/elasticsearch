@@ -1,0 +1,685 @@
+[role="xpack"]
+[[data-streams-change-mappings-and-settings]]
+== Change mappings and settings for a data stream
+
+Each data stream has a <<create-index-template,matching index
+template>>. Mappings and index settings from this template are applied to new
+backing indices created for the stream. This includes the stream's first
+backing index, which is auto-generated when the stream is created.
+
+Before creating a data stream, we recommend you carefully consider which
+mappings and settings to include in this template.
+
+If you later need to change the mappings or settings for a data stream, you have
+a few options:
+
+* <<add-new-field-mapping-to-a-data-stream>>
+* <<change-existing-field-mapping-in-a-data-stream>>
+* <<change-dynamic-index-setting-for-a-data-stream>>
+* <<change-static-index-setting-for-a-data-stream>>
+
+TIP: If your changes include modifications to existing field mappings or
+<<index-modules-settings,static index settings>>, a reindex is often required to
+apply the changes to a data stream's backing indices. If you are already
+performing a reindex, you can use the same process to add new field
+mappings and change <<index-modules-settings,dynamic index settings>>. See
+<<data-streams-use-reindex-to-change-mappings-settings>>.
+
+////
+[source,console]
+----
+PUT /_ilm/policy/my-data-stream-policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_primary_shard_size": "25GB"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT /_index_template/my-data-stream-template
+{
+  "index_patterns": [ "my-data-stream*" ],
+  "data_stream": { }
+}
+
+PUT /_index_template/new-data-stream-template
+{
+  "index_patterns": [ "new-data-stream*" ],
+  "data_stream": { }
+}
+
+PUT /_data_stream/my-data-stream
+
+POST /my-data-stream/_rollover/
+
+PUT /_data_stream/new-data-stream
+----
+// TESTSETUP
+
+[source,console]
+----
+DELETE /_data_stream/*
+
+DELETE /_index_template/*
+
+DELETE /_ilm/policy/my-data-stream-policy
+----
+// TEARDOWN
+////
+
+[discrete]
+[[add-new-field-mapping-to-a-data-stream]]
+=== Add a new field mapping to a data stream
+
+To add a mapping for a new field to a data stream, following these steps:
+
+. Update the index template used by the data stream. This ensures the new
+field mapping is added to future backing indices created for the stream.
++
+--
+For example, `my-data-stream-template` is an existing index template used by
+`my-data-stream`.
+
+The following <<index-templates,create or update index template>> request adds a mapping
+for a new field, `message`, to the template.
+
+[source,console]
+----
+PUT /_index_template/my-data-stream-template
+{
+  "index_patterns": [ "my-data-stream*" ],
+  "data_stream": { },
+  "priority": 500,
+  "template": {
+    "mappings": {
+      "properties": {
+        "message": {                              <1>
+          "type": "text"
+        }
+      }
+    }
+  }
+}
+----
+<1> Adds a mapping for the new `message` field.
+--
+
+. Use the <<indices-put-mapping,update mapping API>> to add the new field mapping
+to the data stream. By default, this adds the mapping to the stream's existing
+backing indices, including the write index.
++
+--
+The following update mapping API request adds the new `message` field mapping to
+`my-data-stream`.
+
+[source,console]
+----
+PUT /my-data-stream/_mapping
+{
+  "properties": {
+    "message": {
+      "type": "text"
+    }
+  }
+}
+----
+--
++
+To add the mapping only to the stream's write index, set the update mapping API's
+`write_index_only` query parameter to `true`.
++
+--
+The following update mapping request adds the new `message` field mapping only to
+`my-data-stream`'s write index. The new field mapping is not added to
+the stream's other backing indices.
+
+[source,console]
+----
+PUT /my-data-stream/_mapping?write_index_only=true
+{
+  "properties": {
+    "message": {
+      "type": "text"
+    }
+  }
+}
+----
+--
+
+[discrete]
+[[change-existing-field-mapping-in-a-data-stream]]
+=== Change an existing field mapping in a data stream
+
+The documentation for each <<mapping-params,mapping parameter>> indicates
+whether you can update it for an existing field using the
+<<indices-put-mapping,update mapping API>>. To update these parameters for an
+existing field, follow these steps:
+
+. Update the index template used by the data stream. This ensures the updated
+field mapping is added to future backing indices created for the stream.
++
+--
+For example, `my-data-stream-template` is an existing index template used by
+`my-data-stream`.
+
+The following <<index-templates,create or update index template>> request changes the
+argument for the `host.ip` field's <<ignore-malformed,`ignore_malformed`>>
+mapping parameter to `true`.
+
+[source,console]
+----
+PUT /_index_template/my-data-stream-template
+{
+  "index_patterns": [ "my-data-stream*" ],
+  "data_stream": { },
+  "priority": 500,
+  "template": {
+    "mappings": {
+      "properties": {
+        "host": {
+          "properties": {
+            "ip": {
+              "type": "ip",
+              "ignore_malformed": true            <1>
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+<1> Changes the `host.ip` field's `ignore_malformed` value to `true`.
+--
+
+. Use the <<indices-put-mapping,update mapping API>> to apply the mapping changes
+to the data stream. By default, this applies the changes to the stream's
+existing backing indices, including the write index.
++
+--
+The following <<indices-put-mapping,update mapping API>> request targets
+`my-data-stream`. The request changes the argument for the `host.ip`
+field's `ignore_malformed` mapping parameter to `true`.
+
+[source,console]
+----
+PUT /my-data-stream/_mapping
+{
+  "properties": {
+    "host": {
+      "properties": {
+        "ip": {
+          "type": "ip",
+          "ignore_malformed": true
+        }
+      }
+    }
+  }
+}
+----
+--
++
+To apply the mapping changes only to the stream's write index, set the put
+mapping API's `write_index_only` query parameter to `true`.
++
+--
+The following update mapping request changes the `host.ip` field's mapping only for
+`my-data-stream`'s write index. The change is not applied to the
+stream's other backing indices.
+
+[source,console]
+----
+PUT /my-data-stream/_mapping?write_index_only=true
+{
+  "properties": {
+    "host": {
+      "properties": {
+        "ip": {
+          "type": "ip",
+          "ignore_malformed": true
+        }
+      }
+    }
+  }
+}
+----
+--
+
+Except for supported mapping parameters, we don't recommend you change the
+mapping or field data type of existing fields, even in a data stream's matching
+index template or its backing indices. Changing the mapping of an existing
+field could invalidate any data that’s already indexed.
+
+If you need to change the mapping of an existing field, create a new
+data stream and reindex your data into it. See
+<<data-streams-use-reindex-to-change-mappings-settings>>.
+
+[discrete]
+[[change-dynamic-index-setting-for-a-data-stream]]
+=== Change a dynamic index setting for a data stream
+
+To change a <<index-modules-settings,dynamic index setting>> for a data stream,
+follow these steps:
+
+. Update the index template used by the data stream. This ensures the setting is
+applied to future backing indices created for the stream.
++
+--
+For example, `my-data-stream-template` is an existing index template used by
+`my-data-stream`.
+
+The following <<index-templates,create or update index template>> request changes the
+template's `index.refresh_interval` index setting to `30s` (30 seconds).
+
+[source,console]
+----
+PUT /_index_template/my-data-stream-template
+{
+  "index_patterns": [ "my-data-stream*" ],
+  "data_stream": { },
+  "priority": 500,
+  "template": {
+    "settings": {
+      "index.refresh_interval": "30s"             <1>
+    }
+  }
+}
+----
+<1> Changes the `index.refresh_interval` setting to `30s` (30 seconds).
+--
+
+. Use the <<indices-update-settings,update index settings API>> to update the
+index setting for the data stream. By default, this applies the setting to
+the stream's existing backing indices, including the write index.
++
+--
+The following update index settings API request updates the
+`index.refresh_interval` setting for `my-data-stream`.
+
+[source,console]
+----
+PUT /my-data-stream/_settings
+{
+  "index": {
+    "refresh_interval": "30s"
+  }
+}
+----
+--
+
+IMPORTANT: To change the `index.lifecycle.name` setting, first use the
+<<ilm-remove-policy,remove policy API>> to remove the existing {ilm-init}
+policy. See <<switch-lifecycle-policies>>.
+
+[discrete]
+[[change-static-index-setting-for-a-data-stream]]
+=== Change a static index setting for a data stream
+
+<<index-modules-settings,Static index settings>> can only be set when a backing
+index is created. You cannot update static index settings using the
+<<indices-update-settings,update index settings API>>.
+
+To apply a new static setting to future backing indices, update the index
+template used by the data stream. The setting is automatically applied to any
+backing index created after the update.
+
+For example, `my-data-stream-template` is an existing index template used by
+`my-data-stream`.
+
+The following <<index-templates,create or update index template API>> requests
+adds new `sort.field` and `sort.order index` settings to the template.
+
+[source,console]
+----
+PUT /_index_template/my-data-stream-template
+{
+  "index_patterns": [ "my-data-stream*" ],
+  "data_stream": { },
+  "priority": 500,
+  "template": {
+    "settings": {
+      "sort.field": [ "@timestamp"],             <1>
+      "sort.order": [ "desc"]                    <2>
+    }
+  }
+}
+----
+<1> Adds the `sort.field` index setting.
+<2> Adds the `sort.order` index setting.
+
+If wanted, you can <<manually-roll-over-a-data-stream,roll over the data
+stream>> to immediately apply the setting to the data stream’s write index. This
+affects any new data added to the stream after the rollover. However, it does
+not affect the data stream's existing backing indices or existing data.
+
+To apply static setting changes to existing backing indices, you must create a
+new data stream and reindex your data into it. See
+<<data-streams-use-reindex-to-change-mappings-settings>>.
+
+[discrete]
+[[data-streams-use-reindex-to-change-mappings-settings]]
+=== Use reindex to change mappings or settings
+
+You can use a reindex to change the mappings or settings of a data stream. This
+is often required to change the data type of an existing field or update static
+index settings for backing indices.
+
+To reindex a data stream, first create or update an index template so that it
+contains the wanted mapping or setting changes. You can then reindex the
+existing data stream into a new stream matching the template. This applies the
+mapping and setting changes in the template to each document and backing index
+added to the new data stream. These changes also affect any future backing
+index created by the new stream.
+
+Follow these steps:
+
+. Choose a name or index pattern for a new data stream. This new data
+stream will contain data from your existing stream.
++
+--
+You can use the resolve index API to check if the name or pattern matches any
+existing indices, aliases, or data streams. If so, you should consider using
+another name or pattern.
+
+The following resolve index API request checks for any existing indices,
+aliases, or data streams that start with `new-data-stream`. If not, the
+`new-data-stream*` index pattern can be used to create a new data stream.
+
+[source,console]
+----
+GET /_resolve/index/new-data-stream*
+----
+
+The API returns the following response, indicating no existing targets match
+this pattern.
+
+[source,console-result]
+----
+{
+  "indices": [ ],
+  "aliases": [ ],
+  "data_streams": [ ]
+}
+----
+// TESTRESPONSE[s/"data_streams": \[ \]/"data_streams": $body.data_streams/]
+--
+
+. Create or update an index template. This template should contain the
+mappings and settings you'd like to apply to the new data stream's backing
+indices.
++
+This index template must meet the
+<<create-index-template,requirements for a data stream template>>. It
+should also contain your previously chosen name or index pattern in the
+`index_patterns` property.
++
+TIP: If you are only adding or changing a few things, we recommend you create a
+new template by copying an existing one and modifying it as needed.
++
+--
+For example, `my-data-stream-template` is an existing index template used by
+`my-data-stream`.
+
+The following <<index-templates,create or update index template API>> request
+creates a new index template, `new-data-stream-template`.
+`new-data-stream-template` uses `my-data-stream-template` as its basis, with the
+following changes:
+
+* The index pattern in `index_patterns` matches any index or data stream
+  starting with `new-data-stream`.
+* The `@timestamp` field mapping uses the `date_nanos` field data type rather
+  than the `date` data type.
+* The template includes `sort.field` and `sort.order` index settings, which were
+  not in the original `my-data-stream-template` template.
+
+[source,console]
+----
+PUT /_index_template/new-data-stream-template
+{
+  "index_patterns": [ "new-data-stream*" ],
+  "data_stream": { },
+  "priority": 500,
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date_nanos"                 <1>
+        }
+      }
+    },
+    "settings": {
+      "sort.field": [ "@timestamp"],          <2>
+      "sort.order": [ "desc"]                 <3>
+    }
+  }
+}
+----
+<1>  Changes the `@timestamp` field mapping to the `date_nanos` field data type.
+<2>  Adds the `sort.field` index setting.
+<3>  Adds the `sort.order` index setting.
+--
+
+. Use the <<indices-create-data-stream,create data stream API>> to manually
+create the new data stream. The name of the data stream must match the index
+pattern defined in the new template's `index_patterns` property.
++
+We do not recommend <<create-data-stream,indexing new data
+to create this data stream>>. Later, you will reindex older data from an
+existing data stream into this new stream. This could result in one or more
+backing indices that contains a mix of new and old data.
++
+[[data-stream-mix-new-old-data]]
+.Mixing new and old data in a data stream
+[IMPORTANT]
+====
+While mixing new and old data is safe, it could interfere with data retention.
+If you delete older indices, you could accidentally delete a backing index that
+contains both new and old data. To prevent premature data loss, you would need
+to retain such a backing index until you are ready to delete its newest data.
+====
++
+--
+The following create data stream API request targets `new-data-stream`, which
+matches the index pattern for `new-data-stream-template`.
+Because no existing index or data stream uses this name, this request creates
+the `new-data-stream` data stream.
+
+[source,console]
+----
+PUT /_data_stream/new-data-stream
+----
+// TEST[s/new-data-stream/new-data-stream-two/]
+--
+
+. If you do not want to mix new and old data in your new data stream, pause the
+indexing of new documents. While mixing old and new data is safe, it could
+interfere with data retention. See <<data-stream-mix-new-old-data,Mixing new and
+old data in a data stream>>.
+
+. If you use {ilm-init} to <<getting-started-index-lifecycle-management,automate
+rollover>>, reduce the {ilm-init} poll interval. This ensures the current write
+index doesn’t grow too large while waiting for the rollover check. By default,
+{ilm-init} checks rollover conditions every 10 minutes.
++
+--
+The following <<cluster-update-settings,cluster update settings API>> request
+lowers the `indices.lifecycle.poll_interval` setting to `1m` (one minute).
+
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "persistent": {
+    "indices.lifecycle.poll_interval": "1m"
+  }
+}
+----
+--
+
+. Reindex your data to the new data stream using an `op_type` of `create`.
++
+If you want to partition the data in the order in which it was originally
+indexed, you can run separate reindex requests. These reindex requests can use
+individual backing indices as the source. You can use the
+<<indices-get-data-stream,get data stream API>> to retrieve a list of backing
+indices.
++
+--
+For example, you plan to reindex data from `my-data-stream` into
+`new-data-stream`. However, you want to submit a separate reindex request for
+each backing index in `my-data-stream`, starting with the oldest backing index.
+This preserves the order in which the data was originally indexed.
+
+The following get data stream API request retrieves information about
+`my-data-stream`, including a list of its backing indices.
+
+[source,console]
+----
+GET /_data_stream/my-data-stream
+----
+
+The response's `indices` property contains an array of the stream's current
+backing indices. The first item in the array contains information about the
+stream's oldest backing index.
+
+[source,console-result]
+----
+{
+  "data_streams": [
+    {
+      "name": "my-data-stream",
+      "timestamp_field": {
+        "name": "@timestamp"
+      },
+      "indices": [
+        {
+          "index_name": ".ds-my-data-stream-2099.03.07-000001", <1>
+          "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"
+        },
+        {
+          "index_name": ".ds-my-data-stream-2099.03.08-000002",
+          "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"
+        }
+      ],
+      "generation": 2,
+      "status": "GREEN",
+      "template": "my-data-stream-template",
+      "hidden": false,
+      "system": false,
+      "allow_custom_routing": false,
+      "replicated": false
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
+// TESTRESPONSE[s/"index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.07-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.08-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+
+<1> First item in the `indices` array for `my-data-stream`. This item contains
+information about the stream's oldest backing index,
+`.ds-my-data-stream-2099.03.07-000001`.
+
+The following <<docs-reindex,reindex API>> request copies documents from
+`.ds-my-data-stream-2099.03.07-000001` to `new-data-stream`. The request's
+`op_type` is `create`.
+
+[source,console]
+----
+POST /_reindex
+{
+  "source": {
+    "index": ".ds-my-data-stream-2099.03.07-000001"
+  },
+  "dest": {
+    "index": "new-data-stream",
+    "op_type": "create"
+  }
+}
+----
+// TEST[setup:my_index]
+// TEST[s/.ds-my-data-stream-2099.03.07-000001/my-index-000001/]
+--
++
+You can also use a query to reindex only a subset of documents with each
+request.
++
+--
+The following <<docs-reindex,reindex API>> request copies documents from
+`my-data-stream` to `new-data-stream`. The request
+uses a <<query-dsl-range-query,`range` query>> to only reindex documents with a
+timestamp within the last week. Note the request's `op_type` is `create`.
+
+[source,console]
+----
+POST /_reindex
+{
+  "source": {
+    "index": "my-data-stream",
+    "query": {
+      "range": {
+        "@timestamp": {
+          "gte": "now-7d/d",
+          "lte": "now/d"
+        }
+      }
+    }
+  },
+  "dest": {
+    "index": "new-data-stream",
+    "op_type": "create"
+  }
+}
+----
+--
+
+. If you previously changed your {ilm-init} poll interval, change it back to its
+original value when reindexing is complete. This prevents unnecessary load on
+the master node.
++
+--
+The following cluster update settings API request resets the
+`indices.lifecycle.poll_interval` setting to its default value.
+
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "persistent": {
+    "indices.lifecycle.poll_interval": null
+  }
+}
+----
+--
+
+. Resume indexing using the new data stream. Searches on this stream will now
+query your new data and the reindexed data.
+
+. Once you have verified that all reindexed data is available in the new
+data stream, you can safely remove the old stream.
++
+--
+The following <<indices-delete-data-stream,delete data stream API>> request
+deletes `my-data-stream`. This request also deletes the stream's
+backing indices and any data they contain.
+
+[source,console]
+----
+DELETE /_data_stream/my-data-stream
+----
+--

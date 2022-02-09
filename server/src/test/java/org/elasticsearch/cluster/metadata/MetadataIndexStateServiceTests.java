@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -28,32 +17,27 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.shards.ShardCounts;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotInfoTests;
+import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -72,15 +56,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_C
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.elasticsearch.cluster.shards.ShardCounts.forDataNodeCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MetadataIndexStateServiceTests extends ESTestCase {
 
@@ -132,14 +112,14 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         String indexName = "restored-index";
         ClusterBlock block = MetadataIndexStateService.createIndexClosingBlock();
         state = addRestoredIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
-        state = ClusterState.builder(state)
-            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block))
-            .build();
+        state = ClusterState.builder(state).blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block)).build();
 
         final Index index = state.metadata().index(indexName).getIndex();
-        final ClusterState updatedState =
-            MetadataIndexStateService.closeRoutingTable(state, singletonMap(index, block), singletonMap(index, new IndexResult(index)))
-                .v1();
+        final ClusterState updatedState = MetadataIndexStateService.closeRoutingTable(
+            state,
+            singletonMap(index, block),
+            singletonMap(index, new IndexResult(index))
+        ).v1();
         assertIsOpened(index.getName(), updatedState);
         assertThat(updatedState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
     }
@@ -150,84 +130,27 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         String indexName = "snapshotted-index";
         ClusterBlock block = MetadataIndexStateService.createIndexClosingBlock();
         state = addSnapshotIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
-        state = ClusterState.builder(state)
-            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block))
-            .build();
+        state = ClusterState.builder(state).blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block)).build();
 
         final Index index = state.metadata().index(indexName).getIndex();
-        final ClusterState updatedState =
-            MetadataIndexStateService.closeRoutingTable(state, singletonMap(index, block), singletonMap(index, new IndexResult(index)))
-                .v1();
+        final ClusterState updatedState = MetadataIndexStateService.closeRoutingTable(
+            state,
+            singletonMap(index, block),
+            singletonMap(index, new IndexResult(index))
+        ).v1();
         assertIsOpened(index.getName(), updatedState);
         assertThat(updatedState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
-    }
-
-    public void testCloseRoutingTableRemovesRoutingTable() {
-        final Set<Index> nonBlockedIndices = new HashSet<>();
-        final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
-        final Map<Index, IndexResult> results = new HashMap<>();
-        final ClusterBlock closingBlock = MetadataIndexStateService.createIndexClosingBlock();
-
-        ClusterState state = ClusterState.builder(new ClusterName("testCloseRoutingTableRemovesRoutingTable")).build();
-        for (int i = 0; i < randomIntBetween(1, 25); i++) {
-            final String indexName = "index-" + i;
-
-            if (randomBoolean()) {
-                state = addOpenedIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
-                nonBlockedIndices.add(state.metadata().index(indexName).getIndex());
-            } else {
-                state = addBlockedIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state, closingBlock);
-                final Index index = state.metadata().index(indexName).getIndex();
-                blockedIndices.put(index, closingBlock);
-                if (randomBoolean()) {
-                    results.put(index, new CloseIndexResponse.IndexResult(index));
-                } else {
-                    results.put(index, new CloseIndexResponse.IndexResult(index, new Exception("test")));
-                }
-            }
-        }
-
-        state = ClusterState.builder(state)
-            .nodes(DiscoveryNodes.builder(state.nodes())
-                .add(new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.V_7_0_0))
-                .add(new DiscoveryNode("new_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.V_7_2_0)))
-            .build();
-
-        state = MetadataIndexStateService.closeRoutingTable(state, blockedIndices, results).v1();
-        assertThat(state.metadata().indices().size(), equalTo(nonBlockedIndices.size() + blockedIndices.size()));
-
-        for (Index nonBlockedIndex : nonBlockedIndices) {
-            assertIsOpened(nonBlockedIndex.getName(), state);
-            assertThat(state.blocks().hasIndexBlockWithId(nonBlockedIndex.getName(), INDEX_CLOSED_BLOCK_ID), is(false));
-        }
-        for (Index blockedIndex : blockedIndices.keySet()) {
-            if (results.get(blockedIndex).hasFailures() == false) {
-                IndexMetadata indexMetadata = state.metadata().index(blockedIndex);
-                assertThat(indexMetadata.getState(), is(IndexMetadata.State.CLOSE));
-                Settings indexSettings = indexMetadata.getSettings();
-                assertThat(indexSettings.hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(false));
-                assertThat(state.blocks().hasIndexBlock(blockedIndex.getName(), MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
-                assertThat("Index must have only 1 block with [id=" + MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
-                    state.blocks().indices().getOrDefault(blockedIndex.getName(), emptySet()).stream()
-                        .filter(clusterBlock -> clusterBlock.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID).count(), equalTo(1L));
-                assertThat("Index routing table should have been removed when closing the index on mixed cluster version",
-                    state.routingTable().index(blockedIndex), nullValue());
-            } else {
-                assertIsOpened(blockedIndex.getName(), state);
-                assertThat(state.blocks().hasIndexBlock(blockedIndex.getName(), closingBlock), is(true));
-            }
-        }
     }
 
     public void testAddIndexClosedBlocks() {
         final ClusterState initialState = ClusterState.builder(new ClusterName("testAddIndexClosedBlocks")).build();
         {
             final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
-            Index[] indices = new Index[]{new Index("_name", "_uid")};
-            expectThrows(IndexNotFoundException.class, () ->
-                MetadataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, initialState));
+            Index[] indices = new Index[] { new Index("_name", "_uid") };
+            expectThrows(
+                IndexNotFoundException.class,
+                () -> MetadataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, initialState)
+            );
             assertTrue(blockedIndices.isEmpty());
         }
         {
@@ -241,7 +164,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         {
             final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
             ClusterState state = addClosedIndex("closed", randomIntBetween(1, 3), randomIntBetween(0, 3), initialState);
-            Index[] indices = new Index[]{state.metadata().index("closed").getIndex()};
+            Index[] indices = new Index[] { state.metadata().index("closed").getIndex() };
 
             ClusterState updatedState = MetadataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
             assertSame(state, updatedState);
@@ -251,7 +174,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
             ClusterState state = addClosedIndex("closed", randomIntBetween(1, 3), randomIntBetween(0, 3), initialState);
             state = addOpenedIndex("opened", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
-            Index[] indices = new Index[]{state.metadata().index("opened").getIndex(), state.metadata().index("closed").getIndex()};
+            Index[] indices = new Index[] { state.metadata().index("opened").getIndex(), state.metadata().index("closed").getIndex() };
 
             ClusterState updatedState = MetadataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
             assertNotSame(state, updatedState);
@@ -265,16 +188,16 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         }
         {
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-                    ClusterState state = addRestoredIndex("restored", randomIntBetween(1, 3), randomIntBetween(0, 3), initialState);
-                    if (randomBoolean()) {
-                        state = addOpenedIndex("opened", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
-                    }
-                    if (randomBoolean()) {
-                        state = addOpenedIndex("closed", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
-                    }
-                    Index[] indices = new Index[]{state.metadata().index("restored").getIndex()};
-                    MetadataIndexStateService.addIndexClosedBlocks(indices, unmodifiableMap(emptyMap()), state);
-                });
+                ClusterState state = addRestoredIndex("restored", randomIntBetween(1, 3), randomIntBetween(0, 3), initialState);
+                if (randomBoolean()) {
+                    state = addOpenedIndex("opened", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
+                }
+                if (randomBoolean()) {
+                    state = addOpenedIndex("closed", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
+                }
+                Index[] indices = new Index[] { state.metadata().index("restored").getIndex() };
+                MetadataIndexStateService.addIndexClosedBlocks(indices, unmodifiableMap(emptyMap()), state);
+            });
             assertThat(exception.getMessage(), containsString("Cannot close indices that are being restored: [[restored]]"));
         }
         {
@@ -286,7 +209,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
                 if (randomBoolean()) {
                     state = addOpenedIndex("closed", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
                 }
-                Index[] indices = new Index[]{state.metadata().index("snapshotted").getIndex()};
+                Index[] indices = new Index[] { state.metadata().index("snapshotted").getIndex() };
                 MetadataIndexStateService.addIndexClosedBlocks(indices, unmodifiableMap(emptyMap()), state);
             });
             assertThat(exception.getMessage(), containsString("Cannot close indices that are being snapshotted: [[snapshotted]]"));
@@ -300,7 +223,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             Index index1 = state.metadata().index("index-1").getIndex();
             Index index2 = state.metadata().index("index-2").getIndex();
             Index index3 = state.metadata().index("index-3").getIndex();
-            Index[] indices = new Index[]{index1, index2, index3};
+            Index[] indices = new Index[] { index1, index2, index3 };
 
             ClusterState updatedState = MetadataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
             assertNotSame(state, updatedState);
@@ -317,7 +240,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         state = addOpenedIndex("test", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
 
         Index test = state.metadata().index("test").getIndex();
-        Index[] indices = new Index[]{test};
+        Index[] indices = new Index[] { test };
 
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
         state = MetadataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
@@ -331,29 +254,6 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         assertTrue(blockedIndices2.containsKey(test));
         assertHasBlock(test.getName(), state, blockedIndices2.get(test));
         assertEquals(blockedIndices.get(test), blockedIndices2.get(test));
-    }
-
-    public void testValidateShardLimit() {
-        int nodesInCluster = randomIntBetween(2, 90);
-        ShardCounts counts = forDataNodeCount(nodesInCluster);
-        Settings clusterSettings = Settings.builder()
-            .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
-            .build();
-        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
-            counts.getFailingIndexShards(), counts.getFailingIndexReplicas(), clusterSettings);
-
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
-            .map(IndexMetadata::getIndex)
-            .collect(Collectors.toList())
-            .toArray(new Index[2]);
-
-        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
-        int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        ValidationException exception = expectThrows(ValidationException.class,
-            () -> MetadataIndexStateService.validateShardLimit(state, indices));
-        assertEquals("Validation Failed: 1: this action would add [" + totalShards + "] total shards, but this cluster currently has [" +
-            currentShards + "]/[" + maxShards + "] maximum shards open;", exception.getMessage());
     }
 
     public void testIsIndexVerifiedBeforeClosed() {
@@ -373,10 +273,12 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
                 .state(IndexMetadata.State.CLOSE)
                 .creationDate(randomNonNegativeLong())
-                .settings(Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                    .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3)))
+                .settings(
+                    Settings.builder()
+                        .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
+                        .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3))
+                )
                 .build();
             assertFalse(MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata));
         }
@@ -392,7 +294,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             String indexName = "test-" + i;
             state = addOpenedIndex(indexName, randomIntBetween(1, 3), randomIntBetween(0, 3), state);
             Index index = state.metadata().index(indexName).getIndex();
-            state = MetadataIndexStateService.addIndexClosedBlocks(new Index[]{index}, blockedIndices, state);
+            state = MetadataIndexStateService.addIndexClosedBlocks(new Index[] { index }, blockedIndices, state);
             if (randomBoolean()) {
                 state = ClusterState.builder(state)
                     .blocks(ClusterBlocks.builder().blocks(state.blocks()).removeIndexBlocks(indexName).build())
@@ -401,46 +303,34 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             }
             verifyResults.put(index, new IndexResult(index));
         }
-        Collection<IndexResult> closingResults =
-            MetadataIndexStateService.closeRoutingTable(state, blockedIndices, unmodifiableMap(verifyResults)).v2();
+        Collection<IndexResult> closingResults = MetadataIndexStateService.closeRoutingTable(
+            state,
+            blockedIndices,
+            unmodifiableMap(verifyResults)
+        ).v2();
         assertThat(closingResults, hasSize(numIndices));
-        Set<Index> failedIndices = closingResults.stream().filter(IndexResult::hasFailures)
-            .map(IndexResult::getIndex).collect(Collectors.toSet());
+        Set<Index> failedIndices = closingResults.stream()
+            .filter(IndexResult::hasFailures)
+            .map(IndexResult::getIndex)
+            .collect(Collectors.toSet());
         assertThat(failedIndices, equalTo(disappearedIndices));
     }
 
-    public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int openIndexShards, int openIndexReplicas,
-                                                              int closedIndexShards, int closedIndexReplicas, Settings clusterSettings) {
-        ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodes = ImmutableOpenMap.builder();
-        for (int i = 0; i < nodesInCluster; i++) {
-            dataNodes.put(randomAlphaOfLengthBetween(5, 15), mock(DiscoveryNode.class));
-        }
-        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getDataNodes()).thenReturn(dataNodes.build());
-
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-        state = addOpenedIndex(randomAlphaOfLengthBetween(5, 15), openIndexShards, openIndexReplicas, state);
-        state = addClosedIndex(randomAlphaOfLengthBetween(5, 15), closedIndexShards, closedIndexReplicas, state);
-
-        final Metadata.Builder metadata = Metadata.builder(state.metadata());
-        if (randomBoolean()) {
-            metadata.persistentSettings(clusterSettings);
-        } else {
-            metadata.transientSettings(clusterSettings);
-        }
-        return ClusterState.builder(state).metadata(metadata).nodes(nodes).build();
-    }
-
-    private static ClusterState addOpenedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
+    public static ClusterState addOpenedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         return addIndex(state, index, numShards, numReplicas, IndexMetadata.State.OPEN, null);
     }
 
-    private static ClusterState addClosedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
+    public static ClusterState addClosedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         return addIndex(state, index, numShards, numReplicas, IndexMetadata.State.CLOSE, INDEX_CLOSED_BLOCK);
     }
 
-    private static ClusterState addBlockedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state,
-                                                final ClusterBlock closingBlock) {
+    private static ClusterState addBlockedIndex(
+        final String index,
+        final int numShards,
+        final int numReplicas,
+        final ClusterState state,
+        final ClusterBlock closingBlock
+    ) {
         return addIndex(state, index, numShards, numReplicas, IndexMetadata.State.OPEN, closingBlock);
     }
 
@@ -453,12 +343,14 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         }
 
         final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
-        final RestoreInProgress.Entry entry =
-            new RestoreInProgress.Entry("_uuid", snapshot, RestoreInProgress.State.INIT,
-                Collections.singletonList(index), shardsBuilder.build());
-        return ClusterState.builder(newState)
-            .putCustom(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(entry).build())
-            .build();
+        final RestoreInProgress.Entry entry = new RestoreInProgress.Entry(
+            "_uuid",
+            snapshot,
+            RestoreInProgress.State.INIT,
+            Collections.singletonList(index),
+            shardsBuilder.build()
+        );
+        return ClusterState.builder(newState).putCustom(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(entry).build()).build();
     }
 
     private static ClusterState addSnapshotIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
@@ -466,23 +358,39 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
 
         final ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
         for (ShardRouting shardRouting : newState.routingTable().index(index).randomAllActiveShardsIt()) {
-            shardsBuilder.put(shardRouting.shardId(), new SnapshotsInProgress.ShardSnapshotStatus(shardRouting.currentNodeId(), "1"));
+            shardsBuilder.put(
+                shardRouting.shardId(),
+                new SnapshotsInProgress.ShardSnapshotStatus(shardRouting.currentNodeId(), new ShardGeneration(1L))
+            );
         }
 
         final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
-        final SnapshotsInProgress.Entry entry =
-            new SnapshotsInProgress.Entry(snapshot, randomBoolean(), false, SnapshotsInProgress.State.INIT,
-                Collections.singletonList(new IndexId(index, index)), randomNonNegativeLong(), randomLong(), shardsBuilder.build(),
-                SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
-        return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(entry)).build();
+        final SnapshotsInProgress.Entry entry = new SnapshotsInProgress.Entry(
+            snapshot,
+            randomBoolean(),
+            false,
+            SnapshotsInProgress.State.INIT,
+            Collections.singletonMap(index, new IndexId(index, index)),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            randomNonNegativeLong(),
+            randomLong(),
+            shardsBuilder.build(),
+            null,
+            SnapshotInfoTestUtils.randomUserMetadata(),
+            VersionUtils.randomVersion(random())
+        );
+        return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(entry)).build();
     }
 
-    private static ClusterState addIndex(final ClusterState currentState,
-                                         final String index,
-                                         final int numShards,
-                                         final int numReplicas,
-                                         final IndexMetadata.State state,
-                                         @Nullable final ClusterBlock block) {
+    private static ClusterState addIndex(
+        final ClusterState currentState,
+        final String index,
+        final int numShards,
+        final int numReplicas,
+        final IndexMetadata.State state,
+        @Nullable final ClusterBlock block
+    ) {
 
         final Settings.Builder settings = Settings.builder()
             .put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -534,24 +442,44 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         assertThat(indexSettings.hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(true));
         assertThat(indexSettings.getAsBoolean(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), false), is(true));
         assertThat(clusterState.blocks().hasIndexBlock(indexName, MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
-        assertThat("Index " + indexName + " must have only 1 block with [id=" + MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
-            clusterState.blocks().indices().getOrDefault(indexName, emptySet()).stream()
-                .filter(clusterBlock -> clusterBlock.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID).count(), equalTo(1L));
+        assertThat(
+            "Index " + indexName + " must have only 1 block with [id=" + MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
+            clusterState.blocks()
+                .indices()
+                .getOrDefault(indexName, emptySet())
+                .stream()
+                .filter(clusterBlock -> clusterBlock.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID)
+                .count(),
+            equalTo(1L)
+        );
 
         final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
         assertThat(indexRoutingTable, notNullValue());
 
-        for(IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
             assertThat(shardRoutingTable.shards().stream().allMatch(ShardRouting::unassigned), is(true));
-            assertThat(shardRoutingTable.shards().stream().map(ShardRouting::unassignedInfo).map(UnassignedInfo::getReason)
-                .allMatch(info -> info == UnassignedInfo.Reason.INDEX_CLOSED), is(true));
+            assertThat(
+                shardRoutingTable.shards()
+                    .stream()
+                    .map(ShardRouting::unassignedInfo)
+                    .map(UnassignedInfo::getReason)
+                    .allMatch(info -> info == UnassignedInfo.Reason.INDEX_CLOSED),
+                is(true)
+            );
         }
     }
 
     private static void assertHasBlock(final String indexName, final ClusterState clusterState, final ClusterBlock closingBlock) {
         assertThat(clusterState.blocks().hasIndexBlock(indexName, closingBlock), is(true));
-        assertThat("Index " + indexName + " must have only 1 block with [id=" + MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
-            clusterState.blocks().indices().getOrDefault(indexName, emptySet()).stream()
-                .filter(clusterBlock -> clusterBlock.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID).count(), equalTo(1L));
+        assertThat(
+            "Index " + indexName + " must have only 1 block with [id=" + MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
+            clusterState.blocks()
+                .indices()
+                .getOrDefault(indexName, emptySet())
+                .stream()
+                .filter(clusterBlock -> clusterBlock.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID)
+                .count(),
+            equalTo(1L)
+        );
     }
 }

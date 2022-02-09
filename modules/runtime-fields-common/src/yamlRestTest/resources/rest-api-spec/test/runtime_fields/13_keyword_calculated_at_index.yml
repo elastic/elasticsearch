@@ -1,0 +1,173 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
+                store: true
+              day_of_week:
+                type: keyword
+                script: |
+                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+              # Test fetching from _source
+              day_of_week_from_source:
+                type: keyword
+                script: |
+                  Instant instant = Instant.ofEpochMilli(params._source.timestamp);
+                  ZonedDateTime dt = ZonedDateTime.ofInstant(instant, ZoneId.of("UTC"));
+                  emit(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ROOT));
+              # Test fetching many values
+              day_of_week_letters:
+                type: keyword
+                script: |
+                  for (String dow: doc['day_of_week']) {
+                    for (int i = 0; i < dow.length(); i++) {
+                      emit(dow.charAt(i).toString());
+                    }
+                  }
+              prefixed_node:
+                type: keyword
+                script:
+                  source: |
+                    for (String node : params._fields.node.values) {
+                      emit(params.prefix + node);
+                    }
+                  params:
+                    prefix: node_
+
+  - do:
+      bulk:
+        index: sensor
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: sensor
+  - match: {sensor.mappings.properties.day_of_week.type: keyword }
+  - match:
+      sensor.mappings.properties.day_of_week.script.source: |
+        emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+  - match: {sensor.mappings.properties.day_of_week.script.lang: painless }
+
+---
+"fetch fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields: [day_of_week, day_of_week_from_source, day_of_week_letters, prefixed_node]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.day_of_week: [Thursday] }
+  - match: {hits.hits.0.fields.day_of_week_from_source: [Thursday] }
+  - match: {hits.hits.0.fields.day_of_week_letters: [T, h, u, r, s, d, a, y] }
+  - match: {hits.hits.0.fields.prefixed_node: [node_c] }
+
+---
+"docvalue_fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          docvalue_fields: [day_of_week, day_of_week_from_source, day_of_week_letters, prefixed_node]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.day_of_week: [Thursday] }
+  - match: {hits.hits.0.fields.day_of_week_from_source: [Thursday] }
+  - match: {hits.hits.0.fields.day_of_week_letters: [T, a, d, h, r, s, u, y] }
+  - match: {hits.hits.0.fields.prefixed_node: [node_c] }
+
+---
+"terms agg":
+  - do:
+      search:
+        index: sensor
+        body:
+          size: 0
+          aggs:
+            dow:
+              terms:
+                field: day_of_week
+  - match: {hits.total.value: 6}
+  - match: {aggregations.dow.buckets.0.key: Friday}
+  - match: {aggregations.dow.buckets.0.doc_count: 1}
+  - match: {aggregations.dow.buckets.1.key: Monday}
+  - match: {aggregations.dow.buckets.1.doc_count: 1}
+
+---
+"term query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              day_of_week: Monday
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"highlight term query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              day_of_week: Monday
+          highlight:
+            fields:
+              day_of_week: {}
+
+  - match: { hits.hits.0.highlight.day_of_week : [ "<em>Monday</em>" ] }
+
+---
+"match query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              day_of_week: Monday
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              day_of_week:
+                query: Monday
+                analyzer: standard
+  - match: {hits.total.value: 0}

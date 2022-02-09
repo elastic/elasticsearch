@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.normalize;
 
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -29,24 +30,30 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
     private final Function<double[], DoubleUnaryOperator> methodSupplier;
 
-    NormalizePipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter,
-                                Function<double[], DoubleUnaryOperator> methodSupplier,
-                                Map<String, Object> metadata) {
+    NormalizePipelineAggregator(
+        String name,
+        String[] bucketsPaths,
+        DocValueFormat formatter,
+        Function<double[], DoubleUnaryOperator> methodSupplier,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
         this.methodSupplier = methodSupplier;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
+        @SuppressWarnings("unchecked")
+        InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket> originalAgg = (InternalMultiBucketAggregation<
+            ?,
+            InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>(buckets.size());
 
         double[] values = buckets.stream()
-            .mapToDouble(bucket -> resolveBucketValue(originalAgg, bucket, bucketsPaths()[0], GapPolicy.SKIP)).toArray();
+            .mapToDouble(bucket -> resolveBucketValue(originalAgg, bucket, bucketsPaths()[0], GapPolicy.SKIP))
+            .toArray();
 
         DoubleUnaryOperator method = methodSupplier.apply(values);
 
@@ -67,7 +74,7 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
                 .map((p) -> (InternalAggregation) p)
                 .collect(Collectors.toList());
             aggs.add(new InternalSimpleValue(name(), normalizedBucketValue, formatter, metadata()));
-            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs), bucket);
+            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs), bucket);
             newBuckets.add(newBucket);
         }
 

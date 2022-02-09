@@ -36,8 +36,7 @@ class LookupProcessor extends AbstractProcessor {
     @Override
     public <T> Boolean visit(MembersInjectorLookup<T> lookup) {
         try {
-            MembersInjector<T> membersInjector
-                    = injector.membersInjectorStore.get(lookup.getType(), errors);
+            MembersInjector<T> membersInjector = injector.membersInjectorStore.get(lookup.getType(), errors);
             lookup.initializeDelegate(membersInjector);
         } catch (ErrorsException e) {
             errors.merge(e.getErrors()); // TODO: source

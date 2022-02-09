@@ -1,0 +1,20 @@
+// This file is auto-generated. Do not edit.
+
+[[painless-api-reference-painless-test]]
+=== Painless Test API
+
+The following specialized API is available in the Painless Test context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+==== Classes By Package
+The following classes are available grouped by their respective packages. Click on a class to view details about the available methods and fields.
+
+
+==== java.lang
+<<painless-api-reference-painless-test-java-lang, Expand details for java.lang>>
+
+* <<painless-api-reference-painless-test-String, String>>
+
+include::packages.asciidoc[]
+

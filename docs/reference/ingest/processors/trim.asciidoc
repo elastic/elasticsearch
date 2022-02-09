@@ -1,5 +1,9 @@
 [[trim-processor]]
-=== Trim Processor
+=== Trim processor
+++++
+<titleabbrev>Trim</titleabbrev>
+++++
+
 Trims whitespace from field. If the field is an array of strings, all members of the array will be trimmed.
 
 NOTE: This only works on leading and trailing whitespace.

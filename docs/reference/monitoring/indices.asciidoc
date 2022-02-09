@@ -1,9 +1,8 @@
 [role="xpack"]
-[testenv="basic"]
 [[config-monitoring-indices]]
 == Configuring indices for monitoring
 
-<<indices-templates,Index templates>> are used to configure the indices
+<<indices-templates-v1,Index templates>> are used to configure the indices
 that store the monitoring data collected from a cluster.
 
 You can retrieve the templates through the `_template` API:
@@ -16,7 +15,7 @@ GET /_template/.monitoring-*
 By default, the template configures one shard and one replica for the
 monitoring indices. To override the default settings, add your own template:
 
-. Set the `template` pattern to `.monitoring-*`.
+. Set the `template` patterns to match existing `.monitoring-{product}-7-*` indices.
 . Set the template `order` to `1`. This ensures your template is
 applied after the default template, which has an order of 0.
 . Specify the `number_of_shards` and/or `number_of_replicas` in the `settings`
@@ -29,12 +28,12 @@ and the number of replicas to two.
 ----------------------------------
 PUT /_template/custom_monitoring
 {
-    "index_patterns": ".monitoring-*",
-    "order": 1,
-    "settings": {
-        "number_of_shards": 5,
-        "number_of_replicas": 2
-    }
+  "index_patterns": [".monitoring-beats-7-*", ".monitoring-es-7-*", ".monitoring-kibana-7-*", ".monitoring-logstash-7-*"],
+  "order": 1,
+  "settings": {
+    "number_of_shards": 5,
+    "number_of_replicas": 2
+  }
 }
 ----------------------------------
 

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
@@ -47,8 +48,7 @@ public class AuthenticationContextSerializer {
         return deserializeHeaderAndPutInContext(authenticationHeader, ctx);
     }
 
-    Authentication deserializeHeaderAndPutInContext(String headerValue, ThreadContext ctx)
-            throws IOException, IllegalArgumentException {
+    Authentication deserializeHeaderAndPutInContext(String headerValue, ThreadContext ctx) throws IOException, IllegalArgumentException {
         assert ctx.getTransient(contextKey) == null;
 
         Authentication authentication = decode(headerValue);

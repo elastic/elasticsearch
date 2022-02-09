@@ -1,47 +1,27 @@
+[role="xpack"]
 [[indices-create-data-stream]]
 === Create data stream API
 ++++
 <titleabbrev>Create data stream</titleabbrev>
 ++++
 
-Creates a new data stream.
+Creates a new <<data-streams,data stream>>.
 
-Data streams provide a convenient way to ingest, search, and manage time series
-data. Documents containing time series data may be indexed directly into a data
-stream and searched through the data stream. Behind the scenes, data streams
-contain one or more hidden backing indices and a generation attribute that
-indicates which of the backing indices is the write index, the index into which
-documents will be ingested.
-
-Backing indices are generated with the naming convention
-`<data-stream-name>-zzzzzz` where `zzzzzz` is the six-digit, zero-padded
-generation of the data stream. For example, a data stream named
-`web-server-logs` with a generation of 34 would have a write index named
-`web-server-logs-000034`. While nothing prevents backing indices from being
-addressed directly, data streams are integrated with the
-<<indices-rollover-index, rollover index API>> and
-<<index-lifecycle-management, index lifecycle management (ILM)>> to facilitate
-the management of the time series data contained in their backing indices.
-
-A data stream can only be created if the namespace it targets has a component
-template exists with a `data_stream` definition.
-
+////
 [source,console]
------------------------------------
-PUT _index_template/template
+----
+PUT /_index_template/template
 {
   "index_patterns": ["my-data-stream*"],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  }
+  "data_stream": { }
 }
------------------------------------
-// TEST
+----
+////
 
 [source,console]
---------------------------------------------------
-PUT _data_stream/my-data-stream
---------------------------------------------------
+----
+PUT /_data_stream/my-data-stream
+----
 // TEST[continued]
 
 ////
@@ -56,15 +36,16 @@ DELETE /_index_template/template
 [[indices-create-data-stream-request]]
 ==== {api-request-title}
 
-`PUT _data_stream/<data-stream>`
+`PUT /_data_stream/<data-stream>`
 
-[[indices-create-data-stream-desc]]
-==== {api-description-title}
-You can use the create data stream API to add a new data stream to an {es}
-cluster. When creating a data stream, you must specify the following:
+[[indices-create-data-stream-prereqs]]
+==== {api-prereq-title}
 
-* The name of the data stream
-* The name of the timestamp field.
+* If the {es} {security-features} are enabled, you must have the `create_index`
+or `manage` <<privileges-list-indices,index privilege>> for the data stream.
+
+* A matching <<index-templates,index template>> with data stream enabled.
+See <<set-up-a-data-stream>>.
 
 [[indices-create-data-stream-api-path-params]]
 ==== {api-path-parms-title}
@@ -72,16 +53,15 @@ cluster. When creating a data stream, you must specify the following:
 `<data-stream>`::
 +
 --
-(Required, string) Name of the data stream to create.
-
-Data stream names must meet the following criteria:
+(Required, string) Name of the data stream to create. Data stream names must
+meet the following criteria:
 
 - Lowercase only
-- Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` ` (space character),
-`,`, `#`, `:`
-- Cannot start with `-`, `_`, `+`, `.`
+- Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, `,`, `#`, `:`, or a
+space character
+- Cannot start with `-`, `_`, `+`, or `.ds-`
 - Cannot be `.` or `..`
-- Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters
-will count towards the 255 limit faster)
+- Cannot be longer than 255 bytes. Multi-byte characters
+count towards this limit faster.
 --
 

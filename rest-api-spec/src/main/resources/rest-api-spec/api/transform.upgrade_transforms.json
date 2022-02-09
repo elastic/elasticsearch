@@ -1,0 +1,36 @@
+{
+  "transform.upgrade_transforms":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/upgrade-transforms.html",
+      "description":"Upgrades all transforms."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept":["application/json"],
+      "content_type":["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_transform/_upgrade",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "dry_run":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to only check for updates but don't execute"
+      },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait for the upgrade"
+      }
+    }
+  }
+}

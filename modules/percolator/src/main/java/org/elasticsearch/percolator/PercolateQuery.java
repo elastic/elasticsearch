@@ -1,49 +1,37 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.CheckedFunction;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 final class PercolateQuery extends Query implements Accountable {
 
@@ -58,9 +46,15 @@ final class PercolateQuery extends Query implements Accountable {
     private final IndexSearcher percolatorIndexSearcher;
     private final Query nonNestedDocsFilter;
 
-    PercolateQuery(String name, QueryStore queryStore, List<BytesReference> documents,
-                   Query candidateMatchesQuery, IndexSearcher percolatorIndexSearcher,
-                   Query nonNestedDocsFilter, Query verifiedMatchesQuery) {
+    PercolateQuery(
+        String name,
+        QueryStore queryStore,
+        List<BytesReference> documents,
+        Query candidateMatchesQuery,
+        IndexSearcher percolatorIndexSearcher,
+        Query nonNestedDocsFilter,
+        Query verifiedMatchesQuery
+    ) {
         this.name = name;
         this.documents = Objects.requireNonNull(documents);
         this.candidateMatchesQuery = Objects.requireNonNull(candidateMatchesQuery);
@@ -74,8 +68,15 @@ final class PercolateQuery extends Query implements Accountable {
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = candidateMatchesQuery.rewrite(reader);
         if (rewritten != candidateMatchesQuery) {
-            return new PercolateQuery(name, queryStore, documents, rewritten, percolatorIndexSearcher,
-                    nonNestedDocsFilter, verifiedMatchesQuery);
+            return new PercolateQuery(
+                name,
+                queryStore,
+                documents,
+                rewritten,
+                percolatorIndexSearcher,
+                nonNestedDocsFilter,
+                verifiedMatchesQuery
+            );
         } else {
             return this;
         }
@@ -86,10 +87,6 @@ final class PercolateQuery extends Query implements Accountable {
         final Weight verifiedMatchesWeight = verifiedMatchesQuery.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, boost);
         final Weight candidateMatchesWeight = candidateMatchesQuery.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, boost);
         return new Weight(this) {
-            @Override
-            public void extractTerms(Set<Term> set) {
-            }
-
             @Override
             public Explanation explain(LeafReaderContext leafReaderContext, int docId) throws IOException {
                 Scorer scorer = scorer(leafReaderContext);
@@ -130,10 +127,9 @@ final class PercolateQuery extends Query implements Accountable {
                             Query query = percolatorQueries.apply(docId);
                             if (query != null) {
                                 if (nonNestedDocsFilter != null) {
-                                    query = new BooleanQuery.Builder()
-                                            .add(query, Occur.MUST)
-                                            .add(nonNestedDocsFilter, Occur.FILTER)
-                                            .build();
+                                    query = new BooleanQuery.Builder().add(query, Occur.MUST)
+                                        .add(nonNestedDocsFilter, Occur.FILTER)
+                                        .build();
                                 }
                                 TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
                                 if (topDocs.scoreDocs.length > 0) {
@@ -176,10 +172,7 @@ final class PercolateQuery extends Query implements Accountable {
                                 return false;
                             }
                             if (nonNestedDocsFilter != null) {
-                                query = new BooleanQuery.Builder()
-                                        .add(query, Occur.MUST)
-                                        .add(nonNestedDocsFilter, Occur.FILTER)
-                                        .build();
+                                query = new BooleanQuery.Builder().add(query, Occur.MUST).add(nonNestedDocsFilter, Occur.FILTER).build();
                             }
                             return Lucene.exists(percolatorIndexSearcher, query);
                         }
@@ -246,8 +239,12 @@ final class PercolateQuery extends Query implements Accountable {
             sources.append(document.utf8ToString());
             sources.append('\n');
         }
-        return "PercolateQuery{document_sources={" + sources + "},inner={" +
-            candidateMatchesQuery.toString(s)  + "}}";
+        return "PercolateQuery{document_sources={" + sources + "},inner={" + candidateMatchesQuery.toString(s) + "}}";
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        visitor.visitLeaf(this);
     }
 
     @Override

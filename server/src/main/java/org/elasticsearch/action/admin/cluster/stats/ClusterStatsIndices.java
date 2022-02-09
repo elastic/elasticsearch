@@ -1,39 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ClusterStatsIndices implements ToXContentFragment {
 
@@ -45,13 +33,17 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private QueryCacheStats queryCache;
     private CompletionStats completion;
     private SegmentsStats segments;
-    private AnalysisStats analysis;
-    private MappingStats mappings;
+    private final AnalysisStats analysis;
+    private final MappingStats mappings;
+    private final VersionStats versions;
 
-    public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses,
-            MappingStats mappingStats,
-            AnalysisStats analysisStats) {
-        ObjectObjectHashMap<String, ShardStats> countsPerIndex = new ObjectObjectHashMap<>();
+    public ClusterStatsIndices(
+        List<ClusterStatsNodeResponse> nodeResponses,
+        MappingStats mappingStats,
+        AnalysisStats analysisStats,
+        VersionStats versionStats
+    ) {
+        Map<String, ShardStats> countsPerIndex = new HashMap<>();
 
         this.docs = new DocsStats();
         this.store = new StoreStats();
@@ -86,12 +78,13 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
         shards = new ShardStats();
         indexCount = countsPerIndex.size();
-        for (ObjectObjectCursor<String, ShardStats> indexCountsCursor : countsPerIndex) {
-            shards.addIndexShardCount(indexCountsCursor.value);
+        for (Map.Entry<String, ShardStats> indexCountsCursor : countsPerIndex.entrySet()) {
+            shards.addIndexShardCount(indexCountsCursor.getValue());
         }
 
         this.mappings = mappingStats;
         this.analysis = analysisStats;
+        this.versions = versionStats;
     }
 
     public int getIndexCount() {
@@ -134,6 +127,10 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return analysis;
     }
 
+    public VersionStats getVersions() {
+        return versions;
+    }
+
     static final class Fields {
         static final String COUNT = "count";
     }
@@ -154,6 +151,9 @@ public class ClusterStatsIndices implements ToXContentFragment {
         if (analysis != null) {
             analysis.toXContent(builder, params);
         }
+        if (versions != null) {
+            versions.toXContent(builder, params);
+        }
         return builder;
     }
 
@@ -172,8 +172,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         double totalIndexReplication = 0;
         double maxIndexReplication = -1;
 
-        public ShardStats() {
-        }
+        public ShardStats() {}
 
         /**
          * number of indices in the cluster

@@ -1,0 +1,161 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+#
+# Painless definition file. This defines the hierarchy of classes,
+# what methods and fields they have, etc.
+#
+
+#### Primitive types
+
+class void @no_import {
+}
+
+class boolean @no_import {
+}
+
+class byte @no_import {
+}
+
+class short @no_import {
+}
+
+class char @no_import {
+}
+
+class int @no_import {
+}
+
+class long @no_import {
+}
+
+class float @no_import {
+}
+
+class double @no_import {
+}
+
+#### Painless debugging API
+
+class org.elasticsearch.painless.api.Debug {
+  void explain(Object)
+}
+
+#### ES Scripting API
+
+class org.elasticsearch.common.geo.GeoPoint {
+  ()
+  (double, double)
+  double getLat()
+  double getLon()
+}
+
+class org.elasticsearch.common.geo.GeoBoundingBox {
+  org.elasticsearch.common.geo.GeoPoint topLeft()
+  org.elasticsearch.common.geo.GeoPoint bottomRight()
+}
+
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Strings {
+  String get(int)
+  String getValue()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
+  Long get(int)
+  long getValue()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
+  ZonedDateTime get(int)
+  ZonedDateTime getValue()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
+  Double get(int)
+  double getValue()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Geometry {
+  int getDimensionalType()
+  org.elasticsearch.common.geo.GeoPoint getCentroid()
+  org.elasticsearch.common.geo.GeoBoundingBox getBoundingBox()
+  double getMercatorWidth()
+  double getMercatorHeight()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {
+  org.elasticsearch.common.geo.GeoPoint get(int)
+  org.elasticsearch.common.geo.GeoPoint getValue()
+  double getLat()
+  double getLon()
+  double[] getLats()
+  double[] getLons()
+
+  # geo distance functions
+  double arcDistance(double,double)
+  double arcDistanceWithDefault(double,double,double)
+  double planeDistance(double,double)
+  double planeDistanceWithDefault(double,double,double)
+  double geohashDistance(String)
+  double geohashDistanceWithDefault(String,double)
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$Booleans {
+  Boolean get(int)
+  boolean getValue()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs {
+  BytesRef get(int)
+  BytesRef getValue()
+}
+
+class org.apache.lucene.util.BytesRef {
+  byte[] bytes
+  int offset
+  int length
+  boolean bytesEquals(BytesRef)
+  String utf8ToString()
+}
+
+class org.elasticsearch.search.lookup.FieldLookup {
+  def getValue()
+  List getValues()
+  boolean isEmpty()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Query {
+  float getBoost()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Field {
+  long getDocCount()
+  long getSumDocFreq()
+  long getSumTotalTermFreq()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Term {
+  long getDocFreq()
+  long getTotalTermFreq()
+}
+
+class org.elasticsearch.index.similarity.ScriptedSimilarity$Doc {
+  int getLength()
+  float getFreq()
+}
+
+class org.elasticsearch.index.query.IntervalFilterScript$Interval {
+  int getStart()
+  int getEnd()
+  int getGaps()
+}
+
+class org.elasticsearch.script.ScoreScript$ExplanationHolder {
+  void set(String)
+}

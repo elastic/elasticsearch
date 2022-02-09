@@ -13,12 +13,12 @@ lowercases terms, and supports removing stop words.
 <<analysis-simple-analyzer,Simple Analyzer>>::
 
 The `simple` analyzer divides text into terms whenever it encounters a
-character which is not a letter.  It lowercases all terms.
+character which is not a letter. It lowercases all terms.
 
 <<analysis-whitespace-analyzer,Whitespace Analyzer>>::
 
 The `whitespace` analyzer divides text into terms whenever it encounters any
-whitespace character.  It does not lowercase terms.
+whitespace character. It does not lowercase terms.
 
 <<analysis-stop-analyzer,Stop Analyzer>>::
 
@@ -45,7 +45,7 @@ Elasticsearch provides many language-specific analyzers like `english` or
 The `fingerprint` analyzer is a specialist analyzer which creates a
 fingerprint which can be used for duplicate detection.
 
-[float]
+[discrete]
 === Custom analyzers
 
 If you do not find an analyzer suitable for your needs, you can create a

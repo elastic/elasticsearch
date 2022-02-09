@@ -10,7 +10,7 @@ Evicts roles from the native role cache.
 [[security-api-clear-role-cache-request]]
 ==== {api-request-title}
 
-`POST /_security/role/<name>/_clear_cache` 
+`POST /_security/role/<roles>/_clear_cache` 
 
 [[security-api-clear-role-cache-prereqs]]
 ==== {api-prereq-title}
@@ -27,8 +27,10 @@ For more information about the native realm, see
 [[security-api-clear-role-cache-path-params]]
 ==== {api-path-parms-title}
 
-`name`::
-  (string) The name of the role. 
+`<roles>`::
+(Required, string)
+Comma-separated list of roles to evict from the role cache. To evict all
+roles, use `*`. Does not support other wildcard patterns.
 
 [[security-api-clear-role-cache-example]]
 ==== {api-examples-title}
@@ -40,3 +42,17 @@ to clear the cache for `my_admin_role`:
 --------------------------------------------------
 POST /_security/role/my_admin_role/_clear_cache
 --------------------------------------------------
+
+Specify multiple roles as a comma-separated list.
+
+[source,console]
+----
+POST /_security/role/my_admin_role,my_test_role/_clear_cache
+----
+
+To clear all roles from the cache, use `*`.
+
+[source,console]
+----
+POST /_security/role/*/_clear_cache
+----

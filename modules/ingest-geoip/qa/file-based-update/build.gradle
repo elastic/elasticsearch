@@ -1,0 +1,26 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'resource.reload.interval.high', '100ms'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+}
+
+tasks.named("integTest").configure {
+  systemProperty 'tests.security.manager', 'false' // Allows the test the add databases to config directory.
+  nonInputProperties.systemProperty 'tests.config.dir', testClusters.named("integTest").map(c -> c.singleNode().getConfigDir())
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
+}

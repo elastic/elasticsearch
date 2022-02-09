@@ -1,0 +1,124 @@
+[role="xpack"]
+
+[[example-using-index-lifecycle-policy]]
+=== Tutorial: Customize built-in {ilm-init} policies
+++++
+<titleabbrev>Customize built-in {ilm-init} policies</titleabbrev>
+++++
+
+{es} includes the following built-in {ilm-init} policies:
+
+- `logs`
+- `metrics`
+- `synthetics`
+
+{agent} uses these policies to manage backing indices for its data streams.
+This tutorial shows you how to use {kib}’s **Index Lifecycle Policies** to
+customize these policies based on your application's performance, resilience,
+and retention requirements.
+
+
+[discrete]
+[[example-using-index-lifecycle-policy-scenario]]
+==== Scenario
+
+You want to send log files to an {es} cluster so you can visualize and analyze
+the data. This data has the following retention requirements:
+
+* When the write index reaches 50GB or is 30 days old, roll over to a new index.
+* After rollover, keep indices in the hot data tier for 30 days.
+* 30 days after rollover:
+** Move indices to the warm data tier.
+** Set replica shards to 1.
+** <<indices-forcemerge, Force merge>> multiple index segments to free up the
+space used by deleted documents.
+* Delete indices 90 days after rollover.
+
+
+[discrete]
+[[example-using-index-lifecycle-policy-prerequisites]]
+==== Prerequisites
+
+To complete this tutorial, you'll need:
+
+* An {es} cluster with hot and warm data tiers.
+
+** {ess}:
+Elastic Stack deployments on {ess} include a hot tier by default. To add a warm
+tier, edit your deployment and click **Add capacity** for the warm data tier.
++
+[role="screenshot"]
+image::images/ilm/tutorial-ilm-ess-add-warm-data-tier.png[Add a warm data tier to your deployment]
+
+** Self-managed cluster:
+Assign `data_hot` and `data_warm` roles to nodes as described in
+<<data-tiers>>.
++
+For example, include the `data_warm` node role in the `elasticsearch.yml` file
+of each node in the warm tier:
++
+[source,yaml]
+----
+node.roles: [ data_warm ]
+----
+
+* A host with {agent} installed and configured to send logs to your {es}
+cluster.
+
+[discrete]
+[[example-using-index-lifecycle-policy-view-ilm-policy]]
+==== View the policy
+
+{agent} uses data streams with an index pattern of `logs-*-*` to store log
+monitoring data. The built-in `logs` {ilm-init} policy automatically manages
+backing indices for these data streams.
+
+To view the `logs` policy in {kib}:
+
+. Open the menu and go to **Stack Management > Index Lifecycle Policies**.
+. Select the `logs` policy.
+
+The `logs` policy uses the recommended rollover defaults: Start writing to a new
+index when the current write index reaches 50GB or becomes 30 days old.
+
+To view or change the rollover settings, click **Advanced settings** for the hot
+phase. Then disable **Use recommended defaults** to display the rollover
+settings.
+
+[role="screenshot"]
+image::images/ilm/tutorial-ilm-hotphaserollover-default.png[View rollover defaults]
+
+[discrete]
+[[ilm-ex-modify-policy]]
+==== Modify the policy
+
+The default `logs` policy is designed to prevent the creation of many tiny daily
+indices. You can modify the policy to meet your performance requirements and
+manage resource usage.
+
+. Activate the warm phase and click **Advanced settings**.
++
+--
+.. Set **Move data into phase when** to **30 days old**. This moves indices to
+the warm tier 30 days after rollover.
+
+.. Enable **Set replicas** and change **Number of replicas** to **1**.
+
+.. Enable **Force merge data** and set **Number of segments** to **1**.
+
+[role="screenshot"]
+image::images/ilm/tutorial-ilm-modify-default-warm-phase-rollover.png[Add a warm phase with custom settings]
+--
+
+. In the warm phase, click the trash icon to enable the delete phase.
++
+[role="screenshot"]
+image::images/ilm/tutorial-ilm-enable-delete-phase.png[Enable the delete phase]
++
+In the delete phase, set **Move data into phase when** to **90 days old**. This
+deletes indices 90 days after rollover.
++
+[role="screenshot"]
+image::images/ilm/tutorial-ilm-delete-rollover.png[Add a delete phase]
+
+. Click **Save Policy**.

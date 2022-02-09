@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
@@ -12,11 +14,12 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 
 /**
  * {@link Expression}s that can be materialized and describe properties of the derived table.
  * In other words, an attribute represent a column in the results of a query.
- * 
+ *
  * In the statement {@code SELECT ABS(foo), A, B+C FROM ...} the three named
  * expressions {@code ABS(foo), A, B+C} get converted to attributes and the user can
  * only see Attributes.
@@ -30,6 +33,8 @@ public abstract class Attribute extends NamedExpression {
     // empty - such as a top level attribute in SELECT cause
     // present - table name or a table name alias
     private final String qualifier;
+    // cluster name in the qualifier (if any)
+    private final String cluster;
 
     // can the attr be null - typically used in JOINs
     private final Nullability nullability;
@@ -44,7 +49,14 @@ public abstract class Attribute extends NamedExpression {
 
     public Attribute(Source source, String name, String qualifier, Nullability nullability, NameId id, boolean synthetic) {
         super(source, name, emptyList(), id, synthetic);
-        this.qualifier = qualifier;
+        if (qualifier != null) {
+            Tuple<String, String> splitQualifier = splitQualifiedIndex(qualifier);
+            this.cluster = splitQualifier.v1();
+            this.qualifier = splitQualifier.v2();
+        } else {
+            this.cluster = null;
+            this.qualifier = null;
+        }
         this.nullability = nullability;
     }
 
@@ -76,8 +88,9 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withQualifier(String qualifier) {
-        return Objects.equals(qualifier(), qualifier) ? this : clone(source(), name(), dataType(), qualifier, nullable(), id(),
-                synthetic());
+        return Objects.equals(qualifier(), qualifier)
+            ? this
+            : clone(source(), name(), dataType(), qualifier, nullable(), id(), synthetic());
     }
 
     public Attribute withName(String name) {
@@ -85,8 +98,9 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withNullability(Nullability nullability) {
-        return Objects.equals(nullable(), nullability) ? this : clone(source(), name(), dataType(), qualifier(), nullability, id(),
-                synthetic());
+        return Objects.equals(nullable(), nullability)
+            ? this
+            : clone(source(), name(), dataType(), qualifier(), nullability, id(), synthetic());
     }
 
     public Attribute withId(NameId id) {
@@ -97,8 +111,15 @@ public abstract class Attribute extends NamedExpression {
         return Objects.equals(dataType(), type) ? this : clone(source(), name(), type, qualifier(), nullable(), id(), synthetic());
     }
 
-    protected abstract Attribute clone(Source source, String name, DataType type, String qualifier, Nullability nullability,
-            NameId id, boolean synthetic);
+    protected abstract Attribute clone(
+        Source source,
+        String name,
+        DataType type,
+        String qualifier,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    );
 
     @Override
     public Attribute toAttribute() {
@@ -116,6 +137,11 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
+    protected Expression canonicalize() {
+        return clone(Source.EMPTY, name(), dataType(), qualifier, nullability, id(), synthetic());
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), qualifier, nullability);
     }
@@ -124,8 +150,7 @@ public abstract class Attribute extends NamedExpression {
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             Attribute other = (Attribute) obj;
-            return Objects.equals(qualifier, other.qualifier)
-                    && Objects.equals(nullability, other.nullability);
+            return Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
         }
 
         return false;

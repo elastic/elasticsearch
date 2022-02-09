@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.env;
 
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.FileNotFoundException;
@@ -32,31 +21,25 @@ import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Simple unit-tests for Environment.java
  */
 public class EnvironmentTests extends ESTestCase {
-    public Environment newEnvironment() {
-        return newEnvironment(Settings.EMPTY);
-    }
-
-    public Environment newEnvironment(Settings settings) {
-        Settings build = Settings.builder()
-                .put(settings)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
-        return new Environment(build, null);
-    }
 
     public void testRepositoryResolution() throws IOException {
         Environment environment = newEnvironment();
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), nullValue());
-        environment = newEnvironment(Settings.builder()
-                .putList(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other").build());
+        environment = newEnvironment(
+            Settings.builder()
+                .putList(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other")
+                .build()
+        );
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());
@@ -64,7 +47,6 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.resolveRepoFile("/test/repos/../repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/somethingeles/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("/test/other/repo"), notNullValue());
-
 
         assertThat(environment.resolveRepoURL(new URL("file:///test/repos/repo1")), notNullValue());
         assertThat(environment.resolveRepoURL(new URL("file:/test/repos/repo1")), notNullValue());
@@ -83,7 +65,7 @@ public class EnvironmentTests extends ESTestCase {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.dataFiles(), equalTo(new Path[]{pathHome.resolve("data")}));
+        assertThat(environment.dataFiles(), equalTo(new Path[] { pathHome.resolve("data") }));
     }
 
     public void testPathDataNotSetInEnvironmentIfNotSet() {
@@ -91,6 +73,15 @@ public class EnvironmentTests extends ESTestCase {
         assertFalse(Environment.PATH_DATA_SETTING.exists(settings));
         final Environment environment = new Environment(settings, null);
         assertFalse(Environment.PATH_DATA_SETTING.exists(environment.settings()));
+    }
+
+    public void testPathDataLegacyCommaList() {
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir().toAbsolutePath())
+            .put("path.data", createTempDir().toAbsolutePath() + "," + createTempDir().toAbsolutePath())
+            .build();
+        final Environment environment = new Environment(settings, null);
+        assertThat(environment.dataFiles(), arrayWithSize(2));
     }
 
     public void testPathLogsWhenNotSet() {
@@ -122,22 +113,34 @@ public class EnvironmentTests extends ESTestCase {
     }
 
     public void testNonExistentTempPathValidation() {
-        Settings build = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .build();
+        Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, createTempDir().resolve("this_does_not_exist"));
         FileNotFoundException e = expectThrows(FileNotFoundException.class, environment::validateTmpFile);
-        assertThat(e.getMessage(), startsWith("Temporary file directory ["));
+        assertThat(e.getMessage(), startsWith("Temporary directory ["));
         assertThat(e.getMessage(), endsWith("this_does_not_exist] does not exist or is not accessible"));
     }
 
     public void testTempPathValidationWhenRegularFile() throws IOException {
-        Settings build = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .build();
+        Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, createTempFile("something", ".test"));
         IOException e = expectThrows(IOException.class, environment::validateTmpFile);
-        assertThat(e.getMessage(), startsWith("Configured temporary file directory ["));
+        assertThat(e.getMessage(), startsWith("Temporary directory ["));
+        assertThat(e.getMessage(), endsWith(".test] is not a directory"));
+    }
+
+    public void testNonExistentTempPathValidationForNatives() {
+        Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Environment environment = new Environment(build, null, createTempDir().resolve("this_does_not_exist"));
+        FileNotFoundException e = expectThrows(FileNotFoundException.class, environment::validateNativesConfig);
+        assertThat(e.getMessage(), startsWith("Temporary directory ["));
+        assertThat(e.getMessage(), endsWith("this_does_not_exist] does not exist or is not accessible"));
+    }
+
+    public void testTempPathValidationWhenRegularFileForNatives() throws IOException {
+        Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Environment environment = new Environment(build, null, createTempFile("something", ".test"));
+        IOException e = expectThrows(IOException.class, environment::validateNativesConfig);
+        assertThat(e.getMessage(), startsWith("Temporary directory ["));
         assertThat(e.getMessage(), endsWith(".test] is not a directory"));
     }
 
@@ -179,6 +182,31 @@ public class EnvironmentTests extends ESTestCase {
         assertPath(pidFile, home.resolve("pidfile"));
     }
 
+    public void testSingleDataPathListCheck() {
+        {
+            final Settings settings = Settings.builder().build();
+            assertThat(Environment.dataPathUsesList(settings), is(false));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString())
+                .build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+                .build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString() + "," + createTempDir().toString())
+                .build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
+    }
+
     private void assertPath(final String actual, final Path expected) {
         assertIsAbsolute(actual);
         assertIsNormalized(actual);
@@ -192,5 +220,4 @@ public class EnvironmentTests extends ESTestCase {
     private void assertIsNormalized(final String path) {
         assertThat("path [" + path + "] is not normalized", PathUtils.get(path), equalTo(PathUtils.get(path).normalize()));
     }
-
 }

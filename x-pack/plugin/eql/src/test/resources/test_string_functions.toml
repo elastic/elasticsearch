@@ -1,0 +1,413 @@
+[between]
+description = "Test the proper evaluation of the `between` function"
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", null, "planet")'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "welcome", null)'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between(null, "welcome", "planet")'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "welcome", "planet")'
+    expected = " to the "
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "welcome", "village")'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "goodbye", "planet")'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "welcome", "e", false)'
+    expected = " to th"
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "welcome", "e", true)'
+    expected = " to the plan"
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "welcome", "x", false)'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "welcome", "x", true)'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "", "x", true)'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "", "", true)'
+    expected = "welcome to the planet"
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "", "", false)'
+    expected = ""
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "", "planet", false)'
+    expected = "welcome to the "
+
+
+[concat]
+description = "Test the `concat` function"
+
+    [[concat.fold.tests]]
+    expression = 'concat(null)'
+    # expected = null
+
+    [[concat.fold.tests]]
+    expression = 'concat(null, null, null)'
+    # expected = null
+
+    [[concat.fold.tests]]
+    expression = 'concat("a")'
+    expected = "a"
+
+    [[concat.fold.tests]]
+    expression = 'concat("a", "||", 1, "||", "b")'
+    expected = "a||1||b"
+
+    [[concat.fold.tests]]
+    expression = 'concat("a", "||", null, "||", "b")'
+    # expected = null
+
+    [[concat.fold.tests]]
+    expression = 'concat("a", "||", 1, "||", true, "||", "b")'
+    expected = "a||1||true||b"
+
+    [[concat.fold.tests]]
+    expression = 'concat("a", "||", 1, "||", true, "||", "b")'
+    expected = "a||1||true||b"
+
+
+[endswith]
+description = "Test the `endsWith` function with case matching"
+
+    [[endswith.fold.tests]]
+    expression = 'endsWith("FooBarBaz", "Baz")'
+    expected = true
+
+    [[endswith.fold.tests]]
+    expression = 'endsWith("FooBarBaz", "Foo")'
+    expected = false
+
+
+[endswith_insensitive]
+description = "Test the `endsWith` function with case insensitivity"
+
+    [[endswith_insensitive.fold.tests]]
+    expression = 'endsWith("FooBarBaz", "baz")'
+    expected = false
+
+    [[endswith_insensitive.fold.tests]]
+    expression = 'endsWith~("FooBarBaz", "baz")'
+    expected = true
+
+
+[endswith_sensitive]
+description = "Test the `endsWith` function with case sensitivity"
+
+    [[endswith_sensitive.fold.tests]]
+    expression = 'endsWith("FooBarBaz", "baz")'
+    expected = false
+
+    [[endswith_sensitive.fold.tests]]
+    expression = 'endsWith~("FooBarBaz", "baz")'
+    expected = true
+
+
+[indexof]
+description = "Test `indexOf()` with exact case specified"
+
+    [[indexof.fold.tests]]
+    expression = 'indexOf(null, "L")'
+    # expected = null
+
+    [[indexof.fold.tests]]
+    expression = 'indexOf("foobarbaz", "L")'
+    # expected = null
+
+    [[indexof.fold.tests]]
+    expression = 'indexOf("foobarbaz", null)'
+    # expected = null
+
+    [[indexof.fold.tests]]
+    expression = 'indexOf(null, null)'
+    # expected = null
+
+    [[indexof.fold.tests]]
+    expression = 'indexOf("foobarbaz", "o")'
+    expected = 1
+
+    [[indexof.fold.tests]]
+    expression = 'indexOf("foobarbaz", "o", null)'
+    expected = 1
+
+    [[indexof.fold.tests]]
+    expression = 'indexOf("foobarbaz", "o", 0)'
+    expected = 1
+
+    [[indexof.fold.tests]]
+    expression = 'indexOf("foobarbaz", "o", 1)'
+    expected = 1
+
+    [[indexof.fold.tests]]
+    expression = 'indexOf("foobarbaz", "o", 2)'
+    expected = 2
+
+    [[indexof.fold.tests]]
+    expression = 'indexOf("foobarbaz", "r")'
+    expected = 5
+
+    [[indexof.fold.tests]]
+    expression = 'indexOf("foobarbaz", "r", 2)'
+    expected = 5
+
+
+[length]
+description = "Test the folding of the `length` function."
+
+    [[length.fold.tests]]
+    expression = 'length(null)'
+    # expected = null
+
+    [[length.fold.tests]]
+    expression = 'length("")'
+    expected = 0
+
+    [[length.fold.tests]]
+    expression = 'length("foo")'
+    expected = 3
+
+
+[number]
+description = "Test the `number` function"
+
+    [number.verifier]
+
+        [[number.verifier.failures]]
+        expression = "number()"
+
+        [[number.verifier.failures]]
+        expression = "number(1)"
+
+        [[number.verifier.failures]]
+        expression = "number(true)"
+
+        [[number.verifier.failures]]
+        expression = "number(true)"
+
+    [[number.fold.tests]]
+    expression = 'number("314")'
+    expected = 314
+
+    [[number.fold.tests]]
+    expression = 'number("3.14")'
+    expected = 3.14
+
+    [[number.fold.tests]]
+    expression = 'number("-3.14", 10)'
+    expected = -3.14
+
+    [[number.fold.tests]]
+    expression = 'number("-314", 10)'
+    expected = -314
+
+    [[number.fold.tests]]
+    expression = 'number("+314", 10)'
+    expected = +314
+
+    [[number.fold.tests]]
+    expression = 'number("-3.14")'
+    expected = -3.14
+
+    [[number.fold.tests]]
+    expression = 'number("0x1337")'
+    expected = 4919
+
+    [[number.fold.tests]]
+    expression = 'number("0x1337", 16)'
+    expected = 4919
+
+    [[number.fold.tests]]
+    expression = 'number("52403")'
+    expected = 52403
+
+    [[number.fold.tests]]
+    expression = 'number("052403", 8)'
+    expected = 21763
+
+    [[number.fold.tests]]
+    expression = 'number("52403", 7)'
+    expected = 12890
+
+
+[startswith]
+description = "Test the `startsWith` function"
+
+    [startswith.verifier]
+        [[startswith.verifier.failures]]
+        expression = "startsWith()"
+
+        [[startswith.verifier.failures]]
+        expression = '''startsWith(1, "FOO")'''
+
+        [[startswith.verifier.failures]]
+        expression = '''startsWith("FOO", 123)'''
+
+    [[startswith.fold.tests]]
+    expression = '''startsWith("FooBarBaz", null)'''
+    # expected = null
+
+    [[startswith.fold.tests]]
+    expression = '''startsWith(null, "Foo")'''
+    # expected = null
+
+    [[startswith.fold.tests]]
+    expression = '''startsWith("FooBarBaz", "Foo")'''
+    expected = true
+
+    [[startswith.fold.tests]]
+    expression = '''startsWith("FooBarBaz", "")'''
+    expected = true
+
+    [[startswith.fold.tests]]
+    expression = '''startsWith("FooBarBaz", "FooBar")'''
+    expected = true
+
+    [[startswith.fold.tests]]
+    expression = '''startsWith("FooBarBaz", "Bar")'''
+    expected = false
+
+    [[startswith.fold.tests]]
+    expression = '''startsWith("FooBarBaz", "Bar")'''
+    expected = false
+
+
+[startswith_case_sensitive]
+description = "Test the `startsWith` function with case-sensitive matching"
+
+    [[startswith_case_sensitive.tests]]
+    expression = '''startsWith("FooBar", "Foo")'''
+    expected = true
+
+    [[startswith_case_sensitive.tests]]
+    expression = '''startsWith("FooBar", "foo")'''
+    expected = false
+
+
+[startswith_case_insensitive]
+description = "Test the `startsWith` function with case-insensitive matching"
+
+    [[startswith_case_insensitive.fold.tests]]
+    expression = '''startsWith~("FooBar", "Foo")'''
+    expected = true
+
+    [[startswith_case_insensitive.fold.tests]]
+    expression = '''startsWith~("FooBar", "FOO")'''
+    expected = true
+
+    [[startswith_case_insensitive.fold.tests]]
+    expression = '''startsWith~("FooBar", "foo")'''
+    expected = true
+
+    [[startswith_case_insensitive.fold.tests]]
+    expression = '''startsWith~("FooBar", "Bar")'''
+    expected = false
+
+
+[string]
+description = "Test the `string` function"
+
+    [[string.fold.tests]]
+    expression = "string(null)"
+    # expected = null
+
+    [[string.fold.tests]]
+    expression = "string(1)"
+    expected = "1"
+
+    [[string.fold.tests]]
+    expression = "string(true)"
+    expected = "true"
+
+    [[string.fold.tests]]
+    expression = "string(2.1828)"
+    expected = "2.1828"
+
+    [[string.fold.tests]]
+    expression = '''string("hello")'''
+    expected = "hello"
+
+[substring]
+description = "Test the `substring` function when the case already matches"
+
+    [[substring.fold.tests]]
+    expression = "substring(null, 5)"
+    # expected = null
+
+    [[substring.fold.tests]]
+    expression = "substring(null, null)"
+    # expected = null
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", null, null)'''
+    expected = "hello world"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", 6, null)'''
+    expected = "world"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", null, 5)'''
+    expected = "hello"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", 0, 5)'''
+    expected = "hello"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", 0, 500)'''
+    expected = "hello world"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", 5, -1)'''
+    expected = " worl"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", 3, 9)'''
+    expected = "lo wor"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", -5, null)'''
+    expected = "world"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", -5, 11)'''
+    expected = "world"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", -5, 100)'''
+    expected = "world"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", -60, 5)'''
+    expected = "hello"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", -5)'''
+    expected = "world"
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", -5, -1)'''
+    expected = "worl"

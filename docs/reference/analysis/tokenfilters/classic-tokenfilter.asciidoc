@@ -132,16 +132,16 @@ classic token filter to configure a new
 --------------------------------------------------
 PUT /classic_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "classic_analyzer" : {
-                    "tokenizer" : "classic",
-                    "filter" : ["classic"]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "classic_analyzer": {
+          "tokenizer": "classic",
+          "filter": [ "classic" ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 

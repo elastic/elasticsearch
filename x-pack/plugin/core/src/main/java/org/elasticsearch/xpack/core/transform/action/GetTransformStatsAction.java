@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -17,9 +17,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -37,6 +37,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
     public static final GetTransformStatsAction INSTANCE = new GetTransformStatsAction();
     public static final String NAME = "cluster:monitor/transform/stats/get";
+
     public GetTransformStatsAction() {
         super(NAME, GetTransformStatsAction.Response::new);
     }
@@ -56,7 +57,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             } else {
                 this.id = id;
             }
-            this.expandedIds = Collections.singletonList(id);
+            this.expandedIds = Collections.singletonList(this.id);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -64,9 +65,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             id = in.readString();
             expandedIds = Collections.unmodifiableList(in.readStringList());
             pageParams = new PageParams(in);
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                allowNoMatch = in.readBoolean();
-            }
+            allowNoMatch = in.readBoolean();
         }
 
         @Override
@@ -110,17 +109,17 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             out.writeString(id);
             out.writeStringCollection(expandedIds);
             pageParams.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeBoolean(allowNoMatch);
-            }
+            out.writeBoolean(allowNoMatch);
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException exception = null;
             if (getPageParams() != null && getPageParams().getSize() > MAX_SIZE_RETURN) {
-                exception = addValidationError("Param [" + PageParams.SIZE.getPreferredName() +
-                    "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]", exception);
+                exception = addValidationError(
+                    "Param [" + PageParams.SIZE.getPreferredName() + "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]",
+                    exception
+                );
             }
             return exception;
         }
@@ -139,9 +138,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id)
-                && Objects.equals(pageParams, other.pageParams)
-                && allowNoMatch == other.allowNoMatch;
+            return Objects.equals(id, other.id) && Objects.equals(pageParams, other.pageParams) && allowNoMatch == other.allowNoMatch;
         }
     }
 
@@ -152,10 +149,12 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this(new QueryPage<>(transformStateAndStats, count, TransformField.TRANSFORMS));
         }
 
-        public Response(List<TransformStats> transformStateAndStats,
-                        long count,
-                        List<TaskOperationFailure> taskFailures,
-                        List<? extends ElasticsearchException> nodeFailures) {
+        public Response(
+            List<TransformStats> transformStateAndStats,
+            long count,
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures
+        ) {
             this(new QueryPage<>(transformStateAndStats, count, TransformField.TRANSFORMS), taskFailures, nodeFailures);
         }
 
@@ -163,35 +162,32 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this(transformsStats, Collections.emptyList(), Collections.emptyList());
         }
 
-        private Response(QueryPage<TransformStats> transformsStats,
-                         List<TaskOperationFailure> taskFailures,
-                         List<? extends ElasticsearchException> nodeFailures) {
+        private Response(
+            QueryPage<TransformStats> transformsStats,
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures
+        ) {
             super(taskFailures, nodeFailures);
             this.transformsStats = ExceptionsHelper.requireNonNull(transformsStats, "transformsStats");
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                transformsStats = new QueryPage<>(in, TransformStats::new);
-            } else {
-                List<TransformStats> stats = in.readList(TransformStats::new);
-                transformsStats = new QueryPage<>(stats, stats.size(), TransformField.TRANSFORMS);
-            }
+            transformsStats = new QueryPage<>(in, TransformStats::new);
         }
 
         public List<TransformStats> getTransformsStats() {
             return transformsStats.results();
         }
 
+        public long getCount() {
+            return transformsStats.count();
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                transformsStats.writeTo(out);
-            } else {
-                out.writeList(transformsStats.results());
-            }
+            transformsStats.writeTo(out);
         }
 
         @Override

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transform.script;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 
@@ -58,8 +59,12 @@ public class ScriptTransform implements Transform {
             Script script = Script.parse(parser);
             return new ScriptTransform(script);
         } catch (ElasticsearchParseException pe) {
-            throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse script", pe, TYPE,
-                    watchId);
+            throw new ElasticsearchParseException(
+                "could not parse [{}] transform for watch [{}]. failed to parse script",
+                pe,
+                TYPE,
+                watchId
+            );
         }
     }
 

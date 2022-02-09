@@ -1,32 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -49,6 +40,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
+    private static final Version LICENSED_PLUGINS_SUPPORT = Version.V_7_11_0;
+
     private final String name;
     private final String description;
     private final String version;
@@ -57,6 +50,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String classname;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
+    private final PluginType type;
+    private final String javaOpts;
+    private final boolean isLicensed;
 
     /**
      * Construct plugin info.
@@ -69,9 +65,23 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param classname             the entry point to the plugin
      * @param extendedPlugins       other plugins this plugin extends through SPI
      * @param hasNativeController   whether or not the plugin has a native controller
+     * @param type                  the type of the plugin. Expects "bootstrap" or "isolated".
+     * @param javaOpts              any additional JVM CLI parameters added by this plugin
+     * @param isLicensed            whether is this a licensed plugin
      */
-    public PluginInfo(String name, String description, String version, Version elasticsearchVersion, String javaVersion,
-                      String classname, List<String> extendedPlugins, boolean hasNativeController) {
+    public PluginInfo(
+        String name,
+        String description,
+        String version,
+        Version elasticsearchVersion,
+        String javaVersion,
+        String classname,
+        List<String> extendedPlugins,
+        boolean hasNativeController,
+        PluginType type,
+        String javaOpts,
+        boolean isLicensed
+    ) {
         this.name = name;
         this.description = description;
         this.version = version;
@@ -80,6 +90,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.classname = classname;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
+        this.type = type;
+        this.javaOpts = javaOpts;
+        this.isLicensed = isLicensed;
     }
 
     /**
@@ -97,6 +110,16 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.classname = in.readString();
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
+
+        if (in.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
+            type = PluginType.valueOf(in.readString());
+            javaOpts = in.readOptionalString();
+            isLicensed = in.readBoolean();
+        } else {
+            type = PluginType.ISOLATED;
+            javaOpts = null;
+            isLicensed = false;
+        }
     }
 
     @Override
@@ -109,6 +132,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(classname);
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
+
+        if (out.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
+            out.writeString(type.name());
+            out.writeOptionalString(javaOpts);
+            out.writeBoolean(isLicensed);
+        }
     }
 
     /**
@@ -132,37 +161,27 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         final String name = propsMap.remove("name");
         if (name == null || name.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "property [name] is missing in [" + descriptor + "]");
+            throw new IllegalArgumentException("property [name] is missing in [" + descriptor + "]");
         }
         final String description = propsMap.remove("description");
         if (description == null) {
-            throw new IllegalArgumentException(
-                    "property [description] is missing for plugin [" + name + "]");
+            throw new IllegalArgumentException("property [description] is missing for plugin [" + name + "]");
         }
         final String version = propsMap.remove("version");
         if (version == null) {
-            throw new IllegalArgumentException(
-                    "property [version] is missing for plugin [" + name + "]");
+            throw new IllegalArgumentException("property [version] is missing for plugin [" + name + "]");
         }
 
         final String esVersionString = propsMap.remove("elasticsearch.version");
         if (esVersionString == null) {
-            throw new IllegalArgumentException(
-                    "property [elasticsearch.version] is missing for plugin [" + name + "]");
+            throw new IllegalArgumentException("property [elasticsearch.version] is missing for plugin [" + name + "]");
         }
         final Version esVersion = Version.fromString(esVersionString);
         final String javaVersionString = propsMap.remove("java.version");
         if (javaVersionString == null) {
-            throw new IllegalArgumentException(
-                    "property [java.version] is missing for plugin [" + name + "]");
+            throw new IllegalArgumentException("property [java.version] is missing for plugin [" + name + "]");
         }
         JarHell.checkVersionFormat(javaVersionString);
-        final String classname = propsMap.remove("classname");
-        if (classname == null) {
-            throw new IllegalArgumentException(
-                    "property [classname] is missing for plugin [" + name + "]");
-        }
 
         final String extendedString = propsMap.remove("extended.plugins");
         final List<String> extendedPlugins;
@@ -172,36 +191,85 @@ public class PluginInfo implements Writeable, ToXContentObject {
             extendedPlugins = Arrays.asList(Strings.delimitedListToStringArray(extendedString, ","));
         }
 
-        final String hasNativeControllerValue = propsMap.remove("has.native.controller");
-        final boolean hasNativeController;
-        if (hasNativeControllerValue == null) {
-            hasNativeController = false;
-        } else {
-            switch (hasNativeControllerValue) {
-                case "true":
-                    hasNativeController = true;
-                    break;
-                case "false":
-                    hasNativeController = false;
-                    break;
-                default:
-                    final String message = String.format(
-                            Locale.ROOT,
-                            "property [%s] must be [%s], [%s], or unspecified but was [%s]",
-                            "has_native_controller",
-                            "true",
-                            "false",
-                            hasNativeControllerValue);
-                    throw new IllegalArgumentException(message);
-            }
+        final boolean hasNativeController = parseBooleanValue(name, "has.native.controller", propsMap.remove("has.native.controller"));
+
+        final PluginType type = getPluginType(name, propsMap.remove("type"));
+
+        final String classname = getClassname(name, type, propsMap.remove("classname"));
+
+        final String javaOpts = propsMap.remove("java.opts");
+
+        if (type != PluginType.BOOTSTRAP && Strings.isNullOrEmpty(javaOpts) == false) {
+            throw new IllegalArgumentException(
+                "[java.opts] can only have a value when [type] is set to [bootstrap] for plugin [" + name + "]"
+            );
         }
+
+        boolean isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
 
         if (propsMap.isEmpty() == false) {
-            throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
+            throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());
         }
 
-        return new PluginInfo(name, description, version, esVersion, javaVersionString,
-                              classname, extendedPlugins, hasNativeController);
+        return new PluginInfo(
+            name,
+            description,
+            version,
+            esVersion,
+            javaVersionString,
+            classname,
+            extendedPlugins,
+            hasNativeController,
+            type,
+            javaOpts,
+            isLicensed
+        );
+    }
+
+    private static PluginType getPluginType(String name, String rawType) {
+        if (Strings.isNullOrEmpty(rawType)) {
+            return PluginType.ISOLATED;
+        }
+
+        try {
+            return PluginType.valueOf(rawType.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                "[type] must be unspecified or one of [isolated, bootstrap] but found [" + rawType + "] for plugin [" + name + "]"
+            );
+        }
+    }
+
+    private static String getClassname(String name, PluginType type, String classname) {
+        if (type == PluginType.BOOTSTRAP) {
+            if (Strings.isNullOrEmpty(classname) == false) {
+                throw new IllegalArgumentException(
+                    "property [classname] can only have a value when [type] is set to [bootstrap] for plugin [" + name + "]"
+                );
+            }
+            return "";
+        }
+
+        if (classname == null) {
+            throw new IllegalArgumentException("property [classname] is missing for plugin [" + name + "]");
+        }
+
+        return classname;
+    }
+
+    private static boolean parseBooleanValue(String pluginName, String name, String rawValue) {
+        try {
+            return Booleans.parseBoolean(rawValue, false);
+        } catch (IllegalArgumentException e) {
+            final String message = String.format(
+                Locale.ROOT,
+                "property [%s] must be [true], [false], or unspecified but was [%s] for plugin [%s]",
+                name,
+                rawValue,
+                pluginName
+            );
+            throw new IllegalArgumentException(message);
+        }
     }
 
     /**
@@ -276,6 +344,33 @@ public class PluginInfo implements Writeable, ToXContentObject {
         return hasNativeController;
     }
 
+    /**
+     * Returns the type of this plugin. Can be "isolated" for regular sandboxed plugins, or "bootstrap"
+     * for plugins that affect how Elasticsearch's JVM runs.
+     *
+     * @return the type of the plugin
+     */
+    public PluginType getType() {
+        return type;
+    }
+
+    /**
+     * Returns any additional JVM command-line options that this plugin adds. Only applies to
+     * plugins whose <code>type</code> is "bootstrap".
+     *
+     * @return any additional JVM options.
+     */
+    public String getJavaOpts() {
+        return javaOpts;
+    }
+
+    /**
+     * Whether this plugin is subject to the Elastic License.
+     */
+    public boolean isLicensed() {
+        return isLicensed;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -288,6 +383,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("classname", classname);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
+            builder.field("licensed", isLicensed);
+            builder.field("type", type);
+            if (type == PluginType.BOOTSTRAP) {
+                builder.field("java_opts", javaOpts);
+            }
         }
         builder.endObject();
 
@@ -301,11 +401,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         PluginInfo that = (PluginInfo) o;
 
-        if (!name.equals(that.name)) return false;
+        if (name.equals(that.name) == false) return false;
         // TODO: since the plugins are unique by their directory name, this should only be a name check, version should not matter?
-        if (version != null ? !version.equals(that.version) : that.version != null) return false;
-
-        return true;
+        return Objects.equals(version, that.version);
     }
 
     @Override
@@ -319,16 +417,52 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     public String toString(String prefix) {
-        final StringBuilder information = new StringBuilder()
-            .append(prefix).append("- Plugin information:\n")
-            .append(prefix).append("Name: ").append(name).append("\n")
-            .append(prefix).append("Description: ").append(description).append("\n")
-            .append(prefix).append("Version: ").append(version).append("\n")
-            .append(prefix).append("Elasticsearch Version: ").append(elasticsearchVersion).append("\n")
-            .append(prefix).append("Java Version: ").append(javaVersion).append("\n")
-            .append(prefix).append("Native Controller: ").append(hasNativeController).append("\n")
-            .append(prefix).append("Extended Plugins: ").append(extendedPlugins).append("\n")
-            .append(prefix).append(" * Classname: ").append(classname);
+        final StringBuilder information = new StringBuilder().append(prefix)
+            .append("- Plugin information:\n")
+            .append(prefix)
+            .append("Name: ")
+            .append(name)
+            .append("\n")
+            .append(prefix)
+            .append("Description: ")
+            .append(description)
+            .append("\n")
+            .append(prefix)
+            .append("Version: ")
+            .append(version)
+            .append("\n")
+            .append(prefix)
+            .append("Elasticsearch Version: ")
+            .append(elasticsearchVersion)
+            .append("\n")
+            .append(prefix)
+            .append("Java Version: ")
+            .append(javaVersion)
+            .append("\n")
+            .append(prefix)
+            .append("Native Controller: ")
+            .append(hasNativeController)
+            .append("\n")
+            .append(prefix)
+            .append("Licensed: ")
+            .append(isLicensed)
+            .append("\n")
+            .append(prefix)
+            .append("Type: ")
+            .append(type)
+            .append("\n");
+
+        if (type == PluginType.BOOTSTRAP) {
+            information.append(prefix).append("Java Opts: ").append(javaOpts).append("\n");
+        }
+
+        information.append(prefix)
+            .append("Extended Plugins: ")
+            .append(extendedPlugins)
+            .append("\n")
+            .append(prefix)
+            .append(" * Classname: ")
+            .append(classname);
         return information.toString();
     }
 }

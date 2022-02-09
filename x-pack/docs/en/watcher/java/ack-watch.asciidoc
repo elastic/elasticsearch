@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[api-java-ack-watch]]
 === Ack watch API
 

@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -70,13 +70,15 @@ public class RequestLoggerTests extends RestClientTestCase {
             expected += " -d '" + requestBody + "'";
             HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
             HttpEntity entity;
-            switch(randomIntBetween(0, 4)) {
+            switch (randomIntBetween(0, 4)) {
                 case 0:
                     entity = new StringEntity(requestBody, ContentType.APPLICATION_JSON);
                     break;
                 case 1:
-                    entity = new InputStreamEntity(new ByteArrayInputStream(requestBody.getBytes(StandardCharsets.UTF_8)),
-                        ContentType.APPLICATION_JSON);
+                    entity = new InputStreamEntity(
+                        new ByteArrayInputStream(requestBody.getBytes(StandardCharsets.UTF_8)),
+                        ContentType.APPLICATION_JSON
+                    );
                     break;
                 case 2:
                     entity = new NStringEntity(requestBody, ContentType.APPLICATION_JSON);
@@ -96,7 +98,7 @@ public class RequestLoggerTests extends RestClientTestCase {
         String traceRequest = RequestLogger.buildTraceRequest(request, host);
         assertThat(traceRequest, equalTo(expected));
         if (hasBody) {
-            //check that the body is still readable as most entities are not repeatable
+            // check that the body is still readable as most entities are not repeatable
             String body = EntityUtils.toString(((HttpEntityEnclosingRequest) request).getEntity(), StandardCharsets.UTF_8);
             assertThat(body, equalTo(requestBody));
         }
@@ -122,28 +124,30 @@ public class RequestLoggerTests extends RestClientTestCase {
             expected += "\n#   \"field\": \"value\"";
             expected += "\n# }";
             HttpEntity entity;
-            switch(randomIntBetween(0, 2)) {
-            case 0:
-                entity = new StringEntity(responseBody, ContentType.APPLICATION_JSON);
-                break;
-            case 1:
-                //test a non repeatable entity
-                entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)),
-                    ContentType.APPLICATION_JSON);
-                break;
-            case 2:
-                // Evil entity without a charset
-                entity = new StringEntity(responseBody, ContentType.create("application/json", (Charset) null));
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            switch (randomIntBetween(0, 2)) {
+                case 0:
+                    entity = new StringEntity(responseBody, ContentType.APPLICATION_JSON);
+                    break;
+                case 1:
+                    // test a non repeatable entity
+                    entity = new InputStreamEntity(
+                        new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)),
+                        ContentType.APPLICATION_JSON
+                    );
+                    break;
+                case 2:
+                    // Evil entity without a charset
+                    entity = new StringEntity(responseBody, ContentType.create("application/json", (Charset) null));
+                    break;
+                default:
+                    throw new UnsupportedOperationException();
             }
             httpResponse.setEntity(entity);
         }
         String traceResponse = RequestLogger.buildTraceResponse(httpResponse);
         assertThat(traceResponse, equalTo(expected));
         if (hasBody) {
-            //check that the body is still readable as most entities are not repeatable
+            // check that the body is still readable as most entities are not repeatable
             String body = EntityUtils.toString(httpResponse.getEntity(), StandardCharsets.UTF_8);
             assertThat(body, equalTo(responseBody));
         }
@@ -153,8 +157,12 @@ public class RequestLoggerTests extends RestClientTestCase {
         HttpHost host = new HttpHost("localhost", 9200);
         HttpUriRequest request = randomHttpRequest(new URI("/index/type/_api"));
         int numWarnings = randomIntBetween(1, 5);
-        StringBuilder expected = new StringBuilder("request [").append(request.getMethod()).append(" ").append(host)
-                .append("/index/type/_api] returned ").append(numWarnings).append(" warnings: ");
+        StringBuilder expected = new StringBuilder("request [").append(request.getMethod())
+            .append(" ")
+            .append(host)
+            .append("/index/type/_api] returned ")
+            .append(numWarnings)
+            .append(" warnings: ");
         Header[] warnings = new Header[numWarnings];
         for (int i = 0; i < numWarnings; i++) {
             String warning = "this is warning number " + i;
@@ -169,7 +177,7 @@ public class RequestLoggerTests extends RestClientTestCase {
 
     private static HttpUriRequest randomHttpRequest(URI uri) {
         int requestType = randomIntBetween(0, 7);
-        switch(requestType) {
+        switch (requestType) {
             case 0:
                 return new HttpGetWithEntity(uri);
             case 1:

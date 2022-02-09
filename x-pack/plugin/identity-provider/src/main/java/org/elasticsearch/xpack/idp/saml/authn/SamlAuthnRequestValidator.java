@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp.saml.authn;
 
@@ -10,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
@@ -29,7 +30,6 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
-import javax.xml.parsers.DocumentBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -49,6 +49,8 @@ import java.util.Set;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 
+import javax.xml.parsers.DocumentBuilder;
+
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 import static org.opensaml.saml.saml2.core.NameIDType.UNSPECIFIED;
 
@@ -60,10 +62,11 @@ public class SamlAuthnRequestValidator {
     private final SamlFactory samlFactory;
     private final SamlIdentityProvider idp;
     private final Logger logger = LogManager.getLogger(SamlAuthnRequestValidator.class);
-    private static final String[] XSD_FILES = new String[]{"/org/elasticsearch/xpack/idp/saml/support/saml-schema-protocol-2.0.xsd",
+    private static final String[] XSD_FILES = new String[] {
+        "/org/elasticsearch/xpack/idp/saml/support/saml-schema-protocol-2.0.xsd",
         "/org/elasticsearch/xpack/idp/saml/support/saml-schema-assertion-2.0.xsd",
         "/org/elasticsearch/xpack/idp/saml/support/xenc-schema.xsd",
-        "/org/elasticsearch/xpack/idp/saml/support/xmldsig-core-schema.xsd"};
+        "/org/elasticsearch/xpack/idp/saml/support/xmldsig-core-schema.xsd" };
 
     private static final ThreadLocal<DocumentBuilder> THREAD_LOCAL_DOCUMENT_BUILDER = ThreadLocal.withInitial(() -> {
         try {
@@ -99,19 +102,16 @@ public class SamlAuthnRequestValidator {
                 return;
             }
             final AuthnRequest authnRequest = samlFactory.buildXmlObject(root, AuthnRequest.class);
-            getSpFromAuthnRequest(authnRequest.getIssuer(), authnRequest.getAssertionConsumerServiceURL(), ActionListener.wrap(
-                sp -> {
-                    try {
-                        validateAuthnRequest(authnRequest, sp, parsedQueryString, listener);
-                    } catch (ElasticsearchSecurityException e) {
-                        logger.debug("Could not validate AuthnRequest", e);
-                        listener.onFailure(e);
-                    } catch (Exception e) {
-                        logAndRespond("Could not validate AuthnRequest", e, listener);
-                    }
-                },
-                listener::onFailure
-            ));
+            getSpFromAuthnRequest(authnRequest.getIssuer(), authnRequest.getAssertionConsumerServiceURL(), ActionListener.wrap(sp -> {
+                try {
+                    validateAuthnRequest(authnRequest, sp, parsedQueryString, listener);
+                } catch (ElasticsearchSecurityException e) {
+                    logger.debug("Could not validate AuthnRequest", e);
+                    listener.onFailure(e);
+                } catch (Exception e) {
+                    logAndRespond("Could not validate AuthnRequest", e, listener);
+                }
+            }, listener::onFailure));
         } catch (ElasticsearchSecurityException e) {
             logger.debug("Could not process AuthnRequest", e);
             listener.onFailure(e);
@@ -130,48 +130,80 @@ public class SamlAuthnRequestValidator {
         logger.trace(new ParameterizedMessage("Parsed the following parameters from the query string: {}", parameters));
         final String samlRequest = parameters.get("SAMLRequest");
         if (null == samlRequest) {
-            throw new ElasticsearchSecurityException("Query string [{}] does not contain a SAMLRequest parameter",
-                RestStatus.BAD_REQUEST, queryString);
+            throw new ElasticsearchSecurityException(
+                "Query string [{}] does not contain a SAMLRequest parameter",
+                RestStatus.BAD_REQUEST,
+                queryString
+            );
         }
         return new ParsedQueryString(
             queryString,
             samlRequest,
             parameters.get("RelayState"),
             parameters.get("SigAlg"),
-            parameters.get("Signature"));
+            parameters.get("Signature")
+        );
     }
 
-    private void validateAuthnRequest(AuthnRequest authnRequest, SamlServiceProvider sp, ParsedQueryString parsedQueryString,
-                                         ActionListener<SamlValidateAuthnRequestResponse> listener) {
+    private void validateAuthnRequest(
+        AuthnRequest authnRequest,
+        SamlServiceProvider sp,
+        ParsedQueryString parsedQueryString,
+        ActionListener<SamlValidateAuthnRequestResponse> listener
+    ) {
         // If the Service Provider should not sign requests, do not try to handle signatures even if they are added to the request
         if (sp.shouldSignAuthnRequests()) {
             if (Strings.hasText(parsedQueryString.signature)) {
                 if (Strings.hasText(parsedQueryString.sigAlg) == false) {
-                    logAndRespond(new ParameterizedMessage("Query string [{}] contains a Signature but SigAlg parameter is missing",
-                        parsedQueryString.queryString), listener);
+                    logAndRespond(
+                        new ParameterizedMessage(
+                            "Query string [{}] contains a Signature but SigAlg parameter is missing",
+                            parsedQueryString.queryString
+                        ),
+                        listener
+                    );
                     return;
                 }
                 final Set<X509Credential> spSigningCredentials = sp.getSpSigningCredentials();
                 if (spSigningCredentials == null || spSigningCredentials.isEmpty()) {
-                    logAndRespond(new ParameterizedMessage("Unable to validate signature of authentication request, " +
-                        "Service Provider [{}] hasn't registered signing credentials", sp.getEntityId()), listener);
+                    logAndRespond(
+                        new ParameterizedMessage(
+                            "Unable to validate signature of authentication request, "
+                                + "Service Provider [{}] hasn't registered signing credentials",
+                            sp.getEntityId()
+                        ),
+                        listener
+                    );
                     return;
                 }
                 if (validateSignature(parsedQueryString, spSigningCredentials) == false) {
                     logAndRespond(
-                        new ParameterizedMessage("Unable to validate signature of authentication request [{}] using credentials [{}]",
-                            parsedQueryString.queryString, samlFactory.describeCredentials(spSigningCredentials)), listener);
+                        new ParameterizedMessage(
+                            "Unable to validate signature of authentication request [{}] using credentials [{}]",
+                            parsedQueryString.queryString,
+                            samlFactory.describeCredentials(spSigningCredentials)
+                        ),
+                        listener
+                    );
                     return;
                 }
             } else if (Strings.hasText(parsedQueryString.sigAlg)) {
-                logAndRespond(new ParameterizedMessage("Query string [{}] contains a SigAlg parameter but Signature is missing",
-                    parsedQueryString.queryString), listener);
+                logAndRespond(
+                    new ParameterizedMessage(
+                        "Query string [{}] contains a SigAlg parameter but Signature is missing",
+                        parsedQueryString.queryString
+                    ),
+                    listener
+                );
                 return;
             } else {
                 logAndRespond(
                     new ParameterizedMessage(
-                        "The Service Provider [{}] must sign authentication requests but no signature was found", sp.getEntityId()),
-                    listener);
+                        "The Service Provider [{}] must sign authentication requests but no signature was found",
+                        sp.getEntityId()
+                    ),
+                    listener
+                );
                 return;
             }
         }
@@ -180,10 +212,19 @@ public class SamlAuthnRequestValidator {
         final String acs = checkAcs(authnRequest, sp, authnState);
         validateNameIdPolicy(authnRequest, sp, authnState);
         authnState.put(SamlAuthenticationState.Fields.AUTHN_REQUEST_ID.getPreferredName(), authnRequest.getID());
-        final SamlValidateAuthnRequestResponse response = new SamlValidateAuthnRequestResponse(sp.getEntityId(), acs,
-            authnRequest.isForceAuthn(), authnState);
-        logger.trace(new ParameterizedMessage("Validated AuthnResponse from queryString [{}] and extracted [{}]",
-            parsedQueryString.queryString, response));
+        final SamlValidateAuthnRequestResponse response = new SamlValidateAuthnRequestResponse(
+            sp.getEntityId(),
+            acs,
+            authnRequest.isForceAuthn(),
+            authnState
+        );
+        logger.trace(
+            new ParameterizedMessage(
+                "Validated AuthnResponse from queryString [{}] and extracted [{}]",
+                parsedQueryString.queryString,
+                response
+            )
+        );
         listener.onResponse(response);
     }
 
@@ -193,10 +234,15 @@ public class SamlAuthnRequestValidator {
             final String requestedFormat = nameIDPolicy.getFormat();
             final String allowedFormat = sp.getAllowedNameIdFormat();
             if (Strings.hasText(requestedFormat)) {
-                if (allowedFormat != null && requestedFormat.equals(UNSPECIFIED) == false
+                if (allowedFormat != null
+                    && requestedFormat.equals(UNSPECIFIED) == false
                     && requestedFormat.equals(allowedFormat) == false) {
-                    throw new ElasticsearchSecurityException("The requested NameID format [{}] doesn't match the allowed NameID format" +
-                        " for this Service Provider which is [{}]", requestedFormat, sp.getAllowedNameIdFormat());
+                    throw new ElasticsearchSecurityException(
+                        "The requested NameID format [{}] doesn't match the allowed NameID format"
+                            + " for this Service Provider which is [{}]",
+                        requestedFormat,
+                        sp.getAllowedNameIdFormat()
+                    );
                 } else {
                     authnState.put(SamlAuthenticationState.Fields.NAMEID_FORMAT.getPreferredName(), requestedFormat);
                 }
@@ -215,11 +261,20 @@ public class SamlAuthnRequestValidator {
                 sig.update(contentBytes);
                 return sig.verify(signatureBytes);
             } catch (NoSuchAlgorithmException e) {
-                throw new ElasticsearchSecurityException("Java signature algorithm [{}] is not available for SAML/XML-Sig algorithm [{}]",
-                    e, javaSigAlgorithm, queryString.sigAlg);
+                throw new ElasticsearchSecurityException(
+                    "Java signature algorithm [{}] is not available for SAML/XML-Sig algorithm [{}]",
+                    e,
+                    javaSigAlgorithm,
+                    queryString.sigAlg
+                );
             } catch (InvalidKeyException | SignatureException e) {
-                logger.warn(new ParameterizedMessage("Signature verification failed for credential [{}]",
-                    samlFactory.describeCredentials(Set.of(credential))), e);
+                logger.warn(
+                    new ParameterizedMessage(
+                        "Signature verification failed for credential [{}]",
+                        samlFactory.describeCredentials(Set.of(credential))
+                    ),
+                    e
+                );
                 return false;
             }
         });
@@ -230,17 +285,17 @@ public class SamlAuthnRequestValidator {
             throw new ElasticsearchSecurityException("SAML authentication request has no issuer", RestStatus.BAD_REQUEST);
         }
         final String issuerString = issuer.getValue();
-        idp.resolveServiceProvider(issuerString, acs, false, ActionListener.wrap(
-            serviceProvider -> {
-                if (null == serviceProvider) {
-                    throw new ElasticsearchSecurityException(
-                        "Service Provider with Entity ID [{}] and ACS [{}] is not known to this Identity Provider", RestStatus.BAD_REQUEST,
-                        issuerString, acs);
-                }
-                listener.onResponse(serviceProvider);
-            },
-            listener::onFailure
-        ));
+        idp.resolveServiceProvider(issuerString, acs, false, ActionListener.wrap(serviceProvider -> {
+            if (null == serviceProvider) {
+                throw new ElasticsearchSecurityException(
+                    "Service Provider with Entity ID [{}] and ACS [{}] is not known to this Identity Provider",
+                    RestStatus.BAD_REQUEST,
+                    issuerString,
+                    acs
+                );
+            }
+            listener.onResponse(serviceProvider);
+        }, listener::onFailure));
     }
 
     private void checkDestination(AuthnRequest request) {
@@ -248,22 +303,30 @@ public class SamlAuthnRequestValidator {
         if (url.equals(request.getDestination()) == false) {
             throw new ElasticsearchSecurityException(
                 "SAML authentication request [{}] is for destination [{}] but the SSO endpoint of this Identity Provider is [{}]",
-                RestStatus.BAD_REQUEST, request.getID(), request.getDestination(), url);
+                RestStatus.BAD_REQUEST,
+                request.getID(),
+                request.getDestination(),
+                url
+            );
         }
     }
 
     private String checkAcs(AuthnRequest request, SamlServiceProvider sp, Map<String, Object> authnState) {
         final String acs = request.getAssertionConsumerServiceURL();
         if (Strings.hasText(acs) == false) {
-            final String message = request.getAssertionConsumerServiceIndex() == null ?
-                "SAML authentication does not contain an AssertionConsumerService URL" :
-                "SAML authentication does not contain an AssertionConsumerService URL. It contains an Assertion Consumer Service Index " +
-                    "but this IDP doesn't support multiple AssertionConsumerService URLs.";
+            final String message = request.getAssertionConsumerServiceIndex() == null
+                ? "SAML authentication does not contain an AssertionConsumerService URL"
+                : "SAML authentication does not contain an AssertionConsumerService URL. It contains an Assertion Consumer Service Index "
+                    + "but this IDP doesn't support multiple AssertionConsumerService URLs.";
             throw new ElasticsearchSecurityException(message, RestStatus.BAD_REQUEST);
         }
         if (acs.equals(sp.getAssertionConsumerService().toString()) == false) {
-            throw new ElasticsearchSecurityException("The registered ACS URL for this Service Provider is [{}] but the authentication " +
-                "request contained [{}]", RestStatus.BAD_REQUEST, sp.getAssertionConsumerService(), acs);
+            throw new ElasticsearchSecurityException(
+                "The registered ACS URL for this Service Provider is [{}] but the authentication " + "request contained [{}]",
+                RestStatus.BAD_REQUEST,
+                sp.getAssertionConsumerService(),
+                acs
+            );
         }
         return acs;
     }
@@ -294,9 +357,11 @@ public class SamlAuthnRequestValidator {
 
     private byte[] inflate(byte[] bytes) {
         Inflater inflater = new Inflater(true);
-        try (ByteArrayInputStream in = new ByteArrayInputStream(bytes);
-             InflaterInputStream inflate = new InflaterInputStream(in, inflater);
-             ByteArrayOutputStream out = new ByteArrayOutputStream(bytes.length * 3 / 2)) {
+        try (
+            ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+            InflaterInputStream inflate = new InflaterInputStream(in, inflater);
+            ByteArrayOutputStream out = new ByteArrayOutputStream(bytes.length * 3 / 2)
+        ) {
             Streams.copy(inflate, out);
             return out.toByteArray();
         } catch (IOException e) {
@@ -342,9 +407,9 @@ public class SamlAuthnRequestValidator {
 
         public String reconstructQueryParameters() throws ElasticsearchSecurityException {
             try {
-                return relayState == null ?
-                    "SAMLRequest=" + urlEncode(samlRequest) + "&SigAlg=" + urlEncode(sigAlg) :
-                    "SAMLRequest=" + urlEncode(samlRequest) + "&RelayState=" + urlEncode(relayState) + "&SigAlg=" + urlEncode(sigAlg);
+                return relayState == null
+                    ? "SAMLRequest=" + urlEncode(samlRequest) + "&SigAlg=" + urlEncode(sigAlg)
+                    : "SAMLRequest=" + urlEncode(samlRequest) + "&RelayState=" + urlEncode(relayState) + "&SigAlg=" + urlEncode(sigAlg);
             } catch (UnsupportedEncodingException e) {
                 throw new ElasticsearchSecurityException("Cannot reconstruct query for signature verification", e);
             }

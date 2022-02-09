@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
@@ -24,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The configuration object for the metrics portion of a rollup job config
@@ -50,14 +51,15 @@ public class MetricConfig implements Writeable, ToXContentObject {
     public static final ParseField SUM = new ParseField("sum");
     public static final ParseField AVG = new ParseField("avg");
     public static final ParseField VALUE_COUNT = new ParseField("value_count");
+    public static final String NAME = "metrics";
 
-    static final String NAME = "metrics";
     private static final String FIELD = "field";
     private static final String METRICS = "metrics";
     private static final ConstructingObjectParser<MetricConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, args -> {
-            @SuppressWarnings("unchecked") List<String> metrics = (List<String>) args[1];
+            @SuppressWarnings("unchecked")
+            List<String> metrics = (List<String>) args[1];
             return new MetricConfig((String) args[0], metrics);
         });
         PARSER.declareString(constructorArg(), new ParseField(FIELD));
@@ -76,15 +78,16 @@ public class MetricConfig implements Writeable, ToXContentObject {
         }
         metrics.forEach(m -> {
             if (RollupField.SUPPORTED_METRICS.contains(m) == false) {
-                throw new IllegalArgumentException("Unsupported metric [" + m + "]. " +
-                    "Supported metrics include: " + RollupField.SUPPORTED_METRICS);
+                throw new IllegalArgumentException(
+                    "Unsupported metric [" + m + "]. " + "Supported metrics include: " + RollupField.SUPPORTED_METRICS
+                );
             }
         });
         this.field = field;
         this.metrics = metrics;
     }
 
-    MetricConfig(final StreamInput in) throws IOException {
+    public MetricConfig(final StreamInput in) throws IOException {
         field = in.readString();
         metrics = in.readStringList();
     }
@@ -103,31 +106,47 @@ public class MetricConfig implements Writeable, ToXContentObject {
         return metrics;
     }
 
-    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-                                 ActionRequestValidationException validationException) {
+    public void validateMappings(
+        Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+        ActionRequestValidationException validationException
+    ) {
 
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
         if (fieldCaps != null && fieldCaps.isEmpty() == false) {
             fieldCaps.forEach((key, value) -> {
                 if (value.isAggregatable() == false) {
-                    validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
-                        "but is not.");
+                    validationException.addValidationError(
+                        "The field [" + field + "] must be aggregatable across all indices, " + "but is not."
+                    );
                 }
                 if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
                     // nothing to do as all metrics are supported by SUPPORTED_NUMERIC_METRICS currently
-                } else if (RollupField.DATE_FIELD_MAPPER_TYPE.equals(key)) {
+                } else if (RollupField.DATE_FIELD_MAPPER_TYPES.contains(key)) {
                     if (RollupField.SUPPORTED_DATE_METRICS.containsAll(metrics) == false) {
-                        validationException.addValidationError(
-                            buildSupportedMetricError("date", RollupField.SUPPORTED_DATE_METRICS));
+                        validationException.addValidationError(buildSupportedMetricError(key, RollupField.SUPPORTED_DATE_METRICS));
                     }
                 } else {
-                    validationException.addValidationError("The field referenced by a metric group must be a [numeric] or [date] type, " +
-                        "but found " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+                    validationException.addValidationError(
+                        "The field referenced by a metric group must be a [numeric] or ["
+                            + Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES)
+                            + "] type, "
+                            + "but found "
+                            + fieldCaps.keySet().toString()
+                            + " for field ["
+                            + field
+                            + "]"
+                    );
                 }
             });
         } else {
-            validationException.addValidationError("Could not find a [numeric] or [date] field with name [" + field + "] in any of the " +
-                    "indices matching the index pattern.");
+            validationException.addValidationError(
+                "Could not find a [numeric] or ["
+                    + Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES)
+                    + "] field with name ["
+                    + field
+                    + "] in any of the "
+                    + "indices matching the index pattern."
+            );
         }
     }
 
@@ -136,7 +155,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
         builder.startObject();
         {
             builder.field(FIELD, field);
-            builder.field(METRICS, metrics);
+            builder.stringListField(METRICS, metrics);
         }
         return builder.endObject();
     }
@@ -177,7 +196,15 @@ public class MetricConfig implements Writeable, ToXContentObject {
     private String buildSupportedMetricError(String type, List<String> supportedMetrics) {
         List<String> unsupportedMetrics = new ArrayList<>(metrics);
         unsupportedMetrics.removeAll(supportedMetrics);
-        return "Only the metrics " + supportedMetrics + " are supported for [" + type + "] types," +
-            " but unsupported metrics " + unsupportedMetrics + " supplied for field [" + field + "]";
+        return "Only the metrics "
+            + supportedMetrics
+            + " are supported for ["
+            + type
+            + "] types,"
+            + " but unsupported metrics "
+            + unsupportedMetrics
+            + " supplied for field ["
+            + field
+            + "]";
     }
 }

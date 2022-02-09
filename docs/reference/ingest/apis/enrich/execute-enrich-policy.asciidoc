@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[execute-enrich-policy-api]]
 === Execute enrich policy API
 ++++
@@ -14,23 +13,23 @@ Executes an existing <<enrich-policy,enrich policy>>.
 ----
 PUT /users/_doc/1?refresh
 {
-    "email": "mardy.brown@asciidocsmith.com",
-    "first_name": "Mardy",
-    "last_name": "Brown",
-    "city": "New Orleans",
-    "county": "Orleans",
-    "state": "LA",
-    "zip": 70116,
-    "web": "mardy.asciidocsmith.com"
+  "email": "mardy.brown@asciidocsmith.com",
+  "first_name": "Mardy",
+  "last_name": "Brown",
+  "city": "New Orleans",
+  "county": "Orleans",
+  "state": "LA",
+  "zip": 70116,
+  "web": "mardy.asciidocsmith.com"
 }
 
 PUT /_enrich/policy/my-policy
 {
-    "match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
-    }
+  "match": {
+    "indices": "users",
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+  }
 }
 ----
 // TESTSETUP
@@ -88,8 +87,9 @@ Once created, you cannot update
 or index documents to an enrich index.
 Instead, update your source indices
 and <<execute-enrich-policy-api,execute>> the enrich policy again.
-This creates a new enrich index from your updated source indices
-and deletes the previous enrich index.
+This creates a new enrich index from your updated source indices. 
+The previous enrich index will deleted with a delayed maintenance job. 
+By default this is done every 15 minutes. 
 // end::update-enrich-index[]
 
 Because this API request performs several operations,
@@ -102,10 +102,10 @@ it may take a while to return a response.
 (Required, string)
 Enrich policy to execute.
 
-[[execute-enrich-policy-api-request-body]]
-==== {api-request-body-title}
+[[execute-enrich-policy-api-query-params]]
+==== {api-query-parms-title}
 
 `wait_for_completion`::
-(Required, boolean)
+(Required, Boolean)
 If `true`, the request blocks other enrich policy execution requests until
 complete. Defaults to `true`.

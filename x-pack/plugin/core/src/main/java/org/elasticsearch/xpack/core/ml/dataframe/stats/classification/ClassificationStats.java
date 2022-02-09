@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.classification;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
@@ -34,7 +35,9 @@ public class ClassificationStats implements AnalysisStats {
     public static final ConstructingObjectParser<ClassificationStats, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<ClassificationStats, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<ClassificationStats, Void> parser = new ConstructingObjectParser<>(TYPE_VALUE, ignoreUnknownFields,
+        ConstructingObjectParser<ClassificationStats, Void> parser = new ConstructingObjectParser<>(
+            TYPE_VALUE,
+            ignoreUnknownFields,
             a -> new ClassificationStats(
                 (String) a[0],
                 (Instant) a[1],
@@ -47,17 +50,28 @@ public class ClassificationStats implements AnalysisStats {
 
         parser.declareString((bucket, s) -> {}, Fields.TYPE);
         parser.declareString(ConstructingObjectParser.constructorArg(), Fields.JOB_ID);
-        parser.declareField(ConstructingObjectParser.constructorArg(),
+        parser.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, Fields.TIMESTAMP.getPreferredName()),
             Fields.TIMESTAMP,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
         parser.declareInt(ConstructingObjectParser.constructorArg(), ITERATION);
-        parser.declareObject(ConstructingObjectParser.constructorArg(),
-            (p, c) -> Hyperparameters.fromXContent(p, ignoreUnknownFields), HYPERPARAMETERS);
-        parser.declareObject(ConstructingObjectParser.constructorArg(),
-            (p, c) -> TimingStats.fromXContent(p, ignoreUnknownFields), TIMING_STATS);
-        parser.declareObject(ConstructingObjectParser.constructorArg(),
-            (p, c) -> ValidationLoss.fromXContent(p, ignoreUnknownFields), VALIDATION_LOSS);
+        parser.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> Hyperparameters.fromXContent(p, ignoreUnknownFields),
+            HYPERPARAMETERS
+        );
+        parser.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> TimingStats.fromXContent(p, ignoreUnknownFields),
+            TIMING_STATS
+        );
+        parser.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> ValidationLoss.fromXContent(p, ignoreUnknownFields),
+            VALIDATION_LOSS
+        );
         return parser;
     }
 
@@ -68,8 +82,14 @@ public class ClassificationStats implements AnalysisStats {
     private final TimingStats timingStats;
     private final ValidationLoss validationLoss;
 
-    public ClassificationStats(String jobId, Instant timestamp, int iteration, Hyperparameters hyperparameters, TimingStats timingStats,
-                               ValidationLoss validationLoss) {
+    public ClassificationStats(
+        String jobId,
+        Instant timestamp,
+        int iteration,
+        Hyperparameters hyperparameters,
+        TimingStats timingStats,
+        ValidationLoss validationLoss
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         // We intend to store this timestamp in millis granularity. Thus we're rounding here to ensure
         // internal representation matches toXContent
@@ -115,7 +135,7 @@ public class ClassificationStats implements AnalysisStats {
         builder.field(ITERATION.getPreferredName(), iteration);
         builder.field(HYPERPARAMETERS.getPreferredName(), hyperparameters);
         builder.field(TIMING_STATS.getPreferredName(), timingStats);
-        builder.field(VALIDATION_LOSS.getPreferredName(), validationLoss);
+        builder.field(VALIDATION_LOSS.getPreferredName(), validationLoss, params);
         builder.endObject();
         return builder;
     }
@@ -138,8 +158,8 @@ public class ClassificationStats implements AnalysisStats {
         return Objects.hash(jobId, timestamp, iteration, hyperparameters, timingStats, validationLoss);
     }
 
-    public String documentId(String jobId) {
-        return documentIdPrefix(jobId) + timestamp.toEpochMilli();
+    public String documentId(String _jobId) {
+        return documentIdPrefix(_jobId) + timestamp.toEpochMilli();
     }
 
     public static String documentIdPrefix(String jobId) {

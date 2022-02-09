@@ -1,0 +1,43 @@
+{
+  "ml.preview_data_frame_analytics":{
+    "documentation":{
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/preview-dfanalytics.html",
+      "description":"Previews that will be analyzed given a data frame analytics config."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept":[ "application/json"],
+      "content_type":["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/data_frame/analytics/_preview",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{}
+        },
+        {
+          "path":"/_ml/data_frame/analytics/{id}/_preview",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the data frame analytics to preview"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The data frame analytics config to preview",
+      "required":false
+    }
+  }
+}

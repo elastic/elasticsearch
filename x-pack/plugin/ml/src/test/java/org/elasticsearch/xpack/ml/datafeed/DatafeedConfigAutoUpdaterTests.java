@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.datafeed;
@@ -23,10 +24,11 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.junit.Before;
 
@@ -36,9 +38,9 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -49,7 +51,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
 
     private DatafeedConfigProvider provider;
     private List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
-    private IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+    private IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
     @Before
     public void setup() {
@@ -79,21 +81,27 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
         updater.runUpdate();
 
-        verify(provider, times(1)).updateDatefeedConfig(eq(datafeedWithRewrite1),
+        verify(provider, times(1)).updateDatefeedConfig(
+            eq(datafeedWithRewrite1),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
-        verify(provider, times(1)).updateDatefeedConfig(eq(datafeedWithRewrite2),
+            any()
+        );
+        verify(provider, times(1)).updateDatefeedConfig(
+            eq(datafeedWithRewrite2),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
-        verify(provider, times(0)).updateDatefeedConfig(eq(datafeedWithoutRewrite),
+            any()
+        );
+        verify(provider, times(0)).updateDatefeedConfig(
+            eq(datafeedWithoutRewrite),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
+            any()
+        );
     }
 
     public void testWithUpdateFailures() {
@@ -117,21 +125,27 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         assertThat(ex.getSuppressed().length, equalTo(1));
         assertThat(ex.getSuppressed()[0].getMessage(), equalTo("Failed to update datafeed " + datafeedWithRewriteFailure));
 
-        verify(provider, times(1)).updateDatefeedConfig(eq(datafeedWithRewrite1),
+        verify(provider, times(1)).updateDatefeedConfig(
+            eq(datafeedWithRewrite1),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
-        verify(provider, times(1)).updateDatefeedConfig(eq(datafeedWithRewriteFailure),
+            any()
+        );
+        verify(provider, times(1)).updateDatefeedConfig(
+            eq(datafeedWithRewriteFailure),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
-        verify(provider, times(0)).updateDatefeedConfig(eq(datafeedWithoutRewrite),
+            any()
+        );
+        verify(provider, times(0)).updateDatefeedConfig(
+            eq(datafeedWithoutRewrite),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
+            any()
+        );
     }
 
     public void testWithNoUpdates() {
@@ -143,59 +157,68 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
         updater.runUpdate();
 
-        verify(provider, times(0)).updateDatefeedConfig(any(),
-            any(DatafeedUpdate.class),
-            eq(Collections.emptyMap()),
-            any(),
-            any());
+        verify(provider, times(0)).updateDatefeedConfig(any(), any(DatafeedUpdate.class), eq(Collections.emptyMap()), any(), any());
     }
 
     public void testIsAbleToRun() {
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(AnomalyDetectorsIndex.configIndexName());
-        indexMetadata.settings(Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(MlConfigIndex.indexName());
+        indexMetadata.settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         metadata.put(indexMetadata);
-        Index index = new Index(AnomalyDetectorsIndex.configIndexName(), "_uuid");
+        Index index = new Index(MlConfigIndex.indexName(), "_uuid");
         ShardId shardId = new ShardId(index, 0);
-        ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+        ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+        );
         shardRouting = shardRouting.initialize("node_id", null, 0L);
         shardRouting = shardRouting.moveToStarted();
-        routingTable.add(IndexRoutingTable.builder(index)
-            .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+        routingTable.add(
+            IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+        );
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.routingTable(routingTable.build());
         csBuilder.metadata(metadata);
 
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
-        assertThat(updater.isAbleToRun(csBuilder.build()), is(true));
+        final ClusterState clusterState = csBuilder.build();
+        assertThat(updater.isAbleToRun(clusterState), is(true));
 
-        metadata = new Metadata.Builder(csBuilder.build().metadata());
-        routingTable = new RoutingTable.Builder(csBuilder.build().routingTable());
+        metadata = Metadata.builder(clusterState.metadata());
+        routingTable = new RoutingTable.Builder(clusterState.routingTable());
         if (randomBoolean()) {
-            routingTable.remove(AnomalyDetectorsIndex.configIndexName());
+            routingTable.remove(MlConfigIndex.indexName());
         } else {
-            index = new Index(AnomalyDetectorsIndex.configIndexName(), "_uuid");
+            index = new Index(MlConfigIndex.indexName(), "_uuid");
             shardId = new ShardId(index, 0);
-            shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+            shardRouting = ShardRouting.newUnassigned(
+                shardId,
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+            );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
-            routingTable.add(IndexRoutingTable.builder(index)
-                .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+            routingTable.add(
+                IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+            );
         }
 
+        csBuilder = ClusterState.builder(clusterState);
         csBuilder.routingTable(routingTable.build());
         csBuilder.metadata(metadata);
-        assertThat(updater.isAbleToRun(csBuilder.build()), is(false));
+        final ClusterState csUpdated = csBuilder.build();
+        assertThat(updater.isAbleToRun(csUpdated), is(false));
 
-        csBuilder.metadata(Metadata.EMPTY_METADATA);
-        assertThat(updater.isAbleToRun(csBuilder.build()), is(true));
+        assertThat(updater.isAbleToRun(ClusterState.builder(csUpdated).metadata(Metadata.EMPTY_METADATA).build()), is(true));
     }
 
     private void withDatafeed(String datafeedId, boolean aggsRewritten) {

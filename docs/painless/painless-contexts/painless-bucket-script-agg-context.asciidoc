@@ -24,7 +24,7 @@ The standard <<painless-api-reference-shared, Painless API>> is available.
 
 To run this example, first follow the steps in <<painless-context-examples, context examples>>.
 
-The painless context in a `bucket_script` aggregation provides a `params` map.  This map contains both
+The painless context in a `bucket_script` aggregation provides a `params` map. This map contains both
 user-specified custom values, as well as the values from other aggregations specified in the `buckets_path`
 property.
 
@@ -36,7 +36,7 @@ and adds the user-specified base_cost to the result:
 (params.max - params.min) + params.base_cost
 --------------------------------------------------
 
-Note that the values are extracted from the `params` map.  In context, the aggregation looks like this:
+Note that the values are extracted from the `params` map. In context, the aggregation looks like this:
 
 [source,console]
 --------------------------------------------------

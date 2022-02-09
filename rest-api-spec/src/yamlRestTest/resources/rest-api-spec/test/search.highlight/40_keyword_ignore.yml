@@ -1,0 +1,64 @@
+---
+setup:
+  - do:
+      indices.create:
+          index: test-index
+          body:
+            mappings:
+              "properties":
+                "k1":
+                  "type": "keyword"
+                "k2":
+                  "type": "keyword"
+                  "ignore_above": 3
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"k1": "123", "k2" : "123"}'
+          - '{"index": {"_id": "2"}}'
+          - '{"k1": "1234", "k2" : "1234"}'
+
+---
+"Plain Highligher should skip highlighting ignored keyword values":
+  - skip:
+      version: " - 7.6.99"
+      reason: "skip highlighting of ignored values was introduced in 7.7"
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            prefix:
+              k1: "12"
+          highlight:
+            require_field_match: false
+            fields:
+              k2:
+                type: plain
+
+  - match: {hits.hits.0.highlight.k2.0: "<em>123</em>"}
+  - is_false: hits.hits.1.highlight # no highlight for a value that was ignored
+
+---
+"Unified Highligher should skip highlighting ignored keyword values":
+  - skip:
+      version: " - 7.6.99"
+      reason: "skip highlighting of ignored values was introduced in 7.7"
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            prefix:
+              k1: "12"
+          highlight:
+            require_field_match: false
+            fields:
+              k2:
+                type: unified
+
+  - match: {hits.hits.0.highlight.k2.0: "<em>123</em>"}
+  - is_false: hits.hits.1.highlight # no highlight for a value that was ignored

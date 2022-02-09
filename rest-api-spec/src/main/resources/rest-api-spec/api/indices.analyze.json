@@ -5,6 +5,11 @@
       "description":"Performs the analysis process on a text and return the tokens breakdown of the text."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

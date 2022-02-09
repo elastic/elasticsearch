@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -27,10 +15,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -53,8 +40,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      */
     private Level level = Level.CLUSTER;
 
-    public ClusterHealthRequest() {
-    }
+    public ClusterHealthRequest() {}
 
     public ClusterHealthRequest(String... indices) {
         this.indices = indices;
@@ -62,15 +48,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
 
     public ClusterHealthRequest(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        if (size == 0) {
-            indices = Strings.EMPTY_ARRAY;
-        } else {
-            indices = new String[size];
-            for (int i = 0; i < indices.length; i++) {
-                indices[i] = in.readString();
-            }
-        }
+        indices = in.readStringArray();
         timeout = in.readTimeValue();
         if (in.readBoolean()) {
             waitForStatus = ClusterHealthStatus.readFrom(in);
@@ -82,11 +60,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             waitForEvents = Priority.readFrom(in);
         }
         waitForNoInitializingShards = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        } else {
-            indicesOptions = IndicesOptions.lenientExpandOpen();
-        }
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     @Override
@@ -95,10 +69,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         if (indices == null) {
             out.writeVInt(0);
         } else {
-            out.writeVInt(indices.length);
-            for (String index : indices) {
-                out.writeString(index);
-            }
+            out.writeStringArray(indices);
         }
         out.writeTimeValue(timeout);
         if (waitForStatus == null) {
@@ -117,9 +88,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             Priority.writeTo(waitForEvents, out);
         }
         out.writeBoolean(waitForNoInitializingShards);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            indicesOptions.writeIndicesOptions(out);
-        }
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override
@@ -141,6 +110,11 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     public ClusterHealthRequest indicesOptions(final IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     public TimeValue timeout() {
@@ -280,6 +254,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     public enum Level {
-        CLUSTER, INDICES, SHARDS
+        CLUSTER,
+        INDICES,
+        SHARDS
     }
 }

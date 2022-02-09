@@ -1,0 +1,24 @@
+
+// tag::cloud[]
+Click **Delete deployment** from the deployment overview page and follow the
+prompts.
+// end::cloud[]
+
+// tag::self-managed[]
+To stop your {es} and {kib} Docker containers, run:
+
+[source,sh]
+----
+docker stop es-node01
+docker stop kib-01
+----
+
+To remove the containers and their network, run:
+
+[source,sh]
+----
+docker network rm elastic
+docker rm es-node01
+docker rm kib-01
+----
+// end::self-managed[]

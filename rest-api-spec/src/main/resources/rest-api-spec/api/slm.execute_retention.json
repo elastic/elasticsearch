@@ -1,0 +1,24 @@
+{
+  "slm.execute_retention":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-execute-retention.html",
+      "description":"Deletes any snapshots that are expired according to the policy's retention rules."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_slm/_execute_retention",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

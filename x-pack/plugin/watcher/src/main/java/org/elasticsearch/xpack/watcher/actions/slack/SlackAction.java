@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.slack;
 
-
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.notification.slack.SentMessages;
@@ -24,8 +24,10 @@ public class SlackAction implements Action {
     public static final String TYPE = "slack";
 
     final SlackMessage.Template message;
-    @Nullable final String account;
-    @Nullable final HttpProxy proxy;
+    @Nullable
+    final String account;
+    @Nullable
+    final HttpProxy proxy;
 
     public SlackAction(@Nullable String account, SlackMessage.Template message, HttpProxy proxy) {
         this.account = account;
@@ -45,9 +47,7 @@ public class SlackAction implements Action {
 
         SlackAction that = (SlackAction) o;
 
-        return Objects.equals(account, that.account) &&
-               Objects.equals(message, that.message) &&
-               Objects.equals(proxy, that.proxy);
+        return Objects.equals(account, that.account) && Objects.equals(message, that.message) && Objects.equals(proxy, that.proxy);
     }
 
     @Override
@@ -82,8 +82,14 @@ public class SlackAction implements Action {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     account = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " +
-                            "found [{}] instead", TYPE, watchId, actionId, Field.ACCOUNT.getPreferredName(), token);
+                    throw new ElasticsearchParseException(
+                        "failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " + "found [{}] instead",
+                        TYPE,
+                        watchId,
+                        actionId,
+                        Field.ACCOUNT.getPreferredName(),
+                        token
+                    );
                 }
             } else if (Field.PROXY.match(currentFieldName, parser.getDeprecationHandler())) {
                 proxy = HttpProxy.parse(parser);
@@ -91,18 +97,34 @@ public class SlackAction implements Action {
                 try {
                     message = SlackMessage.Template.parse(parser);
                 } catch (Exception e) {
-                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. failed to parse [{}] field", e, TYPE,
-                            watchId, actionId, Field.MESSAGE.getPreferredName());
+                    throw new ElasticsearchParseException(
+                        "failed to parse [{}] action [{}/{}]. failed to parse [{}] field",
+                        e,
+                        TYPE,
+                        watchId,
+                        actionId,
+                        Field.MESSAGE.getPreferredName()
+                    );
                 }
             } else {
-                throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId,
-                        actionId, token);
+                throw new ElasticsearchParseException(
+                    "failed to parse [{}] action [{}/{}]. unexpected token [{}]",
+                    TYPE,
+                    watchId,
+                    actionId,
+                    token
+                );
             }
         }
 
         if (message == null) {
-            throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId,
-                    actionId, Field.MESSAGE.getPreferredName());
+            throw new ElasticsearchParseException(
+                "failed to parse [{}] action [{}/{}]. missing required [{}] field",
+                TYPE,
+                watchId,
+                actionId,
+                Field.MESSAGE.getPreferredName()
+            );
         }
 
         return new SlackAction(account, message, proxy);
@@ -164,9 +186,7 @@ public class SlackAction implements Action {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject(type)
-                        .field(Field.MESSAGE.getPreferredName(), message, params)
-                        .endObject();
+                return builder.startObject(type).field(Field.MESSAGE.getPreferredName(), message, params).endObject();
             }
         }
     }

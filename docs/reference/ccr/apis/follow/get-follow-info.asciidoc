@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ccr-get-follow-info]]
 === Get follower info API
 ++++
@@ -122,7 +121,7 @@ to read from the leader again.
 //End parameters
 
 `remote_cluster`::
-(string) The <<modules-remote-clusters,remote cluster>> that contains the
+(string) The <<remote-clusters,remote cluster>> that contains the
 leader index.
 
 `status`::
@@ -145,26 +144,26 @@ If the follower index is `active`, the API returns the following results:
 [source,console-result]
 --------------------------------------------------
 {
-    "follower_indices" : [
-        {
-            "follower_index" : "follower_index",
-            "remote_cluster" : "remote_cluster",
-            "leader_index" : "leader_index",
-            "status" : "active",
-            "parameters" : {
-                "max_read_request_operation_count" : 5120,
-                "max_read_request_size" : "32mb",
-                "max_outstanding_read_requests" : 12,
-                "max_write_request_operation_count" : 5120,
-                "max_write_request_size" : "9223372036854775807b",
-                "max_outstanding_write_requests" : 9,
-                "max_write_buffer_count" : 2147483647,
-                "max_write_buffer_size" : "512mb",
-                "max_retry_delay" : "500ms",
-                "read_poll_timeout" : "1m"
-            }
-        }
-    ]
+  "follower_indices": [
+    {
+      "follower_index": "follower_index",
+      "remote_cluster": "remote_cluster",
+      "leader_index": "leader_index",
+      "status": "active",
+      "parameters": {
+        "max_read_request_operation_count": 5120,
+        "max_read_request_size": "32mb",
+        "max_outstanding_read_requests": 12,
+        "max_write_request_operation_count": 5120,
+        "max_write_request_size": "9223372036854775807b",
+        "max_outstanding_write_requests": 9,
+        "max_write_buffer_count": 2147483647,
+        "max_write_buffer_size": "512mb",
+        "max_retry_delay": "500ms",
+        "read_poll_timeout": "1m"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -187,13 +186,13 @@ If the follower index is `paused`, the API returns the following results:
 [source,console-result]
 --------------------------------------------------
 {
-    "follower_indices" : [
-        {
-            "follower_index" : "follower_index",
-            "remote_cluster" : "remote_cluster",
-            "leader_index" : "leader_index",
-            "status" : "paused"
-        }
-    ]
+  "follower_indices": [
+    {
+      "follower_index": "follower_index",
+      "remote_cluster": "remote_cluster",
+      "leader_index": "leader_index",
+      "status": "paused"
+    }
+  ]
 }
 --------------------------------------------------

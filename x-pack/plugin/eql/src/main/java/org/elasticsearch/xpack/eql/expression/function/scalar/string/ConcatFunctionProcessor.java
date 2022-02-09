@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
@@ -25,7 +26,7 @@ public class ConcatFunctionProcessor implements Processor {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        for (Processor v: values) {
+        for (Processor v : values) {
             out.writeNamedWriteable(v);
         }
     }
@@ -33,7 +34,7 @@ public class ConcatFunctionProcessor implements Processor {
     @Override
     public Object process(Object input) {
         List<Object> processed = new ArrayList<>(values.size());
-        for (Processor v: values) {
+        for (Processor v : values) {
             processed.add(v.process(input));
         }
         return doProcess(processed);
@@ -46,7 +47,7 @@ public class ConcatFunctionProcessor implements Processor {
 
         StringBuilder str = new StringBuilder();
 
-        for (Object input: inputs) {
+        for (Object input : inputs) {
             if (input == null) {
                 return null;
             }
@@ -74,7 +75,6 @@ public class ConcatFunctionProcessor implements Processor {
     public int hashCode() {
         return Objects.hash(values);
     }
-
 
     @Override
     public String getWriteableName() {

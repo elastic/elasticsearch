@@ -1,0 +1,4 @@
+class org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData$GeoShapeScriptValues {
+  GeoShapeValues.GeoShapeValue get(int)
+  GeoShapeValues.GeoShapeValue getValue()
+}

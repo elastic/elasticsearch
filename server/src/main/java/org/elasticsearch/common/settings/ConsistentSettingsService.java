@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
@@ -22,6 +11,7 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -29,7 +19,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
@@ -61,8 +50,7 @@ public final class ConsistentSettingsService {
     private final Collection<Setting<?>> secureSettingsCollection;
     private final SecretKeyFactory pbkdf2KeyFactory;
 
-    public ConsistentSettingsService(Settings settings, ClusterService clusterService,
-                                     Collection<Setting<?>> secureSettingsCollection) {
+    public ConsistentSettingsService(Settings settings, ClusterService clusterService, Collection<Setting<?>> secureSettingsCollection) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.secureSettingsCollection = secureSettingsCollection;
@@ -100,41 +88,65 @@ public final class ConsistentSettingsService {
             final byte[] localHash = concreteSecureSetting.getSecretDigest(settings);
             if (publishedSaltAndHash == null && localHash == null) {
                 // consistency of missing
-                logger.debug("no published hash for the consistent secure setting [{}] but it also does NOT exist on the local node",
-                        concreteSecureSetting.getKey());
+                logger.debug(
+                    "no published hash for the consistent secure setting [{}] but it also does NOT exist on the local node",
+                    concreteSecureSetting.getKey()
+                );
             } else if (publishedSaltAndHash == null && localHash != null) {
                 // setting missing on master but present locally
-                logger.warn("no published hash for the consistent secure setting [{}] but it exists on the local node",
-                        concreteSecureSetting.getKey());
+                logger.warn(
+                    "no published hash for the consistent secure setting [{}] but it exists on the local node",
+                    concreteSecureSetting.getKey()
+                );
                 if (state.nodes().isLocalNodeElectedMaster()) {
-                    throw new IllegalStateException("Master node cannot validate consistent setting. No published hash for ["
-                            + concreteSecureSetting.getKey() + "] but setting exists.");
+                    throw new IllegalStateException(
+                        "Master node cannot validate consistent setting. No published hash for ["
+                            + concreteSecureSetting.getKey()
+                            + "] but setting exists."
+                    );
                 }
                 allConsistent.set(false);
             } else if (publishedSaltAndHash != null && localHash == null) {
                 // setting missing locally but present on master
-                logger.warn("the consistent secure setting [{}] does not exist on the local node but there is a published hash for it",
-                        concreteSecureSetting.getKey());
+                logger.warn(
+                    "the consistent secure setting [{}] does not exist on the local node but there is a published hash for it",
+                    concreteSecureSetting.getKey()
+                );
                 allConsistent.set(false);
             } else {
                 assert publishedSaltAndHash != null;
                 assert localHash != null;
                 final String[] parts = publishedSaltAndHash.split(":");
                 if (parts == null || parts.length != 2) {
-                    throw new IllegalArgumentException("published hash [" + publishedSaltAndHash + " ] for secure setting ["
-                            + concreteSecureSetting.getKey() + "] is invalid");
+                    throw new IllegalArgumentException(
+                        "published hash ["
+                            + publishedSaltAndHash
+                            + " ] for secure setting ["
+                            + concreteSecureSetting.getKey()
+                            + "] is invalid"
+                    );
                 }
                 final String publishedSalt = parts[0];
                 final String publishedHash = parts[1];
                 final byte[] computedSaltedHashBytes = computeSaltedPBKDF2Hash(localHash, publishedSalt.getBytes(StandardCharsets.UTF_8));
                 final String computedSaltedHash = new String(Base64.getEncoder().encode(computedSaltedHashBytes), StandardCharsets.UTF_8);
                 if (false == publishedHash.equals(computedSaltedHash)) {
-                    logger.warn("the published hash [{}] of the consistent secure setting [{}] differs from the locally computed one [{}]",
-                            publishedHash, concreteSecureSetting.getKey(), computedSaltedHash);
+                    logger.warn(
+                        "the published hash [{}] of the consistent secure setting [{}] differs from the locally computed one [{}]",
+                        publishedHash,
+                        concreteSecureSetting.getKey(),
+                        computedSaltedHash
+                    );
                     if (state.nodes().isLocalNodeElectedMaster()) {
-                        throw new IllegalStateException("Master node cannot validate consistent setting. The published hash ["
-                                + publishedHash + "] of the consistent secure setting [" + concreteSecureSetting.getKey()
-                                + "] differs from the locally computed one [" + computedSaltedHash + "].");
+                        throw new IllegalStateException(
+                            "Master node cannot validate consistent setting. The published hash ["
+                                + publishedHash
+                                + "] of the consistent secure setting ["
+                                + concreteSecureSetting.getKey()
+                                + "] differs from the locally computed one ["
+                                + computedSaltedHash
+                                + "]."
+                        );
                     }
                     allConsistent.set(false);
                 }
@@ -146,8 +158,10 @@ public final class ConsistentSettingsService {
             for (Setting<?> setting : secureSettingsCollection) {
                 if (setting.match(publishedSettingKey)) {
                     // setting missing locally but present on master
-                    logger.warn("the consistent secure setting [{}] does not exist on the local node but there is a published hash for it",
-                            publishedSettingKey);
+                    logger.warn(
+                        "the consistent secure setting [{}] does not exist on the local node but there is a published hash for it",
+                        publishedSettingKey
+                    );
                     allConsistent.set(false);
                 }
             }
@@ -163,9 +177,9 @@ public final class ConsistentSettingsService {
         for (Setting<?> setting : secureSettingsCollection) {
             assert setting.isConsistent() : "[" + setting.getKey() + "] is not a consistent setting";
             if (setting instanceof Setting.AffixSetting<?>) {
-                ((Setting.AffixSetting<?>)setting).getAllConcreteSettings(settings).forEach(concreteSetting -> {
+                ((Setting.AffixSetting<?>) setting).getAllConcreteSettings(settings).forEach(concreteSetting -> {
                     assert concreteSetting instanceof SecureSetting<?> : "[" + concreteSetting.getKey() + "] is not a secure setting";
-                    secureSettingConsumer.accept((SecureSetting<?>)concreteSetting);
+                    secureSettingConsumer.accept((SecureSetting<?>) concreteSetting);
                 });
             } else if (setting instanceof SecureSetting<?>) {
                 secureSettingConsumer.accept((SecureSetting<?>) setting);
@@ -223,33 +237,30 @@ public final class ConsistentSettingsService {
             clusterService.submitStateUpdateTask("publish-secure-settings-hashes", new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final Map<String, String> publishedHashesOfConsistentSettings = currentState.metadata()
-                            .hashesOfConsistentSettings();
+                    final Map<String, String> publishedHashesOfConsistentSettings = currentState.metadata().hashesOfConsistentSettings();
                     if (computedHashesOfConsistentSettings.equals(publishedHashesOfConsistentSettings)) {
                         logger.debug("Nothing to publish. What is already published matches this node's view.");
                         return currentState;
                     } else {
-                        return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata())
-                                .hashesOfConsistentSettings(computedHashesOfConsistentSettings)).build();
+                        return ClusterState.builder(currentState)
+                            .metadata(
+                                Metadata.builder(currentState.metadata()).hashesOfConsistentSettings(computedHashesOfConsistentSettings)
+                            )
+                            .build();
                     }
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.error("unable to publish secure settings hashes", e);
                 }
 
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }
 
         @Override
         public void offMaster() {
             logger.trace("I am no longer master, nothing to do");
-        }
-
-        @Override
-        public String executorName() {
-            return ThreadPool.Names.SAME;
         }
     }
 

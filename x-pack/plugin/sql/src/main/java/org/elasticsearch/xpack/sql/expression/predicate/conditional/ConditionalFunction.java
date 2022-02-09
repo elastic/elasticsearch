@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
@@ -61,12 +62,17 @@ public abstract class ConditionalFunction extends ScalarFunction {
                 }
             } else {
                 if (SqlDataTypes.areCompatible(dt, child.dataType()) == false) {
-                    return new TypeResolution(format(null, "{} argument of [{}] must be [{}], found value [{}] type [{}]",
-                        ordinal(i + 1),
-                        sourceText(),
-                        dt.typeName(),
-                        Expressions.name(child),
-                        child.dataType().typeName()));
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "{} argument of [{}] must be [{}], found value [{}] type [{}]",
+                            ordinal(i + 1),
+                            sourceText(),
+                            dt.typeName(),
+                            Expressions.name(child),
+                            child.dataType().typeName()
+                        )
+                    );
                 }
             }
         }

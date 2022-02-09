@@ -1,0 +1,58 @@
+[[indices-delete-template-v1]]
+=== Delete index template API
+++++
+<titleabbrev>Delete index template (legacy)</titleabbrev>
+++++
+
+IMPORTANT: This documentation is about <<indices-templates-v1,legacy index
+templates>>, which are deprecated and will be replaced by the composable
+templates introduced in {es} 7.8. For information about composable templates,
+see <<index-templates>>.
+
+Deletes a legacy index template.
+
+////
+[source,console]
+--------------------------------------------------
+PUT _template/my-legacy-index-template
+{
+ "index_patterns" : ["te*"],
+  "settings": {
+    "number_of_shards": 1
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/my-legacy-index-template
+--------------------------------------------------
+
+
+[[delete-template-api-v1-request]]
+==== {api-request-title}
+
+`DELETE /_template/<legacy-index-template>`
+
+[[delete-template-api-v1-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
+
+[[delete-template-api-v1-path-params]]
+==== {api-path-parms-title}
+
+`<legacy-index-template>`::
+(Required, string)
+The name of the legacy index template to delete. Wildcard (`*`)
+expressions are supported.
+
+
+[[delete-template-api-v1-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

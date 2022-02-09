@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANYDa
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -28,22 +17,25 @@ import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -55,22 +47,25 @@ public enum RangeType {
     IP("ip_range", LengthType.FIXED_16) {
         @Override
         public Field getRangeField(String name, RangeFieldMapper.Range r) {
-            return new InetAddressRange(name, (InetAddress)r.from, (InetAddress)r.to);
+            return new InetAddressRange(name, (InetAddress) r.from, (InetAddress) r.to);
         }
+
         @Override
         public InetAddress parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
-                throws IOException {
+            throws IOException {
             InetAddress address = InetAddresses.forString(parser.text());
             return included ? address : nextUp(address);
         }
+
         @Override
         public InetAddress parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
-                throws IOException {
+            throws IOException {
             InetAddress address = InetAddresses.forString(parser.text());
             return included ? address : nextDown(address);
         }
+
         @Override
-        public InetAddress parse(Object value, boolean coerce) {
+        public InetAddress parseValue(Object value, boolean coerce, @Nullable DateMathParser dateMathParser) {
             if (value instanceof InetAddress) {
                 return (InetAddress) value;
             } else {
@@ -80,21 +75,30 @@ public enum RangeType {
                 return InetAddresses.forString(value.toString());
             }
         }
+
+        @Override
+        public Object formatValue(Object value, DateFormatter dateFormatter) {
+            return InetAddresses.toAddrString((InetAddress) value);
+        }
+
         @Override
         public InetAddress minValue() {
             return InetAddressPoint.MIN_VALUE;
         }
+
         @Override
         public InetAddress maxValue() {
             return InetAddressPoint.MAX_VALUE;
         }
+
         @Override
         public InetAddress nextUp(Object value) {
-            return InetAddressPoint.nextUp((InetAddress)value);
+            return InetAddressPoint.nextUp((InetAddress) value);
         }
+
         @Override
         public InetAddress nextDown(Object value) {
-            return InetAddressPoint.nextDown((InetAddress)value);
+            return InetAddressPoint.nextDown((InetAddress) value);
         }
 
         @Override
@@ -109,13 +113,19 @@ public enum RangeType {
         }
 
         @Override
-        public Double doubleValue (Object endpointValue) {
+        public Double doubleValue(Object endpointValue) {
             throw new UnsupportedOperationException("IP ranges cannot be safely converted to doubles");
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
-                                  boolean includeTo) {
+        public Query dvRangeQuery(
+            String field,
+            BinaryDocValuesRangeQuery.QueryType queryType,
+            Object from,
+            Object to,
+            boolean includeFrom,
+            boolean includeTo
+        ) {
             if (includeFrom == false) {
                 from = nextUp(from);
             }
@@ -126,36 +136,48 @@ public enum RangeType {
 
             byte[] encodedFrom = InetAddressPoint.encode((InetAddress) from);
             byte[] encodedTo = InetAddressPoint.encode((InetAddress) to);
-            return new BinaryDocValuesRangeQuery(field, queryType, LengthType.FIXED_16,
-                    new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
+            return new BinaryDocValuesRangeQuery(
+                field,
+                queryType,
+                LengthType.FIXED_16,
+                new BytesRef(encodedFrom),
+                new BytesRef(encodedTo),
+                from,
+                to
+            );
         }
 
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, from, to, includeFrom, includeTo,
-                    (f, t) -> InetAddressRange.newWithinQuery(field, f, t));
-        }
-        @Override
-        public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, from, to, includeFrom, includeTo,
-                    (f, t) -> InetAddressRange.newContainsQuery(field, f, t ));
-        }
-        @Override
-        public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, from, to, includeFrom, includeTo,
-                    (f, t) -> InetAddressRange.newIntersectsQuery(field, f ,t ));
+            return createQuery(field, from, to, includeFrom, includeTo, (f, t) -> InetAddressRange.newWithinQuery(field, f, t));
         }
 
-        private Query createQuery(String field, Object lower, Object upper, boolean includeLower, boolean includeUpper,
-                BiFunction<InetAddress, InetAddress, Query> querySupplier) {
+        @Override
+        public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
+            return createQuery(field, from, to, includeFrom, includeTo, (f, t) -> InetAddressRange.newContainsQuery(field, f, t));
+        }
+
+        @Override
+        public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
+            return createQuery(field, from, to, includeFrom, includeTo, (f, t) -> InetAddressRange.newIntersectsQuery(field, f, t));
+        }
+
+        private Query createQuery(
+            String field,
+            Object lower,
+            Object upper,
+            boolean includeLower,
+            boolean includeUpper,
+            BiFunction<InetAddress, InetAddress, Query> querySupplier
+        ) {
             byte[] lowerBytes = InetAddressPoint.encode((InetAddress) lower);
             byte[] upperBytes = InetAddressPoint.encode((InetAddress) upper);
             if (Arrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
-                throw new IllegalArgumentException(
-                        "Range query `from` value (" + lower + ") is greater than `to` value (" + upper + ")");
+                throw new IllegalArgumentException("Range query `from` value (" + lower + ") is greater than `to` value (" + upper + ")");
             }
             InetAddress correctedFrom = includeLower ? (InetAddress) lower : nextUp(lower);
-            InetAddress correctedTo = includeUpper ? (InetAddress) upper : nextDown(upper);;
+            InetAddress correctedTo = includeUpper ? (InetAddress) upper : nextDown(upper);
+            ;
             lowerBytes = InetAddressPoint.encode(correctedFrom);
             upperBytes = InetAddressPoint.encode(correctedTo);
             if (Arrays.compareUnsigned(lowerBytes, 0, lowerBytes.length, upperBytes, 0, upperBytes.length) > 0) {
@@ -168,36 +190,54 @@ public enum RangeType {
     DATE("date_range", LengthType.VARIABLE, NumberFieldMapper.NumberType.LONG) {
         @Override
         public Field getRangeField(String name, RangeFieldMapper.Range r) {
-            return new LongRange(name, new long[] {((Number)r.from).longValue()}, new long[] {((Number)r.to).longValue()});
+            return new LongRange(name, new long[] { ((Number) r.from).longValue() }, new long[] { ((Number) r.to).longValue() });
         }
-        private Number parse(DateMathParser dateMathParser, String dateStr) {
-            return dateMathParser.parse(dateStr, () -> {throw new IllegalArgumentException("now is not used at indexing time");})
-                .toEpochMilli();
-        }
+
         @Override
         public Number parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
-                throws IOException {
-            Number value = parse(fieldType.dateMathParser, parser.text());
+            throws IOException {
+            Number value = parseValue(parser.text(), coerce, fieldType.dateMathParser);
             return included ? value : nextUp(value);
         }
+
         @Override
         public Number parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
-                throws IOException{
-            Number value = parse(fieldType.dateMathParser, parser.text());
+            throws IOException {
+            Number value = parseValue(parser.text(), coerce, fieldType.dateMathParser);
             return included ? value : nextDown(value);
         }
+
+        @Override
+        public Long parseValue(Object dateStr, boolean coerce, @Nullable DateMathParser dateMathParser) {
+            assert dateMathParser != null;
+            return dateMathParser.parse(
+                dateStr.toString(),
+                () -> { throw new IllegalArgumentException("now is not used at indexing time"); }
+            ).toEpochMilli();
+        }
+
+        @Override
+        public Object formatValue(Object value, DateFormatter dateFormatter) {
+            long timestamp = (long) value;
+            ZonedDateTime dateTime = Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC);
+            return dateFormatter.format(dateTime);
+        }
+
         @Override
         public Long minValue() {
             return Long.MIN_VALUE;
         }
+
         @Override
         public Long maxValue() {
             return Long.MAX_VALUE;
         }
+
         @Override
         public Long nextUp(Object value) {
             return (long) LONG.nextUp(value);
         }
+
         @Override
         public Long nextDown(Object value) {
             return (long) LONG.nextDown(value);
@@ -209,7 +249,7 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
             return LONG.decodeRanges(bytes);
         }
 
@@ -219,38 +259,65 @@ public enum RangeType {
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
-                                  boolean includeTo) {
+        public Query dvRangeQuery(
+            String field,
+            BinaryDocValuesRangeQuery.QueryType queryType,
+            Object from,
+            Object to,
+            boolean includeFrom,
+            boolean includeTo
+        ) {
             return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
         }
 
         @Override
-        public Query rangeQuery(String field, boolean hasDocValues, Object lowerTerm, Object upperTerm, boolean includeLower,
-                                boolean includeUpper, ShapeRelation relation, @Nullable ZoneId timeZone,
-                                @Nullable DateMathParser parser, QueryShardContext context) {
+        public Query rangeQuery(
+            String field,
+            boolean hasDocValues,
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            ShapeRelation relation,
+            @Nullable ZoneId timeZone,
+            @Nullable DateMathParser parser,
+            SearchExecutionContext context
+        ) {
             ZoneId zone = (timeZone == null) ? ZoneOffset.UTC : timeZone;
 
-            DateMathParser dateMathParser = (parser == null) ?
-                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
+            DateMathParser dateMathParser = (parser == null) ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
             boolean roundUp = includeLower == false; // using "gt" should round lower bound up
-            Long low = lowerTerm == null ? minValue() :
-                dateMathParser.parse(lowerTerm instanceof BytesRef ? ((BytesRef) lowerTerm).utf8ToString() : lowerTerm.toString(),
-                    context::nowInMillis, roundUp, zone).toEpochMilli();
+            Long low = lowerTerm == null
+                ? minValue()
+                : dateMathParser.parse(
+                    lowerTerm instanceof BytesRef ? ((BytesRef) lowerTerm).utf8ToString() : lowerTerm.toString(),
+                    context::nowInMillis,
+                    roundUp,
+                    zone
+                ).toEpochMilli();
             roundUp = includeUpper; // using "lte" should round upper bound up
-            Long high = upperTerm == null ? maxValue() :
-                dateMathParser.parse(upperTerm instanceof BytesRef ? ((BytesRef) upperTerm).utf8ToString() : upperTerm.toString(),
-                    context::nowInMillis, roundUp, zone).toEpochMilli();
+            Long high = upperTerm == null
+                ? maxValue()
+                : dateMathParser.parse(
+                    upperTerm instanceof BytesRef ? ((BytesRef) upperTerm).utf8ToString() : upperTerm.toString(),
+                    context::nowInMillis,
+                    roundUp,
+                    zone
+                ).toEpochMilli();
 
             return createRangeQuery(field, hasDocValues, low, high, includeLower, includeUpper, relation);
         }
+
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
             return LONG.withinQuery(field, from, to, includeLower, includeUpper);
         }
+
         @Override
         public Query containsQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
             return LONG.containsQuery(field, from, to, includeLower, includeUpper);
         }
+
         @Override
         public Query intersectsQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
             return LONG.intersectsQuery(field, from, to, includeLower, includeUpper);
@@ -262,17 +329,20 @@ public enum RangeType {
         public Float minValue() {
             return Float.NEGATIVE_INFINITY;
         }
+
         @Override
         public Float maxValue() {
             return Float.POSITIVE_INFINITY;
         }
+
         @Override
         public Float nextUp(Object value) {
-            return Math.nextUp(((Number)value).floatValue());
+            return Math.nextUp(((Number) value).floatValue());
         }
+
         @Override
         public Float nextDown(Object value) {
-            return Math.nextDown(((Number)value).floatValue());
+            return Math.nextDown(((Number) value).floatValue());
         }
 
         @Override
@@ -281,7 +351,7 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
             return BinaryRangeUtil.decodeFloatRanges(bytes);
         }
 
@@ -292,8 +362,14 @@ public enum RangeType {
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
-                                  boolean includeTo) {
+        public Query dvRangeQuery(
+            String field,
+            BinaryDocValuesRangeQuery.QueryType queryType,
+            Object from,
+            Object to,
+            boolean includeFrom,
+            boolean includeTo
+        ) {
             if (includeFrom == false) {
                 from = nextUp(from);
             }
@@ -304,28 +380,56 @@ public enum RangeType {
 
             byte[] encodedFrom = BinaryRangeUtil.encodeFloat((Float) from);
             byte[] encodedTo = BinaryRangeUtil.encodeFloat((Float) to);
-            return new BinaryDocValuesRangeQuery(field, queryType, LengthType.FIXED_4,
-                    new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
+            return new BinaryDocValuesRangeQuery(
+                field,
+                queryType,
+                LengthType.FIXED_4,
+                new BytesRef(encodedFrom),
+                new BytesRef(encodedTo),
+                from,
+                to
+            );
         }
 
         @Override
         public Field getRangeField(String name, RangeFieldMapper.Range r) {
-            return new FloatRange(name, new float[] {((Number)r.from).floatValue()}, new float[] {((Number)r.to).floatValue()});
+            return new FloatRange(name, new float[] { ((Number) r.from).floatValue() }, new float[] { ((Number) r.to).floatValue() });
         }
+
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, (Float) from, (Float) to, includeFrom, includeTo,
-                    (f, t) -> FloatRange.newWithinQuery(field, new float[] { f }, new float[] { t }), RangeType.FLOAT);
+            return createQuery(
+                (Float) from,
+                (Float) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> FloatRange.newWithinQuery(field, new float[] { f }, new float[] { t }),
+                RangeType.FLOAT
+            );
         }
+
         @Override
         public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, (Float) from, (Float) to, includeFrom, includeTo,
-                    (f, t) -> FloatRange.newContainsQuery(field, new float[] { f }, new float[] { t }), RangeType.FLOAT);
+            return createQuery(
+                (Float) from,
+                (Float) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> FloatRange.newContainsQuery(field, new float[] { f }, new float[] { t }),
+                RangeType.FLOAT
+            );
         }
+
         @Override
         public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, (Float) from, (Float) to, includeFrom, includeTo,
-                    (f, t) -> FloatRange.newIntersectsQuery(field, new float[] { f }, new float[] { t }), RangeType.FLOAT);
+            return createQuery(
+                (Float) from,
+                (Float) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> FloatRange.newIntersectsQuery(field, new float[] { f }, new float[] { t }),
+                RangeType.FLOAT
+            );
         }
     },
     DOUBLE("double_range", LengthType.FIXED_8, NumberFieldMapper.NumberType.DOUBLE) {
@@ -333,17 +437,20 @@ public enum RangeType {
         public Double minValue() {
             return Double.NEGATIVE_INFINITY;
         }
+
         @Override
         public Double maxValue() {
             return Double.POSITIVE_INFINITY;
         }
+
         @Override
         public Double nextUp(Object value) {
-            return Math.nextUp(((Number)value).doubleValue());
+            return Math.nextUp(((Number) value).doubleValue());
         }
+
         @Override
         public Double nextDown(Object value) {
-            return Math.nextDown(((Number)value).doubleValue());
+            return Math.nextDown(((Number) value).doubleValue());
         }
 
         @Override
@@ -352,7 +459,7 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
             return BinaryRangeUtil.decodeDoubleRanges(bytes);
         }
 
@@ -363,8 +470,14 @@ public enum RangeType {
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
-                                  boolean includeTo) {
+        public Query dvRangeQuery(
+            String field,
+            BinaryDocValuesRangeQuery.QueryType queryType,
+            Object from,
+            Object to,
+            boolean includeFrom,
+            boolean includeTo
+        ) {
             if (includeFrom == false) {
                 from = nextUp(from);
             }
@@ -375,28 +488,56 @@ public enum RangeType {
 
             byte[] encodedFrom = BinaryRangeUtil.encodeDouble((Double) from);
             byte[] encodedTo = BinaryRangeUtil.encodeDouble((Double) to);
-            return new BinaryDocValuesRangeQuery(field, queryType, LengthType.FIXED_8,
-                    new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
+            return new BinaryDocValuesRangeQuery(
+                field,
+                queryType,
+                LengthType.FIXED_8,
+                new BytesRef(encodedFrom),
+                new BytesRef(encodedTo),
+                from,
+                to
+            );
         }
 
         @Override
         public Field getRangeField(String name, RangeFieldMapper.Range r) {
-            return new DoubleRange(name, new double[] {((Number)r.from).doubleValue()}, new double[] {((Number)r.to).doubleValue()});
+            return new DoubleRange(name, new double[] { ((Number) r.from).doubleValue() }, new double[] { ((Number) r.to).doubleValue() });
         }
+
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, (Double) from, (Double) to, includeFrom, includeTo,
-                    (f, t) -> DoubleRange.newWithinQuery(field, new double[] { f }, new double[] { t }), RangeType.DOUBLE);
+            return createQuery(
+                (Double) from,
+                (Double) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> DoubleRange.newWithinQuery(field, new double[] { f }, new double[] { t }),
+                RangeType.DOUBLE
+            );
         }
+
         @Override
         public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, (Double) from, (Double) to, includeFrom, includeTo,
-                    (f, t) -> DoubleRange.newContainsQuery(field, new double[] { f }, new double[] { t }), RangeType.DOUBLE);
+            return createQuery(
+                (Double) from,
+                (Double) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> DoubleRange.newContainsQuery(field, new double[] { f }, new double[] { t }),
+                RangeType.DOUBLE
+            );
         }
+
         @Override
         public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, (Double) from, (Double) to, includeFrom, includeTo,
-                    (f, t) -> DoubleRange.newIntersectsQuery(field, new double[] { f }, new double[] { t }), RangeType.DOUBLE);
+            return createQuery(
+                (Double) from,
+                (Double) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> DoubleRange.newIntersectsQuery(field, new double[] { f }, new double[] { t }),
+                RangeType.DOUBLE
+            );
         }
 
     },
@@ -407,17 +548,20 @@ public enum RangeType {
         public Integer minValue() {
             return Integer.MIN_VALUE;
         }
+
         @Override
         public Integer maxValue() {
             return Integer.MAX_VALUE;
         }
+
         @Override
         public Integer nextUp(Object value) {
-            return ((Number)value).intValue() + 1;
+            return ((Number) value).intValue() + 1;
         }
+
         @Override
         public Integer nextDown(Object value) {
-            return ((Number)value).intValue() - 1;
+            return ((Number) value).intValue() - 1;
         }
 
         @Override
@@ -426,7 +570,7 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
             return LONG.decodeRanges(bytes);
         }
 
@@ -436,29 +580,56 @@ public enum RangeType {
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
-                                  boolean includeTo) {
+        public Query dvRangeQuery(
+            String field,
+            BinaryDocValuesRangeQuery.QueryType queryType,
+            Object from,
+            Object to,
+            boolean includeFrom,
+            boolean includeTo
+        ) {
             return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
         }
 
         @Override
         public Field getRangeField(String name, RangeFieldMapper.Range r) {
-            return new IntRange(name, new int[] {((Number)r.from).intValue()}, new int[] {((Number)r.to).intValue()});
+            return new IntRange(name, new int[] { ((Number) r.from).intValue() }, new int[] { ((Number) r.to).intValue() });
         }
+
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, (Integer) from, (Integer) to, includeFrom, includeTo,
-                    (f, t) -> IntRange.newWithinQuery(field, new int[] { f }, new int[] { t }), RangeType.INTEGER);
+            return createQuery(
+                (Integer) from,
+                (Integer) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> IntRange.newWithinQuery(field, new int[] { f }, new int[] { t }),
+                RangeType.INTEGER
+            );
         }
+
         @Override
         public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field,  (Integer) from,  (Integer) to, includeFrom, includeTo,
-                    (f, t) -> IntRange.newContainsQuery(field, new int[] { f }, new int[] { t }), RangeType.INTEGER);
+            return createQuery(
+                (Integer) from,
+                (Integer) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> IntRange.newContainsQuery(field, new int[] { f }, new int[] { t }),
+                RangeType.INTEGER
+            );
         }
+
         @Override
         public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field,  (Integer) from,  (Integer) to, includeFrom, includeTo,
-                    (f, t) -> IntRange.newIntersectsQuery(field, new int[] { f }, new int[] { t }), RangeType.INTEGER);
+            return createQuery(
+                (Integer) from,
+                (Integer) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> IntRange.newIntersectsQuery(field, new int[] { f }, new int[] { t }),
+                RangeType.INTEGER
+            );
         }
     },
     LONG("long_range", LengthType.VARIABLE, NumberFieldMapper.NumberType.LONG) {
@@ -466,17 +637,20 @@ public enum RangeType {
         public Long minValue() {
             return Long.MIN_VALUE;
         }
+
         @Override
         public Long maxValue() {
             return Long.MAX_VALUE;
         }
+
         @Override
         public Long nextUp(Object value) {
-            return ((Number)value).longValue() + 1;
+            return ((Number) value).longValue() + 1;
         }
+
         @Override
         public Long nextDown(Object value) {
-            return ((Number)value).longValue() - 1;
+            return ((Number) value).longValue() - 1;
         }
 
         @Override
@@ -485,7 +659,7 @@ public enum RangeType {
         }
 
         @Override
-        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
+        public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
             return BinaryRangeUtil.decodeLongRanges(bytes);
         }
 
@@ -496,8 +670,14 @@ public enum RangeType {
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
-                                  boolean includeTo) {
+        public Query dvRangeQuery(
+            String field,
+            BinaryDocValuesRangeQuery.QueryType queryType,
+            Object from,
+            Object to,
+            boolean includeFrom,
+            boolean includeTo
+        ) {
             if (includeFrom == false) {
                 from = nextUp(from);
             }
@@ -508,31 +688,62 @@ public enum RangeType {
 
             byte[] encodedFrom = BinaryRangeUtil.encodeLong(((Number) from).longValue());
             byte[] encodedTo = BinaryRangeUtil.encodeLong(((Number) to).longValue());
-            return new BinaryDocValuesRangeQuery(field, queryType, LengthType.VARIABLE,
-                    new BytesRef(encodedFrom), new BytesRef(encodedTo), from, to);
+            return new BinaryDocValuesRangeQuery(
+                field,
+                queryType,
+                LengthType.VARIABLE,
+                new BytesRef(encodedFrom),
+                new BytesRef(encodedTo),
+                from,
+                to
+            );
         }
 
         @Override
         public Field getRangeField(String name, RangeFieldMapper.Range r) {
-            return new LongRange(name, new long[] {((Number)r.from).longValue()},
-                new long[] {((Number)r.to).longValue()});
+            return new LongRange(name, new long[] { ((Number) r.from).longValue() }, new long[] { ((Number) r.to).longValue() });
         }
+
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, (Long) from, (Long) to, includeFrom, includeTo,
-                    (f, t) -> LongRange.newWithinQuery(field, new long[] { f }, new long[] { t }), RangeType.LONG);
+            return createQuery(
+                (Long) from,
+                (Long) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> LongRange.newWithinQuery(field, new long[] { f }, new long[] { t }),
+                RangeType.LONG
+            );
         }
+
         @Override
         public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, (Long) from, (Long) to, includeFrom, includeTo,
-                    (f, t) -> LongRange.newContainsQuery(field, new long[] { f }, new long[] { t }), RangeType.LONG);
+            return createQuery(
+                (Long) from,
+                (Long) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> LongRange.newContainsQuery(field, new long[] { f }, new long[] { t }),
+                RangeType.LONG
+            );
         }
+
         @Override
         public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-            return createQuery(field, (Long) from, (Long) to, includeFrom, includeTo,
-                    (f, t) -> LongRange.newIntersectsQuery(field, new long[] { f }, new long[] { t }), RangeType.LONG);
+            return createQuery(
+                (Long) from,
+                (Long) to,
+                includeFrom,
+                includeTo,
+                (f, t) -> LongRange.newIntersectsQuery(field, new long[] { f }, new long[] { t }),
+                RangeType.LONG
+            );
         }
     };
+
+    public final String name;
+    private final NumberFieldMapper.NumberType numberType;
+    public final LengthType lengthType;
 
     RangeType(String name, LengthType lengthType) {
         this.name = name;
@@ -558,8 +769,14 @@ public enum RangeType {
      * because min &gt; max, we simply return a {@link MatchNoDocsQuery}.
      * This helper handles all {@link Number} cases and dates, the IP range type uses its own logic.
      */
-    private static <T extends Comparable<T>> Query createQuery(String field, T from, T to, boolean includeFrom, boolean includeTo,
-            BiFunction<T, T, Query> querySupplier, RangeType rangeType) {
+    private static <T extends Comparable<T>> Query createQuery(
+        T from,
+        T to,
+        boolean includeFrom,
+        boolean includeTo,
+        BiFunction<T, T, Query> querySupplier,
+        RangeType rangeType
+    ) {
         if (from.compareTo(to) > 0) {
             // wrong argument order, this is an error the user should fix
             throw new IllegalArgumentException("Range query `from` value (" + from + ") is greater than `to` value (" + to + ")");
@@ -568,7 +785,7 @@ public enum RangeType {
         @SuppressWarnings("unchecked")
         T correctedFrom = includeFrom ? from : (T) rangeType.nextUp(from);
         @SuppressWarnings("unchecked")
-        T correctedTo =  includeTo ? to : (T) rangeType.nextDown(to);
+        T correctedTo = includeTo ? to : (T) rangeType.nextDown(to);
         if (correctedFrom.compareTo(correctedTo) > 0) {
             return new MatchNoDocsQuery("range didn't intersect anything");
         } else {
@@ -577,8 +794,15 @@ public enum RangeType {
     }
 
     public abstract Field getRangeField(String name, RangeFieldMapper.Range range);
-    public List<IndexableField> createFields(ParseContext context, String name, RangeFieldMapper.Range range, boolean indexed,
-                                             boolean docValued, boolean stored) {
+
+    public List<IndexableField> createFields(
+        DocumentParserContext context,
+        String name,
+        RangeFieldMapper.Range range,
+        boolean indexed,
+        boolean docValued,
+        boolean stored
+    ) {
         assert range != null : "range cannot be null when creating fields";
         List<IndexableField> fields = new ArrayList<>();
         if (indexed) {
@@ -598,40 +822,69 @@ public enum RangeType {
         }
         return fields;
     }
-    /** parses from value. rounds according to included flag */
-    public Object parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce,
-                            boolean included) throws IOException {
-        Number value = numberType.parse(parser, coerce);
-        return included ? value : (Number)nextUp(value);
-    }
-    /** parses to value. rounds according to included flag */
-    public Object parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce,
-                          boolean included) throws IOException {
-        Number value = numberType.parse(parser, coerce);
-        return included ? value : (Number)nextDown(value);
-    }
 
-    public abstract Object minValue();
-    public abstract Object maxValue();
-    public abstract Object nextUp(Object value);
-    public abstract Object nextDown(Object value);
-    public abstract Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
-    public abstract Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
-    public abstract Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
-    public Object parse(Object value, boolean coerce) {
+    public Object parseValue(Object value, boolean coerce, @Nullable DateMathParser dateMathParser) {
         return numberType.parse(value, coerce);
     }
 
-    public Query rangeQuery(String field, boolean hasDocValues, Object from, Object to, boolean includeFrom, boolean includeTo,
-                            ShapeRelation relation, @Nullable ZoneId timeZone, @Nullable DateMathParser dateMathParser,
-                            QueryShardContext context) {
-        Object lower = from == null ? minValue() : parse(from, false);
-        Object upper = to == null ? maxValue() : parse(to, false);
+    public Object formatValue(Object value, DateFormatter formatter) {
+        return value;
+    }
+
+    /** parses from value. rounds according to included flag */
+    public Object parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
+        throws IOException {
+        Number value = numberType.parse(parser, coerce);
+        return included ? value : (Number) nextUp(value);
+    }
+
+    /** parses to value. rounds according to included flag */
+    public Object parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
+        throws IOException {
+        Number value = numberType.parse(parser, coerce);
+        return included ? value : (Number) nextDown(value);
+    }
+
+    public abstract Object minValue();
+
+    public abstract Object maxValue();
+
+    public abstract Object nextUp(Object value);
+
+    public abstract Object nextDown(Object value);
+
+    public abstract Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
+
+    public abstract Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
+
+    public abstract Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo);
+
+    public Query rangeQuery(
+        String field,
+        boolean hasDocValues,
+        Object from,
+        Object to,
+        boolean includeFrom,
+        boolean includeTo,
+        ShapeRelation relation,
+        @Nullable ZoneId timeZone,
+        @Nullable DateMathParser dateMathParser,
+        SearchExecutionContext context
+    ) {
+        Object lower = from == null ? minValue() : parseValue(from, false, dateMathParser);
+        Object upper = to == null ? maxValue() : parseValue(to, false, dateMathParser);
         return createRangeQuery(field, hasDocValues, lower, upper, includeFrom, includeTo, relation);
     }
 
-    protected final Query createRangeQuery(String field, boolean hasDocValues, Object lower, Object upper,
-                                           boolean includeFrom, boolean includeTo, ShapeRelation relation) {
+    protected final Query createRangeQuery(
+        String field,
+        boolean hasDocValues,
+        Object lower,
+        Object upper,
+        boolean includeFrom,
+        boolean includeTo,
+        ShapeRelation relation
+    ) {
         Query indexQuery;
         if (relation == ShapeRelation.WITHIN) {
             indexQuery = withinQuery(field, lower, upper, includeFrom, includeTo);
@@ -659,7 +912,8 @@ public enum RangeType {
     // No need to take into account Range#includeFrom or Range#includeTo, because from and to have already been
     // rounded up via parseFrom and parseTo methods.
     public abstract BytesRef encodeRanges(Set<RangeFieldMapper.Range> ranges) throws IOException;
-    public abstract List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes);
+
+    public abstract List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException;
 
     /**
      * Given the Range.to or Range.from Object value from a Range instance, converts that value into a Double.  Before converting, it
@@ -674,12 +928,22 @@ public enum RangeType {
         return numberType != null;
     }
 
-    public abstract Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to,
-                                       boolean includeFrom, boolean includeTo);
+    public abstract Query dvRangeQuery(
+        String field,
+        BinaryDocValuesRangeQuery.QueryType queryType,
+        Object from,
+        Object to,
+        boolean includeFrom,
+        boolean includeTo
+    );
 
-    public final String name;
-    private final NumberFieldMapper.NumberType numberType;
-    public final LengthType lengthType;
+    public final Mapper.TypeParser parser() {
+        return new FieldMapper.TypeParser((n, c) -> new RangeFieldMapper.Builder(n, this, c.getSettings()));
+    }
+
+    NumberFieldMapper.NumberType numberType() {
+        return numberType;
+    }
 
     public enum LengthType {
         FIXED_4 {

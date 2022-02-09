@@ -1,0 +1,88 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  testImplementation project(':client:rest-high-level')
+}
+
+BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+
+  /**
+   * We execute tests 3 times.
+   * - The local cluster is unchanged and it consists of an old version node and a new version node.
+   * - Nodes in the remote cluster are upgraded one by one in three steps.
+   * - Only node-0 and node-2 of the remote cluster can accept remote connections. This can creates a test
+   *   scenario where a query request and fetch request are sent via **proxy nodes** that have different version.
+   */
+  def localCluster = testClusters.register("${baseName}-local") {
+    numberOfNodes = 2
+    versions = [bwcVersion.toString(), project.version]
+    setting 'cluster.remote.node.attr', 'gateway'
+    setting 'xpack.security.enabled', 'false'
+  }
+  def remoteCluster = testClusters.register("${baseName}-remote") {
+    numberOfNodes = 3
+    versions = [bwcVersion.toString(), project.version]
+    firstNode.setting 'node.attr.gateway', 'true'
+    lastNode.setting 'node.attr.gateway', 'true'
+    setting 'xpack.security.enabled', 'false'
+  }
+
+
+  tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
+    useCluster localCluster
+    useCluster remoteCluster
+    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+
+    doFirst {
+      nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
+    }
+  }
+
+  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
+    dependsOn "processTestResources"
+    mustRunAfter("precommit")
+    doFirst {
+      localCluster.get().nextNodeToNextVersion()
+    }
+  }
+
+  tasks.register("${baseName}#oneThirdUpgraded", StandaloneRestIntegTestTask) {
+    dependsOn "${baseName}#oldClusterTest"
+    doFirst {
+      remoteCluster.get().nextNodeToNextVersion()
+    }
+  }
+
+  tasks.register("${baseName}#twoThirdUpgraded", StandaloneRestIntegTestTask) {
+    dependsOn "${baseName}#oneThirdUpgraded"
+    doFirst {
+      remoteCluster.get().nextNodeToNextVersion()
+    }
+  }
+
+  tasks.register("${baseName}#fullUpgraded", StandaloneRestIntegTestTask) {
+    dependsOn "${baseName}#twoThirdUpgraded"
+    doFirst {
+      remoteCluster.get().nextNodeToNextVersion()
+    }
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn tasks.named("${baseName}#fullUpgraded")
+  }
+}

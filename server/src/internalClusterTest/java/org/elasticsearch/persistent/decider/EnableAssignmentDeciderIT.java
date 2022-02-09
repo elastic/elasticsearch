@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.persistent.decider;
 
@@ -64,8 +53,12 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(numberOfTasks);
         for (int i = 0; i < numberOfTasks; i++) {
             PersistentTasksService service = internalCluster().getInstance(PersistentTasksService.class);
-            service.sendStartRequest("task_" + i, TestPersistentTasksExecutor.NAME, new TestParams(randomAlphaOfLength(10)),
-                ActionListener.wrap(latch::countDown));
+            service.sendStartRequest(
+                "task_" + i,
+                TestPersistentTasksExecutor.NAME,
+                new TestParams(randomAlphaOfLength(10)),
+                ActionListener.wrap(latch::countDown)
+            );
         }
         latch.await();
 
@@ -75,9 +68,11 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
 
         logger.trace("waiting for the tasks to be running");
         assertBusy(() -> {
-            ListTasksResponse listTasks = client().admin().cluster().prepareListTasks()
-                                                                    .setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                                                                    .get();
+            ListTasksResponse listTasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(TestPersistentTasksExecutor.NAME + "[c]")
+                .get();
             assertThat(listTasks.getTasks().size(), equalTo(numberOfTasks));
         });
 
@@ -94,12 +89,18 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
 
             logger.trace("persistent tasks are not assigned");
             tasks = internalCluster().clusterService().state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertEquals(numberOfTasks, tasks.tasks().stream()
-                .filter(t -> TestPersistentTasksExecutor.NAME.equals(t.getTaskName()))
-                .filter(t -> t.isAssigned() == false)
-                .count());
+            assertEquals(
+                numberOfTasks,
+                tasks.tasks()
+                    .stream()
+                    .filter(t -> TestPersistentTasksExecutor.NAME.equals(t.getTaskName()))
+                    .filter(t -> t.isAssigned() == false)
+                    .count()
+            );
 
-            ListTasksResponse runningTasks = client().admin().cluster().prepareListTasks()
+            ListTasksResponse runningTasks = client().admin()
+                .cluster()
+                .prepareListTasks()
                 .setActions(TestPersistentTasksExecutor.NAME + "[c]")
                 .get();
             assertThat(runningTasks.getTasks().size(), equalTo(0));
@@ -112,7 +113,9 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
             }
 
             assertBusy(() -> {
-                ListTasksResponse listTasks = client().admin().cluster().prepareListTasks()
+                ListTasksResponse listTasks = client().admin()
+                    .cluster()
+                    .prepareListTasks()
                     .setActions(TestPersistentTasksExecutor.NAME + "[c]")
                     .get();
                 assertThat(listTasks.getTasks().size(), equalTo(numberOfTasks));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common;
 
@@ -47,8 +48,12 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
      * @param consumables the instances that can be consumed to produce a response which is ultimately sent on the delegate listener
      * @param threadContext the thread context for the thread pool that created the listener
      */
-    public IteratingActionListener(ActionListener<T> delegate, BiConsumer<U, ActionListener<T>> consumer, List<U> consumables,
-                                   ThreadContext threadContext) {
+    public IteratingActionListener(
+        ActionListener<T> delegate,
+        BiConsumer<U, ActionListener<T>> consumer,
+        List<U> consumables,
+        ThreadContext threadContext
+    ) {
         this(delegate, consumer, consumables, threadContext, Function.identity());
     }
 
@@ -63,8 +68,13 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
      *                            delegate listener. This is useful if the delegate listener should receive some other value (perhaps
      *                            a concatenation of the results of all the called consumables).
      */
-    public IteratingActionListener(ActionListener<T> delegate, BiConsumer<U, ActionListener<T>> consumer, List<U> consumables,
-                                   ThreadContext threadContext, Function<T, T> finalResultFunction) {
+    public IteratingActionListener(
+        ActionListener<T> delegate,
+        BiConsumer<U, ActionListener<T>> consumer,
+        List<U> consumables,
+        ThreadContext threadContext,
+        Function<T, T> finalResultFunction
+    ) {
         this(delegate, consumer, consumables, threadContext, finalResultFunction, Objects::isNull);
     }
 
@@ -80,9 +90,14 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
      *                            a concatenation of the results of all the called consumables).
      * @param iterationPredicate a {@link Predicate} that checks if iteration should continue based on the returned result
      */
-    public IteratingActionListener(ActionListener<T> delegate, BiConsumer<U, ActionListener<T>> consumer, List<U> consumables,
-                                   ThreadContext threadContext, Function<T, T> finalResultFunction,
-                                   Predicate<T> iterationPredicate) {
+    public IteratingActionListener(
+        ActionListener<T> delegate,
+        BiConsumer<U, ActionListener<T>> consumer,
+        List<U> consumables,
+        ThreadContext threadContext,
+        Function<T, T> finalResultFunction,
+        Predicate<T> iterationPredicate
+    ) {
         this.delegate = delegate;
         this.consumer = consumer;
         this.consumables = Collections.unmodifiableList(consumables);
@@ -100,6 +115,8 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
         } else {
             try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
                 consumer.accept(consumables.get(position++), this);
+            } catch (Exception e) {
+                onFailure(e);
             }
         }
     }
@@ -114,7 +131,11 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
                 if (position == consumables.size()) {
                     delegate.onResponse(finalResultFunction.apply(response));
                 } else {
-                    consumer.accept(consumables.get(position++), this);
+                    try {
+                        consumer.accept(consumables.get(position++), this);
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
                 }
             } else {
                 delegate.onResponse(finalResultFunction.apply(response));

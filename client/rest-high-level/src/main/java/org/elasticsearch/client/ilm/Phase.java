@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,16 +33,28 @@ public class Phase implements ToXContentObject {
     static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>("phase", true,
-        (a, name) -> new Phase(name, (TimeValue) a[0], ((List<LifecycleAction>) a[1]).stream()
-            .collect(Collectors.toMap(LifecycleAction::getName, Function.identity()))));
+    private static final ConstructingObjectParser<Phase, String> PARSER = new ConstructingObjectParser<>(
+        "phase",
+        true,
+        (a, name) -> new Phase(
+            name,
+            (TimeValue) a[0],
+            ((List<LifecycleAction>) a[1]).stream().collect(Collectors.toMap(LifecycleAction::getName, Function.identity()))
+        )
+    );
     static {
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), MIN_AGE.getPreferredName()), MIN_AGE, ValueType.VALUE);
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> p.namedObject(LifecycleAction.class, n, null), v -> {
-                throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported");
-            }, ACTIONS_FIELD);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MIN_AGE.getPreferredName()),
+            MIN_AGE,
+            ValueType.VALUE
+        );
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> p.namedObject(LifecycleAction.class, n, null),
+            v -> { throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported"); },
+            ACTIONS_FIELD
+        );
     }
 
     public static Phase parse(XContentParser parser, String name) {
@@ -131,9 +132,7 @@ public class Phase implements ToXContentObject {
             return false;
         }
         Phase other = (Phase) obj;
-        return Objects.equals(name, other.name) &&
-            Objects.equals(minimumAge, other.minimumAge) &&
-            Objects.equals(actions, other.actions);
+        return Objects.equals(name, other.name) && Objects.equals(minimumAge, other.minimumAge) && Objects.equals(actions, other.actions);
     }
 
     @Override

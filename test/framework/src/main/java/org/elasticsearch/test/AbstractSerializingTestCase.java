@@ -1,35 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.smile.SmileXContent;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Date;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeable> extends AbstractWireSerializingTestCase<T> {
@@ -39,14 +36,71 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * both for equality and asserts equality on the two instances.
      */
     public final void testFromXContent() throws IOException {
-        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
-            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance).numberOfTestRuns(
+            NUMBER_OF_TEST_RUNS
+        )
             .supportsUnknownFields(supportsUnknownFields())
             .shuffleFieldsExceptions(getShuffleFieldsExceptions())
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
             .assertEqualsConsumer(this::assertEqualInstances)
             .assertToXContentEquivalence(assertToXContentEquivalence())
             .test();
+    }
+
+    /**
+     * Calls {@link ToXContent#toXContent} on many threads and verifies that
+     * they produce the same result. Async search sometimes does this to
+     * aggregation responses and, in general, we think it's reasonable for
+     * everything that can convert itself to json to be able to do so
+     * concurrently.
+     */
+    public final void testConcurrentToXContent() throws IOException, InterruptedException, ExecutionException {
+        XContentType xContentType = randomValueOtherThanMany(
+            /*
+             * SMILE will sometimes use the unicode marker for ascii strings
+             * if the it's internal buffer doeesn't have enough space for the
+             * whole string. That's fine for SMILE readers, but we're comparing
+             * bytes here so we can't use it.
+             */
+            type -> type.xContent() == SmileXContent.smileXContent,
+            () -> randomFrom(XContentType.values())
+        );
+        T testInstance = createXContextTestInstance(xContentType);
+        ToXContent.Params params = new ToXContent.DelegatingMapParams(
+            singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"),
+            getToXContentParams()
+        );
+        boolean humanReadable = randomBoolean();
+        BytesRef firstTimeBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
+        concurrentTest(() -> {
+            try {
+                for (int r = 0; r < rounds; r++) {
+                    BytesRef thisRoundBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+                    if (firstTimeBytes.bytesEquals(thisRoundBytes)) {
+                        continue;
+                    }
+                    StringBuilder error = new StringBuilder("Failed to round trip over ");
+                    if (humanReadable) {
+                        error.append("human readable ");
+                    }
+                    error.append(xContentType);
+                    error.append("\nCanonical is:\n").append(Strings.toString(testInstance, true, true));
+                    boolean showBytes = xContentType.xContent() == CborXContent.cborXContent;
+                    error.append("\nWanted : ").append(showBytes ? firstTimeBytes : firstTimeBytes.utf8ToString());
+                    error.append("\nBut got: ").append(showBytes ? thisRoundBytes : thisRoundBytes.utf8ToString());
+                    fail(error.toString());
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     /**
@@ -93,8 +147,8 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     }
 
     /**
-     * Whether or not to assert equivalence of the {@link org.elasticsearch.common.xcontent.XContent} of the test instance and the instance
-     * parsed from the {@link org.elasticsearch.common.xcontent.XContent} of the test instance.
+     * Whether or not to assert equivalence of the {@link org.elasticsearch.xcontent.XContent} of the test instance and the instance
+     * parsed from the {@link org.elasticsearch.xcontent.XContent} of the test instance.
      *
      * @return true if equivalence should be asserted, otherwise false
      */
@@ -107,5 +161,12 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      */
     protected Date randomDate() {
         return new Date(randomLongBetween(0, 3000000000000L));
+    }
+
+    /**
+     * @return a random instant between 1970 and ca 2065
+     */
+    protected Instant randomInstant() {
+        return Instant.ofEpochSecond(randomLongBetween(0, 3000000000L), randomLongBetween(0, 999999999));
     }
 }

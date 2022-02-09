@@ -1,30 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Releasable;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,7 +29,7 @@ public abstract class RestResponse {
     public abstract String contentType();
 
     /**
-     * The response content. Note, if the content is {@link org.elasticsearch.common.lease.Releasable} it
+     * The response content. Note, if the content is {@link Releasable} it
      * should automatically be released when done by the channel sending it.
      */
     public abstract BytesReference content();
@@ -52,7 +42,7 @@ public abstract class RestResponse {
     public void copyHeaders(ElasticsearchException ex) {
         Set<String> headerKeySet = ex.getHeaderKeys();
         if (customHeaders == null) {
-            customHeaders = new HashMap<>(headerKeySet.size());
+            customHeaders = Maps.newMapWithExpectedSize(headerKeySet.size());
         }
         for (String key : headerKeySet) {
             List<String> values = customHeaders.get(key);
@@ -69,7 +59,7 @@ public abstract class RestResponse {
      */
     public void addHeader(String name, String value) {
         if (customHeaders == null) {
-            customHeaders = new HashMap<>(2);
+            customHeaders = Maps.newMapWithExpectedSize(2);
         }
         List<String> header = customHeaders.get(name);
         if (header == null) {
@@ -88,5 +78,9 @@ public abstract class RestResponse {
         } else {
             return customHeaders;
         }
+    }
+
+    public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
+        return headers;
     }
 }

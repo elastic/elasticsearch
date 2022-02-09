@@ -1,11 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
+import java.math.BigInteger;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Arithmetics.asBigInteger;
 
 /**
  * Comparison utilities.
@@ -90,6 +94,9 @@ public final class Comparisons {
         }
         if (l instanceof Float || r instanceof Float) {
             return Float.compare(l.floatValue(), r.floatValue());
+        }
+        if (l instanceof BigInteger || r instanceof BigInteger) {
+            return asBigInteger(l).compareTo(asBigInteger(r));
         }
         if (l instanceof Long || r instanceof Long) {
             return Long.compare(l.longValue(), r.longValue());

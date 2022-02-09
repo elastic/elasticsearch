@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action.user;
@@ -62,9 +63,10 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.clusterPrivileges(new String[0]);
         request.indexPrivileges(new IndicesPrivileges[0]);
-        request.applicationPrivileges(new ApplicationResourcePrivileges[] {
-            ApplicationResourcePrivileges.builder().privileges("read").application("*").resources("item/1").build()
-        });
+        request.applicationPrivileges(
+            new ApplicationResourcePrivileges[] {
+                ApplicationResourcePrivileges.builder().privileges("read").application("*").resources("item/1").build() }
+        );
         final ActionRequestValidationException exception = request.validate();
         assertThat(exception, notNullValue());
         assertThat(exception.validationErrors(), hasItem("Application names may not contain '*' (found '*')"));
@@ -74,7 +76,6 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(version);
         original.writeTo(out);
-
 
         final StreamInput in = out.bytes().streamInput();
         in.setVersion(version);
@@ -87,11 +88,16 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.username(randomAlphaOfLength(8));
 
-        final List<String> clusterPrivileges = randomSubsetOf(Arrays.asList(ClusterPrivilegeResolver.MONITOR,
-            ClusterPrivilegeResolver.MANAGE,
-            ClusterPrivilegeResolver.MANAGE_ML, ClusterPrivilegeResolver.MANAGE_SECURITY, ClusterPrivilegeResolver.MANAGE_PIPELINE,
-            ClusterPrivilegeResolver.ALL))
-            .stream().map(p -> p.name()).collect(Collectors.toList());
+        final List<String> clusterPrivileges = randomSubsetOf(
+            Arrays.asList(
+                ClusterPrivilegeResolver.MONITOR,
+                ClusterPrivilegeResolver.MANAGE,
+                ClusterPrivilegeResolver.MANAGE_ML,
+                ClusterPrivilegeResolver.MANAGE_SECURITY,
+                ClusterPrivilegeResolver.MANAGE_PIPELINE,
+                ClusterPrivilegeResolver.ALL
+            )
+        ).stream().map(p -> p.name()).collect(Collectors.toList());
         request.clusterPrivileges(clusterPrivileges.toArray(Strings.EMPTY_ARRAY));
 
         IndicesPrivileges[] indicesPrivileges = new IndicesPrivileges[randomInt(5)];

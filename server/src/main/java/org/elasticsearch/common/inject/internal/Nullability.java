@@ -32,8 +32,7 @@ import java.lang.annotation.Annotation;
  * @author jessewilson@google.com (Jesse Wilson)
  */
 public class Nullability {
-    private Nullability() {
-    }
+    private Nullability() {}
 
     public static boolean allowsNull(Annotation[] annotations) {
         for (Annotation a : annotations) {

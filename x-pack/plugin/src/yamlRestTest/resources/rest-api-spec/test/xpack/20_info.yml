@@ -1,0 +1,9 @@
+"XPack Info API":
+    - do:
+        xpack.info: {}
+
+    - match: { license.type: "trial" }
+    - match: { license.mode: "trial" }
+    - match: { license.status: "active" }
+
+

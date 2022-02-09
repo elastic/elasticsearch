@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.ttest;
@@ -63,8 +64,9 @@ public class PairedTTestState implements TTestState {
             PairedTTestState state = (PairedTTestState) tTestState;
             reducer.accept(state.stats);
             if (state.tails != tails) {
-                throw new IllegalStateException("Incompatible tails value in the reduce. Expected "
-                    + state.tails + " reduced with " + tails);
+                throw new IllegalStateException(
+                    "Incompatible tails value in the reduce. Expected " + state.tails + " reduced with " + tails
+                );
             }
         });
         return new PairedTTestState(reducer.result(), tails);
@@ -80,8 +82,7 @@ public class PairedTTestState implements TTestState {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PairedTTestState that = (PairedTTestState) o;
-        return tails == that.tails &&
-            stats.equals(that.stats);
+        return tails == that.tails && stats.equals(that.stats);
     }
 
     @Override

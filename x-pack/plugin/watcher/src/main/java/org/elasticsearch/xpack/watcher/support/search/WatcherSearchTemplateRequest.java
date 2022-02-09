@@ -206,7 +206,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                     }
                     // Empty types arrays still generate the same deprecation warning they did in 7.x.
                     // Ideally they should be removed from the definition.
-                    deprecationLogger.warn(DeprecationCategory.PARSING, "watcher_search_input", TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.critical(DeprecationCategory.PARSING, "watcher_search_input", TYPES_DEPRECATION_MESSAGE);
                 } else {
                     throw new ElasticsearchParseException(
                         "could not read search request. unexpected array field [" + currentFieldName + "]"

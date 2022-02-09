@@ -20,18 +20,18 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 public class NodeResponseTracker {
 
     private final AtomicInteger counter = new AtomicInteger();
-    private final AtomicReferenceArray<Boolean> receivedResponseFromNode;
+    private final int expectedResponsesCount;
     private volatile AtomicReferenceArray<Object> responses;
     private volatile Exception causeOfDiscarding;
 
     public NodeResponseTracker(int size) {
+        this.expectedResponsesCount = size;
         this.responses = new AtomicReferenceArray<>(size);
-        this.receivedResponseFromNode = new AtomicReferenceArray<>(size);
     }
 
     public NodeResponseTracker(Collection<Object> array) {
+        this.expectedResponsesCount = array.size();
         this.responses = new AtomicReferenceArray<>(array.toArray());
-        this.receivedResponseFromNode = new AtomicReferenceArray<>(responses.length());
     }
 
     /**
@@ -50,20 +50,20 @@ public class NodeResponseTracker {
     }
 
     /**
-     * This method stores a new node response if the intermediate responses haven't been discarded yet. The method asserts that this is the
-     * first response encountered from this node to protect from miscounting the responses in case of a  double invocation.
+     * This method stores a new node response if the intermediate responses haven't been discarded yet. If the responses are not discarded
+     * the method asserts that this is the first response encountered from this node to protect from miscounting the responses in case of a
+     * double invocation. If the responses have been discarded we accept this risk for simplicity.
      * @param nodeIndex, the index that represents a single node of the cluster
      * @param response, a response can be either a NodeResponse or an error
      * @return true if all the nodes' responses have been received, else false
      */
     public boolean trackResponseAndCheckIfLast(int nodeIndex, Object response) {
         AtomicReferenceArray<Object> responses = this.responses;
-        assert receivedResponseFromNode.compareAndSet(nodeIndex, null, true);
 
         if (responsesDiscarded() == false) {
-            responses.set(nodeIndex, response);
+            assert responses.compareAndSet(nodeIndex, null, response) : "a response should be recorded only once";
         }
-        return counter.incrementAndGet() == expectedResponseCount();
+        return counter.incrementAndGet() == getExpectedResponseCount();
     }
 
     /**
@@ -79,8 +79,8 @@ public class NodeResponseTracker {
         return responses.get(nodeIndex);
     }
 
-    public int expectedResponseCount() {
-        return receivedResponseFromNode.length();
+    public int getExpectedResponseCount() {
+        return expectedResponsesCount;
     }
 
     /**

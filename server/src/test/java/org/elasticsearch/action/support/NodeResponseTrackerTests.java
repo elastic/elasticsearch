@@ -24,7 +24,7 @@ public class NodeResponseTrackerTests extends ESTestCase {
         }
 
         assertFalse(intermediateNodeResponses.responsesDiscarded());
-        assertEquals(nodes, intermediateNodeResponses.expectedResponseCount());
+        assertEquals(nodes, intermediateNodeResponses.getExpectedResponseCount());
         for (int i = 0; i < nodes; i++) {
             assertNotNull(intermediateNodeResponses.getResponse(i));
             if (intermediateNodeResponses.getResponse(i)instanceof Integer nodeResponse) {
@@ -49,7 +49,7 @@ public class NodeResponseTrackerTests extends ESTestCase {
         }
 
         assertTrue(intermediateNodeResponses.responsesDiscarded());
-        assertEquals(nodes, intermediateNodeResponses.expectedResponseCount());
+        assertEquals(nodes, intermediateNodeResponses.getExpectedResponseCount());
         expectThrows(NodeResponseTracker.DiscardedResponsesException.class, () -> intermediateNodeResponses.getResponse(0));
     }
 

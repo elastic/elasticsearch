@@ -2108,8 +2108,6 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             "lookup",
             "lookup_index",
             "hosts",
-            "query_type",
-            "term",
             "query_input_field",
             "field1",
             "query_target_field",

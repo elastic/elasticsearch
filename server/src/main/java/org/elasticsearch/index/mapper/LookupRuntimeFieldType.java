@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -37,7 +36,6 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  * {
  *     "type": "lookup",
  *     "lookup_index": "an_external_index",
- *     "query_type": "term",
  *     "query_input_field": "ip_address",
  *     "query_target_field": "host_ip",
  *     "fetch_fields": [
@@ -51,7 +49,6 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
     public static final String CONTENT_TYPE = "lookup";
-    public static final Set<String> SUPPORTED_QUERY_TYPES = Set.of("term");
 
     private static class Builder extends RuntimeField.Builder {
         private final FieldMapper.Parameter<String> lookupIndex = FieldMapper.Parameter.stringParam(
@@ -62,17 +59,6 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         ).addValidator(v -> {
             if (Strings.isEmpty(v)) {
                 throw new IllegalArgumentException("[index] parameter must be specified");
-            }
-        });
-
-        private final FieldMapper.Parameter<String> queryType = FieldMapper.Parameter.stringParam(
-            "query_type",
-            false,
-            RuntimeField.initializerNotSupported(),
-            null
-        ).addValidator(queryType -> {
-            if (SUPPORTED_QUERY_TYPES.contains(queryType) == false) {
-                throw new IllegalArgumentException("Supported query types: [" + SUPPORTED_QUERY_TYPES + "]; got [" + queryType + "]");
             }
         });
 
@@ -149,7 +135,6 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         protected List<FieldMapper.Parameter<?>> getParameters() {
             final List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
             parameters.add(lookupIndex);
-            parameters.add(queryType);
             parameters.add(queryInputField);
             parameters.add(queryTargetField);
             parameters.add(fetchFields);

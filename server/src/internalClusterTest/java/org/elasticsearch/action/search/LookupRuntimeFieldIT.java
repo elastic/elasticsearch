@@ -78,7 +78,6 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
                         "author": {
                             "type": "lookup",
                             "lookup_index": "authors",
-                            "query_type": "term",
                             "query_input_field": "author_id",
                             "query_target_field": "author",
                             "fetch_fields": ["first_name", "last_name"]
@@ -188,7 +187,6 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
                     "publisher": {
                         "type": "lookup",
                         "lookup_index": "publishers",
-                        "query_type": "term",
                         "query_input_field": "publisher_id",
                         "query_target_field": "_id",
                         "fetch_fields": ["name", "city"]
@@ -236,7 +234,6 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
                 "author": {
                     "type": "lookup",
                     "lookup_index": "authors",
-                    "query_type": "term",
                     "query_input_field": "author_id",
                     "query_target_field": "author",
                     "fetch_fields": ["first_name", {"field": "joined", "format": "MM/yyyy"}]
@@ -259,7 +256,6 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
                         "another_author": {
                             "type": "lookup",
                             "lookup_index": "book_author",
-                            "query_type": "term",
                             "query_input_field": "author_id",
                             "query_target_field": "another_field",
                             "fetch_fields": ["name*"]

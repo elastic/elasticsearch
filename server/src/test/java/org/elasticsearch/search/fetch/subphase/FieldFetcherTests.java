@@ -1064,7 +1064,6 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                     "foo_lookup_field": {
                         "type": "lookup",
                         "lookup_index": "my_index",
-                        "query_type": "term",
                         "query_input_field": "foo",
                         "query_target_field": "term_field_foo",
                         "fetch_fields": ["remote_field_*"]
@@ -1072,7 +1071,6 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                     "bar_lookup_field": {
                         "type": "lookup",
                         "lookup_index": "my_index",
-                        "query_type": "term",
                         "query_input_field": "bar",
                         "query_target_field": "term_field_bar",
                         "fetch_fields": ["*"]

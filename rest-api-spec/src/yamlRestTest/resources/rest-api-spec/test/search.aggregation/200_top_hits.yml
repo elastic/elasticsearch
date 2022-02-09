@@ -143,6 +143,32 @@ from:
   - length:   { aggregations.page.buckets.1.top_hits.hits.hits: 0 }
 
 ---
+size:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              text: the
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    size: 1
+
+  - match:    { hits.total.value: 3 }
+  - length:   { aggregations.page.buckets: 2 }
+  - match:    { aggregations.page.buckets.0.key: 1 }
+  - length:   { aggregations.page.buckets.0.top_hits.hits.hits: 1 }
+  - match:    { aggregations.page.buckets.0.top_hits.hits.hits.0._source.text: "the quick brown fox" }
+  - match:    { aggregations.page.buckets.1.key: 2 }
+  - length:   { aggregations.page.buckets.1.top_hits.hits.hits: 1 }
+  - match:    { aggregations.page.buckets.1.top_hits.hits.hits.0._source.text: "The vorpal blade went snicker-snack!" }
+---
 named queries:
   - do:
       search:

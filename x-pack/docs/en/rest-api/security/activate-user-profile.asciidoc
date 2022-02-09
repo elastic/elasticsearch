@@ -31,13 +31,14 @@ When updating a profile document, the API enables the document if it was
 disabled. Any updates do not change existing content for either the `access` or
 `data` fields.
 
-This API is intended only for use by applications that need to create or
-update profiles for end users.
+This API is intended only for use by applications (such as {kib}) that need to 
+create or update profiles for end users.
 
-IMPORTANT: The calling application must have either an `access_token` or a
+IMPORTANT: The calling application must have either an `access_token`, or a
 combination of `username` and `password` for the user that the profile document
 is intended for.
 
+[role="child_attributes"]
 [[security-api-activate-user-profile-request-body]]
 ==== {api-request-body-title}
 
@@ -60,6 +61,7 @@ In this type of grant, you must supply an access token that was created by the
 <<security-api-get-token>> and <<token-service-settings>>.
 
 `password`::
+(Required*, string)
 In this type of grant, you must supply the `username` and `password` for the
 user that you want to create the API key for.
 ====

@@ -24,7 +24,9 @@ Retrieves a user's profile using the unique profile ID.
 [[security-api-get-user-profile-desc]]
 ==== {api-description-title}
 
-The get user profile API returns the user profile document that matches the specified `uid`.
+The get user profile API returns the user profile document matching a specified 
+`uid`, which is generated when
+<<security-api-activiate-user-profile,activating a user profile>>.
 
 [[security-api-get-user-profile-path-params]]
 ==== {api-path-parms-title}

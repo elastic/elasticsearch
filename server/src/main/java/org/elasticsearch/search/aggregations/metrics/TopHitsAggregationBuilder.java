@@ -915,4 +915,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     public String getType() {
         return NAME;
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

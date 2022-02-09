@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -189,11 +188,6 @@ public abstract class AggregationBuilder
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
     }
 
     /**

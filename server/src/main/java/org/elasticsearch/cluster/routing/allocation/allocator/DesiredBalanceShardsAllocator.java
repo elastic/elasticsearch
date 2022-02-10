@@ -14,12 +14,9 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
-import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -240,7 +237,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             routingNodes = routingAllocation.routingNodes();
         }
 
-
         void run() {
             if (desiredBalance == null) {
                 // no desired state yet but it is on its way and we'll reroute again when its ready
@@ -375,14 +371,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     }
 
                     if (logger.isTraceEnabled()) {
-                        logger.trace(
-                            "No eligible node found to assign shard [{}] amongst [{}]",
-                            shard,
-                            desiredNodeIds
-                        );
+                        logger.trace("No eligible node found to assign shard [{}] amongst [{}]", shard, desiredNodeIds);
                     }
 
-                    final var allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(isThrottled ? Decision.Type.THROTTLE : Decision.Type.NO);
+                    final var allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(
+                        isThrottled ? Decision.Type.THROTTLE : Decision.Type.NO
+                    );
                     unassigned.ignoreShard(shard, allocationStatus, allocation.changes());
                     if (shard.primary() == false) {
                         // we could not allocate it and we are a replica - check if we can ignore the other replicas

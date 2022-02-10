@@ -142,8 +142,8 @@ setup:
 ---
 "Float range":
   - skip:
-      version: " - 7.16.99"
-      reason: Bug fixed in 8.1.0 and backported to 7.17.0
+      version: " - 7.17.99"
+      reason: "AwaitFix: https://github.com/elastic/elasticsearch/issues/83533"
   - do:
       search:
         index: test

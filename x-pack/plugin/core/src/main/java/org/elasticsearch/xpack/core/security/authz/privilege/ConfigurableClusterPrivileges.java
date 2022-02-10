@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -262,7 +263,7 @@ public final class ConfigurableClusterPrivileges {
         private final Predicate<TransportRequest> requestPredicate;
 
         public ManageApplicationPrivileges(Set<String> applicationNames) {
-            this.applicationNames = Set.copyOf(applicationNames);
+            this.applicationNames = Collections.unmodifiableSet(applicationNames);
             this.applicationPredicate = StringMatcher.of(applicationNames);
             this.requestPredicate = request -> {
                 if (request instanceof final ApplicationPrivilegesRequest privRequest) {

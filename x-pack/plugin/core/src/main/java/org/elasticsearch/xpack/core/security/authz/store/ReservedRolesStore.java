@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -78,7 +79,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         null,
         new String[] { "*" },
         MetadataUtils.DEFAULT_RESERVED_METADATA,
-        Map.of()
+        Collections.emptyMap()
     );
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
 
@@ -794,7 +795,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     public Map<String, Object> usageStats() {
-        return Map.of();
+        return Collections.emptyMap();
     }
 
     public RoleDescriptor roleDescriptor(String role) {

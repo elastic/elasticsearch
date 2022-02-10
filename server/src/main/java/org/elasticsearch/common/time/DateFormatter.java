@@ -19,6 +19,7 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 public interface DateFormatter {
 
@@ -37,7 +38,7 @@ public interface DateFormatter {
      * @return      Tuple containing a boolean value indicating parsing success or failure and a java time object containing
      * the parsed input in the case of successful parsing
      */
-    Tuple<Boolean, TemporalAccessor> parseWithoutException(String input);
+    Optional<TemporalAccessor> parseWithoutException(String input);
 
     /**
      * Parse the given input into millis-since-epoch.

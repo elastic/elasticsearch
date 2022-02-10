@@ -10,7 +10,6 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Tuple;
 
 import java.text.ParsePosition;
 import java.time.ZoneId;
@@ -28,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -178,16 +178,16 @@ class JavaDateFormatter implements DateFormatter {
     }
 
     @Override
-    public Tuple<Boolean, TemporalAccessor> parseWithoutException(String input) {
+    public Optional<TemporalAccessor> parseWithoutException(String input) {
         for (DateTimeFormatter formatter : parsers) {
             ParsePosition pos = new ParsePosition(0);
             Object object = formatter.toFormat().parseObject(input, pos);
             if (parsingSucceeded(object, input, pos)) {
-                return Tuple.tuple(true, (TemporalAccessor) object);
+                return Optional.of((TemporalAccessor) object);
             }
         }
 
-        return Tuple.tuple(false, null);
+        return Optional.empty();
     }
 
     /**

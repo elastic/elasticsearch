@@ -47,7 +47,7 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(format));
         if (testParseWithoutException) {
             var result = javaTimeFormatter.parseWithoutException(input);
-            assertFalse(result.v1());
+            assertTrue(result.isEmpty());
         }
     }
 
@@ -64,8 +64,8 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(zonedDateTime, notNullValue());
 
         var result = formatter.parseWithoutException(input);
-        assertTrue(result.v1());
-        ZonedDateTime zdt2 = DateFormatters.from(result.v2());
+        assertFalse(result.isEmpty());
+        ZonedDateTime zdt2 = DateFormatters.from(result.get());
         assertThat(zonedDateTime, equalTo(zdt2));
     }
 

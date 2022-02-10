@@ -14,12 +14,10 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
-import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -64,7 +62,6 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -72,11 +69,9 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -93,7 +88,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     private int docCount;
 
     private String timestampFieldName = "@timestamp";
-    private final Set<String> createdDataStreams = new HashSet<>();
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -130,18 +124,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "type=keyword"
             )
             .get();
-    }
-
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        if (createdDataStreams.isEmpty() == false) {
-            for (String createdDataStream : createdDataStreams) {
-                deleteDataStream(createdDataStream);
-            }
-            createdDataStreams.clear();
-        }
-        super.tearDown();
     }
 
     public void testRollupShardIndexerCleansTempFiles() throws IOException {
@@ -577,21 +559,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertTrue(
             client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get().isAcknowledged()
         );
-        createdDataStreams.add(dataStreamName);
         return dataStreamName;
     }
 
-    private void deleteDataStream(String dataStreamName) throws InterruptedException, java.util.concurrent.ExecutionException {
-        assertTrue(
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { dataStreamName }))
-                .get()
-                .isAcknowledged()
-        );
-        assertTrue(
-            client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request(dataStreamName + "_template")
-            ).actionGet().isAcknowledged()
-        );
-    }
 }

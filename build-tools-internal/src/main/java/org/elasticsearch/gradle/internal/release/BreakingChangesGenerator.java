@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.release;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.elasticsearch.gradle.VersionProperties;
-import org.gradle.api.GradleException;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -19,140 +18,65 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Collectors.toList;
 
 /**
- * Generates the page that contains an index into the breaking changes and lists deprecations for a minor version release,
- * and the individual pages for each breaking area.
+ * Generates the page that contains breaking changes deprecations for a minor release series.
  */
 public class BreakingChangesGenerator {
 
-    // Needs to match `changelog-schema.json`
-    private static final List<String> BREAKING_AREAS = List.of(
-        "Cluster and node setting",
-        "Command line tool",
-        "Index setting",
-        "JVM option",
-        "Java API",
-        "Logging",
-        "Mapping",
-        "Packaging",
-        "Painless",
-        "REST API",
-        "System requirement",
-        "Transform"
-    );
-
-    static void update(
-        File indexTemplateFile,
-        File indexOutputFile,
-        File outputDirectory,
-        File areaTemplateFile,
-        List<ChangelogEntry> entries
-    ) throws IOException {
-        if (outputDirectory.exists()) {
-            if (outputDirectory.isDirectory() == false) {
-                throw new GradleException("Path [" + outputDirectory + "] exists but isn't a directory!");
-            }
-        } else {
-            Files.createDirectory(outputDirectory.toPath());
-        }
-
-        try (FileWriter output = new FileWriter(indexOutputFile)) {
+    static void update(File migrationTemplateFile, File migrationOutputFile, List<ChangelogEntry> entries) throws IOException {
+        try (FileWriter output = new FileWriter(migrationOutputFile)) {
             output.write(
-                generateIndexFile(
+                generateMigrationFile(
                     QualifiedVersion.of(VersionProperties.getElasticsearch()),
-                    Files.readString(indexTemplateFile.toPath()),
+                    Files.readString(migrationTemplateFile.toPath()),
                     entries
                 )
             );
         }
-
-        String areaTemplate = Files.readString(areaTemplateFile.toPath());
-
-        for (String breakingArea : BREAKING_AREAS) {
-            final List<ChangelogEntry.Breaking> entriesForArea = entries.stream()
-                .map(ChangelogEntry::getBreaking)
-                .filter(entry -> entry != null && breakingArea.equals(entry.getArea()))
-                .collect(Collectors.toList());
-
-            if (entriesForArea.isEmpty()) {
-                continue;
-            }
-
-            final String outputFilename = breakingArea.toLowerCase(Locale.ROOT).replaceFirst(" and", "").replaceAll(" ", "-")
-                + "-changes.asciidoc";
-
-            try (FileWriter output = new FileWriter(outputDirectory.toPath().resolve(outputFilename).toFile())) {
-                output.write(
-                    generateBreakingAreaFile(
-                        QualifiedVersion.of(VersionProperties.getElasticsearch()),
-                        areaTemplate,
-                        breakingArea,
-                        entriesForArea
-                    )
-                );
-            }
-        }
     }
 
     @VisibleForTesting
-    static String generateIndexFile(QualifiedVersion version, String template, List<ChangelogEntry> entries) throws IOException {
-        final Map<String, List<ChangelogEntry.Deprecation>> deprecationsByArea = entries.stream()
+    static String generateMigrationFile(QualifiedVersion version, String template, List<ChangelogEntry> entries) throws IOException {
+        final Map<Boolean, Map<String, List<ChangelogEntry.Deprecation>>> deprecationsByNotabilityByArea = entries.stream()
             .map(ChangelogEntry::getDeprecation)
             .filter(Objects::nonNull)
             .sorted(comparing(ChangelogEntry.Deprecation::getTitle))
-            .collect(groupingBy(ChangelogEntry.Deprecation::getArea, TreeMap::new, Collectors.toList()));
+            .collect(
+                groupingBy(
+                    ChangelogEntry.Deprecation::isNotable,
+                    TreeMap::new,
+                    groupingBy(ChangelogEntry.Deprecation::getArea, TreeMap::new, toList())
+                )
+            );
 
-        final List<String> breakingIncludeList = entries.stream()
-            .filter(each -> each.getBreaking() != null)
-            .map(each -> each.getBreaking().getArea().toLowerCase(Locale.ROOT).replaceFirst(" and", "").replaceAll(" ", "-"))
-            .distinct()
-            .sorted()
-            .toList();
+        final Map<Boolean, Map<String, List<ChangelogEntry.Breaking>>> breakingByNotabilityByArea = entries.stream()
+            .map(ChangelogEntry::getBreaking)
+            .filter(Objects::nonNull)
+            .sorted(comparing(ChangelogEntry.Breaking::getTitle))
+            .collect(
+                groupingBy(
+                    ChangelogEntry.Breaking::isNotable,
+                    TreeMap::new,
+                    groupingBy(ChangelogEntry.Breaking::getArea, TreeMap::new, toList())
+                )
+            );
 
         final Map<String, Object> bindings = new HashMap<>();
-        bindings.put("breakingIncludeList", breakingIncludeList);
-        bindings.put("deprecationsByArea", deprecationsByArea);
+        bindings.put("breakingByNotabilityByArea", breakingByNotabilityByArea);
+        bindings.put("deprecationsByNotabilityByArea", deprecationsByNotabilityByArea);
         bindings.put("isElasticsearchSnapshot", version.isSnapshot());
         bindings.put("majorDotMinor", version.major() + "." + version.minor());
         bindings.put("majorMinor", String.valueOf(version.major()) + version.minor());
         bindings.put("nextMajor", (version.major() + 1) + ".0");
         bindings.put("version", version);
-
-        return TemplateUtils.render(template, bindings);
-    }
-
-    @VisibleForTesting
-    static String generateBreakingAreaFile(
-        QualifiedVersion version,
-        String template,
-        String breakingArea,
-        List<ChangelogEntry.Breaking> entriesForArea
-    ) throws IOException {
-        final Map<Boolean, Set<ChangelogEntry.Breaking>> breakingEntriesByNotability = entriesForArea.stream()
-            .collect(
-                groupingBy(
-                    ChangelogEntry.Breaking::isNotable,
-                    toCollection(() -> new TreeSet<>(comparing(ChangelogEntry.Breaking::getTitle)))
-                )
-            );
-
-        final Map<String, Object> bindings = new HashMap<>();
-        bindings.put("breakingArea", breakingArea);
-        bindings.put("breakingEntriesByNotability", breakingEntriesByNotability);
-        bindings.put("breakingAreaAnchor", breakingArea.toLowerCase(Locale.ROOT).replaceFirst(" and", "").replaceAll(" ", "_"));
-        bindings.put("majorMinor", String.valueOf(version.major()) + version.minor());
 
         return TemplateUtils.render(template, bindings);
     }

@@ -1,0 +1,6 @@
+pr: 83514
+summary: Simplify and Speed up `ExecutorSelector`
+area: Indices APIs
+type: bug
+issues:
+ - 82450

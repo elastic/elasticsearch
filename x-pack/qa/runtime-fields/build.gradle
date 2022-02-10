@@ -42,6 +42,7 @@ subprojects {
       setting 'xpack.security.enabled', 'false'
       if (BuildParams.isSnapshotBuild() == false) {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
+        systemProperty 'es.random_sampler_feature_flag_registered', 'true'
       }
     }
 
@@ -78,6 +79,7 @@ subprojects {
 
           //there is something wrong when using dotted document syntax here, passes in main yaml tests
           'search/330_fetch_fields/Test nested field inside object structure',
+
           /////// TO FIX ///////
 
           /////// NOT SUPPORTED ///////

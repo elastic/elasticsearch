@@ -1,0 +1,5 @@
+pr: 83417
+summary: Introduce dedicated interface for health indicator details
+area: Health
+type: enhancement
+issues: []

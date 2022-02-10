@@ -32,7 +32,6 @@ dependencies {
   // Don't bundle the server or low-level rest client JARs in the shadow JAR since these get published to Maven Central
   shadow project(':server')
   shadow project(':client:rest')
-  shadow project(':libs:elasticsearch-x-content:impl')
 
   testImplementation project(':client:test')
   testImplementation project(':test:framework')

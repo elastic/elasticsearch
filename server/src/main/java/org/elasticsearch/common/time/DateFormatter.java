@@ -9,7 +9,6 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 
 import java.time.Instant;
 import java.time.ZoneId;

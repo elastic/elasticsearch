@@ -40,7 +40,6 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         cleanerService.setGlobalRetention(TimeValue.MAX_VALUE);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78737")
     public void testNothingToDelete() throws Exception {
         CleanerService.Listener listener = getListener();
         listener.onCleanUpIndices(days(0));
@@ -107,7 +106,6 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         assertIndicesCount(1);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78862")
     public void testDeleteIndices() throws Exception {
         CleanerService.Listener listener = getListener();
 
@@ -167,10 +165,6 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         Exporters exporters = internalCluster().getInstance(Exporters.class, internalCluster().getMasterName());
         for (Exporter exporter : exporters.getEnabledExporters()) {
             if (exporter instanceof CleanerService.Listener) {
-                // Ensure that the exporter is initialized.
-                if (exporter instanceof LocalExporter) {
-                    assertBusy(() -> assertThat(((LocalExporter) exporter).isExporterReady(), is(true)));
-                }
                 return (CleanerService.Listener) exporter;
             }
         }

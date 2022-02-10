@@ -20,13 +20,13 @@
  - do:
       index:
           index:  foobar
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - do:
       update:
            index:  foobar
-           id:     1
+           id:     "1"
            body:
                doc:
                    foo: baz

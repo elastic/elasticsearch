@@ -19,7 +19,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           keyword: [ "a", "b" ]
           integer_range:
@@ -63,7 +63,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           keyword: "value"
           date: "1990-12-29T22:30:00.000Z"
@@ -111,7 +111,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           keyword: [ "a" ]
 
@@ -148,7 +148,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           keyword: "a"
           integer: 42
@@ -156,7 +156,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:
           keyword: "b"
           integer: "not an integer"
@@ -194,7 +194,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         refresh: true
         body:
           keyword: "a"
@@ -236,7 +236,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           date: "1990-12-29T22:30:00.000Z"
 
@@ -282,7 +282,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         refresh: true
         body:
           count: "some text"
@@ -317,7 +317,7 @@ Test unmapped field:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               f1: some text
@@ -378,7 +378,7 @@ Test unmapped fields inside disabled objects:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               f1:
@@ -426,7 +426,7 @@ Test nested fields:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               products:
@@ -505,7 +505,7 @@ Test nested field inside object structure:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               obj:
@@ -516,7 +516,7 @@ Test nested field inside object structure:
   -  do:
         index:
            index: test
-           id: 2
+           id: "2"
            refresh: true
            body:
               obj:
@@ -619,7 +619,7 @@ Test doubly nested fields:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               id: abcd1234
@@ -691,7 +691,7 @@ Test nested fields with unmapped subfields:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               id: abcd1234
@@ -752,7 +752,7 @@ Test nested fields with ignored subfields:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               malformed_outside : "bad_value_1"
@@ -796,7 +796,7 @@ Test nested field with sibling field resolving to DocValueFetcher:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               owner: "Anna Ott"
@@ -838,7 +838,7 @@ Test nested field with sibling field resolving to DocValueFetcher:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         refresh: true
         body:
           number: [ 1, 2, "3", "four", 5, 6 ]
@@ -880,7 +880,7 @@ Test token_count inside nested field doesn't fail:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               user:
@@ -916,7 +916,7 @@ error includes field name:
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         refresh: true
         body:
           keyword: "value"
@@ -953,7 +953,7 @@ error includes glob pattern:
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         refresh: true
         body:
           dkeyword: "value"
@@ -992,7 +992,7 @@ error for flattened includes whole path:
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         refresh: true
         body:
           flattened:
@@ -1031,7 +1031,7 @@ test fetching metadata fields:
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         refresh: true
         body:
           field: foo

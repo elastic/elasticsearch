@@ -18,7 +18,7 @@
       index:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           body:    { foo: bar }
           refresh: true
 
@@ -29,7 +29,7 @@
       index:
           index:   test_1
           type:    test
-          id:      3
+          id:      "3"
           body:    { foo: bar }
           refresh: true
  - is_true: forced_refresh
@@ -47,7 +47,7 @@
       delete:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
 
  - do:
       search:
@@ -62,7 +62,7 @@
       delete:
           index:   test_1
           type:    test
-          id:      3
+          id:      "3"
           refresh: true
 
 # If a replica shard where doc 1 is located gets initialized at this point, doc 1
@@ -84,7 +84,7 @@
       index:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           body:    { foo: bar }
           refresh: true
  - is_true: forced_refresh
@@ -94,14 +94,14 @@
           rest_total_hits_as_int: true
           index:   test_1
           body:
-            query:   { term: { _id: 1 }}
+            query:   { term: { _id: "1" }}
  - match: { hits.total: 1 }
 
  - do:
       delete:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           refresh: ""
 
  - do:
@@ -109,7 +109,7 @@
           rest_total_hits_as_int: true
           index:   test_1
           body:
-            query:   { term: { _id: 1 }}
+            query:   { term: { _id: "1" }}
  - match: { hits.total: 0 }
 
 ---

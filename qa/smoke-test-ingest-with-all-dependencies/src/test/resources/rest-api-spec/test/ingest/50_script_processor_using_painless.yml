@@ -23,7 +23,7 @@
       index:
         index: test
         type: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: { bytes_in: 1234, bytes_out: 4321 }
 
@@ -31,7 +31,7 @@
       get:
         index: test
         type: test
-        id: 1
+        id: "1"
   - match: { _source.bytes_in: 1234 }
   - match: { _source.bytes_out: 4321 }
   - match: { _source.bytes_total: 55550 }
@@ -73,7 +73,7 @@
       index:
         index: test
         type: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: { bytes_in: 1234, bytes_out: 4321 }
 
@@ -81,7 +81,7 @@
       get:
         index: test
         type: test
-        id: 1
+        id: "1"
   - match: { _source.bytes_in: 1234 }
   - match: { _source.bytes_out: 4321 }
   - match: { _source.bytes_total: 5555 }

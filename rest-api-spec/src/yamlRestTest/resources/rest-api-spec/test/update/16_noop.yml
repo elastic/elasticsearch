@@ -7,7 +7,7 @@
       index:
         index: test_1
         type:  test
-        id:    1
+        id:    "1"
         body:  { foo: bar }
 
   - match: { _seq_no:       0       }
@@ -19,7 +19,7 @@
       update:
           index:            test_1
           type:             test
-          id:               1
+          id:               "1"
           body:
             doc:            { foo: bar }
 
@@ -32,7 +32,7 @@
       update:
           index:            test_1
           type:             test
-          id:               1
+          id:               "1"
           body:
             doc:            { foo: bar }
             detect_noop:    false

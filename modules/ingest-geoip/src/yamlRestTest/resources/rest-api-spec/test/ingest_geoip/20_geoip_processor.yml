@@ -19,14 +19,14 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {field1: "128.101.101.101"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.field1: "128.101.101.101" }
   - length: { _source.geoip: 7 }
   - match: { _source.geoip.city_name: "Minneapolis" }
@@ -60,14 +60,14 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {field1: ["128.101.101.101", "127.0.0.1"]}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.field1: ["128.101.101.101", "127.0.0.1"] }
   - length: { _source.geoip: 2 }
   - length: { _source.geoip.0: 7 }
@@ -102,14 +102,14 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {field1: ["127.0.0.1", "128.101.101.101", "128.101.101.101"]}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.field1: ["127.0.0.1", "128.101.101.101", "128.101.101.101"] }
   - length: { _source.geoip: 7 }
   - match: { _source.geoip.city_name: "Minneapolis" }
@@ -147,14 +147,14 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {field1: "128.101.101.101"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.field1: "128.101.101.101" }
   - length: { _source.geoip: 9 }
   - match: { _source.geoip.city_name: "Minneapolis" }
@@ -190,14 +190,14 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {field1: "128.101.101.101"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.field1: "128.101.101.101" }
   - length: { _source.geoip: 3 }
   - match: { _source.geoip.country_iso_code: "US" }
@@ -240,28 +240,28 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: { field1: "80.231.5.0" }
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.field1: "80.231.5.0" }
   - is_false: _source.geoip
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         pipeline: "my_pipeline"
         body: { field1: "128.101.101.101" }
 
   - do:
       get:
         index: test
-        id: 2
+        id: "2"
   - match: { _source.field1: "128.101.101.101" }
   - length: { _source.geoip: 7 }
   - match: { _source.geoip.city_name: "Minneapolis" }
@@ -295,14 +295,14 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {field1: "82.171.64.0"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.field1: "82.171.64.0" }
   - length: { _source.geoip: 4 }
   - match: { _source.geoip.ip: "82.171.64.0" }

@@ -18,7 +18,7 @@ setup:
   - do:
       index:
           index: test1
-          id:    1
+          id:    "1"
           body:
               "field1" : "The quick brown fox went to the forest and saw another fox."
               "field2" : "The quick brown fox went to the forest and saw another fox."

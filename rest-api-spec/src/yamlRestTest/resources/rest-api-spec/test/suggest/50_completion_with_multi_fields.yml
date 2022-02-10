@@ -21,14 +21,14 @@
   - do:
       index:
         index: completion_with_sub_keyword
-        id:    1
+        id:    "1"
         body:
           suggest_1: "bar"
 
   - do:
       index:
         index: completion_with_sub_keyword
-        id:    2
+        id:    "2"
         body:
           suggest_1: "baz"
 
@@ -83,14 +83,14 @@
   - do:
       index:
         index: completion_with_sub_completion
-        id:    1
+        id:    "1"
         body:
           suggest_1: "bar"
 
   - do:
       index:
         index: completion_with_sub_completion
-        id:    2
+        id:    "2"
         body:
           suggest_1: "baz"
 
@@ -142,7 +142,7 @@
   - do:
       index:
         index: completion_with_context
-        id:    1
+        id:    "1"
         body:
           suggest_1:
             input: "foo red"
@@ -152,7 +152,7 @@
   - do:
       index:
         index: completion_with_context
-        id:    2
+        id:    "2"
         body:
           suggest_1:
             input: "foo blue"
@@ -202,7 +202,7 @@
   - do:
       index:
         index: completion_with_weight
-        id:    1
+        id:    "1"
         body:
           suggest_1:
             input: "bar"
@@ -211,7 +211,7 @@
   - do:
       index:
         index: completion_with_weight
-        id:    2
+        id:    "2"
         body:
           suggest_1:
             input: "baz"
@@ -258,7 +258,7 @@
   - do:
       index:
         index: geofield_with_completion
-        id:    1
+        id:    "1"
         body:
           geofield: "hgjhrwysvqw7"
         #41.12,-72.34,12
@@ -266,7 +266,7 @@
   - do:
       index:
         index: geofield_with_completion
-        id:    1
+        id:    "1"
         body:
           geofield: "hgm4psywmkn7"
         #41.12,-71.34,12

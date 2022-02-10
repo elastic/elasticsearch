@@ -8,7 +8,7 @@
  - do:
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external_gte
           version:        5
@@ -19,14 +19,14 @@
       catch:             conflict
       delete:
           index:          test_1
-          id:             1
+          id:             "1"
           version_type:   external_gte
           version:        4
 
  - do:
       delete:
           index:          test_1
-          id:             1
+          id:             "1"
           version_type:   external_gte
           version:        6
 
@@ -35,7 +35,7 @@
  - do:
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external_gte
           version:        6
@@ -45,7 +45,7 @@
  - do:
       delete:
           index:          test_1
-          id:             1
+          id:             "1"
           version_type:   external_gte
           version:        6
 

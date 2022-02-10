@@ -70,7 +70,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     RED,
-                    "Detected [1] corrupted repositories [corrupted-repo]",
+                    "Detected [1] corrupted repositories: [corrupted-repo]",
                     new SimpleHealthIndicatorDetails(
                         Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
                     )

@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
@@ -253,7 +254,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83386")
     public void testUpdateDesiredNodesTasksAreBatchedCorrectly() throws Exception {
         final Runnable unblockClusterStateUpdateThread = blockClusterStateUpdateThread();
 
@@ -265,7 +265,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
                 desiredNodes.version(),
                 desiredNodes.nodes()
             );
-            updateDesiredNodesFutures.add(client().execute(UpdateDesiredNodesAction.INSTANCE, request));
+            // Use the master client to ensure the same updates ordering as in proposedDesiredNodesList
+            updateDesiredNodesFutures.add(internalCluster().masterClient().execute(UpdateDesiredNodesAction.INSTANCE, request));
         }
 
         for (ActionFuture<UpdateDesiredNodesResponse> future : updateDesiredNodesFutures) {
@@ -284,7 +285,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         assertThat(latestDesiredNodes, equalTo(latestProposedDesiredNodes));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83386")
     public void testDeleteDesiredNodesTasksAreBatchedCorrectly() throws Exception {
         if (randomBoolean()) {
             putRandomDesiredNodes();
@@ -372,22 +372,23 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     private Runnable blockClusterStateUpdateThread() throws InterruptedException {
         final CountDownLatch unblockClusterStateUpdateTask = new CountDownLatch(1);
         final CountDownLatch blockingClusterStateUpdateTaskExecuting = new CountDownLatch(1);
-        final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 blockingClusterStateUpdateTaskExecuting.countDown();
-                unblockClusterStateUpdateTask.await();
+                assertTrue(unblockClusterStateUpdateTask.await(10, TimeUnit.SECONDS));
                 return currentState;
             }
 
             @Override
             public void onFailure(Exception e) {
-
+                blockingClusterStateUpdateTaskExecuting.countDown();
+                assert false : e.getMessage();
             }
         }, ClusterStateTaskExecutor.unbatched());
 
-        blockingClusterStateUpdateTaskExecuting.await();
+        assertTrue(blockingClusterStateUpdateTaskExecuting.await(10, TimeUnit.SECONDS));
         return unblockClusterStateUpdateTask::countDown;
     }
 

@@ -13,7 +13,6 @@ import java.util.NoSuchElementException;
 public interface DenseVector extends Iterable<Float> {
     float getMagnitude();
 
-    // The implementations of these vector operations
     double dotProduct(QueryVector queryVector);
 
     double l1Norm(QueryVector queryVector);

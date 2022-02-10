@@ -27,7 +27,7 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
         return dims;
     }
 
-    private DenseVector getVectorChecked() {
+    private DenseVector getCheckedVector() {
         DenseVector vector = dvSupplier.getInternal();
         if (vector == null) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
@@ -39,26 +39,26 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
      * Get dense vector's value as an array of floats
      */
     public float[] getVectorValue() {
-        return getVectorChecked().getVector();
+        return getCheckedVector().getVector();
     }
 
     /**
      * Get dense vector's magnitude
      */
     public float getMagnitude() {
-        return getVectorChecked().getMagnitude();
+        return getCheckedVector().getMagnitude();
     }
 
     public double dotProduct(float[] queryVector) {
-        return getVectorChecked().dotProduct(queryVector);
+        return getCheckedVector().dotProduct(queryVector);
     }
 
     public double l1Norm(float[] queryVector) {
-        return getVectorChecked().l1Norm(QueryVector.fromArray(queryVector));
+        return getCheckedVector().l1Norm(QueryVector.fromArray(queryVector));
     }
 
     public double l2Norm(float[] queryVector) {
-        return getVectorChecked().l2Norm(QueryVector.fromArray(queryVector));
+        return getCheckedVector().l2Norm(QueryVector.fromArray(queryVector));
     }
 
     @Override

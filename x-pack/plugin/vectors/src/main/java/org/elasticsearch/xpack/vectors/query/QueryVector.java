@@ -29,6 +29,7 @@ public abstract class QueryVector {
         return new ListQueryVector(vector);
     }
 
+    // This is for painless support, which does not support method overloading.
     public static QueryVector fromObject(Object vector) {
         if (vector instanceof List<?> list) {
             return new ListQueryVector(list);
@@ -57,11 +58,9 @@ public abstract class QueryVector {
             if (element instanceof Number number) {
                 return number.floatValue();
             }
-            throw new IllegalArgumentException(badElement(element, i));
-        }
-
-        protected static String badElement(Object element, int index) {
-            return "Cannot treat [" + element + "] at index [" + index + "] of type [" + element.getClass().getName() + "] as Number";
+            throw new IllegalArgumentException(
+                "Cannot treat [" + element + "] at index [" + i + "] of type [" + element.getClass().getName() + "] as Number"
+            );
         }
 
         float[] asFloatArray() {

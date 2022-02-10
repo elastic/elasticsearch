@@ -9,7 +9,6 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
@@ -178,12 +177,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
                         // on a transport thread in case of large numbers of indices and/or fields
                         threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
-                            .submit(
-                                ActionRunnable.supply(
-                                    listener,
-                                    () -> merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures))
-                                )
-                            );
+                            .submit(ActionRunnable.supply(listener, () -> merge(indexResponses, request, new ArrayList<>(failures))));
                     } else {
                         listener.onResponse(
                             new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), new ArrayList<>(failures))
@@ -212,6 +206,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.indicesOptions(originalIndices.indicesOptions());
         remoteRequest.indices(originalIndices.indices());
         remoteRequest.fields(request.fields());
+        remoteRequest.filters(request.filters());
+        remoteRequest.allowedTypes(request.allowedTypes());
         remoteRequest.runtimeFields(request.runtimeFields());
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
@@ -220,7 +216,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private FieldCapabilitiesResponse merge(
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
-        boolean includeUnmapped,
+        FieldCapabilitiesRequest request,
         List<FieldCapabilitiesFailure> failures
     ) {
         final List<FieldCapabilitiesIndexResponse> indexResponses = indexResponsesMap.values()
@@ -230,12 +226,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
         for (FieldCapabilitiesIndexResponse response : indexResponses) {
-            innerMerge(responseMapBuilder, response);
+            innerMerge(responseMapBuilder, request, response);
         }
         final Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
             final Map<String, FieldCapabilities.Builder> typeMapBuilder = entry.getValue();
-            if (includeUnmapped) {
+            if (request.includeUnmapped()) {
                 addUnmappedFields(indices, entry.getKey(), typeMapBuilder);
             }
             boolean multiTypes = typeMapBuilder.size() > 1;
@@ -264,14 +260,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private void innerMerge(
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
+        FieldCapabilitiesRequest request,
         FieldCapabilitiesIndexResponse response
     ) {
-        for (Map.Entry<String, IndexFieldCapabilities> entry : response.get().entrySet()) {
+        Map<String, IndexFieldCapabilities> fields = ResponseRewriter.rewriteOldResponses(
+            response.getOriginVersion(),
+            response.get(),
+            request.filters(),
+            request.allowedTypes(),
+            metadataFieldPred
+        );
+        for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {
             final String field = entry.getKey();
-            // best effort to detect metadata field coming from older nodes
-            final boolean isMetadataField = response.getOriginVersion().onOrAfter(Version.V_7_13_0)
-                ? entry.getValue().isMetadatafield()
-                : metadataFieldPred.test(field);
             final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
             FieldCapabilities.Builder builder = typeMap.computeIfAbsent(
@@ -280,7 +280,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             );
             builder.add(
                 response.getIndexName(),
-                isMetadataField,
+                fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),
                 fieldCap.isDimension(),
@@ -355,6 +355,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             final FieldCapabilitiesIndexResponse response = fieldCapabilitiesFetcher.fetch(
                                 shardId,
                                 request.fields(),
+                                request.filters(),
+                                request.allowedTypes(),
                                 request.indexFilter(),
                                 request.nowInMillis(),
                                 request.runtimeFields()

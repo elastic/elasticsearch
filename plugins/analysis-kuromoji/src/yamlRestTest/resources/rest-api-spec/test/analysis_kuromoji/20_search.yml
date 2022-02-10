@@ -15,7 +15,7 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "text": "JR新宿駅の近くにビールを飲みに行こうか" }
   - do:
       indices.refresh: {}

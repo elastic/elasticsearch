@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -27,8 +28,17 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class BertRequestBuilderTests extends ESTestCase {
 
+    private BertTokenizer tokenizer;
+
+    @After
+    public void closeIt() {
+        if (tokenizer != null) {
+            tokenizer.close();
+        }
+    }
+
     public void testBuildRequest() throws IOException {
-        BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 512, null)).build();
+        tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 512, null)).build();
 
         BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
         NlpTask.Request request = requestBuilder.buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
@@ -53,7 +63,7 @@ public class BertRequestBuilderTests extends ESTestCase {
     }
 
     public void testInputTooLarge() throws IOException {
-        BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 5, null)).build();
+        tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 5, null)).build();
         {
             BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
             ElasticsearchStatusException e = expectThrows(
@@ -80,7 +90,7 @@ public class BertRequestBuilderTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testBatchWithPadding() throws IOException {
-        BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 512, null)).build();
+        tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 512, null)).build();
 
         BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
         NlpTask.Request request = requestBuilder.buildRequest(

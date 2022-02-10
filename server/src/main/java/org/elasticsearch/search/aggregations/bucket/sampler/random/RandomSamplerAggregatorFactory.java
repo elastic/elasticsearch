@@ -44,7 +44,7 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return new RandomSamplerAggregator(name, seed, this::getWeight, factories, context, parent, cardinality, metadata);
+        return new RandomSamplerAggregator(name, seed, probability, this::getWeight, factories, context, parent, cardinality, metadata);
     }
 
     /**

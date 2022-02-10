@@ -1159,15 +1159,10 @@ public class MetadataIndexStateService {
         }
     }
 
-    private static class OpenIndicesTask implements ClusterStateTaskListener, ClusterStateAckListener {
-
-        private final OpenIndexClusterStateUpdateRequest request;
-        private final ActionListener<AcknowledgedResponse> listener;
-
-        OpenIndicesTask(OpenIndexClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener) {
-            this.request = request;
-            this.listener = listener;
-        }
+    private record OpenIndicesTask(OpenIndexClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+        implements
+            ClusterStateTaskListener,
+            ClusterStateAckListener {
 
         @Override
         public void onFailure(Exception e) {

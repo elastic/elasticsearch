@@ -609,7 +609,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testKeywordFieldUtf8LongThan32766() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
         StringBuilder stringBuilder = new StringBuilder(BYTE_BLOCK_SIZE);
-        for (int i = 0; i <= BYTE_BLOCK_SIZE; i++) {
+        for (int i = 0; i < BYTE_BLOCK_SIZE; i++) {
             stringBuilder.append("a");
         }
         MapperParsingException e = expectThrows(

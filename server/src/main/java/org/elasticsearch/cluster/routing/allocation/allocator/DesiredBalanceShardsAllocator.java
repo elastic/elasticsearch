@@ -84,9 +84,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
 
         // now compute next moves towards current desired balance
+
         // 1. allocate unassigned shards first
+        desiredBalance.allocateUnassigned(allocation);
         // 2. move any shards that cannot remain where they are
+        desiredBalance.moveShards(allocation);
         // 3. move any other shards that are desired elsewhere
+        desiredBalance.balance(allocation);
     }
 
     @Override
@@ -183,7 +187,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
         boolean hasChanges = true;
         while (hasChanges) {
-            // TODO need to disable any transient deciders so we get an accurate picture of the desired state
             balancedShardsAllocator.allocate(routingAllocation);
 
             hasChanges = false;
@@ -216,9 +219,23 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
-    record DesiredBalance(HashMap<ShardId, List<String>> desiredAssignments) {
-        public List<String> getDesiredNodeIds(ShardId shardId) {
+    private record DesiredBalance(HashMap<ShardId, List<String>> desiredAssignments) {
+        List<String> getDesiredNodeIds(ShardId shardId) {
             return desiredAssignments.getOrDefault(shardId, Collections.emptyList());
         }
+
+        void allocateUnassigned(RoutingAllocation allocation) {
+
+        }
+
+        void balance(RoutingAllocation allocation) {
+
+        }
+
+        void moveShards(RoutingAllocation allocation) {
+
+        }
+
     }
+
 }

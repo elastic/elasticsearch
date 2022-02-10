@@ -1105,12 +1105,18 @@ public class MetadataIndexStateService {
                 return currentState;
             }
 
-            logger.info(
-                () -> new ParameterizedMessage(
-                    "opening indices [{}]",
-                    String.join(",", indicesToOpen.stream().map(i -> (CharSequence) i.getIndex().toString())::iterator)
-                )
-            );
+            logger.info(() -> {
+                final StringBuilder indexNames = new StringBuilder();
+                Strings.collectionToDelimitedStringWithLimit(
+                    indicesToOpen.stream().map(i -> (CharSequence) i.getIndex().toString()).toList(),
+                    ",",
+                    "",
+                    "",
+                    512,
+                    indexNames
+                );
+                return new ParameterizedMessage("opening indices [{}]", indexNames);
+            });
 
             final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());

@@ -162,9 +162,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             } else {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
             }
-            //NOTE: version `7.17.0` reads also `originalFrom` and `originalTo` from the wire. For this reason,
-            //we need to write those two values. From version `7.17.1` on, `originalFrom` and `originalTo` are not
-            //needed anymore.
+            // NOTE: version `7.17.0` reads also `originalFrom` and `originalTo` from the wire. For this reason,
+            // we need to write those two values. From version `7.17.1` on, `originalFrom` and `originalTo` are not
+            // needed anymore.
             out.writeDouble(from);
             if (out.getVersion().onOrAfter(Version.V_7_17_0) && out.getVersion().onOrBefore(Version.V_7_17_0)) {
                 out.writeOptionalDouble(from);
@@ -268,9 +268,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < size; i++) {
             String key = in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString() : in.readString();
             double from = in.readDouble();
-            //NOTE: version `7.17.0` writes also `originalFrom` and `originalTo` on the wire. For this reason,
-            //we need to read those two values and overwrite `from` and `to` so that we can actually use
-            //the original ones. From version `7.17.1` on, `originalFrom` and `originalTo` are not needed anymore.
+            // NOTE: version `7.17.0` writes also `originalFrom` and `originalTo` on the wire. For this reason,
+            // we need to read those two values and overwrite `from` and `to` so that we can actually use
+            // the original ones. From version `7.17.1` on, `originalFrom` and `originalTo` are not needed anymore.
             if (in.getVersion().onOrAfter(Version.V_7_17_0) && in.getVersion().onOrBefore(Version.V_7_17_0)) {
                 final Double originalFrom = in.readOptionalDouble();
                 if (originalFrom != null) {

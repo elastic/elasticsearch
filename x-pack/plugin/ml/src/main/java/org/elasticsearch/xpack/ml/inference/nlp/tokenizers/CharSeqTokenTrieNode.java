@@ -16,13 +16,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
-public class CharSeqTokenTrieNode {
+public record CharSeqTokenTrieNode(CharArrayMap<CharSeqTokenTrieNode> children) {
 
     public static final CharSeqTokenTrieNode EMPTY = new CharSeqTokenTrieNode(new CharArrayMap<>(0, false));
 
-    private final CharArrayMap<CharSeqTokenTrieNode> children;
-
-    private CharSeqTokenTrieNode(CharArrayMap<CharSeqTokenTrieNode> children) {
+    public CharSeqTokenTrieNode(CharArrayMap<CharSeqTokenTrieNode> children) {
         this.children = Objects.requireNonNull(children);
     }
 

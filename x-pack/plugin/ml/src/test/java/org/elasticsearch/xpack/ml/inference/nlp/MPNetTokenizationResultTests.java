@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.MPNetTokenizer
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
-public class MPNetRequestBuilderTests extends ESTestCase {
+public class MPNetTokenizationResultTests extends ESTestCase {
     private MPNetTokenizer tokenizer;
 
     @After
@@ -39,9 +39,9 @@ public class MPNetRequestBuilderTests extends ESTestCase {
     public void testBuildRequest() throws IOException {
         tokenizer = MPNetTokenizer.mpBuilder(TEST_CASED_VOCAB, new MPNetTokenization(null, null, 512, null)).build();
 
-        MPNetRequestBuilder requestBuilder = new MPNetRequestBuilder(tokenizer);
+        var requestBuilder = tokenizer.requestBuilder();
         NlpTask.Request request = requestBuilder.buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
-        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
+        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(3));
         assertEquals("request1", jsonDocAsMap.get("request_id"));
@@ -49,7 +49,6 @@ public class MPNetRequestBuilderTests extends ESTestCase {
         assertEquals(Arrays.asList(1, 1, 1, 1, 1), firstListItemFromMap("arg_1", jsonDocAsMap));
     }
 
-    @SuppressWarnings("unchecked")
     private List<Integer> firstListItemFromMap(String name, Map<String, Object> jsonDocAsMap) {
         return nthListItemFromMap(name, 0, jsonDocAsMap);
     }
@@ -62,7 +61,7 @@ public class MPNetRequestBuilderTests extends ESTestCase {
     public void testInputTooLarge() throws IOException {
         tokenizer = MPNetTokenizer.mpBuilder(TEST_CASED_VOCAB, new MPNetTokenization(null, null, 5, null)).build();
         {
-            MPNetRequestBuilder requestBuilder = new MPNetRequestBuilder(tokenizer);
+            var requestBuilder = tokenizer.requestBuilder();
             ElasticsearchStatusException e = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> requestBuilder.buildRequest(
@@ -78,7 +77,7 @@ public class MPNetRequestBuilderTests extends ESTestCase {
             );
         }
         {
-            MPNetRequestBuilder requestBuilder = new MPNetRequestBuilder(tokenizer);
+            var requestBuilder = tokenizer.requestBuilder();
             // input will become 3 tokens + the Class and Separator token = 5 which is
             // our max sequence length
             requestBuilder.buildRequest(Collections.singletonList("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
@@ -89,13 +88,13 @@ public class MPNetRequestBuilderTests extends ESTestCase {
     public void testBatchWithPadding() throws IOException {
         tokenizer = MPNetTokenizer.mpBuilder(TEST_CASED_VOCAB, new MPNetTokenization(null, null, 512, null)).build();
 
-        MPNetRequestBuilder requestBuilder = new MPNetRequestBuilder(tokenizer);
+        var requestBuilder = tokenizer.requestBuilder();
         NlpTask.Request request = requestBuilder.buildRequest(
             List.of("Elasticsearch", "my little red car", "Godzilla day"),
             "request1",
             Tokenization.Truncate.NONE
         );
-        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
+        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(3));
         assertThat((List<List<Integer>>) jsonDocAsMap.get("tokens"), hasSize(3));

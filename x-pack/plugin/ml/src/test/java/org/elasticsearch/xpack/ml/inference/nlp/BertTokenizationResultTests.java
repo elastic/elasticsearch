@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizerT
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
-public class BertRequestBuilderTests extends ESTestCase {
+public class BertTokenizationResultTests extends ESTestCase {
 
     private BertTokenizer tokenizer;
 
@@ -40,9 +40,9 @@ public class BertRequestBuilderTests extends ESTestCase {
     public void testBuildRequest() throws IOException {
         tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 512, null)).build();
 
-        BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
+        var requestBuilder = tokenizer.requestBuilder();
         NlpTask.Request request = requestBuilder.buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
-        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
+        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
         assertEquals("request1", jsonDocAsMap.get("request_id"));
@@ -52,7 +52,6 @@ public class BertRequestBuilderTests extends ESTestCase {
         assertEquals(Arrays.asList(0, 1, 2, 3, 4), firstListItemFromMap("arg_3", jsonDocAsMap));
     }
 
-    @SuppressWarnings("unchecked")
     private List<Integer> firstListItemFromMap(String name, Map<String, Object> jsonDocAsMap) {
         return nthListItemFromMap(name, 0, jsonDocAsMap);
     }
@@ -65,7 +64,7 @@ public class BertRequestBuilderTests extends ESTestCase {
     public void testInputTooLarge() throws IOException {
         tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 5, null)).build();
         {
-            BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
+            var requestBuilder = tokenizer.requestBuilder();
             ElasticsearchStatusException e = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> requestBuilder.buildRequest(
@@ -81,7 +80,7 @@ public class BertRequestBuilderTests extends ESTestCase {
             );
         }
         {
-            BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
+            var requestBuilder = tokenizer.requestBuilder();
             // input will become 3 tokens + the Class and Separator token = 5 which is
             // our max sequence length
             requestBuilder.buildRequest(Collections.singletonList("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
@@ -92,13 +91,13 @@ public class BertRequestBuilderTests extends ESTestCase {
     public void testBatchWithPadding() throws IOException {
         tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 512, null)).build();
 
-        BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
+        var requestBuilder = tokenizer.requestBuilder();
         NlpTask.Request request = requestBuilder.buildRequest(
             List.of("Elasticsearch", "my little red car", "Godzilla day"),
             "request1",
             Tokenization.Truncate.NONE
         );
-        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
+        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
         assertThat((List<List<Integer>>) jsonDocAsMap.get("tokens"), hasSize(3));

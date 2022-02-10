@@ -263,6 +263,10 @@ public class SearchCancellationIT extends ESIntegTestCase {
         boolean blockInReduce = false;
         int numberOfShards = between(2, 5);
         long now = Instant.now().toEpochMilli();
+        int numberOfRefreshes = between(2, 5);
+        // need to make sure we hit the low level check that happens only every 1024 docs, so we need to make sure that we have at
+        // least 1024 docs on the shard that we are blocked on otherwise we might never hit the low level cancellation there.
+        int numberOfDocsPerRefresh = numberOfShards * between(1500, 2000);
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
@@ -271,7 +275,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
                     .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
                     .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
                     .put(TIME_SERIES_START_TIME.getKey(), now)
-                    .put(TIME_SERIES_END_TIME.getKey(), now + 101)
+                    .put(TIME_SERIES_END_TIME.getKey(), now + (long) numberOfRefreshes * numberOfDocsPerRefresh + 1)
                     .build()
             ).setMapping("""
                 {
@@ -283,14 +287,14 @@ public class SearchCancellationIT extends ESIntegTestCase {
                 """)
         );
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < numberOfRefreshes; i++) {
             // Make sure we have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            for (int j = 0; j < 20; j++) {
+            for (int j = 0; j < numberOfDocsPerRefresh; j++) {
                 bulkRequestBuilder.add(
                     client().prepareIndex("test")
                         .setOpType(DocWriteRequest.OpType.CREATE)
-                        .setSource("@timestamp", now + i * 20 + j, "val", (double) j, "dim", String.valueOf(i))
+                        .setSource("@timestamp", now + (long) i * numberOfDocsPerRefresh + j, "val", (double) j, "dim", String.valueOf(i))
                 );
             }
             assertNoFailures(bulkRequestBuilder.get());

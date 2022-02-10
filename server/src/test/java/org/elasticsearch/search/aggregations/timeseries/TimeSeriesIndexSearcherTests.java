@@ -88,10 +88,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of()
-
-
-        );
+        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
 
         BucketCollector collector = new BucketCollector() {
 

@@ -21,8 +21,11 @@ import java.util.Objects;
  * use {@link CancellableBulkScorer} instead.
  */
 public class CancellableScorer extends Scorer {
+    private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
+
     private final Scorer scorer;
     private final Runnable checkCancelled;
+    private int seen = 0;
 
     public CancellableScorer(Scorer scorer, Runnable checkCancelled) {
         super(scorer.getWeight());
@@ -51,13 +54,17 @@ public class CancellableScorer extends Scorer {
 
             @Override
             public int nextDoc() throws IOException {
-                checkCancelled.run();
+                if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
+                    checkCancelled.run();
+                }
                 return iterator.nextDoc();
             }
 
             @Override
             public int advance(int target) throws IOException {
-                checkCancelled.run();
+                if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
+                    checkCancelled.run();
+                }
                 return iterator.advance(target);
             }
 

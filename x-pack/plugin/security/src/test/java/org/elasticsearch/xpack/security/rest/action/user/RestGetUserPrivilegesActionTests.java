@@ -119,6 +119,8 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                     "manage": {
                       "applications": [ "app01", "app02" ]
                     }
+                  },
+                  "profile": {
                   }
                 }
               ],

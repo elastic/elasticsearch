@@ -61,7 +61,8 @@ public class NodeResponseTracker {
         AtomicReferenceArray<Object> responses = this.responses;
 
         if (responsesDiscarded() == false) {
-            assert responses.compareAndSet(nodeIndex, null, response) : "a response should be recorded only once";
+            boolean firstEncounter = responses.compareAndSet(nodeIndex, null, response);
+            assert firstEncounter : "a response should be tracked only once";
         }
         return counter.incrementAndGet() == getExpectedResponseCount();
     }

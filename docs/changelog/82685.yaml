@@ -1,0 +1,6 @@
+pr: 82685
+summary: Discard intermediate results upon cancellation for stats endpoints
+area: Stats
+type: bug
+issues:
+ - 82337

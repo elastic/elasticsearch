@@ -1039,14 +1039,14 @@ public class MetadataIndexStateService {
         );
     }
 
-    public static class OpenIndicesExecutor implements ClusterStateTaskExecutor<OpenIndicesTask> {
+    private static class OpenIndicesExecutor implements ClusterStateTaskExecutor<OpenIndicesTask> {
 
         private final AllocationService allocationService;
         private final IndexMetadataVerifier indexMetadataVerifier;
         private final IndicesService indicesService;
         private final ShardLimitValidator shardLimitValidator;
 
-        public OpenIndicesExecutor(
+        OpenIndicesExecutor(
             AllocationService allocationService,
             IndexMetadataVerifier indexMetadataVerifier,
             IndicesService indicesService,
@@ -1159,12 +1159,12 @@ public class MetadataIndexStateService {
         }
     }
 
-    public static class OpenIndicesTask implements ClusterStateTaskListener, ClusterStateAckListener {
+    private static class OpenIndicesTask implements ClusterStateTaskListener, ClusterStateAckListener {
 
         private final OpenIndexClusterStateUpdateRequest request;
         private final ActionListener<AcknowledgedResponse> listener;
 
-        public OpenIndicesTask(OpenIndexClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener) {
+        OpenIndicesTask(OpenIndexClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener) {
             this.request = request;
             this.listener = listener;
         }

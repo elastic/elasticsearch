@@ -17,14 +17,16 @@ import java.io.IOException;
 /**
  * CBOR based content.
  */
-public abstract class CborXContent implements XContent {
+public final class CborXContent {
 
-    private static final XContentProvider.FormatProvider<CborXContent> provider = XContentProvider.provider().getCborXContent();
+    private static final XContentProvider.FormatProvider provider = XContentProvider.provider().getCborXContent();
 
-    public static final XContentBuilder contentBuilder() throws IOException {
+    private CborXContent() {}
+
+    public static XContentBuilder contentBuilder() throws IOException {
         return provider.getContentBuilder();
     }
 
-    public static final CborXContent cborXContent = provider.XContent();
+    public static final XContent cborXContent = provider.XContent();
 
 }

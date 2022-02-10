@@ -15,6 +15,7 @@ import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,7 +32,7 @@ import java.util.Set;
 /**
  * A Smile based content implementation using Jackson.
  */
-public final class SmileXContentImpl extends SmileXContent {
+public final class SmileXContentImpl implements XContent {
 
     public static XContentBuilder getContentBuilder() throws IOException {
         return XContentBuilder.builder(smileXContent);
@@ -40,7 +41,7 @@ public final class SmileXContentImpl extends SmileXContent {
     static final SmileFactory smileFactory;
     private static final SmileXContentImpl smileXContent;
 
-    public static SmileXContentImpl smileXContent() {
+    public static XContent smileXContent() {
         return smileXContent;
     }
 

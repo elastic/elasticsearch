@@ -17,14 +17,16 @@ import java.io.IOException;
 /**
  * YAML based content.
  */
-public abstract class YamlXContent implements XContent {
+public final class YamlXContent {
 
-    private static final XContentProvider.FormatProvider<YamlXContent> provider = XContentProvider.provider().getYamlXContent();
+    private static final XContentProvider.FormatProvider provider = XContentProvider.provider().getYamlXContent();
 
-    public static final XContentBuilder contentBuilder() throws IOException {
+    private YamlXContent() {}
+
+    public static XContentBuilder contentBuilder() throws IOException {
         return provider.getContentBuilder();
     }
 
-    public static final YamlXContent yamlXContent = provider.XContent();
+    public static final XContent yamlXContent = provider.XContent();
 
 }

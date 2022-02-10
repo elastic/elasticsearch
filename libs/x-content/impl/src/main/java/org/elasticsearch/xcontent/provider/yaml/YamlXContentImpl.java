@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +29,7 @@ import java.util.Set;
 /**
  * A YAML based content implementation using Jackson.
  */
-public final class YamlXContentImpl extends YamlXContent {
+public final class YamlXContentImpl implements XContent {
 
     public static XContentBuilder getContentBuilder() throws IOException {
         return XContentBuilder.builder(yamlXContent);
@@ -37,7 +38,7 @@ public final class YamlXContentImpl extends YamlXContent {
     static final YAMLFactory yamlFactory;
     private static final YamlXContentImpl yamlXContent;
 
-    public static YamlXContentImpl yamlXContent() {
+    public static XContent yamlXContent() {
         return yamlXContent;
     }
 

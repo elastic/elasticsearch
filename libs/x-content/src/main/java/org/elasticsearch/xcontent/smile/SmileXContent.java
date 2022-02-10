@@ -17,20 +17,22 @@ import java.io.IOException;
 /**
  * Smile based XContent.
  */
-public abstract class SmileXContent implements XContent {
+public final class SmileXContent {
 
-    private static final XContentProvider.FormatProvider<SmileXContent> provider = XContentProvider.provider().getSmileXContent();
+    private static final XContentProvider.FormatProvider provider = XContentProvider.provider().getSmileXContent();
+
+    private SmileXContent() {}
 
     /**
      * Returns a {@link XContentBuilder} for building Smile XContent.
      */
-    public static final XContentBuilder contentBuilder() throws IOException {
+    public static XContentBuilder contentBuilder() throws IOException {
         return provider.getContentBuilder();
     }
 
     /**
      * A Smile based XContent.
      */
-    public static final SmileXContent smileXContent = provider.XContent();
+    public static final XContent smileXContent = provider.XContent();
 
 }

@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
@@ -29,7 +30,7 @@ import java.util.Set;
 /**
  * A JSON based content implementation using Jackson.
  */
-public class JsonXContentImpl extends JsonXContent {
+public class JsonXContentImpl implements XContent {
 
     public static XContentBuilder getContentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
@@ -37,9 +38,9 @@ public class JsonXContentImpl extends JsonXContent {
 
     private static final JsonFactory jsonFactory;
 
-    public static final JsonXContent jsonXContent;
+    public static final XContent jsonXContent;
 
-    public static final JsonXContent jsonXContent() {
+    public static final XContent jsonXContent() {
         return jsonXContent;
     }
 

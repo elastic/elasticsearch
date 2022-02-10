@@ -17,9 +17,11 @@ import java.io.IOException;
 /**
  * JSON based XContent.
  */
-public abstract class JsonXContent implements XContent {
+public final class JsonXContent {
 
-    private static final XContentProvider.FormatProvider<JsonXContent> provider = XContentProvider.provider().getJsonXContent();
+    private static final XContentProvider.FormatProvider provider = XContentProvider.provider().getJsonXContent();
+
+    private JsonXContent() {}
 
     /**
      * Returns a {@link XContentBuilder} for building JSON XContent.
@@ -31,5 +33,5 @@ public abstract class JsonXContent implements XContent {
     /**
      * A JSON based XContent.
      */
-    public static JsonXContent jsonXContent = provider.XContent();
+    public static XContent jsonXContent = provider.XContent();
 }

@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -31,7 +32,7 @@ import java.util.Set;
 /**
  * A CBOR based content implementation using Jackson.
  */
-public final class CborXContentImpl extends CborXContent {
+public final class CborXContentImpl implements XContent {
 
     public static XContentBuilder getContentBuilder() throws IOException {
         return XContentBuilder.builder(cborXContent);
@@ -40,7 +41,7 @@ public final class CborXContentImpl extends CborXContent {
     static final CBORFactory cborFactory;
     private static final CborXContentImpl cborXContent;
 
-    public static CborXContent cborXContent() {
+    public static XContent cborXContent() {
         return cborXContent;
     }
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.xcontent.provider;
 
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.cbor.CborXContent;
@@ -29,60 +30,60 @@ public class XContentProviderImpl implements XContentProvider {
     public XContentProviderImpl() {}
 
     @Override
-    public FormatProvider<CborXContent> getCborXContent() {
-        return new FormatProvider<>() {
+    public FormatProvider getCborXContent() {
+        return new FormatProvider() {
             @Override
             public XContentBuilder getContentBuilder() throws IOException {
                 return CborXContentImpl.getContentBuilder();
             }
 
             @Override
-            public CborXContent XContent() {
+            public XContent XContent() {
                 return CborXContentImpl.cborXContent();
             }
         };
     }
 
     @Override
-    public FormatProvider<JsonXContent> getJsonXContent() {
-        return new FormatProvider<>() {
+    public FormatProvider getJsonXContent() {
+        return new FormatProvider() {
             @Override
             public XContentBuilder getContentBuilder() throws IOException {
                 return JsonXContentImpl.getContentBuilder();
             }
 
             @Override
-            public JsonXContent XContent() {
+            public XContent XContent() {
                 return JsonXContentImpl.jsonXContent();
             }
         };
     }
 
     @Override
-    public FormatProvider<SmileXContent> getSmileXContent() {
-        return new FormatProvider<>() {
+    public FormatProvider getSmileXContent() {
+        return new FormatProvider() {
             @Override
             public XContentBuilder getContentBuilder() throws IOException {
                 return SmileXContentImpl.getContentBuilder();
             }
 
             @Override
-            public SmileXContent XContent() {
+            public XContent XContent() {
                 return SmileXContentImpl.smileXContent();
             }
         };
     }
 
     @Override
-    public FormatProvider<YamlXContent> getYamlXContent() {
-        return new FormatProvider<>() {
+    public FormatProvider getYamlXContent() {
+        return new FormatProvider() {
             @Override
             public XContentBuilder getContentBuilder() throws IOException {
                 return YamlXContentImpl.getContentBuilder();
             }
 
             @Override
-            public YamlXContent XContent() {
+            public XContent XContent() {
                 return YamlXContentImpl.yamlXContent();
             }
         };

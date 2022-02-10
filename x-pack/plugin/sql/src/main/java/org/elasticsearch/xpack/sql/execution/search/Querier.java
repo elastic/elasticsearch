@@ -167,10 +167,10 @@ public class Querier {
     }
 
     public static void closePointInTime(Client client, String pointInTimeId, ActionListener<Boolean> listener) {
-        // request should not be made with the parent task assigned because the parent task might already be canceled
-        client = client instanceof ParentTaskAssigningClient wrapperClient ? wrapperClient.unwrap() : client;
-
         if (pointInTimeId != null) {
+            // request should not be made with the parent task assigned because the parent task might already be canceled
+            client = client instanceof ParentTaskAssigningClient wrapperClient ? wrapperClient.unwrap() : client;
+
             client.execute(
                 ClosePointInTimeAction.INSTANCE,
                 new ClosePointInTimeRequest(pointInTimeId),

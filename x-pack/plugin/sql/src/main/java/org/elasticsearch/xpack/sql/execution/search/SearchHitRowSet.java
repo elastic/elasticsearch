@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -84,14 +83,10 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         indexPerLevel = new int[maxDepth + 1];
         this.innerHit = innerHit;
 
-        TotalHits totalHits = response.getHits().getTotalHits();
-
         // compute remaining limit (only if the limit is specified - that is, positive).
         int remaining = limit < 0 ? limit : limit - size;
         // either the search returned fewer records than requested or the limit is exhausted
-        if (size < sizeRequested || remaining == 0
-        // or exactly `totalHits` records have been fetched
-            || totalHits != null && totalHits.value == hits.length) {
+        if (size < sizeRequested || remaining == 0) {
             remainingLimit = 0;
         } else {
             remainingLimit = remaining;

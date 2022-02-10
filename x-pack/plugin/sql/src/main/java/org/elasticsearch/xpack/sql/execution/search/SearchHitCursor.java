@@ -142,7 +142,7 @@ public class SearchHitCursor implements Cursor {
         );
     }
 
-    protected Supplier<SearchHitRowSet> makeRowSet(int sizeRequested, SearchResponse response) {
+    private Supplier<SearchHitRowSet> makeRowSet(int sizeRequested, SearchResponse response) {
         return () -> new SearchHitRowSet(extractors, mask, sizeRequested, limit, response);
     }
 
@@ -193,7 +193,6 @@ public class SearchHitCursor implements Cursor {
     }
 
     private static void updateSearchAfter(SearchHit[] hits, SearchSourceBuilder source) {
-        assert hits.length > 0;
         SearchHit lastHit = hits[hits.length - 1];
         source.searchAfter(lastHit.getSortValues());
     }

@@ -1067,11 +1067,9 @@ public class MetadataIndexStateService {
                 // build an in-order de-duplicated array of all the indices to open
                 final Set<Index> indicesToOpen = new LinkedHashSet<>(tasks.size());
                 for (OpenIndicesTask task : tasks) {
-                    for (Index index : task.request.indices()) {
-                        indicesToOpen.add(index);
-                    }
+                    Collections.addAll(indicesToOpen, task.request.indices());
                 }
-                Index[] indices = indicesToOpen.toArray(new Index[0]);
+                Index[] indices = indicesToOpen.toArray(Index.EMPTY_ARRAY);
 
                 // open them
                 state = openIndices(indices, state);

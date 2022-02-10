@@ -165,6 +165,7 @@ public final class ConfigurableClusterPrivileges {
                     return requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
                 }
                 return false;
+
             };
         }
 
@@ -174,7 +175,7 @@ public final class ConfigurableClusterPrivileges {
         }
 
         public Collection<String> getApplicationNames() {
-            return this.applicationNames;
+            return Collections.unmodifiableCollection(this.applicationNames);
         }
 
         @Override

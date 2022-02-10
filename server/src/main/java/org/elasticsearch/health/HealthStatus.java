@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.stream.Stream;
 
 public enum HealthStatus implements Writeable {
@@ -37,5 +38,9 @@ public enum HealthStatus implements Writeable {
 
     public static HealthStatus merge(Stream<HealthStatus> statuses) {
         return statuses.max(Comparator.comparing(HealthStatus::value)).orElse(GREEN);
+    }
+
+    public String xContentValue() {
+        return name().toLowerCase(Locale.ROOT);
     }
 }

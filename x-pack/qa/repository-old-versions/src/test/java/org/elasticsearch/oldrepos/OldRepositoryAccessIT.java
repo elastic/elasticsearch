@@ -10,7 +10,6 @@ package org.elasticsearch.oldrepos;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -29,7 +28,6 @@ import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
@@ -39,7 +37,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -72,9 +71,10 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public class OldRepositoryAccessIT extends ESRestTestCase {
+
     @Override
-    protected Map<String, List<Map<?, ?>>> wipeSnapshots() {
-        return Collections.emptyMap();
+    protected boolean preserveClusterUponCompletion() {
+        return true;
     }
 
     @Override
@@ -99,7 +99,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
     @SuppressWarnings("removal")
     public void runTest(boolean sourceOnlyRepository) throws IOException {
+        boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
         String repoLocation = System.getProperty("tests.repo.location");
+        repoLocation = PathUtils.get(repoLocation).resolve("source_only_" + sourceOnlyRepository).toString();
         Version oldVersion = Version.fromString(System.getProperty("tests.es.version"));
         assumeTrue(
             "source only repositories only supported since ES 6.5.0",
@@ -107,6 +109,12 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
+        String indexName;
+        if (sourceOnlyRepository) {
+            indexName = "source_only_test_index";
+        } else {
+            indexName = "test_index";
+        }
         int numDocs = 10;
         int extraDocs = 1;
         final Set<String> expectedIds = new HashSet<>();
@@ -114,157 +122,188 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             RestHighLevelClient client = highLevelClient(adminClient());
             RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()
         ) {
-            try {
-                Request createIndex = new Request("PUT", "/test");
-                int numberOfShards = randomIntBetween(1, 3);
-
-                XContentBuilder settingsBuilder = XContentFactory.jsonBuilder().startObject().startObject("settings");
-                settingsBuilder.field("index.number_of_shards", numberOfShards);
-
-                // 6.5.0 started using soft-deletes, but it was only enabled by default on 7.0
-                if (oldVersion.onOrAfter(Version.fromString("6.5.0"))
-                    && oldVersion.before(Version.fromString("7.0.0"))
-                    && randomBoolean()) {
-                    settingsBuilder.field("index.soft_deletes.enabled", true);
-                }
-
-                settingsBuilder.endObject().endObject();
-
-                createIndex.setJsonEntity(Strings.toString(settingsBuilder));
-                assertOK(oldEs.performRequest(createIndex));
-
-                for (int i = 0; i < numDocs + extraDocs; i++) {
-                    String id = "testdoc" + i;
-                    expectedIds.add(id);
-                    // use multiple types for ES versions < 6.0.0
-                    String type = getType(oldVersion, id);
-                    Request doc = new Request("PUT", "/test/" + type + "/" + id);
-                    doc.addParameter("refresh", "true");
-                    doc.setJsonEntity(sourceForDoc(i));
-                    assertOK(oldEs.performRequest(doc));
-                }
-
-                for (int i = 0; i < extraDocs; i++) {
-                    String id = randomFrom(expectedIds);
-                    expectedIds.remove(id);
-                    String type = getType(oldVersion, id);
-                    Request doc = new Request("DELETE", "/test/" + type + "/" + id);
-                    doc.addParameter("refresh", "true");
-                    oldEs.performRequest(doc);
-                }
-
-                // register repo on old ES and take snapshot
-                Request createRepoRequest = new Request("PUT", "/_snapshot/testrepo");
-                createRepoRequest.setJsonEntity(sourceOnlyRepository ? """
-                    {"type":"source","settings":{"location":"%s","delegate_type":"fs"}}
-                    """.formatted(repoLocation) : """
-                    {"type":"fs","settings":{"location":"%s"}}
-                    """.formatted(repoLocation));
-                assertOK(oldEs.performRequest(createRepoRequest));
-
-                Request createSnapshotRequest = new Request("PUT", "/_snapshot/testrepo/snap1");
-                createSnapshotRequest.addParameter("wait_for_completion", "true");
-                createSnapshotRequest.setJsonEntity("{\"indices\":\"test\"}");
-                assertOK(oldEs.performRequest(createSnapshotRequest));
-
-                // register repo on new ES
-                Settings.Builder repoSettingsBuilder = Settings.builder().put("location", repoLocation);
-                if (sourceOnlyRepository) {
-                    repoSettingsBuilder.put("delegate_type", "fs");
-                }
-                if (Build.CURRENT.isSnapshot()) {
-                    repoSettingsBuilder.put("allow_bwc_indices", true);
-                }
-                ElasticsearchAssertions.assertAcked(
-                    client.snapshot()
-                        .createRepository(
-                            new PutRepositoryRequest("testrepo").type(sourceOnlyRepository ? "source" : "fs").settings(repoSettingsBuilder),
-                            RequestOptions.DEFAULT
-                        )
-                );
-
-                // list snapshots on new ES
-                List<SnapshotInfo> snapshotInfos = client.snapshot()
-                    .get(new GetSnapshotsRequest("testrepo").snapshots(new String[] { "_all" }), RequestOptions.DEFAULT)
-                    .getSnapshots();
-                assertThat(snapshotInfos, hasSize(1));
-                SnapshotInfo snapshotInfo = snapshotInfos.get(0);
-                assertEquals("snap1", snapshotInfo.snapshotId().getName());
-                assertEquals("testrepo", snapshotInfo.repository());
-                assertEquals(Arrays.asList("test"), snapshotInfo.indices());
-                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-                assertEquals(numberOfShards, snapshotInfo.successfulShards());
-                assertEquals(numberOfShards, snapshotInfo.totalShards());
-                assertEquals(0, snapshotInfo.failedShards());
-                assertEquals(oldVersion, snapshotInfo.version());
-
-                // list specific snapshot on new ES
-                snapshotInfos = client.snapshot()
-                    .get(new GetSnapshotsRequest("testrepo").snapshots(new String[] { "snap1" }), RequestOptions.DEFAULT)
-                    .getSnapshots();
-                assertThat(snapshotInfos, hasSize(1));
-                snapshotInfo = snapshotInfos.get(0);
-                assertEquals("snap1", snapshotInfo.snapshotId().getName());
-                assertEquals("testrepo", snapshotInfo.repository());
-                assertEquals(Arrays.asList("test"), snapshotInfo.indices());
-                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-                assertEquals(numberOfShards, snapshotInfo.successfulShards());
-                assertEquals(numberOfShards, snapshotInfo.totalShards());
-                assertEquals(0, snapshotInfo.failedShards());
-                assertEquals(oldVersion, snapshotInfo.version());
-
-                // list advanced snapshot info on new ES
-                SnapshotsStatusResponse snapshotsStatusResponse = client.snapshot()
-                    .status(new SnapshotsStatusRequest("testrepo").snapshots(new String[] { "snap1" }), RequestOptions.DEFAULT);
-                assertThat(snapshotsStatusResponse.getSnapshots(), hasSize(1));
-                SnapshotStatus snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
-                assertEquals("snap1", snapshotStatus.getSnapshot().getSnapshotId().getName());
-                assertEquals("testrepo", snapshotStatus.getSnapshot().getRepository());
-                assertEquals(Sets.newHashSet("test"), snapshotStatus.getIndices().keySet());
-                assertEquals(SnapshotsInProgress.State.SUCCESS, snapshotStatus.getState());
-                assertEquals(numberOfShards, snapshotStatus.getShardsStats().getDoneShards());
-                assertEquals(numberOfShards, snapshotStatus.getShardsStats().getTotalShards());
-                assertEquals(0, snapshotStatus.getShardsStats().getFailedShards());
-                assertThat(snapshotStatus.getStats().getTotalSize(), greaterThan(0L));
-                assertThat(snapshotStatus.getStats().getTotalFileCount(), greaterThan(0));
-
-                if (Build.CURRENT.isSnapshot()) {
-                    // restore / mount and check whether searches work
-                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards, sourceOnlyRepository, oldVersion);
-
-                    // close indices
-                    assertTrue(
-                        client.indices().close(new CloseIndexRequest("restored_test"), RequestOptions.DEFAULT).isShardsAcknowledged()
-                    );
-                    assertTrue(
-                        client.indices()
-                            .close(new CloseIndexRequest("mounted_full_copy_test"), RequestOptions.DEFAULT)
-                            .isShardsAcknowledged()
-                    );
-                    assertTrue(
-                        client.indices()
-                            .close(new CloseIndexRequest("mounted_shared_cache_test"), RequestOptions.DEFAULT)
-                            .isShardsAcknowledged()
-                    );
-
-                    // restore / mount again
-                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards, sourceOnlyRepository, oldVersion);
-                }
-            } finally {
-                IOUtils.closeWhileHandlingException(
-                    () -> oldEs.performRequest(new Request("DELETE", "/test")),
-                    () -> oldEs.performRequest(new Request("DELETE", "/_snapshot/testrepo/snap1")),
-                    () -> oldEs.performRequest(new Request("DELETE", "/_snapshot/testrepo"))
-                );
-                if (Build.CURRENT.isSnapshot()) {
-                    IOUtils.closeWhileHandlingException(
-                        () -> client().performRequest(new Request("DELETE", "/restored_test")),
-                        () -> client().performRequest(new Request("DELETE", "/mounted_full_copy_test")),
-                        () -> client().performRequest(new Request("DELETE", "/mounted_shared_cache_test"))
-                    );
-                }
-                IOUtils.closeWhileHandlingException(() -> client().performRequest(new Request("DELETE", "/_snapshot/testrepo")));
+            if (afterRestart == false) {
+                beforeRestart(sourceOnlyRepository, repoLocation, oldVersion, numDocs, extraDocs, expectedIds, client, oldEs, indexName);
+            } else {
+                afterRestart(indexName);
             }
+        }
+    }
+
+    private void afterRestart(String indexName) throws IOException {
+        if (Build.CURRENT.isSnapshot()) {
+            ensureGreen("restored_" + indexName);
+            ensureGreen("mounted_full_copy_" + indexName);
+            ensureGreen("mounted_shared_cache_" + indexName);
+        }
+    }
+
+    @SuppressWarnings("removal")
+    private void beforeRestart(
+        boolean sourceOnlyRepository,
+        String repoLocation,
+        Version oldVersion,
+        int numDocs,
+        int extraDocs,
+        Set<String> expectedIds,
+        RestHighLevelClient client,
+        RestClient oldEs,
+        String indexName
+    ) throws IOException {
+        String repoName = "repo_" + indexName;
+        String snapshotName = "snap_" + indexName;
+        Request createIndex = new Request("PUT", "/" + indexName);
+        int numberOfShards = randomIntBetween(1, 3);
+
+        XContentBuilder settingsBuilder = XContentFactory.jsonBuilder().startObject().startObject("settings");
+        settingsBuilder.field("index.number_of_shards", numberOfShards);
+
+        // 6.5.0 started using soft-deletes, but it was only enabled by default on 7.0
+        if (oldVersion.onOrAfter(Version.fromString("6.5.0")) && oldVersion.before(Version.fromString("7.0.0")) && randomBoolean()) {
+            settingsBuilder.field("index.soft_deletes.enabled", true);
+        }
+
+        settingsBuilder.endObject().endObject();
+
+        createIndex.setJsonEntity(Strings.toString(settingsBuilder));
+        assertOK(oldEs.performRequest(createIndex));
+
+        for (int i = 0; i < numDocs + extraDocs; i++) {
+            String id = "testdoc" + i;
+            expectedIds.add(id);
+            // use multiple types for ES versions < 6.0.0
+            String type = getType(oldVersion, id);
+            Request doc = new Request("PUT", "/" + indexName + "/" + type + "/" + id);
+            doc.addParameter("refresh", "true");
+            doc.setJsonEntity(sourceForDoc(i));
+            assertOK(oldEs.performRequest(doc));
+        }
+
+        for (int i = 0; i < extraDocs; i++) {
+            String id = randomFrom(expectedIds);
+            expectedIds.remove(id);
+            String type = getType(oldVersion, id);
+            Request doc = new Request("DELETE", "/" + indexName + "/" + type + "/" + id);
+            doc.addParameter("refresh", "true");
+            oldEs.performRequest(doc);
+        }
+
+        // register repo on old ES and take snapshot
+        Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
+        createRepoRequest.setJsonEntity(sourceOnlyRepository ? """
+            {"type":"source","settings":{"location":"%s","delegate_type":"fs"}}
+            """.formatted(repoLocation) : """
+            {"type":"fs","settings":{"location":"%s"}}
+            """.formatted(repoLocation));
+        assertOK(oldEs.performRequest(createRepoRequest));
+
+        Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);
+        createSnapshotRequest.addParameter("wait_for_completion", "true");
+        createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
+        assertOK(oldEs.performRequest(createSnapshotRequest));
+
+        // register repo on new ES
+        Settings.Builder repoSettingsBuilder = Settings.builder().put("location", repoLocation);
+        if (sourceOnlyRepository) {
+            repoSettingsBuilder.put("delegate_type", "fs");
+        }
+        if (Build.CURRENT.isSnapshot()) {
+            repoSettingsBuilder.put("allow_bwc_indices", true);
+        }
+        ElasticsearchAssertions.assertAcked(
+            client.snapshot()
+                .createRepository(
+                    new PutRepositoryRequest(repoName).type(sourceOnlyRepository ? "source" : "fs").settings(repoSettingsBuilder),
+                    RequestOptions.DEFAULT
+                )
+        );
+
+        // list snapshots on new ES
+        List<SnapshotInfo> snapshotInfos = client.snapshot()
+            .get(new GetSnapshotsRequest(repoName).snapshots(new String[] { "_all" }), RequestOptions.DEFAULT)
+            .getSnapshots();
+        assertThat(snapshotInfos, hasSize(1));
+        SnapshotInfo snapshotInfo = snapshotInfos.get(0);
+        assertEquals(snapshotName, snapshotInfo.snapshotId().getName());
+        assertEquals(repoName, snapshotInfo.repository());
+        assertEquals(Arrays.asList(indexName), snapshotInfo.indices());
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertEquals(numberOfShards, snapshotInfo.successfulShards());
+        assertEquals(numberOfShards, snapshotInfo.totalShards());
+        assertEquals(0, snapshotInfo.failedShards());
+        assertEquals(oldVersion, snapshotInfo.version());
+
+        // list specific snapshot on new ES
+        snapshotInfos = client.snapshot()
+            .get(new GetSnapshotsRequest(repoName).snapshots(new String[] { snapshotName }), RequestOptions.DEFAULT)
+            .getSnapshots();
+        assertThat(snapshotInfos, hasSize(1));
+        snapshotInfo = snapshotInfos.get(0);
+        assertEquals(snapshotName, snapshotInfo.snapshotId().getName());
+        assertEquals(repoName, snapshotInfo.repository());
+        assertEquals(Arrays.asList(indexName), snapshotInfo.indices());
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertEquals(numberOfShards, snapshotInfo.successfulShards());
+        assertEquals(numberOfShards, snapshotInfo.totalShards());
+        assertEquals(0, snapshotInfo.failedShards());
+        assertEquals(oldVersion, snapshotInfo.version());
+
+        // list advanced snapshot info on new ES
+        SnapshotsStatusResponse snapshotsStatusResponse = client.snapshot()
+            .status(new SnapshotsStatusRequest(repoName).snapshots(new String[] { snapshotName }), RequestOptions.DEFAULT);
+        assertThat(snapshotsStatusResponse.getSnapshots(), hasSize(1));
+        SnapshotStatus snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
+        assertEquals(snapshotName, snapshotStatus.getSnapshot().getSnapshotId().getName());
+        assertEquals(repoName, snapshotStatus.getSnapshot().getRepository());
+        assertEquals(Sets.newHashSet(indexName), snapshotStatus.getIndices().keySet());
+        assertEquals(SnapshotsInProgress.State.SUCCESS, snapshotStatus.getState());
+        assertEquals(numberOfShards, snapshotStatus.getShardsStats().getDoneShards());
+        assertEquals(numberOfShards, snapshotStatus.getShardsStats().getTotalShards());
+        assertEquals(0, snapshotStatus.getShardsStats().getFailedShards());
+        assertThat(snapshotStatus.getStats().getTotalSize(), greaterThan(0L));
+        assertThat(snapshotStatus.getStats().getTotalFileCount(), greaterThan(0));
+
+        if (Build.CURRENT.isSnapshot()) {
+            // restore / mount and check whether searches work
+            restoreMountAndVerify(
+                numDocs,
+                expectedIds,
+                client,
+                numberOfShards,
+                sourceOnlyRepository,
+                oldVersion,
+                indexName,
+                repoName,
+                snapshotName
+            );
+
+            // close indices
+            assertTrue(
+                client.indices().close(new CloseIndexRequest("restored_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged()
+            );
+            assertTrue(
+                client.indices()
+                    .close(new CloseIndexRequest("mounted_full_copy_" + indexName), RequestOptions.DEFAULT)
+                    .isShardsAcknowledged()
+            );
+            assertTrue(
+                client.indices()
+                    .close(new CloseIndexRequest("mounted_shared_cache_" + indexName), RequestOptions.DEFAULT)
+                    .isShardsAcknowledged()
+            );
+
+            // restore / mount again
+            restoreMountAndVerify(
+                numDocs,
+                expectedIds,
+                client,
+                numberOfShards,
+                sourceOnlyRepository,
+                oldVersion,
+                indexName,
+                repoName,
+                snapshotName
+            );
         }
     }
 
@@ -283,12 +322,15 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         RestHighLevelClient client,
         int numberOfShards,
         boolean sourceOnlyRepository,
-        Version oldVersion
+        Version oldVersion,
+        String indexName,
+        String repoName,
+        String snapshotName
     ) throws IOException {
         // restore index
         RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot()
             .restore(
-                new RestoreSnapshotRequest("testrepo", "snap1").indices("test")
+                new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName)
                     .renamePattern("(.+)")
                     .renameReplacement("restored_$1")
                     .waitForCompletion(true),
@@ -298,20 +340,12 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
         assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(
-            ClusterHealthStatus.GREEN,
-            client.cluster()
-                .health(
-                    new ClusterHealthRequest("restored_test").waitForGreenStatus().waitForNoRelocatingShards(true),
-                    RequestOptions.DEFAULT
-                )
-                .getStatus()
-        );
+        ensureGreen("restored_" + indexName);
 
         MappingMetadata mapping = client.indices()
-            .getMapping(new GetMappingsRequest().indices("restored_test"), RequestOptions.DEFAULT)
+            .getMapping(new GetMappingsRequest().indices("restored_" + indexName), RequestOptions.DEFAULT)
             .mappings()
-            .get("restored_test");
+            .get("restored_" + indexName);
         logger.info("mapping for {}: {}", mapping.type(), mapping.source().string());
         Map<String, Object> root = mapping.sourceAsMap();
         assertThat(root, hasKey("_meta"));
@@ -342,13 +376,13 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         }
 
         // run a search against the index
-        assertDocs("restored_test", numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
+        assertDocs("restored_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
 
         // mount as full copy searchable snapshot
         RestoreSnapshotResponse mountSnapshotResponse = client.searchableSnapshots()
             .mountSnapshot(
-                new MountSnapshotRequest("testrepo", "snap1", "test").storage(MountSnapshotRequest.Storage.FULL_COPY)
-                    .renamedIndex("mounted_full_copy_test")
+                new MountSnapshotRequest(repoName, snapshotName, indexName).storage(MountSnapshotRequest.Storage.FULL_COPY)
+                    .renamedIndex("mounted_full_copy_" + indexName)
                     .indexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build())
                     .waitForCompletion(true),
                 RequestOptions.DEFAULT
@@ -357,24 +391,16 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().totalShards());
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(
-            ClusterHealthStatus.GREEN,
-            client.cluster()
-                .health(
-                    new ClusterHealthRequest("mounted_full_copy_test").waitForGreenStatus().waitForNoRelocatingShards(true),
-                    RequestOptions.DEFAULT
-                )
-                .getStatus()
-        );
+        ensureGreen("mounted_full_copy_" + indexName);
 
         // run a search against the index
-        assertDocs("mounted_full_copy_test", numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
+        assertDocs("mounted_full_copy_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
 
         // mount as shared cache searchable snapshot
         mountSnapshotResponse = client.searchableSnapshots()
             .mountSnapshot(
-                new MountSnapshotRequest("testrepo", "snap1", "test").storage(MountSnapshotRequest.Storage.SHARED_CACHE)
-                    .renamedIndex("mounted_shared_cache_test")
+                new MountSnapshotRequest(repoName, snapshotName, indexName).storage(MountSnapshotRequest.Storage.SHARED_CACHE)
+                    .renamedIndex("mounted_shared_cache_" + indexName)
                     .waitForCompletion(true),
                 RequestOptions.DEFAULT
             );
@@ -383,7 +409,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
 
         // run a search against the index
-        assertDocs("mounted_shared_cache_test", numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
+        assertDocs("mounted_shared_cache_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
     }
 
     @SuppressWarnings("removal")

@@ -39,7 +39,7 @@ teardown:
 - do:
     index:
       index: test
-      id: 1
+      id: "1"
       pipeline: "retarget"
       body: {
         a: true
@@ -48,7 +48,7 @@ teardown:
 - do:
     get:
       index: foo
-      id: 1
+      id: "1"
 - match: { _source.a: true }
 
 # only the foo index
@@ -98,7 +98,7 @@ teardown:
 - do:
     index:
       index: test
-      id: 1
+      id: "1"
       body: {
         a: true
       }
@@ -106,7 +106,7 @@ teardown:
 - do:
     get:
       index: foo
-      id: 1
+      id: "1"
 - match: { _source.a: true }
 
 # only the foo index

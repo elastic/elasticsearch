@@ -21,13 +21,14 @@ import java.util.Locale;
 public class IndexDeprecationChecks {
 
     static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
-        Version createdWith = indexMetadata.getCreationVersion();
-        if (createdWith.before(Version.V_7_0_0)) {
+        // TODO: this check needs to be revised. It's trivially true right now.
+        Version currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+        if (currentCompatibilityVersion.before(Version.V_7_0_0)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
-                "Index created before 7.0",
+                "Old index with a compatibility version < 7.0",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/" + "breaking-changes-8.0.html",
-                "This index was created using version: " + createdWith,
+                "This index has version: " + currentCompatibilityVersion,
                 false,
                 null
             );

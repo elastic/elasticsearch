@@ -27,77 +27,77 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "val1": 1.9, "val2": 3.1, "val3": 2.3, "vals" : [1.9, 16.143] }
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "val1": -5.2, "val2": -3.4, "val3": 2.3, "vals" : [155, 16.23]}
   - do:
       index:
         index:  test
-        id:     3
+        id:     "3"
         body:   { "val1": -5.2, "val3": 2.3, "vals" : [-455, -32.32]}
   - do:
       index:
         index:  test
-        id:     4
+        id:     "4"
         body:   { "val1": 18.3, "val2": 104.4, "val3": 2.3, "vals" : [0.14, 92.1]}
   - do:
       index:
         index:  test
-        id:     5
+        id:     "5"
         body:   { "val1": -53.2, "val2": -322.4, "val3": 2.3, "vals" : [16, 16]}
   - do:
       index:
         index:  test
-        id:     6
+        id:     "6"
         body:   { "val1": -578.9, "val2": 69.9, "val3": 2.3}
   - do:
       index:
         index:  test
-        id:     7
+        id:     "7"
         body:   { "val1": 16.2, "val2": 17.2, "val3": 2.3, "vals" : [1234.3, -3433]}
   - do:
       index:
         index:  test
-        id:     8
+        id:     "8"
         body:   { "val1": -4222.63, "val2": 316.44, "val3": 2.3, "vals" : [177.2, -93.333]}
   - do:
       index:
         index:  test
-        id:     9
+        id:     "9"
         body:   { "val1": -59999.55, "val2": -3163.4, "val3": 2.3, "vals" : [-29.9, 163.0]}
   - do:
       index:
         index:  test
-        id:     10
+        id:     "10"
         body:   { "val1": 782.7, "val2": 789.7, "val3": 2.3, "vals" : [-0.2, 1343.3]}
   - do:
       index:
         index:  test
-        id:     11
+        id:     "11"
         body:   { "val1": -1.2, "val2": 6.3, "val3": 2.3, "vals" : [15.3, 16.9]}
   - do:
       index:
         index:  test
-        id:     12
+        id:     "12"
         body:   { "val1": 0, "val2": 1.11, "val3": 2.3, "vals" : [-644.4, -644.4]}
   - do:
       index:
         index:  test
-        id:     13
+        id:     "13"
         body:   { "val1": 0.1, "val2": 0.92, "val3": 2.3, "vals" : [73.2, 0.12]}
   - do:
       index:
         index:  test
-        id:     14
+        id:     "14"
         body:   { "val1": 0.12, "val2": -82.4, "val3": 2.3, "vals" : [-0.001, 1295.3]}
   - do:
       index:
         index:  test
-        id:     15
+        id:     "15"
         body:   { "val1": 98.2, "val2": 32.4, "val3": 2.3, "vals" : [15.5, 16.5]}
 
   - do:

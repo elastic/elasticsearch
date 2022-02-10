@@ -187,6 +187,19 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
     }
 
+    /**
+     * Simulates a cancellation listener and sets a flag to true if the task was cancelled
+     */
+    static class CancellableTestCancellationListener implements CancellableTask.CancellationListener {
+
+        final AtomicBoolean calledUponCancellation = new AtomicBoolean(false);
+
+        @Override
+        public void onCancelled() {
+            calledUponCancellation.set(true);
+        }
+    }
+
     private Task startCancellableTestNodesAction(
         boolean waitForActionToStart,
         int runNodesCount,
@@ -252,6 +265,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch responseLatch = new CountDownLatch(1);
+        AtomicBoolean listenerCalledUponCancellation = new AtomicBoolean(false);
         boolean waitForActionToStart = randomBoolean();
         logger.info("waitForActionToStart is set to {}", waitForActionToStart);
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
@@ -260,24 +274,23 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Block at least 1 node, otherwise it's quite easy to end up in a race condition where the node tasks
         // have finished before the cancel request has arrived
         int blockedNodesCount = randomIntBetween(1, runNodesCount);
-        Task mainTask = startCancellableTestNodesAction(
-            waitForActionToStart,
-            runNodesCount,
-            blockedNodesCount,
-            new ActionListener<NodesResponse>() {
-                @Override
-                public void onResponse(NodesResponse listTasksResponse) {
-                    responseReference.set(listTasksResponse);
-                    responseLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throwableReference.set(e);
-                    responseLatch.countDown();
-                }
+        Task mainTask = startCancellableTestNodesAction(waitForActionToStart, runNodesCount, blockedNodesCount, new ActionListener<>() {
+            @Override
+            public void onResponse(NodesResponse listTasksResponse) {
+                responseReference.set(listTasksResponse);
+                responseLatch.countDown();
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                throwableReference.set(e);
+                responseLatch.countDown();
+            }
+        });
+
+        assert mainTask instanceof CancellableTask;
+        CancellableTestCancellationListener listenerAddedBeforeCancellation = new CancellableTestCancellationListener();
+        ((CancellableTask) mainTask).addListener(listenerAddedBeforeCancellation);
 
         // Cancel main task
         CancelTasksRequest request = new CancelTasksRequest();
@@ -311,6 +324,13 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             for (TaskInfo taskInfo : response.getTasks()) {
                 assertTrue(taskInfo.cancellable());
             }
+
+            CancellableTestCancellationListener listenerAddedAfterCancellation = new CancellableTestCancellationListener();
+            ((CancellableTask) mainTask).addListener(listenerAddedAfterCancellation);
+
+            // Verify both cancellation listeners have been notified
+            assertTrue(listenerAddedBeforeCancellation.calledUponCancellation.get());
+            assertTrue(listenerAddedAfterCancellation.calledUponCancellation.get());
         }
 
         // Make sure that tasks are no longer running
@@ -337,7 +357,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         int runNodesCount = randomIntBetween(1, nodesCount);
         int blockedNodesCount = randomIntBetween(0, runNodesCount);
-        Task mainTask = startCancellableTestNodesAction(true, runNodesCount, blockedNodesCount, new ActionListener<NodesResponse>() {
+        Task mainTask = startCancellableTestNodesAction(true, runNodesCount, blockedNodesCount, new ActionListener<>() {
             @Override
             public void onResponse(NodesResponse listTasksResponse) {
                 responseReference.set(listTasksResponse);

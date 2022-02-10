@@ -157,9 +157,17 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
                 assert tasks.size() == 1 : "this only supports a single task but received " + tasks;
                 final T task = tasks.get(0);
                 final ClusterState newState = task.execute(currentState);
-                return ClusterTasksResult.<T>builder()
-                    .success(task, new LegacyClusterTaskResultActionListener(task, currentState))
-                    .build(newState);
+                return ClusterTasksResult.<T>builder().success(task, new ActionListener<>() {
+                    @Override
+                    public void onResponse(ClusterState publishedState) {
+                        task.clusterStateProcessed(currentState, publishedState);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        task.onFailure(e);
+                    }
+                }).build(newState);
             }
 
             @Override

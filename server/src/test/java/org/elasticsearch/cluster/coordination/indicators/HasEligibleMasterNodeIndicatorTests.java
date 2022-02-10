@@ -28,7 +28,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INGEST_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.MASTER_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.TRANSFORM_ROLE;
 
-public class NoEligibleMasterNodesIndicatorTests extends ESTestCase {
+public class HasEligibleMasterNodeIndicatorTests extends ESTestCase {
 
     public void testIsGreenIfThereIsMasterNode() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster"))
@@ -42,11 +42,11 @@ public class NoEligibleMasterNodesIndicatorTests extends ESTestCase {
             .build();
 
         ClusterService clusterService = clusterService(clusterState);
-        HealthIndicatorResult noEligibleMasterNodes = new NoEligibleMasterNodesIndicator(clusterService).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new HasEligibleMasterNodeIndicator(clusterService).calculate();
 
-        assertEquals("no_eligible_masters", noEligibleMasterNodes.name());
+        assertEquals("has_eligible_master", noEligibleMasterNodes.name());
         assertEquals(HealthStatus.GREEN, noEligibleMasterNodes.status());
-        assertEquals("There are eligible master nodes.", noEligibleMasterNodes.summary());
+        assertEquals("There is a master-eligible node.", noEligibleMasterNodes.summary());
     }
 
     public void testIsRedIfThereNoMasterNodes() {
@@ -60,21 +60,21 @@ public class NoEligibleMasterNodesIndicatorTests extends ESTestCase {
             )
             .build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new NoEligibleMasterNodesIndicator(clusterService(clusterState)).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new HasEligibleMasterNodeIndicator(clusterService(clusterState)).calculate();
 
-        assertEquals("no_eligible_masters", noEligibleMasterNodes.name());
+        assertEquals("has_eligible_master", noEligibleMasterNodes.name());
         assertEquals(HealthStatus.RED, noEligibleMasterNodes.status());
-        assertEquals("No eligible master nodes.", noEligibleMasterNodes.summary());
+        assertEquals("No master-eligible nodes.", noEligibleMasterNodes.summary());
     }
 
     public void testRedIfThereNoNodes() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster")).nodes(DiscoveryNodes.builder().build()).build();
 
-        HealthIndicatorResult noEligibleMasterNodes = new NoEligibleMasterNodesIndicator(clusterService(clusterState)).calculate();
+        HealthIndicatorResult noEligibleMasterNodes = new HasEligibleMasterNodeIndicator(clusterService(clusterState)).calculate();
 
-        assertEquals("no_eligible_masters", noEligibleMasterNodes.name());
+        assertEquals("has_eligible_master", noEligibleMasterNodes.name());
         assertEquals(HealthStatus.RED, noEligibleMasterNodes.status());
-        assertEquals("No eligible master nodes.", noEligibleMasterNodes.summary());
+        assertEquals("No master-eligible nodes.", noEligibleMasterNodes.summary());
     }
 
     private static TransportAddress transportAddress() {

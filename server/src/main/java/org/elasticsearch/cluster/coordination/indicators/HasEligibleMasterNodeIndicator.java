@@ -15,20 +15,20 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 
-public class NoEligibleMasterNodesIndicator implements HealthIndicatorService {
+public class HasEligibleMasterNodeIndicator implements HealthIndicatorService {
 
-    public static final String NO_ELIGIBLE_MASTERS = "no_eligible_masters";
+    public static final String HAS_ELIGIBLE_MASTER = "has_eligible_master";
     public static final String CLUSTER_COORDINATION = "cluster_coordination";
 
     private final ClusterService clusterService;
 
-    public NoEligibleMasterNodesIndicator(ClusterService clusterService) {
+    public HasEligibleMasterNodeIndicator(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 
     @Override
     public String name() {
-        return NO_ELIGIBLE_MASTERS;
+        return HAS_ELIGIBLE_MASTER;
     }
 
     @Override
@@ -41,13 +41,13 @@ public class NoEligibleMasterNodesIndicator implements HealthIndicatorService {
         for (DiscoveryNode node : clusterService.state().nodes()) {
             if (node.getRoles().contains(DiscoveryNodeRole.MASTER_ROLE)) {
                 return HealthIndicatorResult.of(
-                    NO_ELIGIBLE_MASTERS,
+                    HAS_ELIGIBLE_MASTER,
                     CLUSTER_COORDINATION,
                     HealthStatus.GREEN,
-                    "There are eligible master nodes."
+                    "There is a master-eligible node."
                 );
             }
         }
-        return HealthIndicatorResult.of(NO_ELIGIBLE_MASTERS, CLUSTER_COORDINATION, HealthStatus.RED, "No eligible master nodes.");
+        return HealthIndicatorResult.of(HAS_ELIGIBLE_MASTER, CLUSTER_COORDINATION, HealthStatus.RED, "No master-eligible nodes.");
     }
 }

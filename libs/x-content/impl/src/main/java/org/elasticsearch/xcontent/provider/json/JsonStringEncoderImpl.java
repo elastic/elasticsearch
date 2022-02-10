@@ -10,11 +10,16 @@ package org.elasticsearch.xcontent.provider.json;
 
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
+/**
+ * Encoder of JSON String values (including JSON field names) into Strings or UTF-8 byte arrays.
+ *
+ * @implNote The implementation simply delegates to the Jackson encoder.
+ */
 public final class JsonStringEncoderImpl extends JsonStringEncoder {
 
-    private final com.fasterxml.jackson.core.io.JsonStringEncoder delegate;
-
     private static final JsonStringEncoderImpl INSTANCE = new JsonStringEncoderImpl();
+
+    private final com.fasterxml.jackson.core.io.JsonStringEncoder delegate;
 
     public static JsonStringEncoderImpl getInstance() {
         return INSTANCE;

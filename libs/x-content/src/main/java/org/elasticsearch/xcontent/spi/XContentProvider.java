@@ -19,26 +19,63 @@ import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 
+/**
+ * A provider for the XContent API.
+ *
+ * A provider supports all the XContent formats, JSON, CBOR, SMILE, and YAML.
+ */
 public interface XContentProvider {
 
+    /**
+     * A provider of a specific content format, e.g. JSON
+     *
+     * @param <T> the XContent type
+     */
     interface FormatProvider<T> {
+        /**
+         * Returns a {@link XContentBuilder} for building the format specific content.
+         */
         XContentBuilder getContentBuilder() throws IOException;
 
+        /**
+         * Returns an instance of the format specific content.
+         */
         T XContent();
     }
 
+    /**
+     * Returns the CBOR format provider.
+     */
     FormatProvider<CborXContent> getCborXContent();
 
+    /**
+     * Returns the JSON format provider.
+     */
     FormatProvider<JsonXContent> getJsonXContent();
 
+    /**
+     * Returns the SMILE format provider.
+     */
     FormatProvider<SmileXContent> getSmileXContent();
 
+    /**
+     * Returns the YAML format provider.
+     */
     FormatProvider<YamlXContent> getYamlXContent();
 
+    /**
+     * Returns an empty XContentParserConfiguration.
+     */
     XContentParserConfiguration empty();
 
+    /**
+     * Returns a JsonStringEncoder.
+     */
     JsonStringEncoder getJsonStringEncoder();
 
+    /**
+     * Returns the located provider instance.
+     */
     static XContentProvider provider() {
         return ProviderLocator.INSTANCE;
     }

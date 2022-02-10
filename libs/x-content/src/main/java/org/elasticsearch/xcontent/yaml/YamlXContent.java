@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.spi.XContentProvider;
 import java.io.IOException;
 
 /**
- * A YAML based content implementation using Jackson.
+ * YAML based content.
  */
 public abstract class YamlXContent implements XContent {
 

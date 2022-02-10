@@ -15,15 +15,21 @@ import org.elasticsearch.xcontent.spi.XContentProvider;
 import java.io.IOException;
 
 /**
- * A JSON based content implementation using Jackson.
+ * JSON based XContent.
  */
 public abstract class JsonXContent implements XContent {
 
     private static final XContentProvider.FormatProvider<JsonXContent> provider = XContentProvider.provider().getJsonXContent();
 
+    /**
+     * Returns a {@link XContentBuilder} for building JSON XContent.
+     */
     public static XContentBuilder contentBuilder() throws IOException {
         return provider.getContentBuilder();
     }
 
+    /**
+     * A JSON based XContent.
+     */
     public static JsonXContent jsonXContent = provider.XContent();
 }

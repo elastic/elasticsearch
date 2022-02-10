@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.spi.XContentProvider;
 import java.io.IOException;
 
 /**
- * A CBOR based content implementation using Jackson.
+ * CBOR based content.
  */
 public abstract class CborXContent implements XContent {
 

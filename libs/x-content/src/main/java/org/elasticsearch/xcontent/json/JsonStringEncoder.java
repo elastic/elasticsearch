@@ -10,6 +10,9 @@ package org.elasticsearch.xcontent.json;
 
 import org.elasticsearch.xcontent.spi.XContentProvider;
 
+/**
+ * Encoder of JSON String values (including JSON field names) into Strings or UTF-8 byte arrays.
+ */
 public abstract class JsonStringEncoder {
 
     private static final JsonStringEncoder INSTANCE = XContentProvider.provider().getJsonStringEncoder();

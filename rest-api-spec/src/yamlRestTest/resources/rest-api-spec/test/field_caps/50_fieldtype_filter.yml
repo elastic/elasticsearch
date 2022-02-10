@@ -204,9 +204,10 @@ setup:
   - do:
       field_caps:
         index: 'test1,test2,test3'
-        fields: 'non_*'
+        fields: 'non_*,text'
         types: 'text,keyword,long'
 
   - is_false: fields.non_indexed_boolean
   - is_true: fields.non_indexed_keyword
   - is_false: fields.misc
+  - is_true: fields.text

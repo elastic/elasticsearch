@@ -10,19 +10,27 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -76,21 +84,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             new RerouteInput(allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
 
-        final var desiredBalance = currentDesiredBalance;
+        new Reconciler(currentDesiredBalance, allocation).run();
 
-        if (desiredBalance == null) {
-            // no desired state yet but it is on its way and we'll reroute again when its ready
-            return;
-        }
-
-        // now compute next moves towards current desired balance
-
-        // 1. allocate unassigned shards first
-        desiredBalance.allocateUnassigned(allocation);
-        // 2. move any shards that cannot remain where they are
-        desiredBalance.moveShards(allocation);
-        // 3. move any other shards that are desired elsewhere
-        desiredBalance.balance(allocation);
     }
 
     @Override
@@ -223,16 +218,179 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         List<String> getDesiredNodeIds(ShardId shardId) {
             return desiredAssignments.getOrDefault(shardId, Collections.emptyList());
         }
+    }
 
-        void allocateUnassigned(RoutingAllocation allocation) {
+    private static final class Reconciler {
+
+        @Nullable
+        private final DesiredBalance desiredBalance;
+        private final RoutingAllocation allocation; // TODO rename
+        private final RoutingNodes routingNodes;
+
+        private Reconciler(@Nullable DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
+            this.desiredBalance = desiredBalance;
+            this.allocation = routingAllocation;
+            routingNodes = routingAllocation.routingNodes();
+        }
+
+
+        void run() {
+            if (desiredBalance == null) {
+                // no desired state yet but it is on its way and we'll reroute again when its ready
+                return;
+            }
+
+            if (allocation.routingNodes().size() == 0) {
+                // no data nodes, so fail allocation to report red health
+                failAllocationOfNewPrimaries(allocation);
+                return;
+            }
+
+            // compute next moves towards current desired balance:
+
+            // 1. allocate unassigned shards first
+            allocateUnassigned();
+            // 2. move any shards that cannot remain where they are
+            moveShards();
+            // 3. move any other shards that are desired elsewhere
+            balance();
+        }
+
+        private void failAllocationOfNewPrimaries(RoutingAllocation allocation) {
+            RoutingNodes routingNodes = allocation.routingNodes();
+            assert routingNodes.size() == 0 : routingNodes;
+            final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
+            while (unassignedIterator.hasNext()) {
+                final ShardRouting shardRouting = unassignedIterator.next();
+                final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+                if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT) {
+                    unassignedIterator.updateUnassigned(
+                        new UnassignedInfo(
+                            unassignedInfo.getReason(),
+                            unassignedInfo.getMessage(),
+                            unassignedInfo.getFailure(),
+                            unassignedInfo.getNumFailedAllocations(),
+                            unassignedInfo.getUnassignedTimeInNanos(),
+                            unassignedInfo.getUnassignedTimeInMillis(),
+                            unassignedInfo.isDelayed(),
+                            UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                            unassignedInfo.getFailedNodeIds(),
+                            unassignedInfo.getLastAllocatedNodeId()
+                        ),
+                        shardRouting.recoverySource(),
+                        allocation.changes()
+                    );
+                }
+            }
+        }
+
+        private void allocateUnassigned() {
+            RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
+            if (logger.isTraceEnabled()) {
+                logger.trace("Start allocating unassigned shards");
+            }
+            if (unassigned.isEmpty()) {
+                return;
+            }
+
+            /*
+             * TODO: We could be smarter here and group the shards by index and then
+             * use the sorter to save some iterations.
+             */
+            final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
+            final Comparator<ShardRouting> comparator = (o1, o2) -> {
+                if (o1.primary() ^ o2.primary()) {
+                    return o1.primary() ? -1 : 1;
+                }
+                if (o1.getIndexName().compareTo(o2.getIndexName()) == 0) {
+                    return o1.getId() - o2.getId();
+                }
+                // this comparator is more expensive than all the others up there
+                // that's why it's added last even though it could be easier to read
+                // if we'd apply it earlier. this comparator will only differentiate across
+                // indices all shards of the same index is treated equally.
+                final int secondary = secondaryComparator.compare(o1, o2);
+                assert secondary != 0 : "Index names are equal, should be returned early.";
+                return secondary;
+            };
+            /*
+             * we use 2 arrays and move replicas to the second array once we allocated an identical
+             * replica in the current iteration to make sure all indices get allocated in the same manner.
+             * The arrays are sorted by primaries first and then by index and shard ID so a 2 indices with
+             * 2 replica and 1 shard would look like:
+             * [(0,P,IDX1), (0,P,IDX2), (0,R,IDX1), (0,R,IDX1), (0,R,IDX2), (0,R,IDX2)]
+             * if we allocate for instance (0, R, IDX1) we move the second replica to the secondary array and proceed with
+             * the next replica. If we could not find a node to allocate (0,R,IDX1) we move all it's replicas to ignoreUnassigned.
+             */
+            ShardRouting[] primary = unassigned.drain();
+            ShardRouting[] secondary = new ShardRouting[primary.length];
+            int secondaryLength = 0;
+            int primaryLength = primary.length;
+            ArrayUtil.timSort(primary, comparator);
+            do {
+                for (int i = 0; i < primaryLength; i++) {
+                    final ShardRouting shard = primary[i];
+                    for (final var desiredNodeId : desiredBalance.getDesiredNodeIds(shard.shardId())) {
+                        final var routingNode = routingNodes.node(desiredNodeId);
+                        if (routingNode == null) {
+                            continue;
+                        }
+
+                        final var canAllocateDecision = allocation.deciders().canAllocate(shard, routingNode, allocation);
+                        if (canAllocateDecision.type() == Decision.Type.YES) {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Assigned shard [{}] to [{}]", shard, desiredNodeId);
+                            }
+
+                            final long shardSize = DiskThresholdDecider.getExpectedShardSize(
+                                shard,
+                                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                                allocation.clusterInfo(),
+                                allocation.snapshotShardSizeInfo(),
+                                allocation.metadata(),
+                                allocation.routingTable()
+                            );
+                            routingNodes.initializeShard(shard, desiredNodeId, null, shardSize, allocation.changes());
+                            if (shard.primary() == false) {
+                                // copy over the same replica shards to the secondary array so they will get allocated
+                                // in a subsequent iteration, allowing replicas of other shards to be allocated first
+                                while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
+                                    secondary[secondaryLength++] = primary[++i];
+                                }
+                            }
+                        } else {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace(
+                                    "No eligible node found to assign shard [{}] canAllocateDecision [{}]",
+                                    shard,
+                                    canAllocateDecision
+                                );
+                            }
+
+                            final var allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(canAllocateDecision.type());
+                            unassigned.ignoreShard(shard, allocationStatus, allocation.changes());
+                            if (shard.primary() == false) {
+                                // we could not allocate it and we are a replica - check if we can ignore the other replicas
+                                while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
+                                    unassigned.ignoreShard(primary[++i], allocationStatus, allocation.changes());
+                                }
+                            }
+                        }
+                    }
+                }
+                primaryLength = secondaryLength;
+                ShardRouting[] tmp = primary;
+                primary = secondary;
+                secondary = tmp;
+                secondaryLength = 0;
+            } while (primaryLength > 0);
+        }
+
+        private void balance() {
 
         }
 
-        void balance(RoutingAllocation allocation) {
-
-        }
-
-        void moveShards(RoutingAllocation allocation) {
+        private void moveShards() {
 
         }
 

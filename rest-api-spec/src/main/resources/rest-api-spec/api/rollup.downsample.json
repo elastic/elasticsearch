@@ -1,0 +1,41 @@
+{
+  "rollup.downsample":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-rollup.html",
+      "description":"Downsample an index"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_downsample/{downsample_index}",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "The index to down sample",
+              "required": true
+            },
+            "downsample_index": {
+              "type": "string",
+              "description": "The name of the down sample index to create",
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The downsample configuration",
+      "required":true
+    }
+  }
+}

@@ -275,6 +275,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 final Double originalFrom = in.readOptionalDouble();
                 if (originalFrom != null) {
                     from = originalFrom;
+                } else {
+                    from = Double.NEGATIVE_INFINITY;
                 }
             }
             double to = in.readDouble();
@@ -282,6 +284,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 final Double originalTo = in.readOptionalDouble();
                 if (originalTo != null) {
                     to = originalTo;
+                } else {
+                    to = Double.POSITIVE_INFINITY;
                 }
             }
             long docCount = in.readVLong();

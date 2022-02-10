@@ -54,7 +54,7 @@ ecs style:
                               time_series_metric: gauge
 
 ---
-top level dim object:
+top level wildcard dim object:
   - skip:
       version: " - 8.1.99"
       reason: routing_path object type check improve in 8.2.0
@@ -112,7 +112,7 @@ top level dim object:
                               time_series_metric: gauge
 
 ---
-match object but no match object children:
+exact match object type:
   - skip:
       version: " - 8.1.99"
       reason: routing_path object type check improve in 8.2.0

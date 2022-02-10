@@ -158,7 +158,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         }));
     }
 
-    public void testRoutingPathMatchesObjectError() {
+    public void testRoutingPathEqualsObjectNameError() {
         Settings s = getSettings("dim.o");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");

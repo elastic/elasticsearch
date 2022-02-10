@@ -1346,9 +1346,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             Objects.requireNonNull(alias);
             Objects.requireNonNull(index);
 
-            Objects.requireNonNull(alias);
-            Objects.requireNonNull(index);
-
             Set<Index> indices = aliasedIndices.get(alias);
             if (indices == null || indices.isEmpty()) {
                 throw new IllegalStateException("Cannot remove non-existent alias [" + alias + "] for index [" + index.getName() + "]");

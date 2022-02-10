@@ -9,6 +9,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -29,6 +30,14 @@ public interface DateFormatter {
      * @return                        The java time object containing the parsed input
      */
     TemporalAccessor parse(String input);
+
+    /**
+     * Try to parse input to a java time TemporalAccessor
+     * @param input An arbitrary string resembling the string representation of a date or time
+     * @return      Tuple containing a boolean value indicating parsing success or failure and a java time object containing
+     * the parsed input in the case of successful parsing
+     */
+    Tuple<Boolean, TemporalAccessor> parseWithoutException(String input);
 
     /**
      * Parse the given input into millis-since-epoch.

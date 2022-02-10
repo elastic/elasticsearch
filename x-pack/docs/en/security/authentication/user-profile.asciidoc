@@ -1,6 +1,6 @@
 [role="xpack"]
 [[user-profile]]
-== User Profile
+=== User Profile
 
 beta::[]
 
@@ -64,7 +64,7 @@ user profile if the realms are configured to be under the same security domain.
 // TODO: search not yet implemented
 Being standalone documents, searches can be performed for user profiles.
 
-=== Limitations
+==== Limitations
 
 * Creating a new user profile requires the authentication details of the user.
 This means the user must be authenticated at least once for a profile document

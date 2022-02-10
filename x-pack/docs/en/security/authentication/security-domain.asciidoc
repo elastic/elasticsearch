@@ -1,6 +1,6 @@
 [role="xpack"]
 [[security-domain]]
-== Security Domain
+=== Security Domain
 
 beta::[]
 
@@ -34,7 +34,7 @@ have the necessary privileges).
 Security domain allows multiple realms to be grouped together so that they are
 interchangeable when it comes to resource sharing and ownership checking.
 
-=== Configuring a security domain
+==== Configuring a security domain
 
 . Add a security domain configuration to `elasticsearch.yml` under the
 `xpack.security.authc.domains` namespace.
@@ -68,7 +68,7 @@ error to have the same realm in multiple domains.
 
 . Restart {es}.
 
-=== Limitations
+==== Limitations
 
 * It is likely a wrong but technically possible setup for the same user to
 have different <<roles,roles>> when authenticating with different realms.

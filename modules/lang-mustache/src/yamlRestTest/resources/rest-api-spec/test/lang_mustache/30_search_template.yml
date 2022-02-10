@@ -4,12 +4,12 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "text": "value1" }
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "text": "value2" }
   - do:
       indices.refresh: {}
@@ -68,25 +68,25 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "theField": "foo" }
 
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "theField": "foo 2" }
 
   - do:
       index:
         index:  test
-        id:     3
+        id:     "3"
         body:   { "theField": "foo 3" }
 
   - do:
       index:
         index:  test
-        id:     4
+        id:     "4"
         body:   { "theField": "foo 4" }
 
   # we use a different index here since we compare the explain description which contains a doc ID and we can only be sure that it's 0
@@ -94,7 +94,7 @@
   - do:
       index:
         index:  otherindex
-        id:     5
+        id:     "5"
         body:   { "otherField": "foo" }
   - do:
       indices.refresh: {}
@@ -148,7 +148,7 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   {}
         refresh: true
 

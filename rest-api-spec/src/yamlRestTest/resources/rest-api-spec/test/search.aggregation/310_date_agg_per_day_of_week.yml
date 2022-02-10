@@ -16,7 +16,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:  { "date": "2009-11-15T14:12:12" }
   - do:
       indices.refresh:

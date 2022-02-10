@@ -8,7 +8,7 @@
   - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:
               foo:    bar
               count:  1
@@ -17,7 +17,7 @@
   - do:
       update:
           index:  test_1
-          id:     1
+          id:     "1"
           body:
             doc:
                 foo:    baz
@@ -32,7 +32,7 @@
   - do:
       get:
           index:  test_1
-          id:     1
+          id:     "1"
 
   - match: { _source.foo:        baz }
   - match: { _source.count:      1   }

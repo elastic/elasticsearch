@@ -1081,7 +1081,7 @@ public class MetadataIndexStateService {
                     builder.success(task, new ActionListener<>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
-                            task.onPublicationComplete();
+                            // listener is notified at the end of acking
                         }
 
                         @Override
@@ -1206,7 +1206,5 @@ public class MetadataIndexStateService {
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             assert false : "not called";
         }
-
-        protected void onPublicationComplete() {}
     }
 }

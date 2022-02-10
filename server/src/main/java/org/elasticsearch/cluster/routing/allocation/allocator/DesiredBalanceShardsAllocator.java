@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -178,6 +179,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             // TODO must also reset failure counter to bypass MaxRetryAllocationDecider
             // TODO must also bypass ResizeAllocationDecider
             // TODO must also bypass RestoreInProgressAllocationDecider
+            // TODO what about delayed allocation?
         }
 
         boolean hasChanges = true;
@@ -196,6 +198,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
 
             // TODO what if we never converge?
+            // TODO maybe expose interim desired balances computed here
+            // TODO maybe stop iterating if a new input becomes available
         }
 
         final var desiredAssignments = new HashMap<ShardId, List<String>>();
@@ -214,7 +218,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
-    private record DesiredBalance(HashMap<ShardId, List<String>> desiredAssignments) {
+    private record DesiredBalance(Map<ShardId, List<String>> desiredAssignments) {
         List<String> getDesiredNodeIds(ShardId shardId) {
             return desiredAssignments.getOrDefault(shardId, Collections.emptyList());
         }

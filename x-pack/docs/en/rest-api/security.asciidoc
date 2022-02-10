@@ -132,7 +132,18 @@ communicate with a secured {es} cluster.
 * <<security-api-node-enrollment, Enroll a new node>>
 * <<security-api-kibana-enrollment, Enroll a new {kib} instance>>
 
+[discrete]
+[[security-user-profile-apis]]
+=== User Profile
 
+Use the following APIs to retrieve and manage user profiles.
+
+* <<security-api-activiate-user-profile, Activate user profile>>
+* <<security-api-get-user-profile, Get user profile>>
+* <<security-api-update-user-profile-data, Update user profile data>>
+
+
+include::security/activate-user-profile.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
@@ -165,6 +176,7 @@ include::security/get-service-accounts.asciidoc[]
 include::security/get-service-credentials.asciidoc[]
 include::security/get-tokens.asciidoc[]
 include::security/get-user-privileges.asciidoc[]
+include::security/get-user-profile.asciidoc[]
 include::security/get-users.asciidoc[]
 include::security/grant-api-keys.asciidoc[]
 include::security/has-privileges.asciidoc[]
@@ -181,3 +193,4 @@ include::security/saml-invalidate-api.asciidoc[]
 include::security/saml-complete-logout-api.asciidoc[]
 include::security/saml-sp-metadata.asciidoc[]
 include::security/ssl.asciidoc[]
+include::security/update-user-profile-data.asciidoc[]

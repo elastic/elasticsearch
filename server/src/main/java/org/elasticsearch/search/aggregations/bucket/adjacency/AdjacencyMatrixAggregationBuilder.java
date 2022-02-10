@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
@@ -252,5 +253,10 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

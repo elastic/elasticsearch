@@ -77,6 +77,6 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
 
         ClusterState newClusterState = copySettingsStep.performAction(sourceIndexMetadata.getIndex(), clusterState);
         IndexMetadata newTargetIndexMetadata = newClusterState.metadata().index(targetIndex);
-        assertThat(newTargetIndexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME), is(policyName));
+        assertThat(newTargetIndexMetadata.getLifecyclePolicyName(), is(policyName));
     }
 }

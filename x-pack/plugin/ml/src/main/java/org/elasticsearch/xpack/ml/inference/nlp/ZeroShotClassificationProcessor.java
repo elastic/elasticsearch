@@ -63,6 +63,11 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
     }
 
     @Override
+    public void close() {
+        tokenizer.close();
+    }
+
+    @Override
     public void validateInputs(List<String> inputs) {
         // nothing to validate
     }

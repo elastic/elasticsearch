@@ -18,23 +18,25 @@ bin/elasticsearch-reconfigure-node
 [discrete]
 === Description
 
-This command is intended for use only for DEB or RPM {es} installations
-and _before_ {es} has been started for the first time.
+When installing {es} with a DEB or RPM package, the current node is assumed to
+be the first node in the cluster. {es} enables and configures security 
+features on the node, generates a password for the `elastic` superuser, and 
+configures TLS for the HTTP and transport layers.
 
-During DEB/RPM installations, {es} assumes that the current node is the
-first node of a new cluster and configures it accordingly, enabling
-security features, generating a password for the `elastic` superuser
-and configuring TLS for the http and transport layer. However, if your
-plan is to add this node to an existing cluster that has security
-features enabled and auto-configured already, the node needs to be
-configured so that it can join the existing cluster with the help of the
-`elasticsearch-reconfigure-node` tool.
+Rather than form a single-node cluster, you can add a node to an existing 
+cluster where security features are already enabled and configured. Before 
+starting your new node, run the 
+<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool
+with the `-s node` option to generate an enrollment token on any node in your
+existing cluster. On your new node, run the the
+`elasticsearch-reconfigure-node` tool and pass the enrollment token as a
+parameter.
 
-You can use an enrollment token that you can generate on any of the
-nodes of your existing cluster with `elasticsearch-create-enrollment-token -s node`
+NOTE: This tool is intended only for use on DEB or RPM distributions of {es}.
 
-NOTE: You must run this tool with `sudo` so that it can edit the necessary files
-in your {es} installation configuration directory and are owned by `root:elasticsearch`.
+You must run this tool with `sudo` so that it can edit the necessary
+files in your {es} installation configuration directory that are owned by
+`root:elasticsearch`.
 
 
 [discrete]

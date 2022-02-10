@@ -87,7 +87,6 @@ Search::
 
 Security::
 * Add validation for API key role descriptors {es-pull}82049[#82049] (issue: {es-issue}67311[#67311])
-* Upgrade jANSI dependency to 2.4.0 {es-pull}83566[#83566]
 
 Snapshot/Restore::
 * Adjust `LinuxFileSystemNatives.allocatedSizeInBytes` for aarch64 architectures {es-pull}81376[#81376] (issues: {es-issue}80437[#80437], {es-issue}81362[#81362])
@@ -205,9 +204,6 @@ Machine Learning::
 * Track token positions and use source string to tag NER entities {es-pull}81275[#81275]
 * Warn when creating job with an unusual bucket span {es-pull}82145[#82145] (issue: {es-issue}81645[#81645])
 * Improve skip_model_update rule behavior {ml-pull}2096[#2096]
-* Upgrade Boost libraries to version 1.77 {ml-pull}2095[#2095]
-* Upgrade RapidJSON to 31st October 2021 version {ml-pull}2106[#2106]
-* Upgrade Eigen library to version 3.4.0. (See {ml-pull}2137[#2137]
 * Prevent over-subscription of threads in pytorch_inference {ml-pull}2141[#2141]
 
 Mapping::
@@ -297,11 +293,19 @@ Transform::
 Geo::
 * Update vector tiles google protobuf to 3.16.1 {es-pull}83402[#83402]
 
+Machine Learning::
+* Upgrade Boost libraries to version 1.77 {ml-pull}2095[#2095]
+* Upgrade RapidJSON to 31st October 2021 version {ml-pull}2106[#2106]
+* Upgrade Eigen library to version 3.4.0. (See {ml-pull}2137[#2137]
+
 Network::
 * Upgrade to Netty 4.1.73 {es-pull}82844[#82844]
 
 Packaging::
 * Bump bundled JDK to 17.0.2+8 {es-pull}83243[#83243] (issue: {es-issue}83242[#83242])
+
+Security::
+* Upgrade jANSI dependency to 2.4.0 {es-pull}83566[#83566]
 
 
 

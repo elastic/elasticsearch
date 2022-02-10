@@ -28,6 +28,7 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -65,6 +66,15 @@ public class EmbeddedCli implements Closeable {
 
     public EmbeddedCli(String elasticsearchAddress, boolean checkConnectionOnStartup, @Nullable SecurityConfig security)
         throws IOException {
+        this(elasticsearchAddress, checkConnectionOnStartup, security, new String[0]);
+    }
+
+    public EmbeddedCli(
+        String elasticsearchAddress,
+        boolean checkConnectionOnStartup,
+        @Nullable SecurityConfig security,
+        @Nullable String[] additionalArgs
+    ) throws IOException {
         PipedOutputStream outgoing = new PipedOutputStream();
         PipedInputStream cliIn = new PipedInputStream(outgoing);
         PipedInputStream incoming = new PipedInputStream();
@@ -107,6 +117,10 @@ public class EmbeddedCli implements Closeable {
         if (randomBoolean()) {
             args.add("-binary");
             args.add(Boolean.toString(randomBoolean()));
+        }
+
+        if (additionalArgs != null) {
+            Arrays.stream(additionalArgs).forEach(x -> args.add(x));
         }
 
         exec = new Thread(() -> {

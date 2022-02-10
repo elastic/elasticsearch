@@ -37,4 +37,45 @@ public abstract class SelectTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), RegexMatcher.matches("\\s*2\\s*\\|\\s*test_value2\\s*"));
         assertEquals("", readLine());
     }
+
+    public void testLeniency() throws IOException {
+        EmbeddedCli cliWithLeniency = new EmbeddedCli(
+            CliIntegrationTestCase.elasticsearchAddress(),
+            true,
+            securityConfig(),
+            new String[] { "-lenient", "true" }
+        );
+
+        try {
+            index("test", body -> body.field("name", "foo").field("tags", new String[] { "bar", "bar" }));
+
+            assertThat(cliWithLeniency.command("SELECT * FROM test"), RegexMatcher.matches("\\s*name\\s*\\|\\s*tags\\s*"));
+            assertThat(cliWithLeniency.readLine(), containsString("----------"));
+            assertThat(cliWithLeniency.readLine(), RegexMatcher.matches("\\s*foo\\s*\\|\\s*bar\\s*"));
+            assertEquals("", cliWithLeniency.readLine());
+        } finally {
+            cliWithLeniency.close();
+        }
+    }
+
+    public void testLeniency2() throws IOException {
+        EmbeddedCli cliWithLeniency = new EmbeddedCli(
+            CliIntegrationTestCase.elasticsearchAddress(),
+            true,
+            securityConfig(),
+            new String[] { "-l", "true" }
+        );
+
+        try {
+            index("test", body -> body.field("name", "foo").field("tags", new String[] { "bar", "bar" }));
+
+            assertThat(cliWithLeniency.command("SELECT * FROM test"), RegexMatcher.matches("\\s*name\\s*\\|\\s*tags\\s*"));
+            assertThat(cliWithLeniency.readLine(), containsString("----------"));
+            assertThat(cliWithLeniency.readLine(), RegexMatcher.matches("\\s*foo\\s*\\|\\s*bar\\s*"));
+            assertEquals("", cliWithLeniency.readLine());
+        } finally {
+            cliWithLeniency.close();
+        }
+    }
+
 }

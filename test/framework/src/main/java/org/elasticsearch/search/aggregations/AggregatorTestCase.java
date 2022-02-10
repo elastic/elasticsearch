@@ -123,6 +123,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Pipelin
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -1013,7 +1014,19 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
                     AssertionError failure = null;
                     try {
-                        searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+                        InternalAggregation internalAggregation = searchAndReduce(
+                            indexSearcher,
+                            new MatchAllDocsQuery(),
+                            aggregationBuilder,
+                            fieldType
+                        );
+                        // We should make sure if the builder says it supports sampling, that the internal aggregations returned override
+                        // finalizeSampling
+                        if (aggregationBuilder.supportsSampling()) {
+                            SamplingContext randomSamplingContext = new SamplingContext(randomDoubleBetween(1e-8, 0.1, false), randomInt());
+                            InternalAggregation sampledResult = internalAggregation.finalizeSampling(randomSamplingContext);
+                            assertThat(sampledResult.getClass(), equalTo(internalAggregation.getClass()));
+                        }
                         if (supportedVSTypes.contains(vst) == false || unsupportedMappedFieldTypes.contains(fieldType.typeName())) {
                             failure = new AssertionError(
                                 "Aggregator ["

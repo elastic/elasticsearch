@@ -30,7 +30,7 @@ Most custom date formats are compatible. However, several require
 an update.
 
 To see if your date format is impacted, use the <<migration-api-deprecation,deprecation info API>>
-or the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant].
+or the {kibana-ref-all}/{prev-major-last}/upgrade-assistant.html[Kibana Upgrade Assistant].
 
 [discrete]
 [[java-time-migration-incompatible-date-formats]]

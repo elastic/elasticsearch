@@ -139,7 +139,7 @@ public class ForceMergeAction implements LifecycleAction {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
-                    String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                    String policyName = indexMetadata.getLifecyclePolicyName();
                     logger.warn(
                         "[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. "
                             + "Skipping this action",

@@ -58,7 +58,7 @@ Machine Learning::
 * Fixes `categorize_text` parameter validation to be parse order independent {es-pull}82628[#82628] (issue: {es-issue}82629[#82629])
 * Return `zxx` for `lang_ident_model_1` if no valid text is found for language identification {es-pull}82746[#82746] (issue: {es-issue}81933[#81933])
 * Validate vocabulary on model deployment {es-pull}81548[#81548] (issue: {es-issue}81470[#81470])
-* Wait for model process to be stop in stop deployment {es-pull}83644[#83644]
+* Wait for model process to stop in stop deployment {es-pull}83644[#83644]
 * Fix a bug in the tuning of the hyperparameters when training regression classification models {ml-pull}2128[#2128]
 * Improve training stability for regression and classification models {ml-pull}2144[#2144], {ml-pull}2147[#2147], {ml-pull}2150[#2150]
 * Avoid edge cases in the classification weights calculation to maximize minimum recall which could lead to only a single class being predicted {ml-pull}2194[#2194]

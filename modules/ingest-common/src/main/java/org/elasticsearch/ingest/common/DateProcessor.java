@@ -99,14 +99,12 @@ public final class DateProcessor extends AbstractProcessor {
 
         ZonedDateTime dateTime = null;
         Exception lastException = null;
-        int dateParserIndex = 0;
-        while (dateTime == null && dateParserIndex < dateParsers.size()) {
-            var dateParser = dateParsers.get(dateParserIndex);
+        for (Function<Map<String, Object>, Function<String, ZonedDateTime>> dateParser : dateParsers) {
             try {
                 dateTime = dateParser.apply(ingestDocument.getSourceAndMetadata()).apply(value);
+                break;
             } catch (Exception e) {
                 // try the next parser and keep track of the exceptions
-                dateParserIndex++;
                 lastException = ExceptionsHelper.useOrSuppress(lastException, e);
             }
         }

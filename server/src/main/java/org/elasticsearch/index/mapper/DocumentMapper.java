@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.List;

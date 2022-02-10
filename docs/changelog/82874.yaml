@@ -1,5 +1,5 @@
 pr: 82874
-summary: Cluster Coordination Indicators for Health API
+summary: 'Add "Has eligible master" Indicator for Health API'
 area: Health
 type: feature
 issues: []

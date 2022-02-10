@@ -33,5 +33,5 @@ public final class JsonXContent {
     /**
      * A JSON based XContent.
      */
-    public static XContent jsonXContent = provider.XContent();
+    public static final XContent jsonXContent = provider.XContent();
 }

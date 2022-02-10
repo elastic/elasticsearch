@@ -1,0 +1,12 @@
+[[queries]]
+name = "basic"
+query = '''
+  sampling by host
+    [ any where uptime > 0 ]   by os
+    [ any where port > 100 ]   by op_sys 
+    [ any where bool == true ] by os
+'''
+expected_event_ids  = [7,6,6,
+                       3,3,10]
+join_keys = ["doom","redhat",
+             "farcry","win10"]

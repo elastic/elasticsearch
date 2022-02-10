@@ -26,7 +26,7 @@ public class SequenceKey implements Accountable {
     private final Object[] keys;
     private final int hashCode;
 
-    SequenceKey(Object... keys) {
+    public SequenceKey(Object... keys) {
         this.keys = keys;
         this.hashCode = Objects.hash(keys);
     }

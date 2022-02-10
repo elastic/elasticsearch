@@ -41,8 +41,12 @@ public class QueryContainer {
     private final Query query;
     // attributes found in the tree
     private final AttributeMap<Expression> attributes;
+    // join keys
+    private final AttributeMap<Expression> keys;
     // list of fields available in the output
     private final List<Tuple<FieldExtraction, String>> fields;
+    // composite keys to be extracted from composite aggregation result
+    private final List<Tuple<FieldExtraction, String>> keysValues;
 
     private final Map<String, Sort> sort;
     private final boolean trackHits;
@@ -51,13 +55,25 @@ public class QueryContainer {
     private final Limit limit;
 
     public QueryContainer() {
-        this(null, emptyList(), AttributeMap.emptyAttributeMap(), emptyMap(), false, false, null);
+        this(
+            null,
+            emptyList(),
+            AttributeMap.emptyAttributeMap(),
+            emptyList(),
+            AttributeMap.emptyAttributeMap(),
+            emptyMap(),
+            false,
+            false,
+            null
+        );
     }
 
     private QueryContainer(
         Query query,
         List<Tuple<FieldExtraction, String>> fields,
         AttributeMap<Expression> attributes,
+        List<Tuple<FieldExtraction, String>> keysValues,
+        AttributeMap<Expression> keys,
         Map<String, Sort> sort,
         boolean trackHits,
         boolean includeFrozen,
@@ -67,6 +83,8 @@ public class QueryContainer {
         this.fields = fields;
         this.sort = sort;
         this.attributes = attributes;
+        this.keys = keys;
+        this.keysValues = keysValues;
         this.trackHits = trackHits;
         this.includeFrozen = includeFrozen;
 
@@ -85,6 +103,10 @@ public class QueryContainer {
         return fields;
     }
 
+    public List<Tuple<FieldExtraction, String>> keysValues() {
+        return keysValues;
+    }
+
     public Map<String, Sort> sort() {
         return sort;
     }
@@ -98,11 +120,11 @@ public class QueryContainer {
     }
 
     public QueryContainer with(Query q) {
-        return new QueryContainer(q, fields, attributes, sort, trackHits, includeFrozen, limit);
+        return new QueryContainer(q, fields, attributes, keysValues, keys, sort, trackHits, includeFrozen, limit);
     }
 
     public QueryContainer with(Limit limit) {
-        return new QueryContainer(query, fields, attributes, sort, trackHits, includeFrozen, limit);
+        return new QueryContainer(query, fields, attributes, keysValues, keys, sort, trackHits, includeFrozen, limit);
     }
 
     public QueryContainer addColumn(Attribute attr) {
@@ -133,10 +155,44 @@ public class QueryContainer {
         throw new EqlIllegalArgumentException("Unknown output attribute {}", attr);
     }
 
+    public QueryContainer addCompositeKey(Attribute attr) {
+        Expression expression = keys.getOrDefault(attr, attr);
+        Tuple<QueryContainer, FieldExtraction> tuple = asCompositeKeyExtraction(attr);
+        return tuple.v1().addCompositeKey(tuple.v2(), Expressions.id(expression));
+    }
+
+    public QueryContainer addCompositeKey(FieldExtraction ref, String id) {
+        return new QueryContainer(
+            query,
+            fields,
+            attributes,
+            combine(keysValues, new Tuple<>(ref, id)),
+            keys,
+            sort,
+            trackHits,
+            includeFrozen,
+            limit
+        );
+    }
+
+    private Tuple<QueryContainer, FieldExtraction> asCompositeKeyExtraction(Attribute attr) {
+        // resolve it Expression
+        Expression expression = keys.getOrDefault(attr, attr);
+
+        if (expression instanceof FieldAttribute fa) {
+            if (fa.isNested()) {
+                throw new UnsupportedOperationException("Nested not yet supported");
+            }
+            return new Tuple<>(this, extractorRegistry.compositeKeyExtraction(expression));
+        }
+
+        throw new EqlIllegalArgumentException("Unknown composite key attribute {}", attr);
+    }
+
     public QueryContainer addSort(String expressionId, Sort sortable) {
         Map<String, Sort> newSort = new LinkedHashMap<>(this.sort);
         newSort.put(expressionId, sortable);
-        return new QueryContainer(query, fields, attributes, newSort, trackHits, includeFrozen, limit);
+        return new QueryContainer(query, fields, attributes, keysValues, keys, newSort, trackHits, includeFrozen, limit);
     }
 
     //
@@ -144,12 +200,22 @@ public class QueryContainer {
     //
 
     public QueryContainer addColumn(FieldExtraction ref, String id) {
-        return new QueryContainer(query, combine(fields, new Tuple<>(ref, id)), attributes, sort, trackHits, includeFrozen, limit);
+        return new QueryContainer(
+            query,
+            combine(fields, new Tuple<>(ref, id)),
+            attributes,
+            keysValues,
+            keys,
+            sort,
+            trackHits,
+            includeFrozen,
+            limit
+        );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, attributes, fields, trackHits, includeFrozen, limit);
+        return Objects.hash(query, attributes, fields, keysValues, keys, trackHits, includeFrozen, limit);
     }
 
     @Override
@@ -166,6 +232,8 @@ public class QueryContainer {
         return Objects.equals(query, other.query)
             && Objects.equals(attributes, other.attributes)
             && Objects.equals(fields, other.fields)
+            && Objects.equals(keys, other.keys)
+            && Objects.equals(keysValues, other.keysValues)
             && trackHits == other.trackHits
             && includeFrozen == other.includeFrozen
             && Objects.equals(limit, other.limit);

@@ -14,7 +14,7 @@ import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
-import org.elasticsearch.xpack.eql.execution.assembler.Criterion;
+import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
@@ -69,14 +69,14 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
     public void testTimeNotComparable() throws Exception {
         HitExtractor badExtractor = new FieldHitExtractor(tsField, DataTypes.BINARY, null, null, false);
         SearchHit hit = searchHit(randomAlphaOfLength(10), null);
-        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(0, null, emptyList(), badExtractor, null, null, false);
+        SequenceCriterion<BoxedQueryRequest> criterion = new SequenceCriterion<>(0, null, emptyList(), badExtractor, null, null, false);
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));
         assertTrue(exception.getMessage().startsWith("Expected timestamp"));
     }
 
     public void testImplicitTiebreakerMissing() throws Exception {
         SearchHit hit = searchHit(randomTimestamp(), null, new Object[0]);
-        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(
+        SequenceCriterion<BoxedQueryRequest> criterion = new SequenceCriterion<BoxedQueryRequest>(
             0,
             null,
             emptyList(),
@@ -91,7 +91,7 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
 
     public void testImplicitTiebreakerNotANumber() throws Exception {
         SearchHit hit = searchHit(randomTimestamp(), null, new Object[] { "test string" });
-        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(
+        SequenceCriterion<BoxedQueryRequest> criterion = new SequenceCriterion<BoxedQueryRequest>(
             0,
             null,
             emptyList(),
@@ -126,7 +126,7 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
             public void writeTo(StreamOutput out) throws IOException {}
         };
         SearchHit hit = searchHit(randomTimestamp(), o);
-        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(
+        SequenceCriterion<BoxedQueryRequest> criterion = new SequenceCriterion<BoxedQueryRequest>(
             0,
             null,
             emptyList(),
@@ -158,7 +158,7 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
     }
 
     private Ordinal ordinal(SearchHit hit, boolean withTiebreaker) {
-        return new Criterion<BoxedQueryRequest>(
+        return new SequenceCriterion<BoxedQueryRequest>(
             0,
             null,
             emptyList(),

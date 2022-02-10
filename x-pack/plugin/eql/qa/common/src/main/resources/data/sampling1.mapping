@@ -1,0 +1,36 @@
+{
+	"properties": {
+	    "@timestamp": {
+	      "type": "date"
+	    },
+	    "event_type": {
+	      "type": "keyword"
+	    },
+	    "event": {
+	      "properties": {
+	        "category": {
+	          "type": "alias",
+	          "path": "event_type"
+	        }
+	      }
+	    },
+	    "host": {
+	      "type": "keyword"
+	    },
+	    "os": {
+	      "type": "keyword"
+	    },
+	    "bool": {
+	      "type": "boolean"
+	    },
+	    "uptime" : {
+	      "type" : "long"
+	    },
+	    "port" : {
+	      "type" : "long"
+	    },
+	    "id" : {
+	      "type" : "long"
+	    }
+	}
+}

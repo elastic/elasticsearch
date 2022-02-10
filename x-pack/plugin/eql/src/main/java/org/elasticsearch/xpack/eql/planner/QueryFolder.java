@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.eql.plan.physical.LimitWithOffsetExec;
 import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.eql.plan.physical.SamplingExec;
 import org.elasticsearch.xpack.eql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.eql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
@@ -30,7 +31,10 @@ import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
@@ -41,7 +45,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
         Batch fold = new Batch("Fold queries", new FoldProject(), new FoldFilter(), new FoldOrderBy(), new FoldLimit());
-        Batch finish = new Batch("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
+        Batch finish = new Batch("Finish query", Limiter.ONCE, new PropagateCompositeKeys(), new PlanOutputToQueryRef());
 
         return Arrays.asList(fold, finish);
     }
@@ -112,6 +116,26 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 plan = exec.with(limit.limit());
             }
             return plan;
+        }
+    }
+
+    private static class PropagateCompositeKeys extends FoldingRule<SamplingExec> {
+        @Override
+        protected PhysicalPlan rule(SamplingExec plan) {
+            List<PhysicalPlan> newChildren = new ArrayList<>();
+
+            for (int i = 0; i < plan.children().size(); i++) {
+                EsQueryExec query = (EsQueryExec) plan.children().get(i);
+                QueryContainer qContainer = query.queryContainer();
+                query = new EsQueryExec(query.source(), Collections.emptyList(), qContainer);
+
+                List<Attribute> keys = plan.keys().get(i);
+                for (Attribute a : keys) {
+                    qContainer = qContainer.addCompositeKey(a);
+                }
+                newChildren.add(query.with(qContainer));
+            }
+            return plan.replaceChildren(newChildren);
         }
     }
 

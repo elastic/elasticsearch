@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.List;
 
-public class Criterion<Q extends QueryRequest> {
+public class SequenceCriterion<Q extends QueryRequest> {
 
     private final int stage;
     private final Q queryRequest;
@@ -28,7 +28,7 @@ public class Criterion<Q extends QueryRequest> {
     private final boolean descending;
     private final int keySize;
 
-    public Criterion(
+    public SequenceCriterion(
         int stage,
         Q queryRequest,
         List<HitExtractor> keys,

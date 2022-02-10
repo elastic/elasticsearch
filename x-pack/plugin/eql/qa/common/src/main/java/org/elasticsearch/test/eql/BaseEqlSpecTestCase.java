@@ -115,13 +115,15 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     }
 
     protected EqlSearchResponse runQuery(String index, String query) throws Exception {
+        String[] splitNames = index.split(",");
         EqlSearchRequest request = new EqlSearchRequest(index, query);
 
+        request.indices(splitNames);
         request.eventCategoryField(eventCategory());
         request.timestampField(timestamp());
         String tiebreaker = tiebreaker();
         if (tiebreaker != null) {
-            request.tiebreakerField(tiebreaker());
+            request.tiebreakerField(tiebreaker);
         }
         request.size(requestSize());
         request.fetchSize(requestFetchSize());
@@ -194,7 +196,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         final int len = events.size();
         final long[] ids = new long[len];
         for (int i = 0; i < len; i++) {
-            Object field = events.get(i).sourceAsMap().get(tiebreaker());
+            Object field = events.get(i).sourceAsMap().get(tiebreaker() == null ? idField() : tiebreaker());
             ids[i] = ((Number) field).longValue();
         }
         return ids;
@@ -268,6 +270,10 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
 
     protected String eventCategory() {
         return "event.category";
+    }
+
+    protected String idField() {
+        return null;
     }
 
     protected abstract String tiebreaker();

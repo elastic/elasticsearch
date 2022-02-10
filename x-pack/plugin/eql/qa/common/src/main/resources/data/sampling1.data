@@ -1,0 +1,95 @@
+[
+  {
+    "@timestamp": "1234567891",
+    "event_type": "alert",
+    "host": "doom",
+    "uptime": 0,
+    "port": 1234,
+    "os": "win10",
+    "id": 1
+  },
+  {
+    "@timestamp": "1234567892",
+    "event_type": "alert",
+    "host": "CS",
+    "uptime": 5,
+    "port": 1,
+    "os": "win10",
+    "id": 2
+  },
+  {
+    "@timestamp": "1234567893",
+    "event_type": "alert",
+    "host": "farcry",
+    "uptime": 1,
+    "port": 1234,
+    "bool": false,
+    "os": "win10",
+    "id": 3
+  },
+  {
+    "@timestamp": "1234567894",
+    "event_type": "alert",
+    "host": "GTA",
+    "uptime": 3,
+    "port": 12,
+    "os": "slack",
+    "id": 4
+  },
+  {
+    "@timestamp": "1234567895",
+    "event_type": "alert",
+    "host": "sniper 3d",
+    "uptime": 6,
+    "port": 1234,
+    "os": "fedora",
+    "id": 5
+  },
+  {
+    "@timestamp": "1234568896",
+    "event_type": "alert",
+    "host": "doom",
+    "port": 65123,
+    "bool": true,
+    "os": "redhat",
+    "id": 6
+  },
+  {
+    "@timestamp": "1234567897",
+    "event_type": "failure",
+    "host": "doom",
+    "uptime": 15,
+    "port": 1234,
+    "bool": true,
+    "os": "redhat",
+    "id": 7
+  },
+  {
+    "@timestamp": "1234567898",
+    "event_type": "success",
+    "host": "doom",
+    "uptime": 16,
+    "port": 512,
+    "os": "win10",
+    "id": 8
+  },
+  {
+    "@timestamp": "1234567899",
+    "event_type": "success",
+    "host": "GTA",
+    "port": 12,
+    "bool": true,
+    "os": "win10",
+    "id": 9
+  },
+  {
+    "@timestamp": "1234567893",
+    "event_type": "alert",
+    "host": "farcry",
+    "uptime": 1,
+    "port": 1234,
+    "bool": true,
+    "os": "win10",
+    "id": 10
+  }
+]

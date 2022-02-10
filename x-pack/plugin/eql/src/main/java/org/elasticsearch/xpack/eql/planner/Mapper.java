@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.eql.planner;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.logical.Sampling;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.FilterExec;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.eql.plan.physical.SamplingExec;
 import org.elasticsearch.xpack.eql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.eql.plan.physical.UnplannedExec;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
@@ -61,28 +63,34 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan map(LogicalPlan p) {
-
-            if (p instanceof Sequence s) {
-                List<List<Attribute>> keys = new ArrayList<>(s.children().size());
+            if (p instanceof Sampling sampling) {
+                List<List<Attribute>> keys = new ArrayList<>(sampling.children().size());
                 List<PhysicalPlan> matches = new ArrayList<>(keys.size());
 
-                for (KeyedFilter keyed : s.queries()) {
+                for (KeyedFilter keyed : sampling.queries()) {
                     keys.add(Expressions.asAttributes(keyed.keys()));
                     matches.add(map(keyed.child()));
                 }
 
-                return new SequenceExec(
-                    p.source(),
-                    keys,
-                    matches,
-                    Expressions.asAttributes(s.until().keys()),
-                    map(s.until().child()),
-                    s.timestamp(),
-                    s.tiebreaker(),
-                    s.direction(),
-                    s.maxSpan()
-                );
+                if (p instanceof Sequence sequence) {
+                    return new SequenceExec(
+                        p.source(),
+                        keys,
+                        matches,
+                        Expressions.asAttributes(sequence.until().keys()),
+                        map(sequence.until().child()),
+                        sequence.timestamp(),
+                        sequence.tiebreaker(),
+                        sequence.direction(),
+                        sequence.maxSpan()
+                    );
+                }
+                return new SamplingExec(p.source(), matches, keys);
             }
+
+            /*            if (p instanceof Aggregate a) {
+                return new CompositeAggExec(a.source(), map(a.child()), a.aggregates());
+            }*/
 
             if (p instanceof LocalRelation) {
                 return new LocalExec(p.source(), ((LocalRelation) p).executable());

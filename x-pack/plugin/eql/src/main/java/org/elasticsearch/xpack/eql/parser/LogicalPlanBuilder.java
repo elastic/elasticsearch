@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinKeysContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinTermContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.NumberContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PipeContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SamplingContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceParamsContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceTermContext;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.logical.Sampling;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
@@ -117,35 +119,38 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         if (Expressions.isPresent(tiebreaker)) {
             orders.add(new Order(defaultOrderSource, tiebreaker, resultPosition(), position));
         }
-        plan = new OrderBy(defaultOrderSource, plan, orders);
+        // sequences and event queries support ordering vs. sampling which do not
+        if (plan instanceof Join || plan instanceof Filter) {
+            plan = new OrderBy(defaultOrderSource, plan, orders);
 
-        // add the default limit only if specified
-        Literal defaultSize = new Literal(synthetic("<default-size>"), params.size(), DataTypes.INTEGER);
-        Source defaultLimitSource = synthetic("<default-limit>");
+            // add the default limit only if specified
+            Literal defaultSize = new Literal(synthetic("<default-size>"), params.size(), DataTypes.INTEGER);
+            Source defaultLimitSource = synthetic("<default-limit>");
 
-        LogicalPlan previous = plan;
-        boolean missingLimit = true;
+            LogicalPlan previous = plan;
+            boolean missingLimit = true;
 
-        for (PipeContext pipeCtx : ctx.pipe()) {
-            plan = pipe(pipeCtx, previous);
-            if (missingLimit && plan instanceof LimitWithOffset) {
-                missingLimit = false;
-                if (plan instanceof Head) {
-                    previous = new Head(defaultLimitSource, defaultSize, previous);
-                } else {
-                    previous = new Tail(defaultLimitSource, defaultSize, previous);
+            for (PipeContext pipeCtx : ctx.pipe()) {
+                plan = pipe(pipeCtx, previous);
+                if (missingLimit && plan instanceof LimitWithOffset) {
+                    missingLimit = false;
+                    if (plan instanceof Head) {
+                        previous = new Head(defaultLimitSource, defaultSize, previous);
+                    } else {
+                        previous = new Tail(defaultLimitSource, defaultSize, previous);
+                    }
+                    plan = plan.replaceChildrenSameSize(singletonList(previous));
                 }
-                plan = plan.replaceChildrenSameSize(singletonList(previous));
+                previous = plan;
             }
-            previous = plan;
-        }
 
-        // add limit based on the default order if no tail/head was specified
-        if (missingLimit) {
-            if (asc) {
-                plan = new Head(defaultLimitSource, defaultSize, plan);
-            } else {
-                plan = new Tail(defaultLimitSource, defaultSize, plan);
+            // add limit based on the default order if no tail/head was specified
+            if (missingLimit) {
+                if (asc) {
+                    plan = new Head(defaultLimitSource, defaultSize, plan);
+                } else {
+                    plan = new Tail(defaultLimitSource, defaultSize, plan);
+                }
             }
         }
 
@@ -373,6 +378,47 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 text(numberCtx)
             );
         }
+    }
+
+    @Override
+    public Object visitSampling(SamplingContext ctx) {
+        Source source = source(ctx);
+
+        List<Attribute> parentJoinKeys = visitJoinKeys(ctx.by);
+        int numberOfKeys = -1;
+        List<KeyedFilter> queries = new ArrayList<>(ctx.joinTerm().size());
+
+        for (JoinTermContext joinTermCtx : ctx.joinTerm()) {
+            KeyedFilter joinTerm = visitJoinTerm(joinTermCtx, parentJoinKeys);
+            int keySize = joinTerm.keys().size();
+            if (numberOfKeys < 0) {
+                numberOfKeys = keySize;
+            } else {
+                if (numberOfKeys != keySize) {
+                    Source src = source(joinTermCtx.by != null ? joinTermCtx.by : joinTermCtx);
+                    int expected = numberOfKeys - parentJoinKeys.size();
+                    int found = keySize - parentJoinKeys.size();
+                    throw new ParsingException(
+                        src,
+                        "Inconsistent number of join keys specified; expected [{}] but found [{}]",
+                        expected,
+                        found
+                    );
+                }
+            }
+
+            int numberOfQueries = queries.size();
+            if (numberOfQueries > 5) {
+                throw new ParsingException(source(joinTermCtx), "Sampling cannot contain more than 5 queries; found [{}]", numberOfQueries);
+            }
+            queries.add(joinTerm);
+        }
+
+        if (queries.size() < 2) {
+            throw new ParsingException(source, "A sampling requires a minimum of 2 queries, found [{}]", queries.size());
+        }
+
+        return new Sampling(source, queries);
     }
 
     private LogicalPlan pipe(PipeContext ctx, LogicalPlan plan) {

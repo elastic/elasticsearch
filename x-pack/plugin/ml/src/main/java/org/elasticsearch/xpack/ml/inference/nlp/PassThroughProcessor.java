@@ -27,11 +27,18 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 public class PassThroughProcessor implements NlpTask.Processor {
 
     private final NlpTask.RequestBuilder requestBuilder;
+    private final NlpTokenizer tokenizer;
     private final String resultsField;
 
     PassThroughProcessor(NlpTokenizer tokenizer, PassThroughConfig config) {
         this.requestBuilder = tokenizer.requestBuilder();
         this.resultsField = config.getResultsField();
+        this.tokenizer = tokenizer;
+    }
+
+    @Override
+    public void close() {
+        tokenizer.close();
     }
 
     @Override

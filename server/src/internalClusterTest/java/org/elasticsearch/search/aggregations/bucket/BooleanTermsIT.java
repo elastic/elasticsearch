@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -43,7 +44,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
                 numSingleFalses++;
             }
             final boolean[] multiValue;
-            switch (randomInt(3)) {
+            switch (between(i == 0 ? 1 : 0, 3)) { // Make sure the first document has at least one value
                 case 0 -> multiValue = new boolean[0];
                 case 1 -> {
                     numMultiFalses++;
@@ -105,7 +106,6 @@ public class BooleanTermsIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83488")
     public void testMultiValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
             .addAggregation(
@@ -119,7 +119,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         final int bucketCount = numMultiFalses > 0 && numMultiTrues > 0 ? 2 : numMultiFalses + numMultiTrues > 0 ? 1 : 0;
-        assertThat(terms.getBuckets().size(), equalTo(bucketCount));
+        assertThat(terms.getBuckets(), hasSize(bucketCount));
 
         LongTerms.Bucket bucket = terms.getBucketByKey("false");
         if (numMultiFalses == 0) {

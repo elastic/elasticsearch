@@ -706,9 +706,9 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             Map<?, ?> m = (Map<?, ?>) value;
-            SortedMap<String, BytesReference> dimensionFields = new TreeMap<>();
+            SortedMap<BytesRef, BytesReference> dimensionFields = new TreeMap<>();
             for (Map.Entry<?, ?> entry : m.entrySet()) {
-                String k = (String) entry.getKey();
+                BytesRef k = new BytesRef(entry.getKey().toString());
                 Object v = entry.getValue();
                 BytesReference bytes;
 

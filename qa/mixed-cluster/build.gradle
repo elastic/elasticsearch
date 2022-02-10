@@ -43,6 +43,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         println "Upgrading one node to create a mixed cluster"
         if (BuildParams.isSnapshotBuild() == false) {
           baseCluster.get().nodes."${baseName}-0".systemProperty 'es.index_mode_feature_flag_registered', 'true'
+          baseCluster.get().nodes."${baseName}-0".systemProperty 'es.random_sampler_feature_flag_registered', 'true'
         }
         baseCluster.get().nextNodeToNextVersion()
         // Getting the endpoints causes a wait for the cluster
@@ -50,6 +51,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         println "Upgrading another node to create a mixed cluster"
         if (BuildParams.isSnapshotBuild() == false) {
           baseCluster.get().nodes."${baseName}-1".systemProperty 'es.index_mode_feature_flag_registered', 'true'
+          baseCluster.get().nodes."${baseName}-1".systemProperty 'es.random_sampler_feature_flag_registered', 'true'
         }
         baseCluster.get().nextNodeToNextVersion()
         nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))

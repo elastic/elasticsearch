@@ -28,20 +28,18 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.termsenum.action.MultiShardTermsEnum;
 import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
-import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.Closeable;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Set;
 
 public class MultiShardTermsEnumTests extends ESTestCase {
 
     public void testRandomIndexFusion() throws Exception {
         String fieldName = "foo";
-        Map<String, Integer> globalTermCounts = new HashMap<>();
+        Set<String> globalTermCounts = new HashSet<>();
 
         int numShards = randomIntBetween(2, 15);
 
@@ -59,12 +57,7 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                     String term = randomAlphaOfLengthBetween(1, 3).toLowerCase(Locale.ROOT);
                     document.add(new StringField(fieldName, term, Field.Store.YES));
                     writer.addDocument(document);
-                    int count = 0;
-                    if (globalTermCounts.containsKey(term)) {
-                        count = globalTermCounts.get(term);
-                    }
-                    count++;
-                    globalTermCounts.put(term, count);
+                    globalTermCounts.add(term);
 
                 }
                 DirectoryReader reader = DirectoryReader.open(writer);
@@ -89,32 +82,29 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                     if (randomBoolean()) {
                         // Simulate fields like constant-keyword which use a SimpleTermCountEnum to present results
                         // rather than the raw TermsEnum from Lucene.
-                        ArrayList<TermCount> termCounts = new ArrayList<>();
+                        ArrayList<String> termCounts = new ArrayList<>();
                         while (te.next() != null) {
-                            termCounts.add(new TermCount(te.term().utf8ToString(), te.docFreq()));
+                            termCounts.add(te.term().utf8ToString());
                         }
-                        SimpleTermCountEnum simpleEnum = new SimpleTermCountEnum(termCounts.toArray(new TermCount[0]));
+                        SimpleTermCountEnum simpleEnum = new SimpleTermCountEnum(termCounts.toArray(new String[0]));
                         termsEnums.add(simpleEnum);
                     } else {
                         termsEnums.add(te);
                     }
                 }
                 MultiShardTermsEnum mte = new MultiShardTermsEnum(termsEnums.toArray(new TermsEnum[0]));
-                HashMap<String, Integer> expecteds = new HashMap<>();
+                Set<String> expecteds = new HashSet<>();
 
-                for (Entry<String, Integer> termCount : globalTermCounts.entrySet()) {
-                    if (termCount.getKey().startsWith(searchPrefix)) {
-                        expecteds.put(termCount.getKey(), termCount.getValue());
+                for (String term : globalTermCounts) {
+                    if (term.startsWith(searchPrefix)) {
+                        expecteds.add(term);
                     }
                 }
 
                 while (mte.next() != null) {
                     String teString = mte.term().utf8ToString();
-                    long actual = mte.docFreq();
-                    assertTrue(expecteds.containsKey(teString));
-                    long expected = expecteds.get(teString);
+                    assertTrue(expecteds.contains(teString));
                     expecteds.remove(teString);
-                    assertEquals(mte.term().utf8ToString() + " string count wrong", expected, actual);
                 }
                 assertEquals("Expected results not found", 0, expecteds.size());
 

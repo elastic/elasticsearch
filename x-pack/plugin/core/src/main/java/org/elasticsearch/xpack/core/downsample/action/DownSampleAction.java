@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.core.downsample.action;
 
-import java.io.IOException;
-
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -16,9 +15,11 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.downsample.DownsampleDateHistogramConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+
+import java.io.IOException;
+import java.util.Objects;
 
 public class DownSampleAction extends ActionType<AcknowledgedResponse> {
     public static final DownSampleAction INSTANCE = new DownSampleAction();
@@ -28,35 +29,80 @@ public class DownSampleAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    //public static class Request extends MasterNodeRequest<RollupAction.Request> implements IndicesRequest, ToXContentObject {
-    //    private String sourceIndex;
-    //    private String rollupIndex;
-    //    private DownsampleDateHistogramConfig downsampleConfig;
-    //
-    //    public Request(String sourceIndex, String rollupIndex, DownsampleDateHistogramConfig downsampleConfig) {
-    //        this.sourceIndex = sourceIndex;
-    //        this.rollupIndex = rollupIndex;
-    //        this.downsampleConfig = downsampleConfig;
-    //    }
-    //
-    //    public Request() {}
-    //
-    //    public Request(StreamInput in) throws IOException {
-    //        super(in);
-    //        sourceIndex = in.readString();
-    //        rollupIndex = in.readString();
-    //        downsampleConfig = new RollupActionConfig(in);
-    //    }
-    //
-    //    @Override
-    //    public String[] indices() {
-    //        return new String[] {sourceIndex};
-    //    }
-    //
-    //    @Override
-    //    public IndicesOptions indicesOptions() {
-    //        return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
-    //    }
-    //
-    //}
+    public static class Request extends MasterNodeRequest<DownSampleAction.Request> implements IndicesRequest, ToXContentObject {
+        private String sourceIndex;
+        private String downsampleIndex;
+        private DownsampleDateHistogramConfig downsampleConfig;
+
+        public Request(String sourceIndex, String downsampleIndex, DownsampleDateHistogramConfig downsampleConfig) {
+            this.sourceIndex = sourceIndex;
+            this.downsampleIndex = downsampleIndex;
+            this.downsampleConfig = downsampleConfig;
+        }
+
+        public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            sourceIndex = in.readString();
+            downsampleIndex = in.readString();
+            downsampleConfig = new DownsampleDateHistogramConfig(in);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("source_index", sourceIndex);
+            builder.field("downsample_index", downsampleIndex);
+            downsampleConfig.toXContent(builder, params);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { sourceIndex };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
+        }
+
+        public String getSourceIndex() {
+            return sourceIndex;
+        }
+
+        public String getDownsampleIndex() {
+            return downsampleIndex;
+        }
+
+        public DownsampleDateHistogramConfig getDownsampleConfig() {
+            return downsampleConfig;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Request request = (Request) o;
+            return Objects.equals(sourceIndex, request.sourceIndex)
+                && Objects.equals(downsampleIndex, request.downsampleIndex)
+                && Objects.equals(downsampleConfig, request.downsampleConfig);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(sourceIndex, downsampleIndex, downsampleConfig);
+        }
+    }
 }

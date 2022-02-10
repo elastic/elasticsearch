@@ -37,6 +37,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.downsample.action.DownSampleAction;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -66,7 +67,9 @@ import org.elasticsearch.xpack.rollup.rest.RestPutRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestRollupSearchAction;
 import org.elasticsearch.xpack.rollup.rest.RestStartRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestStopRollupJobAction;
+import org.elasticsearch.xpack.rollup.v2.RestDownSampleAction;
 import org.elasticsearch.xpack.rollup.v2.RestRollupAction;
+import org.elasticsearch.xpack.rollup.v2.TransportDownSampleAction;
 import org.elasticsearch.xpack.rollup.v2.TransportRollupAction;
 import org.elasticsearch.xpack.rollup.v2.TransportRollupIndexerAction;
 
@@ -142,6 +145,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
         if (RollupV2.isEnabled()) {
             handlers.add(new RestRollupAction());
+            handlers.add(new RestDownSampleAction());
         }
 
         return handlers;
@@ -167,6 +171,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         if (RollupV2.isEnabled()) {
             actions.add(new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class));
             actions.add(new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class));
+            actions.add(new ActionHandler<>(DownSampleAction.INSTANCE, TransportDownSampleAction.class));
         }
 
         return actions;

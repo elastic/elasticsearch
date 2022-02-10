@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.List;
@@ -58,6 +62,9 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         Mockito.when(transportService.getLocalNode()).thenReturn(node);
         PluginsService pluginsService = Mockito.mock(PluginsService.class);
         ActionFilters actionFilters = Mockito.mock(ActionFilters.class);
+        ClusterInfoService clusterInfoService = Mockito.mock(ClusterInfoService.class);
+        ClusterInfo clusterInfo = ClusterInfo.EMPTY;
+        Mockito.when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
         TransportNodeDeprecationCheckAction transportNodeDeprecationCheckAction = new TransportNodeDeprecationCheckAction(
             nodeSettings,
             threadPool,
@@ -65,7 +72,8 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
             clusterService,
             transportService,
             pluginsService,
-            actionFilters
+            actionFilters,
+            clusterInfoService
         );
         NodesDeprecationCheckAction.NodeRequest nodeRequest = null;
         AtomicReference<Settings> visibleNodeSettings = new AtomicReference<>();
@@ -126,4 +134,57 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         );
     }
 
+    public void testCheckDiskLowWatermark() {
+        Settings nodeSettings = Settings.EMPTY;
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put("cluster.routing.allocation.disk.watermark.low", "10%");
+        Settings settingsWithLowWatermark = settingsBuilder.build();
+        Settings dynamicSettings = settingsWithLowWatermark;
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        String nodeId = "123";
+        ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableSpaceUsageBuilder = ImmutableOpenMap.builder();
+        long totalBytesOnMachine = 100;
+        long totalBytesFree = 70;
+        mostAvailableSpaceUsageBuilder.put(nodeId, new DiskUsage(nodeId, "", "", totalBytesOnMachine, totalBytesFree));
+        ClusterInfo clusterInfo = new ClusterInfo(
+            ImmutableOpenMap.of(),
+            mostAvailableSpaceUsageBuilder.build(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of()
+        );
+        DeprecationIssue issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
+            nodeSettings,
+            dynamicSettings,
+            clusterInfo,
+            clusterSettings,
+            nodeId
+        );
+        assertNotNull(issue);
+        assertEquals("Disk usage exceeds low watermark", issue.getMessage());
+
+        // Making sure there's no warning when we clear out the cluster settings:
+        dynamicSettings = Settings.EMPTY;
+        issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
+            nodeSettings,
+            dynamicSettings,
+            clusterInfo,
+            clusterSettings,
+            nodeId
+        );
+        assertNull(issue);
+
+        // And make sure there is a warning when the setting is in the node settings but not the cluster settings:
+        nodeSettings = settingsWithLowWatermark;
+        issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
+            nodeSettings,
+            dynamicSettings,
+            clusterInfo,
+            clusterSettings,
+            nodeId
+        );
+        assertNotNull(issue);
+        assertEquals("Disk usage exceeds low watermark", issue.getMessage());
+    }
 }

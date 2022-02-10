@@ -15,10 +15,11 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 
+import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
+
 public class HasEligibleMasterNodeIndicator implements HealthIndicatorService {
 
     public static final String HAS_ELIGIBLE_MASTER = "has_eligible_master";
-    public static final String CLUSTER_COORDINATION = "cluster_coordination";
 
     private final ClusterService clusterService;
 

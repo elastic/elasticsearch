@@ -83,6 +83,7 @@ public class NerProcessor implements NlpTask.Processor {
     private final IobTag[] iobMap;
     private final String resultsField;
     private final boolean ignoreCase;
+    private final NlpTokenizer tokenizer;
 
     NerProcessor(NlpTokenizer tokenizer, NerConfig config) {
         validate(config.getClassificationLabels());
@@ -90,6 +91,12 @@ public class NerProcessor implements NlpTask.Processor {
         this.requestBuilder = tokenizer.requestBuilder();
         this.resultsField = config.getResultsField();
         this.ignoreCase = config.getTokenization().doLowerCase();
+        this.tokenizer = tokenizer;
+    }
+
+    @Override
+    public void close() {
+        tokenizer.close();
     }
 
     /**
@@ -232,11 +239,13 @@ public class NerProcessor implements NlpTask.Processor {
         static List<TaggedToken> tagTokens(TokenizationResult.Tokenization tokenization, double[][] scores, IobTag[] iobMap) {
             List<TaggedToken> taggedTokens = new ArrayList<>();
             int startTokenIndex = 0;
+            int numSpecialTokens = 0;
             while (startTokenIndex < tokenization.getTokenIds().length) {
                 int inputMapping = tokenization.getTokenMap()[startTokenIndex];
                 if (inputMapping < 0) {
                     // This token does not map to a token in the input (special tokens)
                     startTokenIndex++;
+                    numSpecialTokens++;
                     continue;
                 }
                 int endTokenIndex = startTokenIndex;
@@ -258,7 +267,9 @@ public class NerProcessor implements NlpTask.Processor {
                 }
                 int maxScoreIndex = NlpHelpers.argmax(avgScores);
                 double score = avgScores[maxScoreIndex];
-                taggedTokens.add(new TaggedToken(tokenization.getTokens().get(inputMapping), iobMap[maxScoreIndex], score));
+                taggedTokens.add(
+                    new TaggedToken(tokenization.getTokens().get(startTokenIndex - numSpecialTokens), iobMap[maxScoreIndex], score)
+                );
                 startTokenIndex = endTokenIndex + 1;
             }
             return taggedTokens;
@@ -296,8 +307,8 @@ public class NerProcessor implements NlpTask.Processor {
                     endTokenIndex++;
                 }
 
-                int startPos = token.token.getStartPos();
-                int endPos = tokens.get(endTokenIndex - 1).token.getEndPos();
+                int startPos = token.token.startOffset();
+                int endPos = tokens.get(endTokenIndex - 1).token.endOffset();
                 String entity = inputSeq.substring(startPos, endPos);
                 entities.add(
                     new NerResults.EntityGroup(

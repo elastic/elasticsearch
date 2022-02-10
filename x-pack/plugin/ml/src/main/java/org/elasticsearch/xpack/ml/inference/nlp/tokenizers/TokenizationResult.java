@@ -33,7 +33,13 @@ public class TokenizationResult {
         return tokenizations;
     }
 
-    public void addTokenization(String input, boolean isTruncated, List<DelimitedToken> tokens, int[] tokenIds, int[] tokenMap) {
+    public void addTokenization(
+        String input,
+        boolean isTruncated,
+        List<WordPieceTokenFilter.WordPieceToken> tokens,
+        int[] tokenIds,
+        int[] tokenMap
+    ) {
         maxLength = Math.max(maxLength, tokenIds.length);
         tokenizations.add(new Tokenization(input, tokens, isTruncated, tokenIds, tokenMap));
     }
@@ -50,12 +56,18 @@ public class TokenizationResult {
     public static class Tokenization {
 
         private final String input;
-        private final List<DelimitedToken> tokens;
+        private final List<WordPieceTokenFilter.WordPieceToken> tokens;
         private final int[] tokenIds;
         private final int[] tokenMap;
         private final boolean truncated;
 
-        public Tokenization(String input, List<DelimitedToken> tokens, boolean truncated, int[] tokenIds, int[] tokenMap) {
+        public Tokenization(
+            String input,
+            List<WordPieceTokenFilter.WordPieceToken> tokens,
+            boolean truncated,
+            int[] tokenIds,
+            int[] tokenMap
+        ) {
             assert tokenIds.length == tokenMap.length;
             this.input = input;
             this.tokens = tokens;
@@ -88,7 +100,7 @@ public class TokenizationResult {
             return input;
         }
 
-        public List<DelimitedToken> getTokens() {
+        public List<WordPieceTokenFilter.WordPieceToken> getTokens() {
             return tokens;
         }
 

@@ -175,6 +175,7 @@ public final class ConfigurableClusterPrivileges {
         }
 
         public Collection<String> getApplicationNames() {
+            return Collections.unmodifiableCollection(this.applicationNames);
         }
 
         @Override

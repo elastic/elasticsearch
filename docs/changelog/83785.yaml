@@ -1,0 +1,6 @@
+pr: 83785
+summary: fixes discovery gce plugin
+area: Distributed
+type: bug
+issues:
+  - 83783

@@ -213,8 +213,11 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         boolean hasSettingsThatNeedToBeDeleted = leastCommonRemovableSettingsDeleteSettingsTuple.v2();
         DeprecationIssue representativeIssue = similarIssues.get(0);
         Map<String, Object> representativeMeta = representativeIssue.getMeta();
-        final Map<String, Object> newMeta = buildNewMetaMap(representativeMeta, leastCommonRemovableSettings,
-            hasSettingsThatNeedToBeDeleted);
+        final Map<String, Object> newMeta = buildNewMetaMap(
+            representativeMeta,
+            leastCommonRemovableSettings,
+            hasSettingsThatNeedToBeDeleted
+        );
         return new DeprecationIssue(
             representativeIssue.level,
             representativeIssue.message,
@@ -232,8 +235,11 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
      * copy of the representative map.
      */
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> buildNewMetaMap(Map<String, Object> representativeMeta, List<String> leastCommonRemovableSettings,
-                                                       boolean hasSettingsThatNeedToBeDeleted) {
+    private static Map<String, Object> buildNewMetaMap(
+        Map<String, Object> representativeMeta,
+        List<String> leastCommonRemovableSettings,
+        boolean hasSettingsThatNeedToBeDeleted
+    ) {
         final Map<String, Object> newMeta;
         if (representativeMeta != null) {
             newMeta = new HashMap<>(representativeMeta);

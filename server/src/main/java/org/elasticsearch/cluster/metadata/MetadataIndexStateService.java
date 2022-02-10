@@ -1081,7 +1081,7 @@ public class MetadataIndexStateService {
                     builder.success(task, new ActionListener<>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
-                            // no-op
+                            task.onPublicationComplete();
                         }
 
                         @Override
@@ -1201,5 +1201,12 @@ public class MetadataIndexStateService {
         public TimeValue ackTimeout() {
             return request.ackTimeout();
         }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "not called";
+        }
+
+        protected void onPublicationComplete() {}
     }
 }

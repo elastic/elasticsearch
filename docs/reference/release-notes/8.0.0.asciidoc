@@ -1,8 +1,6 @@
 [[release-notes-8.0.0]]
 == {es} version 8.0.0
 
-coming::[8.0.0]
-
 The following list are changes in 8.0.0 as compared to 7.17.0, and combines
 release notes from the 8.0.0-alpha1, -alpha2, -beta1, -rc1 and -rc2 releases.
 

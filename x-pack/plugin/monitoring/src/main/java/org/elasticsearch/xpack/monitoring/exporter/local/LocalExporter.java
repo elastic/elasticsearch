@@ -599,7 +599,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     @Override
     public void onCleanUpIndices(TimeValue retention) {
         ClusterState clusterState = clusterService.state();
-        if (clusterService.localNode() == null || clusterState == null) {
+        if (clusterService.localNode() == null
+            || clusterState == null
+            || clusterState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.METADATA_WRITE)) {
             logger.debug("exporter not ready");
             return;
         }

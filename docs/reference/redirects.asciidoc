@@ -1734,7 +1734,7 @@ See <<set-jvm-options>>.
 
 See <<search-terms-enum>>.
 
-[role="exclude",id="frozen-indices",canonical-url="http://elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots.html"]
+[role="exclude",id="frozen-indices"]
 === Frozen indices
 
 // tag::frozen-index-redirect[]
@@ -1757,10 +1757,11 @@ include::redirects.asciidoc[tag=frozen-index-redirect]
 
 include::redirects.asciidoc[tag=frozen-index-redirect]
 
-[role="exclude",id="glossary"]
+[role="exclude",id="glossary",canonical-url="https://www.elastic.co/guide/en/elastic-stack-glossary/current/terms.html"]
 === Glossary
 
 See the {glossary}/terms.html[Elastic glossary].
+
 [role="exclude",id="multi-index"]
 === Multi-target syntax
 

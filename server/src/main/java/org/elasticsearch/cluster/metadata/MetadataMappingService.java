@@ -57,15 +57,10 @@ public class MetadataMappingService {
         this.indicesService = indicesService;
     }
 
-    static class PutMappingClusterStateUpdateTask implements ClusterStateTaskListener, ClusterStateAckListener {
-
-        private final PutMappingClusterStateUpdateRequest request;
-        private final ActionListener<AcknowledgedResponse> listener;
-
-        PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener) {
-            this.request = request;
-            this.listener = listener;
-        }
+    record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+        implements
+            ClusterStateTaskListener,
+            ClusterStateAckListener {
 
         @Override
         public void onFailure(Exception e) {

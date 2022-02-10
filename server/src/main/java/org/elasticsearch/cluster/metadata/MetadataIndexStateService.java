@@ -1078,7 +1078,17 @@ public class MetadataIndexStateService {
                 state = allocationService.reroute(state, "indices opened");
 
                 for (OpenIndicesTask task : tasks) {
-                    builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
+                    builder.success(task, new ActionListener<>() {
+                        @Override
+                        public void onResponse(ClusterState clusterState) {
+                            // no-op
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            task.onFailure(e);
+                        }
+                    });
                 }
             } catch (Exception e) {
                 for (OpenIndicesTask task : tasks) {

@@ -16,7 +16,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -144,50 +143,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
 
-        // SortedMap is expected to be sorted by key (field name)
-        BytesReference timeSeriesId = buildTsidField((TimeSeriesIdBuilder) context.doc().getDimensions());
-        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
-    }
-
-    public static BytesReference buildTsidField(TimeSeriesIdBuilder builder) throws IOException {
-        if (builder.dimensions.isEmpty()) {
-            throw new IllegalArgumentException("Dimension fields are missing.");
-        }
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            encodeTsid(out, builder.dimensions);
-            BytesReference timeSeriesId = out.bytes();
-            if (timeSeriesId.length() > LIMIT) {
-                throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "].");
-            }
-            return timeSeriesId;
-        }
+        TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.doc().getDimensions();
+        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesIdBuilder.build().toBytesRef()));
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    public static void encodeTsid(StreamOutput out, SortedMap<BytesRef, BytesReference> dimensionFields) throws IOException {
-        out.writeVInt(dimensionFields.size());
-        for (Map.Entry<BytesRef, BytesReference> entry : dimensionFields.entrySet()) {
-            BytesRef fieldName = entry.getKey();
-            if (fieldName.length > DIMENSION_NAME_LIMIT) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "Dimension name must be less than [%d] bytes but [%s] was [%s].",
-                        DIMENSION_NAME_LIMIT,
-                        fieldName.utf8ToString(),
-                        fieldName.length
-                    )
-                );
-            }
-            out.writeBytesRef(fieldName);
-            entry.getValue().writeTo(out);
-        }
-
     }
 
     /**
@@ -227,6 +189,37 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
          * to build the _tsid field for the document.
          */
         private final SortedMap<BytesRef, BytesReference> dimensions = new TreeMap<>();
+
+        public BytesReference build() throws IOException {
+            if (dimensions.isEmpty()) {
+                throw new IllegalArgumentException("Dimension fields are missing.");
+            }
+
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.writeVInt(dimensions.size());
+                for (Map.Entry<BytesRef, BytesReference> entry : dimensions.entrySet()) {
+                    BytesRef fieldName = entry.getKey();
+                    if (fieldName.length > DIMENSION_NAME_LIMIT) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "Dimension name must be less than [%d] bytes but [%s] was [%s].",
+                                DIMENSION_NAME_LIMIT,
+                                fieldName.utf8ToString(),
+                                fieldName.length
+                            )
+                        );
+                    }
+                    out.writeBytesRef(fieldName);
+                    entry.getValue().writeTo(out);
+                }
+                BytesReference timeSeriesId = out.bytes();
+                if (timeSeriesId.length() > LIMIT) {
+                    throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "].");
+                }
+                return timeSeriesId;
+            }
+        }
 
         @Override
         public void addString(String fieldName, String value) {

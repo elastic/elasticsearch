@@ -733,7 +733,7 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             try {
-                return TimeSeriesIdFieldMapper.buildTsidField(builder).toBytesRef();
+                return builder.build().toBytesRef();
             } catch (IOException e) {
                 throw new IllegalArgumentException(e);
             }

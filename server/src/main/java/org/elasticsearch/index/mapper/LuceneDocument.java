@@ -101,6 +101,9 @@ public class LuceneDocument implements Iterable<IndexableField> {
         return keyedFields == null ? null : keyedFields.get(key);
     }
 
+    /**
+     * The collection of dimensions for this document.
+     */
     public DocumentDimensions getDimensions() {
         return dimensions;
     }

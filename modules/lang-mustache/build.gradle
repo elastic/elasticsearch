@@ -28,6 +28,5 @@ restResources {
 
 tasks.named("yamlRestTestV7CompatTransform").configure {task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
-  // #### Is this a breaking change? And if so, does it need a rest compat layer.
   task.replaceValueInMatch("responses.1.error.root_cause.0.type", "x_content_e_o_f_exception", "Multi-search template with errors")
 }

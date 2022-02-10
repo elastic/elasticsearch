@@ -1,8 +1,8 @@
 [[reconfigure-node]]
 == elasticsearch-reconfigure-node
 
-The `elasticsearch-reconfigure-node` command reconfigures an {es} node that has been installed via
-an RPM or DEB package, so that it can join an existing cluster with security features enabled.
+The `elasticsearch-reconfigure-node` tool reconfigures an {es} node that was installed
+through an RPM or DEB package to join an existing cluster with security features enabled.
 
 [discrete]
 === Synopsis
@@ -41,8 +41,8 @@ in your {es} installation configuration directory and are owned by `root:elastic
 [[reconfigure-node-parameters]]
 === Parameters
 
-`--enrollment-token`:: An enrollment token that is generated in any of the
-nodes of an existing cluster
+`--enrollment-token`:: The enrollment token, which can be generated on any of the
+nodes in an existing, secured cluster.
 
 `-E <KeyValuePair>`:: Configures a standard {es} or {xpack} setting.
 
@@ -57,6 +57,6 @@ nodes of an existing cluster
 
 The following example reconfigures an installed {es} node so that it can join an existing cluster when it starts for the first time.
 [source,shell]
---------------------------------------------------
+----
 sudo /usr/share/elasticsearch/elasticsearch-reconfigure-node --enrollment-token eyJ2ZXIiOiI4LjAuMCIsImFkciI6WyIxOTIuMTY4LjEuMTY6OTIwMCJdLCJmZ3IiOiI4NGVhYzkyMzAyMWQ1MjcyMmQxNTFhMTQwZmM2ODI5NmE5OWNiNmU0OGVhZjYwYWMxYzljM2I3ZDJjOTg2YTk3Iiwia2V5IjoiUy0yUjFINEJrNlFTMkNEY1dVV1g6QS0wSmJxM3hTRy1haWxoQTdPWVduZyJ9
---------------------------------------------------
+----

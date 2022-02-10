@@ -14,21 +14,17 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.After;
 
 import java.util.Collection;
 import java.util.List;
@@ -46,20 +42,6 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(DataStreamsPlugin.class);
-    }
-
-    @After
-    public void cleanup() {
-        AcknowledgedResponse response = client().execute(
-            DeleteDataStreamAction.INSTANCE,
-            new DeleteDataStreamAction.Request(new String[] { "*" })
-        ).actionGet();
-        assertAcked(response);
-
-        DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request(new String[] { "*" });
-        client().execute(DeleteDataStreamAction.INSTANCE, deleteDSRequest).actionGet();
-        DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
-        client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();
     }
 
     public void testBasicMigration() throws Exception {

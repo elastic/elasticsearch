@@ -78,7 +78,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             equalTo(
                 "The index [foo/"
                     + metadata.getIndexUUID()
-                    + "] was created with version ["
+                    + "] has current compatibility version ["
                     + indexCreated
                     + "] "
                     + "but the minimum compatible version is ["

@@ -58,6 +58,9 @@ Machine Learning::
 Network::
 * Improve slow inbound handling to include response type {es-pull}80425[#80425]
 
+Packaging::
+* Convert repository plugins to modules {es-pull}81870[#81870] (issue: {es-issue}81652[#81652])
+
 Search::
 * Check nested fields earlier in kNN search {es-pull}80516[#80516] (issue: {es-issue}78473[#78473])
 

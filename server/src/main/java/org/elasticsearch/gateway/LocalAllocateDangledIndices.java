@@ -120,24 +120,24 @@ public class LocalAllocateDangledIndices {
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
                     for (IndexMetadata indexMetadata : request.indices) {
-                        if (indexMetadata.getCreationVersion().before(minIndexCompatibilityVersion)) {
+                        if (indexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
                             logger.warn(
-                                "ignoring dangled index [{}] on node [{}] since it's created version [{}] is not supported by at "
-                                    + "least one node in the cluster minVersion [{}]",
+                                "ignoring dangled index [{}] on node [{}] since it's current compatibility version [{}] "
+                                    + "is not supported by at least one node in the cluster minVersion [{}]",
                                 indexMetadata.getIndex(),
                                 request.fromNode,
-                                indexMetadata.getCreationVersion(),
+                                indexMetadata.getCompatibilityVersion(),
                                 minIndexCompatibilityVersion
                             );
                             continue;
                         }
-                        if (currentState.nodes().getMinNodeVersion().before(indexMetadata.getCreationVersion())) {
+                        if (currentState.nodes().getMinNodeVersion().before(indexMetadata.getCompatibilityVersion())) {
                             logger.warn(
-                                "ignoring dangled index [{}] on node [{}]"
-                                    + " since its created version [{}] is later than the oldest versioned node in the cluster [{}]",
+                                "ignoring dangled index [{}] on node [{}] since its current compatibility version [{}] "
+                                    + "is later than the oldest versioned node in the cluster [{}]",
                                 indexMetadata.getIndex(),
                                 request.fromNode,
-                                indexMetadata.getCreationVersion(),
+                                indexMetadata.getCompatibilityVersion(),
                                 currentState.getNodes().getMasterNode().getVersion()
                             );
                             continue;

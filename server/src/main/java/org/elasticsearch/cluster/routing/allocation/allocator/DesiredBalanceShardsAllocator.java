@@ -81,6 +81,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         // assert allocation.debugDecision() == false; set to true when called via the reroute API
         assert allocation.ignoreDisable() == false;
 
+        // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
+
         desiredBalanceComputation.onNewInput(
             new RerouteInput(allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
@@ -146,6 +148,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         shardsToRelocate.add(shardRouting);
                     }
                 } else {
+                    // TODO ugh this never happens because routingNodes.getAssignedShards() doesn't mention unassigned ones.
                     assert shardRouting.unassigned() : shardRouting;
                     shardsToAssign.add(shardRouting);
                 }
@@ -332,53 +335,59 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             int primaryLength = primary.length;
             ArrayUtil.timSort(primary, comparator);
             do {
-                for (int i = 0; i < primaryLength; i++) {
-                    final ShardRouting shard = primary[i];
-                    for (final var desiredNodeId : desiredBalance.getDesiredNodeIds(shard.shardId())) {
+                nextShard: for (int i = 0; i < primaryLength; i++) {
+                    final var shard = primary[i];
+                    final var desiredNodeIds = desiredBalance.getDesiredNodeIds(shard.shardId());
+                    var isThrottled = false;
+                    for (final var desiredNodeId : desiredNodeIds) {
                         final var routingNode = routingNodes.node(desiredNodeId);
                         if (routingNode == null) {
+                            // desired node no longer exists
                             continue;
                         }
 
                         final var canAllocateDecision = allocation.deciders().canAllocate(shard, routingNode, allocation);
-                        if (canAllocateDecision.type() == Decision.Type.YES) {
-                            if (logger.isTraceEnabled()) {
-                                logger.trace("Assigned shard [{}] to [{}]", shard, desiredNodeId);
-                            }
-
-                            final long shardSize = DiskThresholdDecider.getExpectedShardSize(
-                                shard,
-                                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                                allocation.clusterInfo(),
-                                allocation.snapshotShardSizeInfo(),
-                                allocation.metadata(),
-                                allocation.routingTable()
-                            );
-                            routingNodes.initializeShard(shard, desiredNodeId, null, shardSize, allocation.changes());
-                            if (shard.primary() == false) {
-                                // copy over the same replica shards to the secondary array so they will get allocated
-                                // in a subsequent iteration, allowing replicas of other shards to be allocated first
-                                while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
-                                    secondary[secondaryLength++] = primary[++i];
+                        switch (canAllocateDecision.type()) {
+                            case YES -> {
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace("Assigned shard [{}] to [{}]", shard, desiredNodeId);
                                 }
-                            }
-                        } else {
-                            if (logger.isTraceEnabled()) {
-                                logger.trace(
-                                    "No eligible node found to assign shard [{}] canAllocateDecision [{}]",
+                                final long shardSize = DiskThresholdDecider.getExpectedShardSize(
                                     shard,
-                                    canAllocateDecision
+                                    ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                                    allocation.clusterInfo(),
+                                    allocation.snapshotShardSizeInfo(),
+                                    allocation.metadata(),
+                                    allocation.routingTable()
                                 );
-                            }
-
-                            final var allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(canAllocateDecision.type());
-                            unassigned.ignoreShard(shard, allocationStatus, allocation.changes());
-                            if (shard.primary() == false) {
-                                // we could not allocate it and we are a replica - check if we can ignore the other replicas
-                                while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
-                                    unassigned.ignoreShard(primary[++i], allocationStatus, allocation.changes());
+                                routingNodes.initializeShard(shard, desiredNodeId, null, shardSize, allocation.changes());
+                                if (shard.primary() == false) {
+                                    // copy over the same replica shards to the secondary array so they will get allocated
+                                    // in a subsequent iteration, allowing replicas of other shards to be allocated first
+                                    while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
+                                        secondary[secondaryLength++] = primary[++i];
+                                    }
                                 }
+                                continue nextShard;
                             }
+                            case THROTTLE -> isThrottled = true;
+                        }
+                    }
+
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "No eligible node found to assign shard [{}] amongst [{}]",
+                            shard,
+                            desiredNodeIds
+                        );
+                    }
+
+                    final var allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(isThrottled ? Decision.Type.THROTTLE : Decision.Type.NO);
+                    unassigned.ignoreShard(shard, allocationStatus, allocation.changes());
+                    if (shard.primary() == false) {
+                        // we could not allocate it and we are a replica - check if we can ignore the other replicas
+                        while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
+                            unassigned.ignoreShard(primary[++i], allocationStatus, allocation.changes());
                         }
                     }
                 }

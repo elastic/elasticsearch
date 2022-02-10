@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -200,7 +201,6 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
      * @param similarIssues
      * @return
      */
-    @SuppressWarnings("unchecked")
     public static DeprecationIssue getIntersectionOfRemovableSettings(List<DeprecationIssue> similarIssues) {
         if (similarIssues == null || similarIssues.isEmpty()) {
             return null;
@@ -208,45 +208,36 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         if (similarIssues.size() == 1) {
             return similarIssues.get(0);
         }
-        boolean hasDeletableSettings = false;
-        List<String> leastCommonRemovableSettings = null;
-        for (DeprecationIssue issue : similarIssues) {
-            Map<String, Object> meta = issue.getMeta();
-            if (meta == null) {
-                leastCommonRemovableSettings = null;
-                break;
-            }
-            Object actionsObject = meta.get(ACTIONS_META_FIELD);
-            if (actionsObject == null) {
-                leastCommonRemovableSettings = null;
-                break;
-            }
-            List<Map<String, Object>> actionsMapList = (List<Map<String, Object>>) actionsObject;
-            if (actionsMapList.isEmpty()) {
-                leastCommonRemovableSettings = null;
-                break;
-            }
-            for (Map<String, Object> actionsMap : actionsMapList) {
-                if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
-                    List<String> removableSettings = (List<String>) actionsMap.get(OBJECTS_FIELD);
-                    hasDeletableSettings = true;
-                    if (leastCommonRemovableSettings == null) {
-                        leastCommonRemovableSettings = new ArrayList<>(removableSettings);
-                    } else {
-                        leastCommonRemovableSettings = leastCommonRemovableSettings.stream()
-                            .distinct()
-                            .filter(removableSettings::contains)
-                            .collect(Collectors.toList());
-                    }
-                }
-            }
-        }
+        Tuple<List<String>, Boolean> leastCommonRemovableSettingsDeleteSettingsTuple = getLeastCommonRemovableSettings(similarIssues);
+        List<String> leastCommonRemovableSettings = leastCommonRemovableSettingsDeleteSettingsTuple.v1();
+        boolean hasSettingsThatNeedToBeDeleted = leastCommonRemovableSettingsDeleteSettingsTuple.v2();
         DeprecationIssue representativeIssue = similarIssues.get(0);
         Map<String, Object> representativeMeta = representativeIssue.getMeta();
+        final Map<String, Object> newMeta = buildNewMetaMap(representativeMeta, leastCommonRemovableSettings,
+            hasSettingsThatNeedToBeDeleted);
+        return new DeprecationIssue(
+            representativeIssue.level,
+            representativeIssue.message,
+            representativeIssue.url,
+            representativeIssue.details,
+            representativeIssue.resolveDuringRollingUpgrade,
+            newMeta
+        );
+    }
+
+    /*
+     * This method takes in a representative meta map from a DeprecationIssue, and strips out any settings that are not in the
+     * leastCommonRemovableSettings list -- that is, the settings that appeared in all of the DeprecationIssues's meta maps. The
+     * hasSettingsThatNeedToBeDeleted is an optimization -- if it is false there is no need to do as much work because we can just return a
+     * copy of the representative map.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> buildNewMetaMap(Map<String, Object> representativeMeta, List<String> leastCommonRemovableSettings,
+                                                       boolean hasSettingsThatNeedToBeDeleted) {
         final Map<String, Object> newMeta;
         if (representativeMeta != null) {
             newMeta = new HashMap<>(representativeMeta);
-            if (hasDeletableSettings) {
+            if (hasSettingsThatNeedToBeDeleted) {
                 List<Map<String, Object>> actions = (List<Map<String, Object>>) newMeta.get(ACTIONS_META_FIELD);
                 List<Map<String, Object>> clonedActions = new ArrayList<>(actions);
                 newMeta.put(ACTIONS_META_FIELD, clonedActions); // So that we don't modify the input data
@@ -275,13 +266,49 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         } else {
             newMeta = null;
         }
-        return new DeprecationIssue(
-            representativeIssue.level,
-            representativeIssue.message,
-            representativeIssue.url,
-            representativeIssue.details,
-            representativeIssue.resolveDuringRollingUpgrade,
-            newMeta
-        );
+        return newMeta;
+    }
+
+    /*
+     * This method returns a list of all of the Settings that appear in the meta map of all of the similarIssues. It also returns a boolean
+     * indicating whether it found any settings that were not in all similarIssues (indicating that the calling code will need to remove
+     * some from the meta map).
+     */
+    @SuppressWarnings("unchecked")
+    private static Tuple<List<String>, Boolean> getLeastCommonRemovableSettings(List<DeprecationIssue> similarIssues) {
+        boolean hasSettingsThatNeedToBeDeleted = false;
+        List<String> leastCommonRemovableSettings = null;
+        for (DeprecationIssue issue : similarIssues) {
+            Map<String, Object> meta = issue.getMeta();
+            if (meta == null) {
+                leastCommonRemovableSettings = null;
+                break;
+            }
+            Object actionsObject = meta.get(ACTIONS_META_FIELD);
+            if (actionsObject == null) {
+                leastCommonRemovableSettings = null;
+                break;
+            }
+            List<Map<String, Object>> actionsMapList = (List<Map<String, Object>>) actionsObject;
+            if (actionsMapList.isEmpty()) {
+                leastCommonRemovableSettings = null;
+                break;
+            }
+            for (Map<String, Object> actionsMap : actionsMapList) {
+                if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
+                    List<String> removableSettings = (List<String>) actionsMap.get(OBJECTS_FIELD);
+                    hasSettingsThatNeedToBeDeleted = true;
+                    if (leastCommonRemovableSettings == null) {
+                        leastCommonRemovableSettings = new ArrayList<>(removableSettings);
+                    } else {
+                        leastCommonRemovableSettings = leastCommonRemovableSettings.stream()
+                            .distinct()
+                            .filter(removableSettings::contains)
+                            .collect(Collectors.toList());
+                    }
+                }
+            }
+        }
+        return Tuple.tuple(leastCommonRemovableSettings, hasSettingsThatNeedToBeDeleted);
     }
 }

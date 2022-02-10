@@ -431,6 +431,7 @@ public class CompletionFieldMapper extends FieldMapper {
         for (CompletionInputMetadata metadata : inputMap.values()) {
             multiFields.parse(
                 this,
+                context,
                 () -> context.switchParser(new MultiFieldParser(metadata, fieldType().name(), context.parser().getTokenLocation()))
             );
         }

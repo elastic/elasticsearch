@@ -19,6 +19,16 @@ import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.Format
 
 public class ServerQueryCliCommand extends AbstractServerCliCommand {
 
+    protected boolean lenient;
+
+    public ServerQueryCliCommand() {
+        this(true);
+    }
+
+    public ServerQueryCliCommand(boolean lenient) {
+        this.lenient = lenient;
+    }
+
     @Override
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, String line) {
         SqlQueryResponse response = null;
@@ -26,7 +36,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
         SimpleFormatter formatter;
         String data;
         try {
-            response = cliClient.basicQuery(line, cliSession.getFetchSize());
+            response = cliClient.basicQuery(line, cliSession.getFetchSize(), lenient);
             formatter = new SimpleFormatter(response.columns(), response.rows(), CLI);
             data = formatter.formatWithHeader(response.columns(), response.rows());
             while (true) {

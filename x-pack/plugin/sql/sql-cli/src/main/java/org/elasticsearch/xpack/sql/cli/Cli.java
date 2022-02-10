@@ -40,6 +40,7 @@ public class Cli extends Command {
     private final OptionSpec<Boolean> checkOption;
     private final OptionSpec<String> connectionString;
     private final OptionSpec<Boolean> binaryCommunication;
+    private final OptionSpec<Boolean> lenientOption;
 
     /**
      * Use this VM Options to run in IntelliJ or Eclipse:
@@ -102,6 +103,11 @@ public class Cli extends Command {
             .withRequiredArg()
             .ofType(Boolean.class)
             .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.check", "true")));
+        this.lenientOption = parser.acceptsAll(Arrays.asList("l", "lenient"), "Lenient and return first value for fields with multiple values")
+            .withRequiredArg()
+            .ofType(Boolean.class)
+            .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.lenient", "true")));
+
         this.connectionString = parser.nonOptions("uri");
     }
 
@@ -110,6 +116,7 @@ public class Cli extends Command {
         boolean debug = options.has("d") || options.has("debug");
         boolean binary = binaryCommunication.value(options);
         boolean checkConnection = checkOption.value(options);
+        boolean lenient = this.lenientOption.value(options);
         List<String> args = connectionString.values(options);
         if (args.size() > 1) {
             throw new UserException(ExitCodes.USAGE, "expecting a single uri");
@@ -120,17 +127,18 @@ public class Cli extends Command {
             throw new UserException(ExitCodes.USAGE, "expecting a single keystore file");
         }
         String keystoreLocationValue = args.size() == 1 ? args.get(0) : null;
-        execute(uri, debug, binary, keystoreLocationValue, checkConnection);
+        execute(uri, debug, binary, keystoreLocationValue, checkConnection, lenient);
     }
 
-    private void execute(String uri, boolean debug, boolean binary, String keystoreLocation, boolean checkConnection) throws Exception {
+    private void execute(String uri, boolean debug, boolean binary, String keystoreLocation, boolean checkConnection, boolean lenient)
+        throws Exception {
         CliCommand cliCommand = new CliCommands(
             new PrintLogoCommand(),
             new ClearScreenCliCommand(),
             new FetchSizeCliCommand(),
             new FetchSeparatorCliCommand(),
             new ServerInfoCliCommand(),
-            new ServerQueryCliCommand()
+            new ServerQueryCliCommand(lenient)
         );
         try {
             ConnectionBuilder connectionBuilder = new ConnectionBuilder(cliTerminal);

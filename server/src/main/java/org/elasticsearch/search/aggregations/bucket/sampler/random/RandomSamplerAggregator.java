@@ -29,11 +29,13 @@ import java.util.Map;
 public class RandomSamplerAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     private final int seed;
+    private final double probability;
     private final CheckedSupplier<Weight, IOException> weightSupplier;
 
     RandomSamplerAggregator(
         String name,
         int seed,
+        double probability,
         CheckedSupplier<Weight, IOException> weightSupplier,
         AggregatorFactories factories,
         AggregationContext context,
@@ -43,6 +45,7 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
     ) throws IOException {
         super(name, factories, context, parent, cardinalityUpperBound, metadata);
         this.seed = seed;
+        this.probability = probability;
         if (this.subAggregators().length == 0) {
             throw new IllegalArgumentException(
                 RandomSamplerAggregationBuilder.NAME + " aggregation [" + name + "] must have sub aggregations configured"
@@ -59,6 +62,7 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
                 name,
                 bucketDocCount(owningBucketOrd),
                 seed,
+                probability,
                 subAggregationResults,
                 metadata()
             )
@@ -67,7 +71,7 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalRandomSampler(name, 0, seed, buildEmptySubAggregations(), metadata());
+        return new InternalRandomSampler(name, 0, seed, probability, buildEmptySubAggregations(), metadata());
     }
 
     /**

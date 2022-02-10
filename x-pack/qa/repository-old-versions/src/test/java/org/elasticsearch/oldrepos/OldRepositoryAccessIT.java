@@ -10,7 +10,6 @@ package org.elasticsearch.oldrepos;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -29,7 +28,6 @@ import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
@@ -342,15 +340,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
         assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(
-            ClusterHealthStatus.GREEN,
-            client.cluster()
-                .health(
-                    new ClusterHealthRequest("restored_" + indexName).waitForGreenStatus().waitForNoRelocatingShards(true),
-                    RequestOptions.DEFAULT
-                )
-                .getStatus()
-        );
+        ensureGreen("restored_" + indexName);
 
         MappingMetadata mapping = client.indices()
             .getMapping(new GetMappingsRequest().indices("restored_" + indexName), RequestOptions.DEFAULT)
@@ -401,15 +391,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().totalShards());
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(
-            ClusterHealthStatus.GREEN,
-            client.cluster()
-                .health(
-                    new ClusterHealthRequest("mounted_full_copy_" + indexName).waitForGreenStatus().waitForNoRelocatingShards(true),
-                    RequestOptions.DEFAULT
-                )
-                .getStatus()
-        );
+        ensureGreen("mounted_full_copy_" + indexName);
 
         // run a search against the index
         assertDocs("mounted_full_copy_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);

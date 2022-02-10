@@ -20,6 +20,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -99,7 +100,7 @@ public class TimeSeriesIndexSearcher {
                 it.remove();
                 continue;
             }
-            BytesRef tsid = leafWalker.tsids.lookupOrd(leafWalker.tsids.ordValue());
+            BytesRef tsid = leafWalker.getTsid();
             if (currentTsid == null) {
                 currentTsid = tsid;
             }
@@ -136,6 +137,7 @@ public class TimeSeriesIndexSearcher {
         private final DocIdSetIterator iterator;
         private final SortedDocValues tsids;
         private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
+        private final BytesRefBuilder scratch = new BytesRefBuilder();
         int docId = -1;
         int tsidOrd;
         long timestamp;
@@ -166,6 +168,11 @@ public class TimeSeriesIndexSearcher {
                 timestamp = timestamps.nextValue();
             }
             return docId;
+        }
+
+        BytesRef getTsid() throws IOException {
+            scratch.copyBytes(tsids.lookupOrd(tsids.ordValue()));
+            return scratch.get();
         }
 
         // invalid if the doc is deleted or if it doesn't have a tsid or timestamp entry

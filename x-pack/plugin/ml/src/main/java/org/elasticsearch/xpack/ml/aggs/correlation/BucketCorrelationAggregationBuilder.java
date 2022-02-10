@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.correlation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -141,5 +142,10 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), correlationFunction);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_14_0;
     }
 }

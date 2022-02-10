@@ -14,7 +14,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursorTests;
@@ -29,7 +28,6 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
@@ -77,34 +75,8 @@ public class CursorTests extends ESTestCase {
         return new SqlQueryResponse("", randomFrom(Mode.values()), DATE_NANOS_SUPPORT_VERSION, false, columns, Collections.emptyList());
     }
 
-    @SuppressWarnings("unchecked")
-    static Cursor randomNonEmptyCursor() {
-        Supplier<Cursor> cursorSupplier = randomFrom(() -> ScrollCursorTests.randomScrollCursor(), () -> {
-            SqlQueryResponse response = createRandomSqlResponse();
-            if (response.columns() != null && response.rows() != null) {
-                return new TextFormatterCursor(
-                    ScrollCursorTests.randomScrollCursor(),
-                    new BasicFormatter(response.columns(), response.rows(), BasicFormatter.FormatOption.CLI)
-                );
-            } else {
-                return ScrollCursorTests.randomScrollCursor();
-            }
-        }, () -> {
-            SqlQueryResponse response = createRandomSqlResponse();
-            if (response.columns() != null && response.rows() != null) {
-                return new TextFormatterCursor(
-                    ScrollCursorTests.randomScrollCursor(),
-                    new BasicFormatter(response.columns(), response.rows(), BasicFormatter.FormatOption.TEXT)
-                );
-            } else {
-                return ScrollCursorTests.randomScrollCursor();
-            }
-        });
-        return cursorSupplier.get();
-    }
-
     public void testVersionHandling() {
-        Cursor cursor = randomNonEmptyCursor();
+        Cursor cursor = ScrollCursorTests.randomScrollCursor();
         assertEquals(cursor, decodeFromString(Cursors.encodeToString(cursor, randomZone())));
 
         Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);

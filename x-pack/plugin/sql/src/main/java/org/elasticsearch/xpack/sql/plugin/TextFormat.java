@@ -6,7 +6,10 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
@@ -14,14 +17,15 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
+import org.elasticsearch.xpack.sql.common.io.SqlStreamOutput;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
-import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -48,43 +52,27 @@ enum TextFormat implements MediaType {
      */
     PLAIN_TEXT() {
         @Override
-        String format(RestRequest request, SqlQueryResponse response) {
-            BasicFormatter formatter = null;
-            Cursor cursor = null;
-            ZoneId zoneId = null;
-
-            // check if the cursor is already wrapped first
-            if (response.hasCursor()) {
-                Tuple<Cursor, ZoneId> tuple = Cursors.decodeFromStringWithZone(response.cursor());
-                cursor = tuple.v1();
-                zoneId = tuple.v2();
-                if (cursor instanceof TextFormatterCursor) {
-                    formatter = ((TextFormatterCursor) cursor).getFormatter();
+        String format(RestRequest request, BasicFormatter requestFormatter, SqlQueryResponse response) {
+            if (response.hasId()) {
+                // async request
+                return StringUtils.EMPTY;
+            } else if (requestFormatter != null) {
+                // scroll request with request cursor
+                if (response.hasCursor()) {
+                    response.cursor(wrapCursor(response.cursor(), requestFormatter));
                 }
-            }
 
-            // if there are headers available, it means it's the first request
-            // so initialize the underlying formatter and wrap it in the cursor
-            if (response.columns() != null) {
-                formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
-                // if there's a cursor, wrap the formatter in it
-                if (cursor != null) {
-                    response.cursor(Cursors.encodeToString(new TextFormatterCursor(cursor, formatter), zoneId));
+                return requestFormatter.formatWithoutHeader(response.rows());
+            } else {
+                // initial search request
+                BasicFormatter formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
+
+                if (response.hasCursor()) {
+                    response.cursor(wrapCursor(response.cursor(), formatter));
                 }
-                // format with header
+
                 return formatter.formatWithHeader(response.columns(), response.rows());
-            } else if (formatter != null) { // should be initialized (wrapped by the cursor)
-                // format without header
-                return formatter.formatWithoutHeader(response.rows());
-            } else if (response.hasId()) {
-                // an async request has no results yet
-                return StringUtils.EMPTY;
-            } else if (response.rows().isEmpty()) {
-                // no data and no headers to return
-                return StringUtils.EMPTY;
             }
-            // if this code is reached, it means it's a next page without cursor wrapping
-            throw new SqlIllegalArgumentException("Cannot find text formatter - this is likely a bug");
         }
 
         @Override
@@ -317,7 +305,7 @@ enum TextFormat implements MediaType {
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
 
-    String format(RestRequest request, SqlQueryResponse response) {
+    String format(RestRequest request, BasicFormatter formatter, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
 
         // if the header is requested (and the column info is present - namely it's the first page) return the info
@@ -385,5 +373,32 @@ enum TextFormat implements MediaType {
      */
     String maybeEscape(String value, Character delimiter) {
         return value;
+    }
+
+    protected static String wrapCursor(String cursor, BasicFormatter formatter) {
+        try {
+            SqlStreamOutput out = SqlStreamOutput.create(Version.CURRENT, ZoneOffset.UTC);
+            out.writeString(cursor);
+            formatter.writeTo(out);
+            out.close();
+            return out.streamAsString();
+        } catch (IOException e) {
+            throw new SqlIllegalArgumentException("Cannot wrap cursor [{}] with formatter [{}]", cursor, formatter);
+        }
+    }
+
+    public static Tuple<String, BasicFormatter> unwrapCursor(String cursor) {
+        if (Strings.isNullOrEmpty(cursor)) {
+            return Tuple.tuple(cursor, null);
+        } else {
+            try {
+                StreamInput in = SqlStreamInput.fromString(cursor, new NamedWriteableRegistry(List.of()), Version.CURRENT);
+                String wrappedCursor = in.readString();
+                BasicFormatter formatter = new BasicFormatter(in);
+                return Tuple.tuple(wrappedCursor, formatter);
+            } catch (IOException e) {
+                throw new SqlIllegalArgumentException("Cannot unwrap cursor [{}]", cursor);
+            }
+        }
     }
 }

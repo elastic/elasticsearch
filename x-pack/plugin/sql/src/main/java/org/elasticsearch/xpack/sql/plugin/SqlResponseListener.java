@@ -16,6 +16,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 
@@ -34,11 +35,12 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
     private final long startNanos = System.nanoTime();
     private final MediaType mediaType;
     private final RestRequest request;
+    private final BasicFormatter formatter;
 
-    SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest) {
+    SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest, BasicFormatter formatter) {
         super(channel);
         this.request = request;
-
+        this.formatter = formatter;
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request, sqlRequest);
 
         /*
@@ -60,6 +62,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
     SqlResponseListener(RestChannel channel, RestRequest request) {
         super(channel);
         this.request = request;
+        this.formatter = null;
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request);
     }
 
@@ -74,7 +77,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
             restResponse = new BytesRestResponse(RestStatus.OK, builder);
         } else { // TextFormat
             TextFormat type = (TextFormat) mediaType;
-            final String data = type.format(request, response);
+            final String data = type.format(request, formatter, response);
 
             restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request), data.getBytes(StandardCharsets.UTF_8));
 

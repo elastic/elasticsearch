@@ -1075,8 +1075,7 @@ public class MetadataIndexStateService {
                 state = openIndices(indices, state);
 
                 // do a final reroute
-                final String indicesAsString = Arrays.toString(indices);
-                state = allocationService.reroute(state, "indices opened [" + indicesAsString + "]");
+                state = allocationService.reroute(state, "indices opened");
 
                 for (OpenIndicesTask task : tasks) {
                     builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));

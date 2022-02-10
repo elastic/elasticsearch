@@ -47,7 +47,7 @@ setup:
         body:
           query:
             term:
-              id: 1
+              id: "1"
           highlight:
             type: fvh
             fields:

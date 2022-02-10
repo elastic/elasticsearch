@@ -48,7 +48,7 @@ setup:
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body:
                 rank: 1
                 boolean: true
@@ -70,14 +70,14 @@ setup:
     - do:
         index:
           index: test
-          id: 2
+          id: "2"
           body:
               rank: 2
 
     - do:
         index:
           index: test
-          id: 3
+          id: "3"
           body:
               rank: 3
               boolean: [true, false, true]
@@ -105,7 +105,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -116,7 +116,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -127,7 +127,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -138,7 +138,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               field:
                 script:
@@ -149,7 +149,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 2 } }
+                query: { term: { _id: "2" } }
                 script_fields:
                     field:
                         script:
@@ -160,7 +160,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 2 } }
+            query: { term: { _id: "2" } }
             script_fields:
               field:
                 script:
@@ -171,7 +171,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -182,7 +182,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -193,7 +193,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 3 } }
+                query: { term: { _id: "3" } }
                 script_fields:
                     field:
                         script:
@@ -204,7 +204,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 2 } }
+                query: { term: { _id: "2" } }
                 script_fields:
                     field:
                         script:
@@ -221,7 +221,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -232,7 +232,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -243,7 +243,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               field:
                 script:
@@ -254,7 +254,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               field:
                 script:
@@ -353,7 +353,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 2 } }
+            query: { term: { _id: "2" } }
             script_fields:
               field:
                 script:
@@ -364,7 +364,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 2 } }
+            query: { term: { _id: "2" } }
             script_fields:
               field:
                 script:
@@ -375,7 +375,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               field:
                 script:
@@ -386,7 +386,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               field:
                 script:
@@ -397,7 +397,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               field:
                 script:
@@ -408,7 +408,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 2 } }
+            query: { term: { _id: "2" } }
             script_fields:
               field:
                 script:
@@ -419,7 +419,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 2 } }
+            query: { term: { _id: "2" } }
             script_fields:
               field:
                 script:
@@ -430,7 +430,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               field:
                 script:
@@ -441,7 +441,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               field:
                 script:
@@ -452,7 +452,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               field:
                 script:
@@ -463,7 +463,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 2 } }
+            query: { term: { _id: "2" } }
             script_fields:
               field:
                 script:
@@ -474,7 +474,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 3 } }
+            query: { term: { _id: "3" } }
             script_fields:
               field:
                 script:
@@ -485,7 +485,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 3 } }
+            query: { term: { _id: "3" } }
             script_fields:
               field:
                 script:
@@ -496,7 +496,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 3 } }
+            query: { term: { _id: "3" } }
             script_fields:
               field:
                 script:
@@ -507,7 +507,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 3 } }
+            query: { term: { _id: "3" } }
             script_fields:
               field:
                 script:
@@ -520,7 +520,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -532,7 +532,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -544,7 +544,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               field:
                 script:
@@ -556,7 +556,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               field:
                 script:
@@ -568,7 +568,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 3 } }
+            query: { term: { _id: "3" } }
             script_fields:
               field:
                 script:
@@ -580,7 +580,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 3 } }
+            query: { term: { _id: "3" } }
             script_fields:
               field:
                 script:
@@ -592,7 +592,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 3 } }
+            query: { term: { _id: "3" } }
             script_fields:
               field:
                 script:
@@ -604,7 +604,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 2 } }
+            query: { term: { _id: "2" } }
             script_fields:
               field:
                 script:
@@ -616,7 +616,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     centroid:
                         script:
@@ -628,7 +628,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     bbox:
                         script:
@@ -642,7 +642,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
                     topLeft:
                         script:
@@ -659,7 +659,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
                     type:
                         script:
@@ -670,7 +670,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
-            query: { term: { _id: 1 } }
+            query: { term: { _id: "1" } }
             script_fields:
               width:
                 script:
@@ -687,7 +687,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -698,7 +698,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -780,7 +780,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -791,7 +791,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -860,7 +860,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -871,7 +871,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -884,7 +884,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -895,7 +895,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -958,7 +958,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -969,7 +969,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1069,7 +1069,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1080,7 +1080,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1223,7 +1223,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1234,7 +1234,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1312,7 +1312,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1323,7 +1323,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1404,7 +1404,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1415,7 +1415,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1493,7 +1493,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1543,7 +1543,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1556,7 +1556,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1567,7 +1567,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
-                query: { term: { _id: 1 } }
+                query: { term: { _id: "1" } }
                 script_fields:
                     field:
                         script:
@@ -1622,7 +1622,7 @@ setup:
   - do:
       index:
         index: versiontest
-        id: 3000
+        id: "3000"
         version: 50
         version_type: external
         body:
@@ -1636,7 +1636,7 @@ setup:
         index: versiontest
         rest_total_hits_as_int: true
         body:
-          query: { term: { _id: 3000 } }
+          query: { term: { _id: "3000" } }
           script_fields:
             ver:
               script:
@@ -1650,7 +1650,7 @@ setup:
   - do:
       index:
         index: versiontest
-        id: 3000
+        id: "3000"
         version: 60
         version_type: external
         body:
@@ -1662,7 +1662,7 @@ setup:
       catch:      conflict
       index:
         index: versiontest
-        id: 3000
+        id: "3000"
         version: 55
         version_type: external
         body:
@@ -1675,7 +1675,7 @@ setup:
         index: versiontest
         rest_total_hits_as_int: true
         body:
-          query: { term: { _id: 3000 } }
+          query: { term: { _id: "3000" } }
           script_fields:
             ver:
               script:

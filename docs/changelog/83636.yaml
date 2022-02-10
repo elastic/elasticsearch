@@ -1,0 +1,6 @@
+pr: 83636
+summary: Add filtering to fieldcaps endpoint
+area: Search
+type: enhancement
+issues:
+ - 82966

@@ -33,6 +33,7 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.function.Supplier;
@@ -141,12 +142,12 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         assert fieldType().isIndexed() == false;
 
         // SortedMap is expected to be sorted by key (field name)
-        SortedMap<String, BytesReference> dimensionFields = context.doc().getDimensionBytes();
+        SortedMap<BytesRef, BytesReference> dimensionFields = context.doc().getDimensionBytes();
         BytesReference timeSeriesId = buildTsidField(dimensionFields);
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
     }
 
-    public static BytesReference buildTsidField(SortedMap<String, BytesReference> dimensionFields) throws IOException {
+    public static BytesReference buildTsidField(SortedMap<BytesRef, BytesReference> dimensionFields) throws IOException {
         if (dimensionFields == null || dimensionFields.isEmpty()) {
             throw new IllegalArgumentException("Dimension fields are missing.");
         }
@@ -166,19 +167,22 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    public static void encodeTsid(StreamOutput out, SortedMap<String, BytesReference> dimensionFields) throws IOException {
+    public static void encodeTsid(StreamOutput out, SortedMap<BytesRef, BytesReference> dimensionFields) throws IOException {
         out.writeVInt(dimensionFields.size());
-        for (Map.Entry<String, BytesReference> entry : dimensionFields.entrySet()) {
-            String fieldName = entry.getKey();
-            BytesRef fieldNameBytes = new BytesRef(fieldName);
-            int len = fieldNameBytes.length;
-            if (len > DIMENSION_NAME_LIMIT) {
+        for (Map.Entry<BytesRef, BytesReference> entry : dimensionFields.entrySet()) {
+            BytesRef fieldName = entry.getKey();
+            if (fieldName.length > DIMENSION_NAME_LIMIT) {
                 throw new IllegalArgumentException(
-                    "Dimension name must be less than [" + DIMENSION_NAME_LIMIT + "] bytes but [" + fieldName + "] was [" + len + "]."
+                    String.format(
+                        Locale.ROOT,
+                        "Dimension name must be less than [%d] bytes but [%s] was [%s].",
+                        DIMENSION_NAME_LIMIT,
+                        fieldName.utf8ToString(),
+                        fieldName.length
+                    )
                 );
             }
-            // Write field name in utf-8 instead of writeString's utf-16-ish thing
-            out.writeBytesRef(fieldNameBytes);
+            out.writeBytesRef(fieldName);
             entry.getValue().writeTo(out);
         }
 
@@ -193,7 +197,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             Map<String, Object> result = new LinkedHashMap<String, Object>(size);
 
             for (int i = 0; i < size; i++) {
-                String name = in.readString();
+                String name = in.readBytesRef().utf8ToString();
 
                 int type = in.read();
                 switch (type) {

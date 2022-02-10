@@ -174,10 +174,6 @@ public final class ConfigurableClusterPrivileges {
             return Category.PROFILE;
         }
 
-        public Collection<String> getApplicationNames() {
-            return Collections.unmodifiableCollection(this.applicationNames);
-        }
-
         @Override
         public String getWriteableName() {
             return WRITEABLE_NAME;

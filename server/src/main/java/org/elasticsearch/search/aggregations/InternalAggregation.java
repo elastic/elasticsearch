@@ -15,6 +15,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -121,7 +122,16 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext);
 
     /**
-     * Signal the framework if the {@linkplain InternalAggregation#reduce(List, ReduceContext)} phase needs to be called
+     * Called by the parent sampling context. Should only ever be called once as some aggregations scale their internal values
+     * @param samplingContext the current sampling context
+     * @return new aggregation with the sampling context applied, could be the same aggregation instance if nothing needs to be done
+     */
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        throw new UnsupportedOperationException(getWriteableName() + " aggregation [" + getName() + "] does not support sampling");
+    }
+
+    /**
+     * Signal the framework if the {@linkplain InternalAggregation#reduce(List, AggregationReduceContext)} phase needs to be called
      * when there is only one {@linkplain InternalAggregation}.
      */
     protected abstract boolean mustReduceOnSingleInternalAgg();

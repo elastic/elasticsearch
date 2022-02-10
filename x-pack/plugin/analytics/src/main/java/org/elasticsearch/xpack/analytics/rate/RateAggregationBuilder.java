@@ -74,6 +74,11 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
         return new RateAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Read from a stream.
      */
@@ -209,5 +214,10 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), rateUnit, rateMode);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_10_0;
     }
 }

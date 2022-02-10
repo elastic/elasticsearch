@@ -17,6 +17,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -121,6 +123,23 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
             matchesMap().entry("a", "foo").entry("o.e", "bort")
         );
+    }
+
+    public void testUnicodeKeys() throws IOException {
+        String fire = new String(new int[] { 0x1F525 }, 0, 1);
+        String coffee = "\u2615";
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject(fire).field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(coffee).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+
+        ParsedDocument doc = parseDocument(docMapper, b -> b.field(fire, "hot").field(coffee, "good"));
+        Map<String, Object> tsid = TimeSeriesIdFieldMapper.decodeTsid(
+            new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)
+        );
+        assertMap(tsid, matchesMap().entry(coffee, "good").entry(fire, "hot"));
+        // Also make sure the keys are in order
+        assertThat(List.copyOf(tsid.keySet()), equalTo(List.of(coffee, fire)));
     }
 
     public void testKeywordTooLong() throws IOException {

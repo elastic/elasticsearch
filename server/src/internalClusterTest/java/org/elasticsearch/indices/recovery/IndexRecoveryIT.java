@@ -9,6 +9,19 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -43,6 +56,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -55,7 +69,9 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -698,7 +714,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-        Repository repository = internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
+        Repository repository = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
         final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
         for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 
@@ -1048,9 +1064,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final long lastSyncedGlobalCheckpoint = shard.getLastSyncedGlobalCheckpoint();
         final long localCheckpointOfSafeCommit;
         try (Engine.IndexCommitRef safeCommitRef = shard.acquireSafeIndexCommit()) {
-            localCheckpointOfSafeCommit = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-                safeCommitRef.getIndexCommit().getUserData().entrySet()
-            ).localCheckpoint;
+            localCheckpointOfSafeCommit = getLocalCheckpointOfSafeCommit(safeCommitRef.getIndexCommit());
         }
         final long maxSeqNo = shard.seqNoStats().getMaxSeqNo();
         shard.failShard("test", new IOException("simulated"));
@@ -1796,5 +1810,49 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             equalTo(SnapshotState.SUCCESS)
         );
         return createSnapshotResponse;
+    }
+
+    private long getLocalCheckpointOfSafeCommit(IndexCommit safeIndexCommit) throws IOException {
+        final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+            safeIndexCommit.getUserData().entrySet()
+        );
+        final long commitLocalCheckpoint = commitInfo.localCheckpoint;
+        final long maxSeqNo = commitInfo.maxSeqNo;
+        final LocalCheckpointTracker localCheckpointTracker = new LocalCheckpointTracker(maxSeqNo, commitLocalCheckpoint);
+
+        // In certain scenarios it is possible that the local checkpoint captured during commit lags behind,
+        // meaning that it's possible that there are operations stored in the safe commit that have > seqNo
+        // than the captured local checkpoint. When a shard is recovered locally, the local checkpoint can
+        // be > than the safe commit local checkpoint, since that's checked and updated in
+        // InternalEngine#restoreVersionMapAndCheckpointTracker
+        try (DirectoryReader directoryReader = DirectoryReader.open(safeIndexCommit)) {
+            final IndexSearcher searcher = new IndexSearcher(directoryReader);
+            searcher.setQueryCache(null);
+            final Query query = new BooleanQuery.Builder().add(
+                LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, commitLocalCheckpoint + 1, Long.MAX_VALUE),
+                BooleanClause.Occur.MUST
+            ).add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST).build();
+            final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            for (LeafReaderContext leaf : directoryReader.leaves()) {
+                final Scorer scorer = weight.scorer(leaf);
+                if (scorer == null) {
+                    continue;
+                }
+                final NumericDocValues seqNoDocValue = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                final DocIdSetIterator iterator = scorer.iterator();
+                int docId;
+                while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    if (seqNoDocValue.advanceExact(docId) == false) {
+                        throw new IllegalStateException();
+                    }
+                    final long docSeqNo = seqNoDocValue.longValue();
+                    assertThat(docSeqNo, is(greaterThan(commitLocalCheckpoint)));
+                    localCheckpointTracker.markSeqNoAsProcessed(docSeqNo);
+                    localCheckpointTracker.markSeqNoAsPersisted(docSeqNo);
+                }
+            }
+            assertThat(localCheckpointTracker.getPersistedCheckpoint(), is(greaterThanOrEqualTo(commitLocalCheckpoint)));
+            return localCheckpointTracker.getPersistedCheckpoint();
+        }
     }
 }

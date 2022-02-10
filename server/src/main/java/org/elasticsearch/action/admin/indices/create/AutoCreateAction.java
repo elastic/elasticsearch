@@ -120,7 +120,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             // each duplicate task
                             task.indexNameRef.set(successfulBefore.indexNameRef.get());
                         }
-                        builder.success(task);
+                        builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
                     } catch (Exception e) {
                         builder.failure(task, e);
                     }

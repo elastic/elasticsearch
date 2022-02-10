@@ -18,7 +18,8 @@ import java.util.Objects;
  * A wrapper around scorer that executes checkCancelled on each document access.
  *
  * The main purpose of this class is to allow cancellation of search requests. Note that this class doesn't wrap bulk scorer, for that
- * use {@link CancellableBulkScorer} instead.
+ * use {@link CancellableBulkScorer} instead. We have to extend Scorer here instead of extending a much more convenient FilterScorer
+ * because we need to override some methods that are marked as final there.
  */
 public class CancellableScorer extends Scorer {
     private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;

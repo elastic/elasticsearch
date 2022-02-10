@@ -146,12 +146,12 @@ public class TimeSeriesIndexSearcher {
             return new Weight(weight.getQuery()) {
                 @Override
                 public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                    throw new UnsupportedOperationException();
+                    return weight.explain(context, doc);
                 }
 
                 @Override
                 public boolean isCacheable(LeafReaderContext ctx) {
-                    throw new UnsupportedOperationException();
+                    return weight.isCacheable(ctx);
                 }
 
                 @Override

@@ -2,4 +2,5 @@ pr: 83767
 summary: Update dependency - JLine - to v 3.21.0
 area: SQL
 type: upgrade
-issues: []
+issues:
+ - 83575

@@ -1,83 +1,70 @@
 [role="xpack"]
 [[user-profile]]
-=== User Profile
+=== User profiles
 
 beta::[]
 
-User Profile provides a way to uniquely and stably refer to a user.
-Unique means each user has an identifier that is guaranteed to be unique within
-a deployment. Stable means the identifier remains generally unchanged in the
-lifetime of a deployment.
-This may seem to be trivial but it underpins many other useful features.
-For example, preferences can be customized and persisted separately for each user,
-messages and notifications can be routed to the right user using its unique identifier.
+User profiles provides a way to uniquely and stably refer to a user. This means
+that each user has a unique identifier, and that this identifier remains
+relatively unchanged during the lifetime of a deployment. User profiles ensure
+that preferences can be customized and persisted separately for each user, and
+that messages and notifications can be routed by using the user's unique
+identifier.
 
-The {stack} has the notion of "user" which is required to authenticate each request.
-Internally, the user is represented as a `User` object that encapsulates its identity
-and privileges. However, the `User` object itself is not sufficient to support referring
-to a user because:
+In the {stack}, a user is required to authenticate each request. Each user is
+represented as an object that encapsulates its identity and privileges.
+However, this object has limitations, especially for users that authenticate
+with multiple realms.
 
-* It can be ephemeral and only exists for the lifetime of the associated request when
-the user comes from an external identity management system,
-e.g. <<ldap-realm>> or <<saml-realm>>.
-In this case, {es} simply has no knowledge about user outside the particular request,
-let lone store any other information for them.
-* There are cases where the same end-user is authenticated with multiple different realms.
-For example, a <<ldap-realm>> and a <<saml-realm>> can be backed by the same Directory
-service. But authentication with each realm creates distinct `User` objects which are
-treated as same users at the `User` object level.
-* There is no way to migrate a user when its username or other identifying attributes
-change. For example, a ldap user can have a name change in the Directory service which
-leads to a username change in {es} and creation of a new `User` object. There is no
-way to link this new `User` to old `User` objects even when they are for the same
-end-user.
+User profiles overcome these limitations by creating a separate profile document 
+for each authenticated user. Each document is assigned a unique ID, which is
+persisted in the profile <<system-indices,system index>>. The user profile
+becomes the representation of the user, even when it's not active.
 
-User Profile provides ways to solve all the above challenges.
-Underlying, a User Profile is essentially a separate document that is created for
-an authenticated user. It is assigned a unique ID on creation and persisted in
-the profile <<system-indices, system index>>. The profile document then becomes
-the representation of a user even when it is not online.
+When checking for an existing user profile, {es} compares a user's `username`
+and the realm they're authenticating from to locate the matching profile
+document. If a user needs to authenticate with different realms but wants to
+use a single profile document, you can configure a
+<<security-domain,security domain>> to allow resource sharing across realms.
 
-To create a new user profile or update the existing one,
-use the <<security-api-activiate-user-profile>>. Upon receiving the request,
-{es} first tries to find an existing profile document for the user. If one
-cannot be found, a new profile document is created. In both case, the profile
-document captures the information of the user at the authentication time,
-including username, full_name, email, roles, <<realms,realm>> etc.
-It also records the timestamp for the creation or update.
-The profile document can later be retrieved by <<security-api-get-user-profile>>
-using its unique ID (`uid`).
+==== Create and manage a user profile
 
-Other than the basic user information, a profile document can also be used
-to store arbitrary data for that user with the <<security-api-update-user-profile-data>>.
-For example, user specific preferences can be stored as part of the profile
-data.
+To create a new user profile or update an existing one, use the 
+<<security-api-activiate-user-profile,activate user profile API>>. When you
+submit a request, {es} attempts to locate an existing profile document for the
+specified user. If one doesn't exist, {es} creates a new profile document.
 
-When looking for existing profile document for a user, {es} uses the authentication's
-`username` and realm information to locate the matching document.
-If the same end-user needs to authenticated with different realms but still want
-a single profile document to associate with both authentications, <<security-domain>>
-is a feature that works with user profile to support this requirement.
-In short, the same username from different realms is associated to a single
-user profile if the realms are configured to be under the same security domain.
+In either case, the profile document captures the user's `full_name`, `email`,
+`roles`, and `realms`, and also includes the profile unique ID, timestamp for
+the operation, and version control numbers. You can retrieve a user profile with
+the <<security-api-get-user-profile,get user profile API>> by including the
+profile's unique ID (`uid`).
+
+Other than the user's basic information, you can add data to a profile document
+with the <<security-api-update-user-profile-data,update user profile API>>. For
+example, you can add user-specific preferences as part of the profile data.
 
 // TODO: search not yet implemented
-Being standalone documents, searches can be performed for user profiles.
+Because they are standalone documents, you can search for user profiles in
+search requests.
 
 ==== Limitations
 
-* Creating a new user profile requires the authentication details of the user.
-This means the user must be authenticated at least once for a profile document
-to be created. Consequently, it is not possible to refer to a user with profile
-if the user has never authenticated into the system.
-* User profile is meant for interactive users, e.g. human user who interacts with
-{kib}. Therefore, it does not support API keys or <<service-accounts>>. But it
-does support <<token-authentication-services,OAuth2 tokens>> that represent
-an interactive end-user.
-* When a user changes the `username`, a new user profile will be created by calling
-the <<security-api-activiate-user-profile>>. If this is not desirable,
-the existing profile document must be updated manually to match the new
-`username` so that the user can keep use the same profile.
+* Creating a new user profile requires a user's authentication details
+(`username` and `password`). This means that a user must authenticate at least
+one time to create a profile document. If a user hasn't authenticated
+into the system, then it's not possible for a user profile to refer to that user.
+
+* User profiles are meant for interactive users, such as a human user who
+interacts with {kib}. Therefore, user profiles don't support API keys or 
+<<service-accounts,service accounts>>.
++
+NOTE: <<token-authentication-services,OAuth2 tokens>> that represent an
+interactive end-user are supported.
+
+* If a user changes their `username`, you must create a new user profile with
+the <<security-api-activiate-user-profile,activate user profile API>>. Otherwise, 
+you must manually update the existing profile to include the new `username`.
 
 
 

@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLimit;
+import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
@@ -88,7 +89,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                     "corrupted_repositories",
                     corruptedRepositories,
                     "corrupted",
-                    corrupted.stream().limit(10).toList()
+                    limitSize(corrupted, 10)
                 )
             )
         );

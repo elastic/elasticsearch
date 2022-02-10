@@ -43,7 +43,7 @@ public class ParsedDocument {
      * @param reason    the reason for the no-op
      */
     public static ParsedDocument noopTombstone(String reason) {
-        LuceneDocument document = new LuceneDocument();
+        LuceneDocument document = new LuceneDocument(null);
         SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
@@ -69,7 +69,7 @@ public class ParsedDocument {
      * @param id    the id of the deleted document
      */
     public static ParsedDocument deleteTombstone(String id) {
-        LuceneDocument document = new LuceneDocument();
+        LuceneDocument document = new LuceneDocument(null);
         SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();

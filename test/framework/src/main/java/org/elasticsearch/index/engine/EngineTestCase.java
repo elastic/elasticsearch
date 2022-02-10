@@ -73,6 +73,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -353,7 +354,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected static LuceneDocument testDocument() {
-        return new LuceneDocument();
+        return new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {

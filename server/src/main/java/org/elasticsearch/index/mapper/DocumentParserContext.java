@@ -269,7 +269,7 @@ public abstract class DocumentParserContext {
             // nested context will already have been set up for copy_to fields
             return this;
         }
-        final LuceneDocument doc = new LuceneDocument(fullPath, doc());
+        final LuceneDocument doc = new LuceneDocument(fullPath, doc(), doc().getDimensions());
         addDoc(doc);
         return switchDoc(doc);
     }

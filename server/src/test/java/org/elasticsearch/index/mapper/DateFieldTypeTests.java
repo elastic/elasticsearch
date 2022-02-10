@@ -88,7 +88,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        LuceneDocument doc = new LuceneDocument();
+        LuceneDocument doc = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
         LongPoint field = new LongPoint("my_date", ft.parse("2015-10-12"));
         doc.add(field);
         w.addDocument(doc);
@@ -353,7 +353,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         // Create an index with some docValues
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        LuceneDocument doc = new LuceneDocument();
+        LuceneDocument doc = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
         NumericDocValuesField docValuesField = new NumericDocValuesField("my_date", 1444608000000L);
         doc.add(docValuesField);
         w.addDocument(doc);

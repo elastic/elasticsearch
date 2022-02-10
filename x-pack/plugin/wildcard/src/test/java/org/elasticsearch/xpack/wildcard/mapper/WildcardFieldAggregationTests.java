@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.Version;
+import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -64,7 +65,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
 
     private void indexStrings(RandomIndexWriter iw, String... values) throws IOException {
         Document doc = new Document();
-        LuceneDocument parseDoc = new LuceneDocument();
+        LuceneDocument parseDoc = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
         for (String value : values) {
             addFields(parseDoc, doc, value);
         }

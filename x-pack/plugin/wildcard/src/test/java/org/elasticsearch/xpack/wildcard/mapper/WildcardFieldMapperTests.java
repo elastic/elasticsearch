@@ -53,6 +53,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -134,7 +135,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // Create a string that is too large and will not be indexed
         String docContent = "a";
         Document doc = new Document();
-        LuceneDocument parseDoc = new LuceneDocument();
+        LuceneDocument parseDoc = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
         addFields(parseDoc, doc, docContent);
         indexDoc(parseDoc, doc, iw);
 
@@ -166,7 +167,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // Create a string that is too large and will not be indexed
         String docContent = "a" + randomABString(MAX_FIELD_LENGTH);
         Document doc = new Document();
-        LuceneDocument parseDoc = new LuceneDocument();
+        LuceneDocument parseDoc = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
         addFields(parseDoc, doc, docContent);
         indexDoc(parseDoc, doc, iw);
 
@@ -209,7 +210,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         Document doc = new Document();
-        LuceneDocument parseDoc = new LuceneDocument();
+        LuceneDocument parseDoc = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
         addFields(parseDoc, doc, "a b");
         indexDoc(parseDoc, doc, iw);
 
@@ -242,7 +243,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // Create a string that is too large and will not be indexed
         String docContent = randomABString(10);
         Document doc = new Document();
-        LuceneDocument parseDoc = new LuceneDocument();
+        LuceneDocument parseDoc = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
         addFields(parseDoc, doc, docContent);
         indexDoc(parseDoc, doc, iw);
 
@@ -273,7 +274,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         Document doc = new Document();
-        LuceneDocument parseDoc = new LuceneDocument();
+        LuceneDocument parseDoc = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
         addFields(parseDoc, doc, "f*oo?");
         indexDoc(parseDoc, doc, iw);
 
@@ -316,7 +317,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         HashSet<String> values = new HashSet<>();
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
-            LuceneDocument parseDoc = new LuceneDocument();
+            LuceneDocument parseDoc = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
             String docContent = randomABString(1 + randomInt(MAX_FIELD_LENGTH - 1));
             if (values.contains(docContent) == false) {
                 addFields(parseDoc, doc, docContent);
@@ -452,7 +453,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     private void indexDoc(RandomIndexWriter iw, String value) throws IOException {
         Document doc = new Document();
-        LuceneDocument parseDoc = new LuceneDocument();
+        LuceneDocument parseDoc = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
         addFields(parseDoc, doc, value);
         indexDoc(parseDoc, doc, iw);
     }

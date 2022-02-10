@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.cli.command;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection;
+import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter;
@@ -22,7 +23,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
     protected boolean lenient;
 
     public ServerQueryCliCommand() {
-        this(true);
+        this(CoreProtocol.FIELD_MULTI_VALUE_LENIENCY);
     }
 
     public ServerQueryCliCommand(boolean lenient) {

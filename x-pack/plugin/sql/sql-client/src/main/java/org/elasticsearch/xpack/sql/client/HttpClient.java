@@ -61,7 +61,7 @@ public class HttpClient {
     }
 
     public SqlQueryResponse basicQuery(String query, int fetchSize) throws SQLException {
-        return basicQuery(query, fetchSize, false);
+        return basicQuery(query, fetchSize, CoreProtocol.FIELD_MULTI_VALUE_LENIENCY);
     }
 
     public SqlQueryResponse basicQuery(String query, int fetchSize, boolean fieldMultiValueLeniency) throws SQLException {

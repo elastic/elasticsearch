@@ -103,10 +103,10 @@ public class Cli extends Command {
             .withRequiredArg()
             .ofType(Boolean.class)
             .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.check", "true")));
-        this.lenientOption = parser.acceptsAll(Arrays.asList("l", "lenient"), "Lenient and return first value for fields with multiple values")
-            .withRequiredArg()
-            .ofType(Boolean.class)
-            .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.lenient", "true")));
+        this.lenientOption = parser.acceptsAll(
+            Arrays.asList("l", "lenient"),
+            "Lenient and return first value for fields with multiple values"
+        ).withRequiredArg().ofType(Boolean.class).defaultsTo(Boolean.parseBoolean(System.getProperty("cli.lenient", "false")));
 
         this.connectionString = parser.nonOptions("uri");
     }

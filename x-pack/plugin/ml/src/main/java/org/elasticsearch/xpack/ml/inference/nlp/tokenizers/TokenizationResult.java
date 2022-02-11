@@ -48,7 +48,7 @@ public abstract class TokenizationResult {
     }
 
     public boolean anyTruncated() {
-        return false;
+        return tokens.stream().anyMatch(Tokens::truncated);
     }
 
     public boolean isEmpty() {

@@ -78,8 +78,10 @@ A `bucket_correlation` aggregation looks like this in isolation:
     "buckets_path": "range_values>_count", <1>
     "function": {
       "count_correlation": { <2>
-        "expectations": [...],
-        "doc_count": 10000
+        "indicator": {
+          "expectations": [...],
+          "doc_count": 10000
+        }
       }
     }
   }

@@ -490,7 +490,7 @@ public class IpFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
         if (dimension) {
-            context.doc().getDimensions().addIp(fieldType().name(), address);
+            context.getDimensions().addIp(fieldType().name(), address);
         }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);

@@ -53,7 +53,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -466,7 +465,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
 
     private Engine.Index getIndex(final String id) {
-        final LuceneDocument document = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
+        final LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", "test", Field.Store.YES));
         final Field idField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
         final Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);

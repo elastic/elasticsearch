@@ -86,7 +86,7 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDimensionConsumer() {
+        public DocumentDimensions buildDocumentDimensions() {
             return new DocumentDimensions.OnlySingleValueAllowed();
         }
     },
@@ -153,7 +153,7 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDimensionConsumer() {
+        public DocumentDimensions buildDocumentDimensions() {
             return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
         }
     };
@@ -248,7 +248,7 @@ public enum IndexMode {
      */
     public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
 
-    public abstract DocumentDimensions buildDimensionConsumer();
+    public abstract DocumentDimensions buildDocumentDimensions();
 
     public static IndexMode fromString(String value) {
         return switch (value) {

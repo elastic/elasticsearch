@@ -26,19 +26,17 @@ public class LuceneDocument implements Iterable<IndexableField> {
     private final String path;
     private final String prefix;
     private final List<IndexableField> fields;
-    private final DocumentDimensions dimensions;
     private Map<Object, IndexableField> keyedFields;
 
-    LuceneDocument(String path, LuceneDocument parent, DocumentDimensions dimensions) {
+    LuceneDocument(String path, LuceneDocument parent) {
         fields = new ArrayList<>();
         this.path = path;
         this.prefix = path.isEmpty() ? "" : path + ".";
         this.parent = parent;
-        this.dimensions = dimensions;
     }
 
-    public LuceneDocument(DocumentDimensions dimensions) {
-        this("", null, dimensions);
+    public LuceneDocument() {
+        this("", null);
     }
 
     /**
@@ -99,13 +97,6 @@ public class LuceneDocument implements Iterable<IndexableField> {
      */
     public IndexableField getByKey(Object key) {
         return keyedFields == null ? null : keyedFields.get(key);
-    }
-
-    /**
-     * The collection of dimensions for this document.
-     */
-    public DocumentDimensions getDimensions() {
-        return dimensions;
     }
 
     public IndexableField[] getFields(String name) {

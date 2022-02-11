@@ -36,7 +36,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
@@ -536,7 +535,7 @@ public class RefreshListenersTests extends ESTestCase {
 
     private Engine.IndexResult index(String id, String testFieldValue) throws IOException {
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        LuceneDocument document = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
+        LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
         Field idField = new Field(uid.field(), uid.bytes(), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);

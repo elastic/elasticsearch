@@ -99,7 +99,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -5475,7 +5474,7 @@ public class InternalEngineTests extends EngineTestCase {
             final Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
             final Field versionField = new NumericDocValuesField("_version", 0);
             final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-            final LuceneDocument document = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
+            final LuceneDocument document = new LuceneDocument();
             document.add(uidField);
             document.add(versionField);
             document.add(seqID.seqNo);
@@ -6710,13 +6709,7 @@ public class InternalEngineTests extends EngineTestCase {
                 Store store = createStore(indexSettings, newDirectory());
                 InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))
             ) {
-                ParsedDocument doc = testParsedDocument(
-                    "1",
-                    null,
-                    new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed()),
-                    new BytesArray("{}".getBytes("UTF-8")),
-                    null
-                );
+                ParsedDocument doc = testParsedDocument("1", null, new LuceneDocument(), new BytesArray("{}".getBytes("UTF-8")), null);
                 engine.index(appendOnlyPrimary(doc, false, 1));
                 engine.refresh("test");
                 try (Engine.Searcher searcher = engine.acquireSearcher("test")) {

@@ -900,7 +900,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
         if (dimension) {
-            context.doc().getDimensions().addString(fieldType().name(), value);
+            context.getDimensions().addString(fieldType().name(), value);
         }
 
         // convert to utf8 only once before feeding postings/dv/stored fields

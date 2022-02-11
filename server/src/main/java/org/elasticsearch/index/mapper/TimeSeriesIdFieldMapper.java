@@ -143,7 +143,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
 
-        TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.doc().getDimensions();
+        TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesIdBuilder.build().toBytesRef()));
     }
 

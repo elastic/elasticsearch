@@ -1475,7 +1475,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
-            context.doc().getDimensions().addLong(fieldType().name(), numericValue.longValue());
+            context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
         }
         List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
         context.doc().addAll(fields);

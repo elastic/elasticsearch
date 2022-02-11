@@ -23,7 +23,7 @@ import java.util.function.Function;
  * The methods defined final in {@link DocumentParserContext} depend on the provided constructor arguments.
  */
 public class TestDocumentParserContext extends DocumentParserContext {
-    private final LuceneDocument document = new LuceneDocument(new DocumentDimensions.OnlySingleValueAllowed());
+    private final LuceneDocument document = new LuceneDocument();
     private final ContentPath contentPath = new ContentPath(0);
 
     /**

@@ -737,7 +737,7 @@ public final class DocumentParser {
         ) throws IOException {
             super(mappingLookup, indexSettings, indexAnalyzers, parserContext, source);
             this.parser = DotExpandingXContentParser.expandDots(parser);
-            this.document = new LuceneDocument(indexSettings.getMode().buildDimensionConsumer());
+            this.document = new LuceneDocument();
             this.documents.add(document);
             this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;

@@ -36,8 +36,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     ) {
         if (dataStreamName != null) {
             DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+            boolean migrating = dataStream != null && dataStream.getIndexMode() == null && templateIndexMode == IndexMode.TIME_SERIES;
             IndexMode indexMode;
-            if (dataStream != null) {
+            if (migrating) {
+                indexMode = IndexMode.TIME_SERIES;
+            } else if (dataStream != null) {
                 indexMode = dataStream.getIndexMode();
             } else {
                 indexMode = templateIndexMode;
@@ -50,7 +53,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(allSettings);
                     final Instant start;
                     final Instant end;
-                    if (dataStream == null) {
+                    if (dataStream == null || migrating) {
                         start = resolvedAt.minusMillis(lookAheadTime.getMillis());
                         end = resolvedAt.plusMillis(lookAheadTime.getMillis());
                     } else {

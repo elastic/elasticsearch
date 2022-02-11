@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -552,13 +554,20 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
 
             IndexMetadata writeIndex = metadata.index(stream.getWriteIndex());
+            var templateV2Name = MetadataIndexTemplateService.findV2Template(state.metadata(), stream.getName(), false);
+            var templateV2 = metadata.templatesV2().get(templateV2Name);
+            IndexMode indexModeFromTemplate = templateV2.getDataStreamTemplate().getIndexMode();
 
             Map<IndexMetadata, Long> newIndices = new HashMap<>();
             DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
                 final Tuple<String, Long> rolledDataStreamInfo = dataStream.unsafeNextWriteIndexAndGeneration(state.metadata());
-                dataStream = dataStream.unsafeRollover(new Index(rolledDataStreamInfo.v1(), uuid), rolledDataStreamInfo.v2());
+                dataStream = dataStream.unsafeRollover(
+                    new Index(rolledDataStreamInfo.v1(), uuid),
+                    rolledDataStreamInfo.v2(),
+                    indexModeFromTemplate
+                );
 
                 // this unintentionally copies the in-sync allocation ids too. This has the fortunate effect of these indices
                 // not being regarded new by the disk threshold decider, thereby respecting the low watermark threshold even for primaries.

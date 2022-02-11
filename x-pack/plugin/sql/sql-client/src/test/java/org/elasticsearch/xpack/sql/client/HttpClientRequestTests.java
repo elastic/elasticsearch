@@ -106,7 +106,7 @@ public class HttpClientRequestTests extends ESTestCase {
 
         prepareMockResponse();
         try {
-            httpClient.basicQuery(query, fetchSize, false);
+            httpClient.basicQuery(query, fetchSize, randomFrom(true, false));
         } catch (SQLException e) {
             logger.info("Ignored SQLException", e);
         }

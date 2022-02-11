@@ -103,7 +103,6 @@ public class Cli extends Command {
             .withRequiredArg()
             .ofType(Boolean.class)
             .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.check", "true")));
-
         this.connectionString = parser.nonOptions("uri");
     }
 

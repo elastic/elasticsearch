@@ -45,6 +45,7 @@ were previously released in beta and didn't receive widespread adoption.
 *Impact* +
 To install {es} on Windows, use the {ref}/zip-windows.html[`.zip` archive
 package] instead.
+====
 
 === Mappings changes
 .Camel case date formats are deprecated.

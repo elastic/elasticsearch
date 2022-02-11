@@ -6,10 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
@@ -18,15 +15,11 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
-import org.elasticsearch.xpack.sql.common.io.SqlStreamOutput;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
-import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -54,18 +47,18 @@ enum TextFormat implements MediaType {
      */
     PLAIN_TEXT() {
         @Override
-        Tuple<String, BasicFormatter> format(RestRequest request, BasicFormatter requestFormatter, SqlQueryResponse response) {
-            if (requestFormatter != null) {
+        Tuple<String, RestCursorState> format(RestRequest request, RestCursorState state, SqlQueryResponse response) {
+            if (state.equals(RestCursorState.EMPTY) == false) {
                 // scroll response
-                return tuple(requestFormatter.formatWithoutHeader(response.rows()), requestFormatter);
+                return tuple(state.formatter().formatWithoutHeader(response.rows()), state);
             } else if (response.columns() != null) {
                 // initial response
                 BasicFormatter formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
 
-                return tuple(formatter.formatWithHeader(response.columns(), response.rows()), formatter);
+                return tuple(formatter.formatWithHeader(response.columns(), response.rows()), new RestCursorState(formatter));
             } else if (CollectionUtils.isEmpty(response.rows())) {
                 // empty response or async query
-                return tuple(StringUtils.EMPTY, null);
+                return tuple(StringUtils.EMPTY, RestCursorState.EMPTY);
             } else {
                 throw new SqlIllegalArgumentException("Cannot format response");
             }
@@ -301,7 +294,7 @@ enum TextFormat implements MediaType {
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
 
-    Tuple<String, BasicFormatter> format(RestRequest request, BasicFormatter formatter, SqlQueryResponse response) {
+    Tuple<String, RestCursorState> format(RestRequest request, RestCursorState state, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
 
         // if the header is requested (and the column info is present - namely it's the first page) return the info
@@ -318,7 +311,7 @@ enum TextFormat implements MediaType {
             );
         }
 
-        return tuple(sb.toString(), null);
+        return tuple(sb.toString(), RestCursorState.EMPTY);
     }
 
     boolean hasHeader(RestRequest request) {
@@ -369,31 +362,5 @@ enum TextFormat implements MediaType {
      */
     String maybeEscape(String value, Character delimiter) {
         return value;
-    }
-
-    public static String encodeCursorWithFormatter(String cursor, BasicFormatter formatter) {
-        try {
-            SqlStreamOutput out = SqlStreamOutput.create(Version.CURRENT, ZoneOffset.UTC, false);
-            out.writeString(cursor);
-            out.writeOptionalWriteable(formatter);
-            out.close();
-            return out.streamAsString();
-        } catch (IOException e) {
-            throw new SqlIllegalArgumentException(e, "Cannot wrap cursor [{}] with formatter [{}]", cursor, formatter);
-        }
-    }
-
-    public static Tuple<String, BasicFormatter> decodeCursorWithFormatter(String cursor) {
-        if (Strings.isNullOrEmpty(cursor)) {
-            return tuple(cursor, null);
-        } else {
-            try (StreamInput in = SqlStreamInput.fromString(cursor, new NamedWriteableRegistry(List.of()), Version.CURRENT, false)) {
-                String wrappedCursor = in.readString();
-                BasicFormatter formatter = in.readOptionalWriteable(BasicFormatter::new);
-                return tuple(wrappedCursor, formatter);
-            } catch (IOException e) {
-                throw new SqlIllegalArgumentException(e, "Cannot unwrap cursor [{}]", cursor);
-            }
-        }
     }
 }

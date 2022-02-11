@@ -14,7 +14,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
@@ -52,13 +51,13 @@ public class RestSqlQueryAction extends BaseRestHandler {
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
 
-            Tuple<String, BasicFormatter> cursorWithFormatter = TextFormat.decodeCursorWithFormatter(sqlRequest.cursor());
-            sqlRequest.cursor(cursorWithFormatter.v1());
+            Tuple<String, RestCursorState> cursorWithState = RestCursorState.decodeCursorWithState(sqlRequest.cursor());
+            sqlRequest.cursor(cursorWithState.v1());
 
             cancellableClient.execute(
                 SqlQueryAction.INSTANCE,
                 sqlRequest,
-                new SqlResponseListener(channel, request, sqlRequest, cursorWithFormatter.v2())
+                new SqlResponseListener(channel, request, sqlRequest, cursorWithState.v2())
             );
         };
     }

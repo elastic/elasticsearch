@@ -17,7 +17,6 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 
@@ -30,18 +29,19 @@ import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_ASYNC_RUNN
 import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_CURSOR;
 import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_TOOK_NANOS;
 import static org.elasticsearch.xpack.sql.action.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.plugin.RestCursorState.encodeCursorWithState;
 
 class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
 
     private final long startNanos = System.nanoTime();
     private final MediaType mediaType;
     private final RestRequest request;
-    private final BasicFormatter formatter;
+    private final RestCursorState state;
 
-    SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest, BasicFormatter formatter) {
+    SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest, RestCursorState state) {
         super(channel);
         this.request = request;
-        this.formatter = formatter;
+        this.state = state;
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request, sqlRequest);
 
         /*
@@ -63,7 +63,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
     SqlResponseListener(RestChannel channel, RestRequest request) {
         super(channel);
         this.request = request;
-        this.formatter = null;
+        this.state = null;
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request);
     }
 
@@ -73,14 +73,14 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
 
         // XContent branch
         if (mediaType instanceof XContentType type) {
-            wrapCursor(response, formatter);
+            wrapCursor(response, state);
 
             XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
             response.toXContent(builder, request);
             restResponse = new BytesRestResponse(RestStatus.OK, builder);
         } else { // TextFormat
             TextFormat type = (TextFormat) mediaType;
-            final Tuple<String, BasicFormatter> dataWithNextFormatter = type.format(request, formatter, response);
+            final Tuple<String, RestCursorState> dataWithNextFormatter = type.format(request, state, response);
 
             wrapCursor(response, dataWithNextFormatter.v2());
 
@@ -105,9 +105,10 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
         return restResponse;
     }
 
-    private void wrapCursor(SqlQueryResponse response, BasicFormatter formatter) {
+    private void wrapCursor(SqlQueryResponse response, RestCursorState state) {
         if (response.hasCursor()) {
-            response.cursor(TextFormat.encodeCursorWithFormatter(response.cursor(), formatter));
+            response.cursor(encodeCursorWithState(response.cursor(), state));
         }
     }
+
 }

@@ -6,8 +6,9 @@ issues: []
 deprecation:
   title: Deprecation info api for camel case date formats
   area: Mappings
-  details: The use of camel case patterns on date formats is deprecated
-  and will be removed in {es} 8.0.0.
-  The corresponding snake case pattern should be used instead.
+  details: |-
+    The use of camel case patterns on date formats is deprecated
+    and will be removed in {es} 8.0.0.
+    The corresponding snake case pattern should be used instead.
   impact: To avoid deprecation warnings, discontinue use of the camel case pattern.
 

@@ -871,7 +871,7 @@ public class MetadataIndexStateService {
         }
         logger.info("completed closing of indices {}", closedIndices);
         return Tuple.tuple(
-            ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable.build()).build(),
+            ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable).build(),
             closingResults.values()
         );
     }
@@ -1152,7 +1152,7 @@ public class MetadataIndexStateService {
                     routingTable.addAsFromCloseToOpen(updatedState.metadata().getIndexSafe(previousIndexMetadata.getIndex()));
                 }
             }
-            return ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
+            return ClusterState.builder(updatedState).routingTable(routingTable).build();
         }
     }
 

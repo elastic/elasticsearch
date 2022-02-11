@@ -238,14 +238,6 @@ Search::
 * Short cut if reader has point values {es-pull}80268[#80268]
 * Support combining `_shards` preference param with `<custom-string>` {es-pull}80024[#80024] (issue: {es-issue}80021[#80021])
 
-Security::
-* Activate user profile API {es-pull}82400[#82400]
-* Add an initial `ProfileService` for user profiles {es-pull}81899[#81899]
-* Add new system index for user profile documents {es-pull}81355[#81355]
-* Add update user profile data API {es-pull}82772[#82772]
-* Add user profile API for get profile by UID {es-pull}81910[#81910]
-* Update Kibana system user privileges {es-pull}82781[#82781]
-
 Snapshot/Restore::
 * Add Linux x86-64bits native method to retrieve the number of allocated bytes on disk for a file {es-pull}80437[#80437] (issue: {es-issue}79698[#79698])
 
@@ -266,10 +258,6 @@ Transform::
 [[feature-8.1.0]]
 [float]
 === New features
-
-Authentication::
-* Initial version of JWT Realm {es-pull}82175[#82175]
-* Introduce domain setting to associate realms {es-pull}81968[#81968]
 
 Distributed::
 * Add desired nodes API {es-pull}82975[#82975]

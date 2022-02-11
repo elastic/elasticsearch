@@ -225,10 +225,8 @@ public class MetadataIndexStateService {
                                                                     );
                                                                 }
                                                                 // acknowledged maybe be false but some indices may have been correctly
-                                                                // closed, so
-                                                                // we maintain a kind of coherency by overriding the shardsAcknowledged
-                                                                // value
-                                                                // (see ShardsAcknowledgedResponse constructor)
+                                                                // closed, so we maintain a kind of coherency by overriding the
+                                                                // shardsAcknowledged value (see ShardsAcknowledgedResponse constructor)
                                                                 boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
                                                                 listener.onResponse(
                                                                     new CloseIndexResponse(acknowledged, shardsAcked, indices)

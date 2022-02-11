@@ -12,7 +12,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
+import org.elasticsearch.action.support.broadcast.node.BoundedDiagnosticRequestPermits;
+import org.elasticsearch.action.support.broadcast.node.TransportBoundedDiagnosticAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -37,7 +38,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
+public class TransportIndicesStatsAction extends TransportBoundedDiagnosticAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
 
     private final IndicesService indicesService;
 
@@ -47,7 +48,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        BoundedDiagnosticRequestPermits boundedDiagnosticRequestPermits
     ) {
         super(
             IndicesStatsAction.NAME,
@@ -56,7 +58,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             actionFilters,
             indexNameExpressionResolver,
             IndicesStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            boundedDiagnosticRequestPermits
         );
         this.indicesService = indicesService;
     }

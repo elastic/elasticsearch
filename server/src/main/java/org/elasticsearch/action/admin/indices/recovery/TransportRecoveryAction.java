@@ -11,7 +11,8 @@ package org.elasticsearch.action.admin.indices.recovery;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
+import org.elasticsearch.action.support.broadcast.node.BoundedDiagnosticRequestPermits;
+import org.elasticsearch.action.support.broadcast.node.TransportBoundedDiagnosticAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -41,7 +42,7 @@ import java.util.Map;
  * Transport action for shard recovery operation. This transport action does not actually
  * perform shard recovery, it only reports on recoveries (both active and complete).
  */
-public class TransportRecoveryAction extends TransportBroadcastByNodeAction<RecoveryRequest, RecoveryResponse, RecoveryState> {
+public class TransportRecoveryAction extends TransportBoundedDiagnosticAction<RecoveryRequest, RecoveryResponse, RecoveryState> {
 
     private final IndicesService indicesService;
 
@@ -51,7 +52,8 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        BoundedDiagnosticRequestPermits boundedDiagnosticRequestPermits
     ) {
         super(
             RecoveryAction.NAME,
@@ -60,7 +62,8 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
             actionFilters,
             indexNameExpressionResolver,
             RecoveryRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.MANAGEMENT,
+            boundedDiagnosticRequestPermits
         );
         this.indicesService = indicesService;
     }

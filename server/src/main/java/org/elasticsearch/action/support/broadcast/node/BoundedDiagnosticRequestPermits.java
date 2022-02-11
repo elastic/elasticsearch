@@ -20,7 +20,7 @@ public class BoundedDiagnosticRequestPermits {
 
     public static final Setting<Integer> MAX_CONCURRENT_BOUNDED_DIAGNOSTIC_REQUESTS_PER_NODE = Setting.intSetting(
         "cluster.max_concurrent_bounded_diagnostic_requests_per_node",
-        50,
+        20,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

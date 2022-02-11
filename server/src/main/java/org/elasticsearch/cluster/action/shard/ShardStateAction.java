@@ -538,6 +538,10 @@ public class ShardStateAction {
             ClusterStateTaskListener,
             ActionListener<ClusterState> {
 
+        /**
+         * This task is re-used as its own publication listener, so this method is called when it has been executed and the resulting
+         * publication completed successfully.
+         */
         @Override
         public void onResponse(ClusterState clusterState) {
             listener.onResponse(TransportResponse.Empty.INSTANCE);
@@ -852,6 +856,10 @@ public class ShardStateAction {
             return entry;
         }
 
+        /**
+         * This task is re-used as its own publication listener, so this method is called when it has been executed and the resulting
+         * publication completed successfully.
+         */
         @Override
         public void onResponse(ClusterState clusterState) {
             listener.onResponse(TransportResponse.Empty.INSTANCE);

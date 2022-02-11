@@ -14,7 +14,7 @@ setup:
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         refresh: true
         body:
           keyword: [ "a", "b" ]
@@ -103,7 +103,7 @@ fetch nested source:
   - do:
       index:
         index:   test_nested
-        id:      1
+        id:      "1"
         refresh: true
         body:
           keyword: [ "a", "b" ]

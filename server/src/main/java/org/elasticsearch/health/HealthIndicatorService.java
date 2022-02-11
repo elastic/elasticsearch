@@ -9,7 +9,7 @@
 package org.elasticsearch.health;
 
 /**
- * This is a service interface used to report health indicators from the different plugins.
+ * This is a service interface used to calculate health indicator from the different modules or plugins.
  */
 public interface HealthIndicatorService {
 

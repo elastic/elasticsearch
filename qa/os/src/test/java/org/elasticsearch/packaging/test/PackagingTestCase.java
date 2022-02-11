@@ -671,7 +671,7 @@ public abstract class PackagingTestCase extends Assert {
         assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
 
         if (es.distribution.isDocker() == false) {
-            assertThat(settings.get("http.host"), equalTo("[_local_, _site_]"));
+            assertThat(settings.get("http.host"), equalTo("0.0.0.0"));
         }
     }
 

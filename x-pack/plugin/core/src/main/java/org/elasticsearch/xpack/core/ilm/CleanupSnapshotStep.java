@@ -58,7 +58,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (acknowledgedResponse.isAcknowledged() == false) {
-                        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                        String policyName = indexMetadata.getLifecyclePolicyName();
                         throw new ElasticsearchException(
                             "cleanup snapshot step request for repository ["
                                 + repositoryName
@@ -82,7 +82,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                         listener.onResponse(null);
                     } else {
                         if (e instanceof RepositoryMissingException) {
-                            String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                            String policyName = indexMetadata.getLifecyclePolicyName();
                             listener.onFailure(
                                 new IllegalStateException(
                                     "repository ["

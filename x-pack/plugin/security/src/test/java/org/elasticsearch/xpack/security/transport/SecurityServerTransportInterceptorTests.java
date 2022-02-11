@@ -96,8 +96,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            clusterService
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -144,8 +143,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            clusterService
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -187,8 +185,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            clusterService
+            )
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -236,8 +233,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            clusterService
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -291,8 +287,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            clusterService
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -411,7 +406,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     profileName,
                     new ServerTransportFilter(null, null, threadContext, randomBoolean(), destructiveOperations, securityContext)
                 ),
-                settings,
                 threadPool
             );
         final TransportChannel channel = mock(TransportChannel.class);

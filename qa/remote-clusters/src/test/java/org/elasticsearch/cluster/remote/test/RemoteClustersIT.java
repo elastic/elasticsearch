@@ -7,14 +7,12 @@
  */
 package org.elasticsearch.cluster.remote.test;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.cluster.RemoteConnectionInfo;
-import org.elasticsearch.client.cluster.RemoteInfoRequest;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -22,6 +20,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeThat;
@@ -74,27 +74,22 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
 
     @After
     public void clearRemoteClusterSettings() throws IOException {
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().putNull("cluster.remote.*").build()
-        );
-        assertTrue(cluster1Client().cluster().putSettings(request, RequestOptions.DEFAULT).isAcknowledged());
-        assertTrue(cluster2Client().cluster().putSettings(request, RequestOptions.DEFAULT).isAcknowledged());
+        Settings setting = Settings.builder().putNull("cluster.remote.*").build();
+        updateClusterSettings(cluster1Client().getLowLevelClient(), setting);
+        updateClusterSettings(cluster2Client().getLowLevelClient(), setting);
     }
 
     public void testProxyModeConnectionWorks() throws IOException {
         String cluster2RemoteClusterSeed = "elasticsearch-" + getDistribution() + "-2:9300";
         logger.info("Configuring remote cluster [{}]", cluster2RemoteClusterSeed);
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder()
-                .put("cluster.remote.cluster2.mode", "proxy")
-                .put("cluster.remote.cluster2.proxy_address", cluster2RemoteClusterSeed)
-                .build()
-        );
-        assertTrue(cluster1Client().cluster().putSettings(request, RequestOptions.DEFAULT).isAcknowledged());
+        Settings settings = Settings.builder()
+            .put("cluster.remote.cluster2.mode", "proxy")
+            .put("cluster.remote.cluster2.proxy_address", cluster2RemoteClusterSeed)
+            .build();
 
-        RemoteConnectionInfo rci = cluster1Client().cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT).getInfos().get(0);
-        logger.info("Connection info: {}", rci);
-        assertTrue(rci.isConnected());
+        updateClusterSettings(cluster1Client().getLowLevelClient(), settings);
+
+        assertTrue(isConnected(cluster1Client().getLowLevelClient()));
 
         assertEquals(
             2L,
@@ -105,33 +100,25 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
     public void testSniffModeConnectionFails() throws IOException {
         String cluster2RemoteClusterSeed = "elasticsearch-" + getDistribution() + "-2:9300";
         logger.info("Configuring remote cluster [{}]", cluster2RemoteClusterSeed);
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder()
-                .put("cluster.remote.cluster2alt.mode", "sniff")
-                .put("cluster.remote.cluster2alt.seeds", cluster2RemoteClusterSeed)
-                .build()
-        );
-        assertTrue(cluster1Client().cluster().putSettings(request, RequestOptions.DEFAULT).isAcknowledged());
+        Settings settings = Settings.builder()
+            .put("cluster.remote.cluster2alt.mode", "sniff")
+            .put("cluster.remote.cluster2alt.seeds", cluster2RemoteClusterSeed)
+            .build();
+        updateClusterSettings(cluster1Client().getLowLevelClient(), settings);
 
-        RemoteConnectionInfo rci = cluster1Client().cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT).getInfos().get(0);
-        logger.info("Connection info: {}", rci);
-        assertFalse(rci.isConnected());
+        assertFalse(isConnected(cluster1Client().getLowLevelClient()));
     }
 
     public void testHAProxyModeConnectionWorks() throws IOException {
         String proxyAddress = "haproxy:9600";
         logger.info("Configuring remote cluster [{}]", proxyAddress);
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder()
-                .put("cluster.remote.haproxynosn.mode", "proxy")
-                .put("cluster.remote.haproxynosn.proxy_address", proxyAddress)
-                .build()
-        );
-        assertTrue(cluster1Client().cluster().putSettings(request, RequestOptions.DEFAULT).isAcknowledged());
+        Settings settings = Settings.builder()
+            .put("cluster.remote.haproxynosn.mode", "proxy")
+            .put("cluster.remote.haproxynosn.proxy_address", proxyAddress)
+            .build();
+        updateClusterSettings(cluster1Client().getLowLevelClient(), settings);
 
-        RemoteConnectionInfo rci = cluster1Client().cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT).getInfos().get(0);
-        logger.info("Connection info: {}", rci);
-        assertTrue(rci.isConnected());
+        assertTrue(isConnected(cluster1Client().getLowLevelClient()));
 
         assertEquals(
             2L,
@@ -142,18 +129,14 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
     public void testHAProxyModeConnectionWithSNIToCluster1Works() throws IOException {
         assumeThat("test is only supported if the distribution contains xpack", getDistribution(), equalTo("default"));
 
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder()
-                .put("cluster.remote.haproxysni1.mode", "proxy")
-                .put("cluster.remote.haproxysni1.proxy_address", "haproxy:9600")
-                .put("cluster.remote.haproxysni1.server_name", "application1.example.com")
-                .build()
-        );
-        assertTrue(cluster2Client().cluster().putSettings(request, RequestOptions.DEFAULT).isAcknowledged());
+        Settings settings = Settings.builder()
+            .put("cluster.remote.haproxysni1.mode", "proxy")
+            .put("cluster.remote.haproxysni1.proxy_address", "haproxy:9600")
+            .put("cluster.remote.haproxysni1.server_name", "application1.example.com")
+            .build();
+        updateClusterSettings(cluster2Client().getLowLevelClient(), settings);
 
-        RemoteConnectionInfo rci = cluster2Client().cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT).getInfos().get(0);
-        logger.info("Connection info: {}", rci);
-        assertTrue(rci.isConnected());
+        assertTrue(isConnected(cluster2Client().getLowLevelClient()));
 
         assertEquals(
             1L,
@@ -164,22 +147,30 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
     public void testHAProxyModeConnectionWithSNIToCluster2Works() throws IOException {
         assumeThat("test is only supported if the distribution contains xpack", getDistribution(), equalTo("default"));
 
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder()
-                .put("cluster.remote.haproxysni2.mode", "proxy")
-                .put("cluster.remote.haproxysni2.proxy_address", "haproxy:9600")
-                .put("cluster.remote.haproxysni2.server_name", "application2.example.com")
-                .build()
-        );
-        assertTrue(cluster1Client().cluster().putSettings(request, RequestOptions.DEFAULT).isAcknowledged());
+        Settings settings = Settings.builder()
+            .put("cluster.remote.haproxysni2.mode", "proxy")
+            .put("cluster.remote.haproxysni2.proxy_address", "haproxy:9600")
+            .put("cluster.remote.haproxysni2.server_name", "application2.example.com")
+            .build();
+        updateClusterSettings(cluster1Client().getLowLevelClient(), settings);
 
-        RemoteConnectionInfo rci = cluster1Client().cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT).getInfos().get(0);
-        logger.info("Connection info: {}", rci);
-        assertTrue(rci.isConnected());
+        assertTrue(isConnected(cluster1Client().getLowLevelClient()));
 
         assertEquals(
             2L,
             cluster1Client().search(new SearchRequest("haproxysni2:test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean isConnected(RestClient restClient) throws IOException {
+        Optional<Object> remoteConnectionInfo = getAsMap(restClient, "/_remote/info").values().stream().findFirst();
+        if (remoteConnectionInfo.isPresent()) {
+            logger.info("Connection info: {}", remoteConnectionInfo);
+            if (((Map<String, Object>) remoteConnectionInfo.get()).get("connected")instanceof Boolean connected) {
+                return connected;
+            }
+        }
+        return false;
     }
 }

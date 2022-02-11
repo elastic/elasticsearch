@@ -99,13 +99,13 @@ public class IndexMetadataVerifier {
      * previous major version.
      */
     private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
-        boolean isSupportedVersion = indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
+        boolean isSupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
         if (isSupportedVersion == false) {
             throw new IllegalStateException(
                 "The index "
                     + indexMetadata.getIndex()
-                    + " was created with version ["
-                    + indexMetadata.getCreationVersion()
+                    + " has current compatibility version ["
+                    + indexMetadata.getCompatibilityVersion()
                     + "] but the minimum compatible version is ["
                     + minimumIndexCompatibilityVersion
                     + "]. It should be re-indexed in Elasticsearch "

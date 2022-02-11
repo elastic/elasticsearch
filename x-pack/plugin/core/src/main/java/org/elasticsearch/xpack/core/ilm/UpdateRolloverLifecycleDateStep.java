@@ -74,9 +74,7 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
 
         IndexMetadata.Builder newIndexMetadata = IndexMetadata.builder(indexMetadata);
         newIndexMetadata.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
-        return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(currentState.metadata()).put(newIndexMetadata).build(false))
-            .build();
+        return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata()).put(newIndexMetadata)).build();
     }
 
     private static String getRolloverTarget(Index index, ClusterState currentState) {

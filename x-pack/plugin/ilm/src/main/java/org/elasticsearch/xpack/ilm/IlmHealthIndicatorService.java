@@ -31,7 +31,7 @@ import static org.elasticsearch.health.ServerHealthComponents.DATA;
  */
 public class IlmHealthIndicatorService implements HealthIndicatorService {
 
-    public static final String NAME = "ILM";
+    public static final String NAME = "ilm";
 
     private final ClusterService clusterService;
 
@@ -63,7 +63,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     private static HealthIndicatorDetails createDetails(IndexLifecycleMetadata metadata) {
         return new SimpleHealthIndicatorDetails(
-            Map.of("ilm-status", metadata.getOperationMode(), "policies", metadata.getPolicies().size())
+            Map.of("ilm_status", metadata.getOperationMode(), "policies", metadata.getPolicies().size())
         );
     }
 }

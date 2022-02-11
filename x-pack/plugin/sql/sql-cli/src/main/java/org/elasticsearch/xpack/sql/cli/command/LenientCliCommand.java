@@ -12,7 +12,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * fetch_size command that allows to change the size of fetches
+ * lenient command, enables/disables fields multi-value leniency.
+ * ie. with lenient = true, in case of array values, return the first value, with no guarantee of consistent results.
+ *
  */
 public class LenientCliCommand extends AbstractCliCommand {
 

@@ -1453,6 +1453,43 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertThat(resp.get("cursor").toString().length(), lessThan(5000));
     }
 
+    public void testNonEmptyLastPageTxt() throws IOException {
+        testNonEmptyLastPage("text/plain");
+    }
+
+    public void testNonEmptyLastPageCsv() throws IOException {
+        testNonEmptyLastPage("text/csv");
+    }
+
+    public void testNonEmptyLastPageTsv() throws IOException {
+        testNonEmptyLastPage("text/tab-separated-values");
+    }
+
+    private void testNonEmptyLastPage(String format) throws IOException {
+        // see https://github.com/elastic/elasticsearch/issues/83788
+        int size = 10;
+        // ensure that second page is neither empty nor full
+        int pageSize = size / 2 + 1;
+
+        String doc = IntStream.range(0, 10).mapToObj(i -> "\"field" + i + "\": 1").collect(Collectors.joining(",", "{", "}"));
+        index(doc);
+
+        Tuple<String, String> response = runSqlAsText(
+            StringUtils.EMPTY,
+            // currently, only ListCursors produce last pages without cursors
+            new StringEntity(query("SHOW COLUMNS IN " + indexPattern("test")).fetchSize(pageSize).toString(), ContentType.APPLICATION_JSON),
+            format
+        );
+
+        String cursor = response.v2();
+
+        response = runSqlAsText(StringUtils.EMPTY, new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON), format);
+
+        assertEquals(size - pageSize, response.v1().split("\n").length);
+        assertThat(response.v1(), containsString("field" + (size - 1)));
+        assertNull(response.v2());
+    }
+
     static Map<String, Object> runSql(RequestObjectBuilder builder, String mode) throws IOException {
         return toMap(runSql(builder.mode(mode)), mode);
     }

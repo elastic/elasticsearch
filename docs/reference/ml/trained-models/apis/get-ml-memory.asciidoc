@@ -32,8 +32,15 @@ node, both within the JVM heap, and natively, outside of the JVM.
 
 `<node_id>`::
     (Optional, string) The names of particular nodes in the cluster to target.
-    For example, `nodeId1,nodeId2`. For node selection options, see
-    <<cluster-nodes>>.
+    For example, `nodeId1,nodeId2` or `ml:true`. For node selection options,
+    see <<cluster-nodes>>.
+
+[[get-ml-memory-query-parms]]
+== {api-query-parms-title}
+
+`human`::
+    Specify this query parameter to include the fields with units in the response.
+    Otherwise only the `_in_bytes` sizes are returned in the response.
 
 [role="child_attributes"]
 [[get-ml-memory-response-body]]
@@ -218,29 +225,29 @@ Amount of Java heap, in bytes, currently being used for caching inference models
 --------------------------------------------------
 GET _ml/memory/_stats?human
 --------------------------------------------------
-// TEST
+// TEST[setup:node]
 
 This is a possible response:
 
 [source,console-result]
 ----
 {
-  "_nodes" : {
-    "total" : 1,
-    "successful" : 1,
-    "failed" : 0
+  "_nodes": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0
   },
-  "cluster_name" : "my_cluster",
-  "nodes" : {
-    "pQHNt5rXTTWNvUgOrdynKg" : {
-      "name" : "node-0",
-      "ephemeral_id" : "ITZ6WGZnSqqeT_unfit2SQ",
-      "transport_address" : "127.0.0.1:9300",
-      "attributes" : {
-        "ml.machine_memory" : "68719476736",
-        "ml.max_jvm_size" : "536870912"
+  "cluster_name": "my_cluster",
+  "nodes": {
+    "pQHNt5rXTTWNvUgOrdynKg": {
+      "name": "node-0",
+      "ephemeral_id": "ITZ6WGZnSqqeT_unfit2SQ",
+      "transport_address": "127.0.0.1:9300",
+      "attributes": {
+        "ml.machine_memory": "68719476736",
+        "ml.max_jvm_size": "536870912"
       },
-      "roles" : [
+      "roles": [
         "data",
         "data_cold",
         "data_content",
@@ -253,37 +260,48 @@ This is a possible response:
         "remote_cluster_client",
         "transform"
       ],
-      "mem" : {
-        "total" : "64gb",
-        "total_in_bytes" : 68719476736,
-        "adjusted_total" : "64gb",
-        "adjusted_total_in_bytes" : 68719476736,
-        "ml" : {
-          "max" : "19.1gb",
-          "max_in_bytes" : 20615843020,
-          "native_code_overhead" : "0b",
-          "native_code_overhead_in_bytes" : 0,
-          "anomaly_detectors" : "0b",
-          "anomaly_detectors_in_bytes" : 0,
-          "data_frame_analytics" : "0b",
-          "data_frame_analytics_in_bytes" : 0,
-          "native_inference" : "0b",
-          "native_inference_in_bytes" : 0
+      "mem": {
+        "total": "64gb",
+        "total_in_bytes": 68719476736,
+        "adjusted_total": "64gb",
+        "adjusted_total_in_bytes": 68719476736,
+        "ml": {
+          "max": "19.1gb",
+          "max_in_bytes": 20615843020,
+          "native_code_overhead": "0b",
+          "native_code_overhead_in_bytes": 0,
+          "anomaly_detectors": "0b",
+          "anomaly_detectors_in_bytes": 0,
+          "data_frame_analytics": "0b",
+          "data_frame_analytics_in_bytes": 0,
+          "native_inference": "0b",
+          "native_inference_in_bytes": 0
         }
       },
-      "jvm" : {
-        "heap_max" : "512mb",
-        "heap_max_in_bytes" : 536870912,
-        "java_inference_max" : "204.7mb",
-        "java_inference_max_in_bytes" : 214748364,
-        "java_inference" : "0b",
-        "java_inference_in_bytes" : 0
+      "jvm": {
+        "heap_max": "512mb",
+        "heap_max_in_bytes": 536870912,
+        "java_inference_max": "204.7mb",
+        "java_inference_max_in_bytes": 214748364,
+        "java_inference": "0b",
+        "java_inference_in_bytes": 0
       }
     }
   }
 }
 ----
-// TESTRESPONSE[s/"cluster_name": "elasticsearch"/"cluster_name": $body.cluster_name/]
+// TESTRESPONSE[s/"cluster_name": "my_cluster"/"cluster_name": $body.cluster_name/]
 // TESTRESPONSE[s/"pQHNt5rXTTWNvUgOrdynKg"/\$node_name/]
-// TESTRESPONSE[s/"ephemeral_id": "ITZ6WGZnSqqeT_unfit2SQ"/"ephemeral_id": "$body.nodes.$node_name.ephemeral_id"/]
-// TESTRESPONSE[s/"transport_address": "127.0.0.1:9300"/"transport_address": "$body.nodes.$node_name.transport_address"/]
+// TESTRESPONSE[s/"ephemeral_id": "ITZ6WGZnSqqeT_unfit2SQ"/"ephemeral_id": "$body.$_path"/]
+// TESTRESPONSE[s/"transport_address": "127.0.0.1:9300"/"transport_address": "$body.$_path"/]
+// TESTRESPONSE[s/"attributes": \{[^\}]*\}/"attributes": $body.$_path/]
+// TESTRESPONSE[s/"total": "64gb"/"total": "$body.$_path"/]
+// TESTRESPONSE[s/"total_in_bytes": 68719476736/"total_in_bytes": $body.$_path/]
+// TESTRESPONSE[s/"adjusted_total": "64gb"/"adjusted_total": "$body.$_path"/]
+// TESTRESPONSE[s/"adjusted_total_in_bytes": 68719476736/"adjusted_total_in_bytes": $body.$_path/]
+// TESTRESPONSE[s/"max": "19.1gb"/"max": "$body.$_path"/]
+// TESTRESPONSE[s/"max_in_bytes": 20615843020/"max_in_bytes": $body.$_path/]
+// TESTRESPONSE[s/"heap_max": "512mb"/"heap_max": "$body.$_path"/]
+// TESTRESPONSE[s/"heap_max_in_bytes": 536870912/"heap_max_in_bytes": $body.$_path/]
+// TESTRESPONSE[s/"java_inference_max": "204.7mb"/"java_inference_max": "$body.$_path"/]
+// TESTRESPONSE[s/"java_inference_max_in_bytes": 214748364/"java_inference_max_in_bytes": $body.$_path/]

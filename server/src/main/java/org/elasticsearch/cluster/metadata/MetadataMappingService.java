@@ -99,6 +99,7 @@ public class MetadataMappingService {
             ClusterState currentState,
             List<PutMappingClusterStateUpdateTask> tasks
         ) throws Exception {
+            final ClusterState originalState = currentState;
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             ClusterTasksResult.Builder<PutMappingClusterStateUpdateTask> builder = ClusterTasksResult.builder();
             try {
@@ -115,7 +116,7 @@ public class MetadataMappingService {
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
-                        builder.success(task);
+                        builder.success(task, new LegacyClusterTaskResultActionListener(task, originalState));
                     } catch (Exception e) {
                         builder.failure(task, e);
                     }

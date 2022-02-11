@@ -333,7 +333,7 @@ public class ShardStateAction {
                         entry,
                         entry.getShardId().getIndex()
                     );
-                    batchResultBuilder.success(task);
+                    batchResultBuilder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
                 } else {
                     // The primary term is 0 if the shard failed itself. It is > 0 if a write was done on a primary but was failed to be
                     // replicated to the shard copy with the provided allocation id. In case where the shard failed itself, it's ok to just
@@ -393,7 +393,7 @@ public class ShardStateAction {
                         } else {
                             // tasks that correspond to non-existent shards are marked as successful
                             logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", entry.getShardId(), entry);
-                            batchResultBuilder.success(task);
+                            batchResultBuilder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
                         }
                     } else {
                         // failing a shard also possibly marks it as stale (see IndexMetadataUpdater)
@@ -408,7 +408,9 @@ public class ShardStateAction {
             ClusterState maybeUpdatedState = currentState;
             try {
                 maybeUpdatedState = applyFailedShards(currentState, failedShardsToBeApplied, staleShardsToBeApplied);
-                batchResultBuilder.successes(tasksToBeApplied);
+                for (var task : tasksToBeApplied) {
+                    batchResultBuilder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
+                }
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("failed to apply failed shards {}", failedShardsToBeApplied), e);
                 // failures are communicated back to the requester
@@ -637,7 +639,7 @@ public class ShardStateAction {
                     // requests might still be in flight even after the shard has already been started or failed on the master. We just
                     // ignore these requests for now.
                     logger.debug("{} ignoring shard started task [{}] (shard does not exist anymore)", entry.shardId, entry);
-                    builder.success(task);
+                    builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
                 } else {
                     if (matched.primary() && entry.primaryTerm > 0) {
                         final IndexMetadata indexMetadata = currentState.metadata().index(entry.shardId.getIndex());
@@ -658,7 +660,7 @@ public class ShardStateAction {
                                 entry.primaryTerm,
                                 currentPrimaryTerm
                             );
-                            builder.success(task);
+                            builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
                             continue;
                         }
                     }
@@ -671,7 +673,7 @@ public class ShardStateAction {
                             entry,
                             matched
                         );
-                        builder.success(task);
+                        builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
                     } else {
                         // remove duplicate actions as allocation service expects a clean list without duplicates
                         if (seenShardRoutings.contains(matched)) {
@@ -727,7 +729,9 @@ public class ShardStateAction {
 
                 assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
 
-                builder.successes(tasksToBeApplied);
+                for (var task : tasksToBeApplied) {
+                    builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
+                }
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);
                 builder.failures(tasksToBeApplied, e);

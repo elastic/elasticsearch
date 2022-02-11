@@ -95,7 +95,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         ClusterState.Builder newState;
 
         if (joiningNodes.size() == 1 && joiningNodes.get(0).isFinishElectionTask()) {
-            return results.successes(joiningNodes).build(currentState);
+            final Task task = joiningNodes.get(0);
+            return results.success(task, new LegacyClusterTaskResultActionListener(task, currentState)).build(currentState);
         } else if (currentNodes.getMasterNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeMasterTask)) {
             assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask)
                 : "becoming a master but election is not finished " + joiningNodes;
@@ -148,7 +149,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     continue;
                 }
             }
-            results.success(joinTask);
+            results.success(joinTask, new LegacyClusterTaskResultActionListener(joinTask, currentState));
         }
 
         if (nodesChanged) {
@@ -272,22 +273,22 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // we ensure that all indices in the cluster we join are compatible with us no matter if they are
         // closed or not we can't read mappings of these indices so we need to reject the join...
         for (IndexMetadata idxMetadata : metadata) {
-            if (idxMetadata.getCreationVersion().after(nodeVersion)) {
+            if (idxMetadata.getCompatibilityVersion().after(nodeVersion)) {
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
-                        + idxMetadata.getCreationVersion()
+                        + idxMetadata.getCompatibilityVersion()
                         + " the node version is: "
                         + nodeVersion
                 );
             }
-            if (idxMetadata.getCreationVersion().before(supportedIndexVersion)) {
+            if (idxMetadata.getCompatibilityVersion().before(supportedIndexVersion)) {
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
-                        + idxMetadata.getCreationVersion()
+                        + idxMetadata.getCompatibilityVersion()
                         + " minimum compatible index version is: "
                         + supportedIndexVersion
                 );

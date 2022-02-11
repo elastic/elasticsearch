@@ -135,7 +135,8 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         if (stopped) {
             return;
         }
-        task.stopWithoutNotification(reason);
+        task.markAsStopped(reason);
+
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
                 deploymentManager.stopDeployment(task);
@@ -204,20 +205,12 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         loadingModels.addAll(loadingToRetry);
     }
 
-    public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason) {
+    public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
         ActionListener<Void> notifyDeploymentOfStopped = ActionListener.wrap(
-            _void -> updateStoredState(
-                task.getModelId(),
-                new RoutingStateAndReason(RoutingState.STOPPED, reason),
-                ActionListener.wrap(s -> {}, failure -> {})
-            ),
+            _void -> updateStoredState(task.getModelId(), new RoutingStateAndReason(RoutingState.STOPPED, reason), listener),
             failed -> { // if we failed to stop the process, something strange is going on, but we should still notify of stop
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to stop due to error", task.getModelId()), failed);
-                updateStoredState(
-                    task.getModelId(),
-                    new RoutingStateAndReason(RoutingState.STOPPED, reason),
-                    ActionListener.wrap(s -> {}, failure -> {})
-                );
+                updateStoredState(task.getModelId(), new RoutingStateAndReason(RoutingState.STOPPED, reason), listener);
             }
         );
         updateStoredState(
@@ -309,7 +302,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                     && isResetMode == false) {
                     prepareModelToLoad(trainedModelAllocation.getTaskParams());
                 }
-                // This mode is not routed to the current node at all
+                // This model is not routed to the current node at all
                 if (routingStateAndReason == null) {
                     TrainedModelDeploymentTask task = modelIdToTask.remove(trainedModelAllocation.getTaskParams().getModelId());
                     if (task != null) {

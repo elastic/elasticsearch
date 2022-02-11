@@ -188,10 +188,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     }
 
     public static Map<String, Object> createMetaMapForRemovableSettings(List<String> removableSettings) {
-        Map<String, Object> actionsMap = new HashMap<>();
-        actionsMap.put(ACTION_TYPE, REMOVE_SETTINGS_ACTION_TYPE);
-        actionsMap.put(OBJECTS_FIELD, removableSettings);
-        return Collections.singletonMap(ACTIONS_META_FIELD, Collections.singletonList(Collections.unmodifiableMap(actionsMap)));
+        return createMetaMapWithDesiredRemovableSettings(Collections.emptyMap(), removableSettings);
     }
 
     /**
@@ -234,7 +231,6 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
      * hasSettingsThatNeedToBeDeleted is an optimization -- if it is false there is no need to do as much work because we can just return a
      * copy of the representative map.
      */
-    @SuppressWarnings("unchecked")
     private static Map<String, Object> buildNewMetaMap(
         Map<String, Object> representativeMeta,
         List<String> leastCommonRemovableSettings,
@@ -242,32 +238,10 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     ) {
         final Map<String, Object> newMeta;
         if (representativeMeta != null) {
-            newMeta = new HashMap<>(representativeMeta);
             if (hasSettingsThatNeedToBeDeleted) {
-                List<Map<String, Object>> actions = (List<Map<String, Object>>) newMeta.get(ACTIONS_META_FIELD);
-                List<Map<String, Object>> clonedActions = new ArrayList<>(actions);
-                newMeta.put(ACTIONS_META_FIELD, clonedActions); // So that we don't modify the input data
-                for (int i = 0; i < clonedActions.size(); i++) {
-                    Map<String, Object> actionsMap = clonedActions.get(i);
-                    if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
-                        Map<String, Object> clonedActionsMap = new HashMap<>(actionsMap);
-                        if (leastCommonRemovableSettings == null) {
-                            clonedActionsMap.put(OBJECTS_FIELD, Collections.emptyList());
-                        } else {
-                            clonedActionsMap.put(OBJECTS_FIELD, leastCommonRemovableSettings);
-                        }
-                        clonedActions.set(i, clonedActionsMap);
-                    }
-                }
-                for (Map<String, Object> actionsMap : clonedActions) {
-                    if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
-                        if (leastCommonRemovableSettings == null) {
-                            actionsMap.put(OBJECTS_FIELD, Collections.emptyList());
-                        } else {
-                            actionsMap.put(OBJECTS_FIELD, leastCommonRemovableSettings);
-                        }
-                    }
-                }
+                newMeta = createMetaMapWithDesiredRemovableSettings(representativeMeta, leastCommonRemovableSettings);
+            } else {
+                newMeta = representativeMeta;
             }
         } else {
             newMeta = null;
@@ -280,41 +254,95 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
      * indicating whether it found any settings that were not in all similarIssues (indicating that the calling code will need to remove
      * some from the meta map).
      */
-    @SuppressWarnings("unchecked")
     private static Tuple<List<String>, Boolean> getLeastCommonRemovableSettings(List<DeprecationIssue> similarIssues) {
         boolean hasSettingsThatNeedToBeDeleted = false;
         List<String> leastCommonRemovableSettings = null;
         for (DeprecationIssue issue : similarIssues) {
-            Map<String, Object> meta = issue.getMeta();
-            if (meta == null) {
+            List<String> removableSettings = issue.getRemovableSettings();
+            if (removableSettings == null) {
                 leastCommonRemovableSettings = null;
                 break;
             }
-            Object actionsObject = meta.get(ACTIONS_META_FIELD);
-            if (actionsObject == null) {
-                leastCommonRemovableSettings = null;
-                break;
-            }
-            List<Map<String, Object>> actionsMapList = (List<Map<String, Object>>) actionsObject;
-            if (actionsMapList.isEmpty()) {
-                leastCommonRemovableSettings = null;
-                break;
-            }
-            for (Map<String, Object> actionsMap : actionsMapList) {
-                if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
-                    List<String> removableSettings = (List<String>) actionsMap.get(OBJECTS_FIELD);
+            if (leastCommonRemovableSettings == null) {
+                leastCommonRemovableSettings = new ArrayList<>(removableSettings);
+            } else {
+                List<String> newleastCommonRemovableSettings = leastCommonRemovableSettings.stream()
+                    .distinct()
+                    .filter(removableSettings::contains)
+                    .collect(Collectors.toList());
+                if (newleastCommonRemovableSettings.size() != leastCommonRemovableSettings.size()) {
                     hasSettingsThatNeedToBeDeleted = true;
-                    if (leastCommonRemovableSettings == null) {
-                        leastCommonRemovableSettings = new ArrayList<>(removableSettings);
-                    } else {
-                        leastCommonRemovableSettings = leastCommonRemovableSettings.stream()
-                            .distinct()
-                            .filter(removableSettings::contains)
-                            .collect(Collectors.toList());
-                    }
                 }
+                leastCommonRemovableSettings = newleastCommonRemovableSettings;
             }
         }
         return Tuple.tuple(leastCommonRemovableSettings, hasSettingsThatNeedToBeDeleted);
     }
+
+    @SuppressWarnings("unchecked")
+    private List<String> getRemovableSettings() {
+        Map<String, Object> meta = getMeta();
+        if (meta == null) {
+            return null;
+        }
+        Object actionsObject = meta.get(ACTIONS_META_FIELD);
+        if (actionsObject == null) {
+            return null;
+        }
+        List<Map<String, Object>> actionsMapList = (List<Map<String, Object>>) actionsObject;
+        if (actionsMapList.isEmpty()) {
+            return null;
+        }
+        for (Map<String, Object> actionsMap : actionsMapList) {
+            if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
+                return (List<String>) actionsMap.get(OBJECTS_FIELD);
+            }
+        }
+        return null;
+    }
+
+    /*
+     * Returns a new meta map based on the one given, but with only the desiredRemovableSettings as removable settings
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> createMetaMapWithDesiredRemovableSettings(
+        Map<String, Object> seedMeta,
+        List<String> desiredRemovableSettings
+    ) {
+        Map<String, Object> newMeta = new HashMap<>(seedMeta);
+        boolean foundActionToUpdate = false;
+        List<Map<String, Object>> actions = (List<Map<String, Object>>) newMeta.get(ACTIONS_META_FIELD);
+        final List<Map<String, Object>> clonedActions;
+        if (actions == null) {
+            clonedActions = new ArrayList<>();
+        } else {
+            clonedActions = new ArrayList<>(actions); // So that we don't modify the input data
+            for (int i = 0; i < clonedActions.size(); i++) {
+                Map<String, Object> actionsMap = clonedActions.get(i);
+                if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
+                    foundActionToUpdate = true;
+                    if (desiredRemovableSettings != null && desiredRemovableSettings.isEmpty() == false) {
+                        Map<String, Object> clonedActionsMap = new HashMap<>(actionsMap);
+                        clonedActionsMap.put(OBJECTS_FIELD, desiredRemovableSettings);
+                        clonedActions.set(i, clonedActionsMap);
+                    } else {
+                        // If the desired removable settings is null / empty, we don't even want to have the action
+                        clonedActions.remove(i);
+                        i--;
+                    }
+                }
+            }
+        }
+        if (foundActionToUpdate == false) { // Either there were no remove_settings, or no just no actions at all
+            if (desiredRemovableSettings != null && desiredRemovableSettings.isEmpty() == false) {
+                Map<String, Object> actionsMap = new HashMap<>();
+                actionsMap.put(ACTION_TYPE, REMOVE_SETTINGS_ACTION_TYPE);
+                actionsMap.put(OBJECTS_FIELD, desiredRemovableSettings);
+                clonedActions.add(actionsMap);
+            }
+        }
+        newMeta.put(ACTIONS_META_FIELD, clonedActions);
+        return newMeta;
+    }
+
 }

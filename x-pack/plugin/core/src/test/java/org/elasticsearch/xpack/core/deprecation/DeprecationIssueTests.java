@@ -104,6 +104,8 @@ public class DeprecationIssueTests extends ESTestCase {
             emptySettingsIssue,
             DeprecationIssue.getIntersectionOfRemovableSettings(Arrays.asList(issue1, issue2, issue3, issue4))
         );
+        DeprecationIssue issue5 = createTestDeprecationIssue(getTestMetaMap(randomMeta, "setting.1", "setting.2", "setting.3"));
+        assertEquals(issue1, DeprecationIssue.getIntersectionOfRemovableSettings(Arrays.asList(issue1, issue5)));
     }
 
     private static Map<String, Object> getTestMetaMap(Map<String, Object> baseMap, String... settings) {

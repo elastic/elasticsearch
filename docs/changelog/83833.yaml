@@ -1,0 +1,7 @@
+pr: 83833
+summary: Fix scroll cursors wrapping text formatters
+area: SQL
+type: bug
+issues:
+ - 83581
+ - 83788

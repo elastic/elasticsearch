@@ -311,7 +311,6 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
 
         // manage
-        assertThat(role.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(true));
 
         // manage_security
@@ -333,6 +332,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
         // monitoring
         assertThat(role.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
 
         // manage_ilm
         assertThat(role.cluster().check(GetLifecycleAction.NAME, request, authentication), is(true));

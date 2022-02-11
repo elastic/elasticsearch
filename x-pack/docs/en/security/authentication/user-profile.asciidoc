@@ -4,33 +4,38 @@
 
 beta::[]
 
-User profiles provides a way to uniquely and stably refer to a user. This means
-that each user has a unique identifier, and that this identifier remains
-relatively unchanged during the lifetime of a deployment. User profiles ensure
-that preferences can be customized and persisted separately for each user, and
-that messages and notifications can be routed by using the user's unique
-identifier.
+In the {stack}, a user is required to authenticate each request. Each user is 
+represented as an object that encapsulates its identity and privileges. This
+object has limitations, especially for users that authenticate with multiple
+realms. 
 
-In the {stack}, a user is required to authenticate each request. Each user is
-represented as an object that encapsulates its identity and privileges.
-However, this object has limitations, especially for users that authenticate
-with multiple realms.
+User profiles overcome these limitations by providing a way of uniquely
+referring to a user that is more stable, flexible, and extensible than a
+`username` alone. A separate profile document is created for each authenticated
+user and assigned a unique ID, which is persisted in the profile
+<<system-indices,system index>>. The user profile becomes the representation of
+the user, even when it's not active. 
 
-User profiles overcome these limitations by creating a separate profile document 
-for each authenticated user. Each document is assigned a unique ID, which is
-persisted in the profile <<system-indices,system index>>. The user profile
-becomes the representation of the user, even when it's not active.
+The unique ID of each user profile remains relatively unchanged during the
+lifetime of a deployment, ensuring that preferences can be customized and 
+persisted separately for each user. When a user logs in to {kib}, their
+`username` is associated with their user profile. Even when a user logs out,
+their user profile persists across sessions and can still be referenced. By
+using the unique ID of the user profile, {kib} can route messages and
+notifications to the appropriate user, regardless of whether they're logged in.
 
 When checking for an existing user profile, {es} compares a user's `username`
 and the realm they're authenticating from to locate the matching profile
 document. If a user needs to authenticate with different realms but wants to
 use a single profile document, you can configure a
 <<security-domain,security domain>> to allow resource sharing across realms.
+By using the unique ID of the user profile, {es} can associate a user across
+realms.
 
 ==== Create and manage a user profile
 
 To create a new user profile or update an existing one, use the 
-<<security-api-activiate-user-profile,activate user profile API>>. When you
+<<security-api-activate-user-profile,activate user profile API>>. When you
 submit a request, {es} attempts to locate an existing profile document for the
 specified user. If one doesn't exist, {es} creates a new profile document.
 

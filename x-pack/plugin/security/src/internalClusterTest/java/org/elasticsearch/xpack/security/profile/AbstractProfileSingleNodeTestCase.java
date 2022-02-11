@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.profile;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
@@ -17,6 +18,9 @@ import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.junit.Before;
@@ -46,6 +50,13 @@ public abstract class AbstractProfileSingleNodeTestCase extends SecuritySingleNo
         AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("es.user_profile_feature_flag_enabled", "true"));
     }
 
+    @Override
+    protected Settings nodeSettings() {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings());
+        builder.put("xpack.security.authc.token.enabled", "true");
+        return builder.build();
+    }
+
     @Before
     public void createNativeUsers() {
         final PutUserRequest putUserRequest1 = new PutUserRequest();
@@ -73,11 +84,23 @@ public abstract class AbstractProfileSingleNodeTestCase extends SecuritySingleNo
     }
 
     protected Profile doActivateProfile(String username, SecureString password) {
+        // User and its access token should be associated to the same profile
+        return doActivateProfile(username, password, randomBoolean());
+    }
+
+    protected Profile doActivateProfile(String username, SecureString password, boolean useToken) {
         final ActivateProfileRequest activateProfileRequest = new ActivateProfileRequest();
-        activateProfileRequest.getGrant().setType("password");
-        activateProfileRequest.getGrant().setUsername(username);
-        // clone the secureString because activate action closes it afterwards
-        activateProfileRequest.getGrant().setPassword(password.clone());
+        if (useToken) {
+            final CreateTokenRequest createTokenRequest = new CreateTokenRequest("password", username, password.clone(), null, null, null);
+            final CreateTokenResponse createTokenResponse = client().execute(CreateTokenAction.INSTANCE, createTokenRequest).actionGet();
+            activateProfileRequest.getGrant().setType("access_token");
+            activateProfileRequest.getGrant().setAccessToken(new SecureString(createTokenResponse.getTokenString().toCharArray()));
+        } else {
+            activateProfileRequest.getGrant().setType("password");
+            activateProfileRequest.getGrant().setUsername(username);
+            // clone the secureString because activate action closes it afterwards
+            activateProfileRequest.getGrant().setPassword(password.clone());
+        }
 
         final ActivateProfileResponse activateProfileResponse = client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest)
             .actionGet();

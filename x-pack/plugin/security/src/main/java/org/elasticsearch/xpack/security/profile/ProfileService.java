@@ -188,10 +188,10 @@ public class ProfileService {
     void getVersionedDocument(Subject subject, ActionListener<VersionedDocument> listener) {
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                .must(QueryBuilders.termQuery("user_profile.user.username", subject.getUser().principal()));
+                .filter(QueryBuilders.termQuery("user_profile.user.username", subject.getUser().principal()));
             if (subject.getRealm().getDomain() == null) {
-                boolQuery.must(QueryBuilders.termQuery("user_profile.user.realm.name", subject.getRealm().getName()))
-                    .must(QueryBuilders.termQuery("user_profile.user.realm.type", subject.getRealm().getType()));
+                boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.name", subject.getRealm().getName()))
+                    .filter(QueryBuilders.termQuery("user_profile.user.realm.type", subject.getRealm().getType()));
             } else {
                 logger.debug(
                     () -> new ParameterizedMessage(
@@ -204,8 +204,8 @@ public class ProfileService {
                 subject.getRealm().getDomain().realms().forEach(realmIdentifier -> {
                     boolQuery.should(
                         QueryBuilders.boolQuery()
-                            .must(QueryBuilders.termQuery("user_profile.user.realm.name", realmIdentifier.getName()))
-                            .must(QueryBuilders.termQuery("user_profile.user.realm.type", realmIdentifier.getType()))
+                            .filter(QueryBuilders.termQuery("user_profile.user.realm.name", realmIdentifier.getName()))
+                            .filter(QueryBuilders.termQuery("user_profile.user.realm.type", realmIdentifier.getType()))
                     );
                 });
                 boolQuery.minimumShouldMatch(1);

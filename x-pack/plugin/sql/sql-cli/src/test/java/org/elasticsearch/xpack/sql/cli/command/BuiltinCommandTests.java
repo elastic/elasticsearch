@@ -98,4 +98,21 @@ public class BuiltinCommandTests extends SqlCliTestCase {
         verifyNoMoreInteractions(httpClient);
     }
 
+    public void testLenient() {
+        TestTerminal testTerminal = new TestTerminal();
+        HttpClient httpClient = mock(HttpClient.class);
+        CliSession cliSession = new CliSession(httpClient);
+        LenientCliCommand cliCommand = new LenientCliCommand();
+        assertFalse(cliCommand.handle(testTerminal, cliSession, "lenient"));
+        assertEquals(false, cliSession.isLenient());
+        assertTrue(cliCommand.handle(testTerminal, cliSession, "lenient = true"));
+        assertEquals(true, cliSession.isLenient());
+        assertEquals("lenient set to <em>true</em><flush/>", testTerminal.toString());
+        testTerminal.clear();
+        assertTrue(cliCommand.handle(testTerminal, cliSession, "lenient = false"));
+        assertEquals(false, cliSession.isLenient());
+        assertEquals("lenient set to <em>false</em><flush/>", testTerminal.toString());
+        testTerminal.clear();
+    }
+
 }

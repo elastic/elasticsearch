@@ -167,6 +167,7 @@ import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
+import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -901,7 +902,8 @@ public class Node implements Closeable {
             );
 
             List<HealthIndicatorService> serverHealthIndicatorServices = List.of(
-                new InstanceHasMasterHealthIndicatorService(clusterService)
+                new InstanceHasMasterHealthIndicatorService(clusterService),
+                new RepositoryIntegrityHealthIndicatorService(clusterService)
             );
             List<HealthIndicatorService> pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
                 .stream()

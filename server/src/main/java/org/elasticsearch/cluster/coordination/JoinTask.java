@@ -16,8 +16,17 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaster) implements ClusterStateTaskListener {
+
+    public static JoinTask singleNode(DiscoveryNode node, String reason, ActionListener<Void> listener) {
+        return new JoinTask(List.of(new NodeJoinTask(node, reason, listener)), false);
+    }
+
+    public static JoinTask completingElection(Stream<NodeJoinTask> nodeJoinTaskStream) {
+        return new JoinTask(nodeJoinTaskStream.toList(), true);
+    }
 
     public JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaster) {
         this.nodeJoinTasks = Collections.unmodifiableList(nodeJoinTasks);

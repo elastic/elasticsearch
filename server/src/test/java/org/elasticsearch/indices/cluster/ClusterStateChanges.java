@@ -103,7 +103,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static java.util.stream.Collectors.toMap;
@@ -350,22 +349,15 @@ public class ClusterStateChanges {
         return execute(transportClusterRerouteAction, request, state);
     }
 
-    public ClusterState addNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
+    public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
         return runTasks(
             joinTaskExecutor,
             clusterState,
             List.of(
-                new JoinTask(
-                    nodes.stream()
-                        .map(
-                            node -> new JoinTask.NodeJoinTask(
-                                node,
-                                "dummy reason",
-                                ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
-                            )
-                        )
-                        .collect(Collectors.toList()),
-                    false
+                JoinTask.singleNode(
+                    discoveryNode,
+                    "dummy reason",
+                    ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
                 )
             )
         );
@@ -376,7 +368,7 @@ public class ClusterStateChanges {
             joinTaskExecutor,
             clusterState,
             List.of(
-                new JoinTask(
+                JoinTask.completingElection(
                     nodes.stream()
                         .map(
                             node -> new JoinTask.NodeJoinTask(
@@ -385,8 +377,6 @@ public class ClusterStateChanges {
                                 ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
                             )
                         )
-                        .collect(Collectors.toList()),
-                    true
                 )
             )
         );

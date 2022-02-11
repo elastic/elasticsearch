@@ -175,15 +175,10 @@ public class JoinTaskExecutorTests extends ESTestCase {
         final ClusterStateTaskExecutor.ClusterTasksResult<JoinTask> result = joinTaskExecutor.execute(
             clusterState,
             List.of(
-                new JoinTask(
-                    List.of(
-                        new JoinTask.NodeJoinTask(
-                            actualNode,
-                            "test",
-                            ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
-                        )
-                    ),
-                    false
+                JoinTask.singleNode(
+                    actualNode,
+                    "test",
+                    ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
                 )
             )
         );

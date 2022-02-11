@@ -56,7 +56,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
@@ -369,10 +368,7 @@ public class JoinHelper {
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
-            final JoinTask task = new JoinTask(
-                List.of(new JoinTask.NodeJoinTask(sender, joinReasonService.getJoinReason(sender, Mode.LEADER), joinListener)),
-                false
-            );
+            final JoinTask task = JoinTask.singleNode(sender, joinReasonService.getJoinReason(sender, Mode.LEADER), joinListener);
             assert joinTaskExecutor != null;
             masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
@@ -427,7 +423,7 @@ public class JoinHelper {
             assert closed == false : "CandidateJoinAccumulator closed";
             closed = true;
             if (newMode == Mode.LEADER) {
-                final JoinTask joinTask = new JoinTask(joinRequestAccumulator.entrySet().stream().map(entry -> {
+                final JoinTask joinTask = JoinTask.completingElection(joinRequestAccumulator.entrySet().stream().map(entry -> {
                     final DiscoveryNode discoveryNode = entry.getKey();
                     final ActionListener<Void> listener = entry.getValue();
                     return new JoinTask.NodeJoinTask(
@@ -435,7 +431,7 @@ public class JoinHelper {
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
                         listener
                     );
-                }).collect(Collectors.toList()), true);
+                }));
 
                 joinTaskExecutor = joinTaskExecutorGenerator.get();
                 masterService.submitStateUpdateTask(

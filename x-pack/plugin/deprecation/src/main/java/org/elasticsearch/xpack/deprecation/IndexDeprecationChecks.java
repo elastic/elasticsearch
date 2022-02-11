@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
@@ -165,7 +167,7 @@ public class IndexDeprecationChecks {
         return issues;
     }
 
-    private static String formatDateField(String type, Map.Entry<?, ?> entry) {
+    private static String changeFormatToJavaTime(String type, Map.Entry<?, ?> entry) {
         Map<?, ?> value = (Map<?, ?>) entry.getValue();
         return String.format(Locale.ROOT, "Convert [%s] format %s to java.time.", entry.getKey(), value.get("format"));
     }
@@ -192,7 +194,7 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue deprecatedDateTimeFormat(IndexMetadata indexMetadata) {
+    static DeprecationIssue deprecatedJodaDateTimeFormat(IndexMetadata indexMetadata) {
         Version createdWith = indexMetadata.getCreationVersion();
         if (createdWith.before(Version.V_7_0_0)) {
             List<String> fields = new ArrayList<>();
@@ -203,8 +205,8 @@ public class IndexDeprecationChecks {
                     findInPropertiesRecursively(
                         mappingMetadata.type(),
                         sourceAsMap,
-                        IndexDeprecationChecks::isDateFieldWithDeprecatedPattern,
-                        IndexDeprecationChecks::formatDateField,
+                        IndexDeprecationChecks::isDateFieldWithJodaPattern,
+                        IndexDeprecationChecks::changeFormatToJavaTime,
                         "",
                         ""
                     )
@@ -226,10 +228,68 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    private static boolean isDateFieldWithDeprecatedPattern(Map<?, ?> property) {
+    private static boolean isDateFieldWithJodaPattern(Map<?, ?> property) {
         return "date".equals(property.get("type"))
             && property.containsKey("format")
             && JodaDeprecationPatterns.isDeprecatedPattern((String) property.get("format"));
+    }
+
+    static DeprecationIssue deprecatedCamelCasePattern(IndexMetadata indexMetadata) {
+        List<String> fields = new ArrayList<>();
+        fieldLevelMappingIssue(
+            indexMetadata,
+            ((mappingMetadata, sourceAsMap) -> fields.addAll(
+                findInPropertiesRecursively(
+                    mappingMetadata.type(),
+                    sourceAsMap,
+                    IndexDeprecationChecks::isDateFieldWithCamelCasePattern,
+                    IndexDeprecationChecks::changeFormatToSnakeCase,
+                    "",
+                    ""
+                )
+            ))
+        );
+
+        if (fields.size() > 0) {
+            String detailsMessageBeginning = fields.stream().collect(Collectors.joining(" "));
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Date fields use deprecated camel case formats",
+                "https://ela.st/es-deprecation-7-java-time",
+                detailsMessageBeginning,
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    private static boolean isDateFieldWithCamelCasePattern(Map<?, ?> property) {
+        if ("date".equals(property.get("type")) && property.containsKey("format")) {
+            List<String> patterns = DateFormatter.splitCombinedPatterns((String) property.get("format"));
+            for (String pattern : patterns) {
+                FormatNames format = FormatNames.forName(pattern);
+                return format != null && format.isCamelCase(pattern);
+            }
+        }
+        return false;
+    }
+
+    private static String changeFormatToSnakeCase(String type, Map.Entry<?, ?> entry) {
+        Map<?, ?> value = (Map<?, ?>) entry.getValue();
+        final String formatFieldValue = (String) value.get("format");
+        List<String> patterns = DateFormatter.splitCombinedPatterns(formatFieldValue);
+        StringBuilder sb = new StringBuilder(
+            "Convert [" + entry.getKey() + "] format [" + formatFieldValue + "] " + "which contains deprecated camel case to snake case. "
+        );
+        for (String pattern : patterns) {
+            FormatNames format = FormatNames.forName(pattern);
+            if (format != null && format.isCamelCase(pattern)) {
+                sb.append("[" + pattern + "] to [" + format.getSnakeCaseName() + "]. ");
+            }
+        }
+        sb.deleteCharAt(sb.length() - 1);
+        return sb.toString();
     }
 
     static DeprecationIssue boostMappingCheck(IndexMetadata indexMetadata) {

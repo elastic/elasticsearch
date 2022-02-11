@@ -347,7 +347,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             + "}";
         IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
-        DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex);
+        DeprecationIssue issue = IndexDeprecationChecks.deprecatedJodaDateTimeFormat(simpleIndex);
         assertNull(issue);
     }
 
@@ -362,7 +362,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             + "}";
         IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
-        DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex);
+        DeprecationIssue issue = IndexDeprecationChecks.deprecatedJodaDateTimeFormat(simpleIndex);
         assertNull(issue);
     }
 
@@ -511,6 +511,73 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Date fields use deprecated Joda time formats",
             "https://ela.st/es-deprecation-7-java-time",
             "Convert [date_time_field] format Y-C-x-y to java.time." + JODA_TIME_DEPRECATION_DETAILS_SUFFIX,
+            false,
+            null
+        );
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(ClusterState.EMPTY_STATE, simpleIndex)
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testCamelCaseDeprecation() throws IOException {
+        String simpleMapping = "{\n"
+            + "\"properties\" : {\n"
+            + "   \"date_time_field\" : {\n"
+            + "       \"type\" : \"date\",\n"
+            + "       \"format\" : \"strictDateOptionalTime\"\n"
+            + "       }\n"
+            + "   }"
+            + "}";
+
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(Version.V_7_0_0))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putMapping("_doc", simpleMapping)
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Date fields use deprecated camel case formats",
+            "https://ela.st/es-deprecation-7-java-time",
+            "Convert [date_time_field] format [strictDateOptionalTime] "
+                + "which contains deprecated camel case to snake case. [strictDateOptionalTime] to [strict_date_optional_time].",
+            false,
+            null
+        );
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(ClusterState.EMPTY_STATE, simpleIndex)
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testCamelCaseDeprecationOnCombined() throws IOException {
+        String simpleMapping = "{\n"
+            + "\"properties\" : {\n"
+            + "   \"date_time_field\" : {\n"
+            + "       \"type\" : \"date\",\n"
+            + "       \"format\" : \"strictDateOptionalTime||strictWeekDateTime||epoch_seconds\"\n"
+            + "       }\n"
+            + "   }"
+            + "}";
+
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(Version.V_7_0_0))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putMapping("_doc", simpleMapping)
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Date fields use deprecated camel case formats",
+            "https://ela.st/es-deprecation-7-java-time",
+            "Convert [date_time_field] format [strictDateOptionalTime||strictWeekDateTime||epoch_seconds] "
+                + "which contains deprecated camel case to snake case. [strictDateOptionalTime] to [strict_date_optional_time]. "
+                + "[strictWeekDateTime] to [strict_week_date_time].",
             false,
             null
         );

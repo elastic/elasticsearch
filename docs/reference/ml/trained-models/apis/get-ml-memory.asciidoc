@@ -28,7 +28,7 @@ Get information about how {ml} jobs and trained models are using memory, on each
 node, both within the JVM heap, and natively, outside of the JVM.
 
 [[get-ml-memory-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<node_id>`::
     (Optional, string) The names of particular nodes in the cluster to target.
@@ -44,7 +44,7 @@ node, both within the JVM heap, and natively, outside of the JVM.
 
 [role="child_attributes"]
 [[get-ml-memory-response-body]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 `_nodes`::
 (object)

@@ -302,7 +302,21 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     }
 
     /*
-     * Returns a new meta map based on the one given, but with only the desiredRemovableSettings as removable settings
+     * Returns a new meta map based on the one given, but with only the desiredRemovableSettings as removable settings. If the seedMeta does
+     * not contain anything, and the desiredRemovableSettings are "setting1" and "setting2", the output map will look like:
+     * {
+     *    "_meta":{
+     *       "actions":[
+     *          {
+     *             "action_type":"remove_settings",
+     *             "objects":[
+     *                "setting1",
+     *                "setting2"
+     *             ]
+     *          }
+     *       ]
+     *    }
+     * }
      */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> createMetaMapWithDesiredRemovableSettings(
@@ -310,39 +324,54 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         List<String> desiredRemovableSettings
     ) {
         Map<String, Object> newMeta = new HashMap<>(seedMeta);
-        boolean foundActionToUpdate = false;
+        final boolean foundActionToUpdate;
         List<Map<String, Object>> actions = (List<Map<String, Object>>) newMeta.get(ACTIONS_META_FIELD);
         final List<Map<String, Object>> clonedActions;
         if (actions == null) {
             clonedActions = new ArrayList<>();
+            foundActionToUpdate = false;
         } else {
             clonedActions = new ArrayList<>(actions); // So that we don't modify the input data
-            for (int i = 0; i < clonedActions.size(); i++) {
-                Map<String, Object> actionsMap = clonedActions.get(i);
-                if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
-                    foundActionToUpdate = true;
-                    if (desiredRemovableSettings != null && desiredRemovableSettings.isEmpty() == false) {
-                        Map<String, Object> clonedActionsMap = new HashMap<>(actionsMap);
-                        clonedActionsMap.put(OBJECTS_FIELD, desiredRemovableSettings);
-                        clonedActions.set(i, clonedActionsMap);
-                    } else {
-                        // If the desired removable settings is null / empty, we don't even want to have the action
-                        clonedActions.remove(i);
-                        i--;
-                    }
-                }
-            }
+            foundActionToUpdate = attemptToModifyExistingActions(clonedActions, desiredRemovableSettings);
         }
         if (foundActionToUpdate == false) { // Either there were no remove_settings, or no just no actions at all
-            if (desiredRemovableSettings != null && desiredRemovableSettings.isEmpty() == false) {
-                Map<String, Object> actionsMap = new HashMap<>();
-                actionsMap.put(ACTION_TYPE, REMOVE_SETTINGS_ACTION_TYPE);
-                actionsMap.put(OBJECTS_FIELD, desiredRemovableSettings);
-                clonedActions.add(actionsMap);
-            }
+            createNewAction(clonedActions, desiredRemovableSettings);
         }
         newMeta.put(ACTIONS_META_FIELD, clonedActions);
         return newMeta;
+    }
+
+    /*
+     * This attempts to modify an existing set of actions with the desiredRemovableSettings. It returns true if it finds a "remove_settings"
+     * action and updates it.
+     */
+    private static boolean attemptToModifyExistingActions(List<Map<String, Object>> actions, List<String> desiredRemovableSettings) {
+        boolean foundActionToUpdate = false;
+        for (int i = 0; i < actions.size(); i++) {
+            Map<String, Object> actionsMap = actions.get(i);
+            if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
+                foundActionToUpdate = true;
+                if (desiredRemovableSettings != null && desiredRemovableSettings.isEmpty() == false) {
+                    Map<String, Object> clonedActionsMap = new HashMap<>(actionsMap);
+                    clonedActionsMap.put(OBJECTS_FIELD, desiredRemovableSettings);
+                    actions.set(i, clonedActionsMap);
+                } else {
+                    // If the desired removable settings is null / empty, we don't even want to have the action
+                    actions.remove(i);
+                    i--;
+                }
+            }
+        }
+        return foundActionToUpdate;
+    }
+
+    private static void createNewAction(List<Map<String, Object>> actions, List<String> desiredRemovableSettings) {
+        if (desiredRemovableSettings != null && desiredRemovableSettings.isEmpty() == false) {
+            Map<String, Object> actionsMap = new HashMap<>();
+            actionsMap.put(ACTION_TYPE, REMOVE_SETTINGS_ACTION_TYPE);
+            actionsMap.put(OBJECTS_FIELD, desiredRemovableSettings);
+            actions.add(actionsMap);
+        }
     }
 
 }

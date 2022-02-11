@@ -40,6 +40,8 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
             sqlRequest = SqlClearCursorRequest.fromXContent(parser);
         }
 
+        sqlRequest.setCursor(TextFormat.decodeCursorWithFormatter(sqlRequest.getCursor()).v1());
+
         return channel -> client.executeLocally(SqlClearCursorAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
     }
 

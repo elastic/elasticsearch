@@ -72,7 +72,7 @@ public final class Cursors {
         if (info == Cursor.EMPTY) {
             return StringUtils.EMPTY;
         }
-        try (SqlStreamOutput output = SqlStreamOutput.create(version, zoneId)) {
+        try (SqlStreamOutput output = SqlStreamOutput.create(version, zoneId, true)) {
             output.writeNamedWriteable(info);
             output.close();
             // return the string only after closing the resource
@@ -89,7 +89,7 @@ public final class Cursors {
         if (base64.isEmpty()) {
             return new Tuple<>(Cursor.EMPTY, null);
         }
-        try (SqlStreamInput in = SqlStreamInput.fromString(base64, WRITEABLE_REGISTRY, VERSION)) {
+        try (SqlStreamInput in = SqlStreamInput.fromString(base64, WRITEABLE_REGISTRY, VERSION, true)) {
             Cursor cursor = in.readNamedWriteable(Cursor.class);
             return new Tuple<>(cursor, in.zoneId());
         } catch (IOException ex) {

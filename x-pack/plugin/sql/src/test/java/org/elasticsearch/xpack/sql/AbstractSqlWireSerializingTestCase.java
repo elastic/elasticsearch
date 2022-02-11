@@ -23,10 +23,11 @@ public abstract class AbstractSqlWireSerializingTestCase<T extends Writeable> ex
     @Override
     protected T copyInstance(T instance, Version version) throws IOException {
         ZoneId zoneId = instanceZoneId(instance);
-        SqlStreamOutput out = SqlStreamOutput.create(version, zoneId);
+        boolean compress = randomBoolean();
+        SqlStreamOutput out = SqlStreamOutput.create(version, zoneId, compress);
         instance.writeTo(out);
         out.close();
-        try (SqlStreamInput in = SqlStreamInput.fromString(out.streamAsString(), getNamedWriteableRegistry(), version)) {
+        try (SqlStreamInput in = SqlStreamInput.fromString(out.streamAsString(), getNamedWriteableRegistry(), version, compress)) {
             return instanceReader().read(in);
         }
     }

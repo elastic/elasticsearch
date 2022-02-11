@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -15,7 +16,6 @@ import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
-import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.TEXT;
 
 public class TextFormatTests extends ESTestCase {
 
@@ -179,10 +180,33 @@ public class TextFormatTests extends ESTestCase {
             StringUtils.EMPTY,
             PLAIN_TEXT.format(
                 req(),
-                new BasicFormatter(emptyList(), emptyList(), SimpleFormatter.FormatOption.TEXT),
+                new BasicFormatter(emptyList(), emptyList(), TEXT),
                 new SqlQueryResponse(StringUtils.EMPTY, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, null, emptyList())
-            )
+            ).v1()
         );
+    }
+
+    public void testWrapAndUnwrapCursorWithFormatter() {
+        String cursor = randomAlphaOfLength(100);
+        BasicFormatter formatter = new BasicFormatter(
+            List.of(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10))),
+            List.of(List.of(randomAlphaOfLength(100))),
+            TEXT
+        );
+        Tuple<String, BasicFormatter> result = TextFormat.decodeCursorWithFormatter(
+            TextFormat.encodeCursorWithFormatter(cursor, formatter)
+        );
+
+        assertEquals(cursor, result.v1());
+        assertEquals(formatter, result.v2());
+    }
+
+    public void testWrapAndUnwrapCursorWithoutFormatter() {
+        String cursor = randomAlphaOfLength(100);
+        Tuple<String, BasicFormatter> result = TextFormat.decodeCursorWithFormatter(TextFormat.encodeCursorWithFormatter(cursor, null));
+
+        assertEquals(cursor, result.v1());
+        assertNull(result.v2());
     }
 
     private static SqlQueryResponse emptyData() {
@@ -233,6 +257,6 @@ public class TextFormatTests extends ESTestCase {
     }
 
     private String format(TextFormat format, RestRequest request, SqlQueryResponse response) {
-        return format.format(request, null, response);
+        return format.format(request, null, response).v1();
     }
 }

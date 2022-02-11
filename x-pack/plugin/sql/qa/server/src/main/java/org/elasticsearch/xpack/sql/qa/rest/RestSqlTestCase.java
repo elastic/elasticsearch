@@ -1182,7 +1182,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             .toString();
 
         String cursor = null;
-        for (int i = 0; i < 20; i += 2) {
+        for (int i = 0; i < size; i += 2) {
             Tuple<String, String> response;
             if (i == 0) {
                 response = runSqlAsText(StringUtils.EMPTY, new StringEntity(request, ContentType.APPLICATION_JSON), format);
@@ -1197,7 +1197,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             StringBuilder expected = new StringBuilder();
             if (i == 0) {
                 expected.append(expectedHeader);
-                if (format == "text/plain") {
+                if (format.equals("text/plain")) {
                     expected.append("---------------+---------------+---------------\n");
                 }
             }
@@ -1209,17 +1209,21 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         Map<String, Object> expected = new HashMap<>();
         expected.put("rows", emptyList());
-        assertResponse(
-            expected,
-            runSql(new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON), StringUtils.EMPTY, Mode.PLAIN.toString())
-        );
 
-        Map<String, Object> response = runSql(
+        Tuple<String, String> response = runSqlAsText(
+            StringUtils.EMPTY,
+            new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON),
+            format
+        );
+        assertEquals(StringUtils.EMPTY, response.v1());
+        assertNull(response.v2());
+
+        Map<String, Object> closeResponse = runSql(
             new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON),
             "/close",
             Mode.PLAIN.toString()
         );
-        assertEquals(true, response.get("succeeded"));
+        assertEquals(true, closeResponse.get("succeeded"));
 
         assertEquals(0, getNumberOfSearchContexts(provisioningClient(), "test"));
     }

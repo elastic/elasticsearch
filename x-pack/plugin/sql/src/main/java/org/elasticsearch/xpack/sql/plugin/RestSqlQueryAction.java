@@ -13,7 +13,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.Protocol;
@@ -27,7 +26,6 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER;
 
 public class RestSqlQueryAction extends BaseRestHandler {
@@ -53,17 +51,14 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            MediaType mediaType = SqlMediaTypeParser.getResponseMediaType(request, sqlRequest);
-            BasicFormatter formatter = null;
-            if (mediaType == PLAIN_TEXT) {
-                Tuple<String, BasicFormatter> cursorWithFormatter = TextFormat.unwrapCursor(sqlRequest.cursor());
-                sqlRequest.cursor(cursorWithFormatter.v1());
-                formatter = cursorWithFormatter.v2();
-            }
+
+            Tuple<String, BasicFormatter> cursorWithFormatter = TextFormat.decodeCursorWithFormatter(sqlRequest.cursor());
+            sqlRequest.cursor(cursorWithFormatter.v1());
+
             cancellableClient.execute(
                 SqlQueryAction.INSTANCE,
                 sqlRequest,
-                new SqlResponseListener(channel, request, sqlRequest, formatter)
+                new SqlResponseListener(channel, request, sqlRequest, cursorWithFormatter.v2())
             );
         };
     }

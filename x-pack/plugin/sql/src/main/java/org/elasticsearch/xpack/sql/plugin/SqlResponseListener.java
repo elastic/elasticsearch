@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -72,14 +73,22 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
 
         // XContent branch
         if (mediaType instanceof XContentType type) {
+            wrapCursor(response, formatter);
+
             XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
             response.toXContent(builder, request);
             restResponse = new BytesRestResponse(RestStatus.OK, builder);
         } else { // TextFormat
             TextFormat type = (TextFormat) mediaType;
-            final String data = type.format(request, formatter, response);
+            final Tuple<String, BasicFormatter> dataWithNextFormatter = type.format(request, formatter, response);
 
-            restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request), data.getBytes(StandardCharsets.UTF_8));
+            wrapCursor(response, dataWithNextFormatter.v2());
+
+            restResponse = new BytesRestResponse(
+                RestStatus.OK,
+                type.contentType(request),
+                dataWithNextFormatter.v1().getBytes(StandardCharsets.UTF_8)
+            );
 
             if (response.hasCursor()) {
                 restResponse.addHeader(HEADER_NAME_CURSOR, response.cursor());
@@ -94,5 +103,11 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
 
         restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(System.nanoTime() - startNanos));
         return restResponse;
+    }
+
+    private void wrapCursor(SqlQueryResponse response, BasicFormatter formatter) {
+        if (response.hasCursor()) {
+            response.cursor(TextFormat.encodeCursorWithFormatter(response.cursor(), formatter));
+        }
     }
 }

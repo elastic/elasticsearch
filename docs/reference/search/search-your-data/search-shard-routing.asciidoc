@@ -88,6 +88,12 @@ GET /my-index-000001/_search?preference=my-custom-shard-string
 ----
 // TEST[setup:my_index]
 
+WARNING: If a node has <<shard-allocation-awareness,shard allocation awareness>>
+attributes, it will ignore custom `preference` values and instead prefer shards
+with the same awareness attribute values. You can disable routing based on
+awareness attributes by enabling the `es.search.ignore_awareness_attributes`
+system property on every node in the cluster.
+
 NOTE: If the cluster state or selected shards change, the same `preference`
 string may not route searches to the same shards in the same order. This can
 occur for a number of reasons, including shard relocations and shard failures. A

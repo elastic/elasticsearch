@@ -11,6 +11,7 @@ package org.elasticsearch.xcontent.cbor;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 
 import org.elasticsearch.xcontent.XContent;
@@ -58,6 +59,31 @@ public class CborXContent implements XContent {
     @Override
     public byte streamSeparator() {
         throw new XContentParseException("cbor does not support stream parsing...");
+    }
+
+    @Override
+    public boolean detectContent(byte[] bytes, int offset, int length) {
+        // CBOR logic similar to CBORFactory#hasCBORFormat
+        if (bytes[offset] == CBORConstants.BYTE_OBJECT_INDEFINITE && length > 1) {
+            return true;
+        }
+        if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, bytes[offset]) && length > 2) {
+            // Actually, specific "self-describe tag" is a very good indicator
+            if (bytes[offset] == (byte) 0xD9 && bytes[offset + 1] == (byte) 0xD9 && bytes[offset + 2] == (byte) 0xF7) {
+                return true;
+            }
+        }
+        // for small objects, some encoders just encode as major type object, we can safely
+        // say its CBOR since it doesn't contradict SMILE or JSON, and its a last resort
+        if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, bytes[offset])) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean detectContent(CharSequence chars) {
+        return false;
     }
 
     @Override

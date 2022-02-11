@@ -260,51 +260,36 @@ public class MasterServiceTests extends ESTestCase {
     */
     public void testClusterStateTaskListenerThrowingExceptionIsOkay() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean published = new AtomicBoolean();
 
         try (MasterService masterService = createMasterService(true)) {
-            ClusterStateTaskListener update = new ClusterStateTaskListener() {
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    throw new RuntimeException("testing exception handling");
-                }
-
-                @Override
-                public void onFailure(Exception e) {}
-            };
             masterService.submitStateUpdateTask(
                 "testClusterStateTaskListenerThrowingExceptionIsOkay",
-                update,
+                new ExpectSuccessTask(),
                 ClusterStateTaskConfig.build(Priority.NORMAL),
                 new ClusterStateTaskExecutor<>() {
                     @Override
-                    public ClusterTasksResult<ClusterStateTaskListener> execute(
-                        ClusterState currentState,
-                        List<ClusterStateTaskListener> tasks
-                    ) {
-                        ClusterState newClusterState = ClusterState.builder(currentState).build();
-                        return successes(currentState, tasks).build(newClusterState);
+                    public ClusterTasksResult<ExpectSuccessTask> execute(ClusterState currentState, List<ExpectSuccessTask> tasks) {
+                        var builder = ClusterTasksResult.<ExpectSuccessTask>builder();
+                        for (final var task : tasks) {
+                            builder.success(
+                                task,
+                                EXPECT_SUCCESS_LISTENER.delegateFailure(
+                                    (delegate, cs) -> { throw new RuntimeException("testing exception handling"); }
+                                )
+                            );
+                        }
+                        return builder.build(ClusterState.builder(currentState).build());
                     }
 
                     @Override
                     public void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
-                        published.set(true);
                         latch.countDown();
                     }
                 }
             );
 
-            latch.await();
-            assertTrue(published.get());
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
         }
-    }
-
-    private static <T extends ClusterStateTaskListener> ClusterTasksResult.Builder<T> successes(ClusterState originalState, List<T> tasks) {
-        ClusterTasksResult.Builder<T> builder = ClusterTasksResult.<T>builder();
-        for (T task : tasks) {
-            builder = builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, originalState));
-        }
-        return builder;
     }
 
     @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")
@@ -476,17 +461,10 @@ public class MasterServiceTests extends ESTestCase {
 
     public void testMultipleSubmissionBatching() throws Exception {
 
-        class Task implements ClusterStateTaskListener {
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        }
-
         final int executorCount = between(1, 5);
         final var executionCountDown = new CountDownLatch(executorCount);
 
-        class Executor implements ClusterStateTaskExecutor<Task> {
+        class Executor implements ClusterStateTaskExecutor<ExpectSuccessTask> {
 
             final AtomicBoolean executed = new AtomicBoolean();
 
@@ -497,11 +475,16 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
+            public ClusterTasksResult<ExpectSuccessTask> execute(ClusterState currentState, List<ExpectSuccessTask> tasks)
+                throws Exception {
                 assertTrue("Should execute all tasks at once", executed.compareAndSet(false, true));
                 assertThat("Should execute all tasks at once", tasks.size(), equalTo(expectedTaskCount));
                 executionCountDown.countDown();
-                return successes(currentState, tasks).build(currentState);
+                var builder = ClusterTasksResult.<ExpectSuccessTask>builder();
+                for (final var task : tasks) {
+                    builder.success(task, EXPECT_SUCCESS_LISTENER);
+                }
+                return builder.build(currentState);
             }
         }
 
@@ -516,12 +499,16 @@ public class MasterServiceTests extends ESTestCase {
 
             masterService.submitStateUpdateTask(
                 "block",
-                new Task(),
+                new ExpectSuccessTask(),
                 ClusterStateTaskConfig.build(Priority.NORMAL),
                 (currentState, tasks) -> {
                     executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
                     executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
-                    return successes(currentState, tasks).build(currentState);
+                    var builder = ClusterTasksResult.<ExpectSuccessTask>builder();
+                    for (final var task : tasks) {
+                        builder.success(task, EXPECT_SUCCESS_LISTENER);
+                    }
+                    return builder.build(currentState);
                 }
             );
 
@@ -532,7 +519,7 @@ public class MasterServiceTests extends ESTestCase {
             final var submitThreads = new Thread[between(1, 10)];
             for (int i = 0; i < submitThreads.length; i++) {
                 final var executor = randomFrom(executors);
-                final var task = new Task();
+                final var task = new ExpectSuccessTask();
                 executor.addExpectedTaskCount(1);
                 submitThreads[i] = new Thread(() -> {
                     try {
@@ -611,13 +598,12 @@ public class MasterServiceTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                throw new AssertionError(e);
+                throw new AssertionError("should not be called", e);
             }
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                processedStates.incrementAndGet();
-                processedStatesLatch.get().countDown();
+                throw new AssertionError("should not be called");
             }
 
             @Override
@@ -673,7 +659,23 @@ public class MasterServiceTests extends ESTestCase {
                         equalTo(true)
                     );
                 }
-                return successes(currentState, tasks).build(maybeUpdatedClusterState);
+                var builder = ClusterTasksResult.<Task>builder();
+                for (final var task : tasks) {
+                    builder = builder.success(task, new ActionListener<>() {
+                        @Override
+                        public void onResponse(ClusterState clusterState) {
+                            processedStates.incrementAndGet();
+                            processedStatesLatch.get().countDown();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            throw new AssertionError("should not be called", e);
+                        }
+                    });
+                }
+
+                return builder.build(maybeUpdatedClusterState);
             }
 
             @Override
@@ -971,35 +973,31 @@ public class MasterServiceTests extends ESTestCase {
         final AtomicReference<AssertionError> assertionRef = new AtomicReference<>();
 
         try (MasterService masterService = createMasterService(true)) {
-            ClusterStateTaskListener update = new ClusterStateTaskListener() {
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    BaseFuture<Void> future = new BaseFuture<Void>() {
-                    };
-                    try {
-                        if (randomBoolean()) {
-                            future.get(1L, TimeUnit.SECONDS);
-                        } else {
-                            future.get();
-                        }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    } catch (AssertionError e) {
-                        assertionRef.set(e);
-                        latch.countDown();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {}
-            };
             masterService.submitStateUpdateTask(
                 "testBlockingCallInClusterStateTaskListenerFails",
-                update,
+                new ExpectSuccessTask(),
                 ClusterStateTaskConfig.build(Priority.NORMAL),
                 (currentState, tasks) -> {
-                    ClusterState newClusterState = ClusterState.builder(currentState).build();
-                    return successes(currentState, tasks).build(newClusterState);
+                    var builder = ClusterTasksResult.<ExpectSuccessTask>builder();
+                    for (final var task : tasks) {
+                        builder = builder.success(task, EXPECT_SUCCESS_LISTENER.delegateFailure((delegate, cs) -> {
+                            BaseFuture<Void> future = new BaseFuture<Void>() {
+                            };
+                            try {
+                                if (randomBoolean()) {
+                                    future.get(1L, TimeUnit.SECONDS);
+                                } else {
+                                    future.get();
+                                }
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            } catch (AssertionError e) {
+                                assertionRef.set(e);
+                                latch.countDown();
+                            }
+                        }));
+                    }
+                    return builder.build(ClusterState.builder(currentState).build());
                 }
             );
 
@@ -1501,4 +1499,32 @@ public class MasterServiceTests extends ESTestCase {
         };
     }
 
+    /**
+     * Listener that asserts it does not fail.
+     */
+    private static final ActionListener<ClusterState> EXPECT_SUCCESS_LISTENER = new ActionListener<>() {
+        @Override
+        public void onResponse(ClusterState clusterState) {}
+
+        @Override
+        public void onFailure(Exception e) {
+            throw new AssertionError("should not be called", e);
+        }
+    };
+
+    /**
+     * Task that asserts it does not fail.
+     */
+    private static class ExpectSuccessTask implements ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            throw new AssertionError("should not be called", e);
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            // see parent method javadoc, we use dedicated listeners rather than calling this method
+            throw new AssertionError("should not be called");
+        }
+    }
 }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Having;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -75,7 +77,10 @@ import java.util.function.Consumer;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.versionIntroducingType;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
@@ -98,12 +103,12 @@ public final class Verifier {
         this.metrics = metrics;
     }
 
-    public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = verify(plan);
+    public Map<Node<?>, String> verifyFailures(LogicalPlan plan, SqlVersion version) {
+        Collection<Failure> failures = verify(plan, version);
         return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
-    Collection<Failure> verify(LogicalPlan plan) {
+    Collection<Failure> verify(LogicalPlan plan, SqlVersion version) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -235,6 +240,8 @@ public final class Verifier {
 
                 failures.addAll(localFailures);
             });
+
+            checkClientSupportsDataTypes(plan, failures, version);
         }
 
         // gather metrics
@@ -463,8 +470,9 @@ public final class Verifier {
             unsupported.add(e);
             return true;
         } else if (e instanceof Min || e instanceof Max) {
-            if (DataTypes.isString(((AggregateFunction) e).field().dataType())) {
-                // Min & Max on a Keyword field will be translated to First & Last respectively
+            DataType aggType = ((AggregateFunction) e).field().dataType();
+            if (DataTypes.isString(aggType) || aggType == UNSIGNED_LONG) {
+                // Min & Max on a Keyword or unsigned_long field will be translated to First & Last respectively
                 unsupported.add(e);
                 return true;
             }
@@ -993,6 +1001,28 @@ public final class Verifier {
                 }
             }
         }));
+    }
+
+    private static void checkClientSupportsDataTypes(LogicalPlan p, Set<Failure> localFailures, SqlVersion version) {
+        Version ver = Version.fromId(version.id);
+        p.output().forEach(e -> {
+            if (e.resolved() && isTypeSupportedInVersion(e.dataType(), ver) == false) {
+                localFailures.add(
+                    fail(
+                        e,
+                        "Cannot use field ["
+                            + e.name()
+                            + "] with type ["
+                            + e.dataType()
+                            + "] unsupported in version ["
+                            + version
+                            + "], upgrade required (to version ["
+                            + versionIntroducingType(e.dataType())
+                            + "] or higher)"
+                    )
+                );
+            }
+        });
     }
 
     // check that any binary field used in WHERE, GROUP BY, HAVING or ORDER BY has doc_values, for ES to allow querying it

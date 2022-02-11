@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -105,7 +106,7 @@ public class NlpTask {
         InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult);
     }
 
-    public interface Processor {
+    public interface Processor extends Releasable {
         /**
          * Validate the task input string.
          * Throws an exception if the inputs fail validation

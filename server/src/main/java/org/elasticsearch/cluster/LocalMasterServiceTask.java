@@ -47,10 +47,13 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
                 @Override
                 public ClusterTasksResult<LocalMasterServiceTask> execute(ClusterState currentState, List<LocalMasterServiceTask> tasks)
                     throws Exception {
-                    assert tasks.size() == 1 && tasks.get(0) == LocalMasterServiceTask.this
+                    final LocalMasterServiceTask thisTask = LocalMasterServiceTask.this;
+                    assert tasks.size() == 1 && tasks.get(0) == thisTask
                         : "expected one-element task list containing current object but was " + tasks;
-                    LocalMasterServiceTask.this.execute(currentState);
-                    return ClusterTasksResult.<LocalMasterServiceTask>builder().successes(tasks).build(currentState);
+                    thisTask.execute(currentState);
+                    return ClusterTasksResult.<LocalMasterServiceTask>builder()
+                        .success(thisTask, new LegacyClusterTaskResultActionListener(thisTask, currentState))
+                        .build(currentState);
                 }
             }
         );

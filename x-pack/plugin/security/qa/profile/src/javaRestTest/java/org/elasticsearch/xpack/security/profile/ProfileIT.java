@@ -99,6 +99,8 @@ public class ProfileIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(indexRequest));
 
         final Map<String, Object> profileMap1 = doGetProfile(uid);
+        assertThat(castToMap(profileMap1.get("user")).get("realm_name"), equalTo("realm_name_1"));
+        assertThat(castToMap(profileMap1.get("user")).get("realm_domain"), equalTo("domainA"));
         assertThat(castToMap(profileMap1.get("data")), anEmptyMap());
 
         // Retrieve application data along the profile

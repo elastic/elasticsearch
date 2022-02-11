@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,10 +16,6 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -77,6 +74,10 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         this.seed = in.readInt();
     }
 
+    public double getProbability() {
+        return p;
+    }
+
     protected RandomSamplerAggregationBuilder(
         RandomSamplerAggregationBuilder clone,
         AggregatorFactories.Builder factoriesBuilder,
@@ -117,10 +118,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         }
         recursivelyCheckSubAggs(subfactoriesBuilder.getAggregatorFactories(), builder -> {
             // TODO add a method or interface to aggregation builder that defaults to false
-            if (builder instanceof CardinalityAggregationBuilder
-                || builder instanceof NestedAggregationBuilder
-                || builder instanceof SamplerAggregationBuilder
-                || builder instanceof DiversifiedAggregationBuilder) {
+            if (builder.supportsSampling() == false) {
                 throw new IllegalArgumentException(
                     "[random_sampler] aggregation ["
                         + getName()
@@ -133,6 +131,10 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
             }
         });
         return new RandomSamplerAggregatorFactory(name, seed, p, context, parent, subfactoriesBuilder, metadata);
+    }
+
+    public int getSeed() {
+        return seed;
     }
 
     @Override
@@ -157,6 +159,11 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_8_1_0;
     }
 
     @Override

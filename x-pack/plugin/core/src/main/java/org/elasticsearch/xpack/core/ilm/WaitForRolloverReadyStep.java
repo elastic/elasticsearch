@@ -38,6 +38,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     private final ByteSizeValue maxPrimaryShardSize;
     private final TimeValue maxAge;
     private final Long maxDocs;
+    private final Long maxPrimaryShardDocs;
 
     public WaitForRolloverReadyStep(
         StepKey key,
@@ -46,13 +47,15 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         ByteSizeValue maxSize,
         ByteSizeValue maxPrimaryShardSize,
         TimeValue maxAge,
-        Long maxDocs
+        Long maxDocs,
+        Long maxPrimaryShardDocs
     ) {
         super(key, nextStepKey, client);
         this.maxSize = maxSize;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
+        this.maxPrimaryShardDocs = maxPrimaryShardDocs;
     }
 
     @Override
@@ -73,7 +76,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                     "index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
                     index.getName(),
                     dataStream.getName(),
-                    LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadata.index(index).getSettings())
+                    metadata.index(index).getLifecyclePolicyName()
                 );
                 listener.onResponse(true, EmptyInfo.INSTANCE);
                 return;
@@ -192,6 +195,9 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         if (maxDocs != null) {
             rolloverRequest.addMaxIndexDocsCondition(maxDocs);
         }
+        if (maxPrimaryShardDocs != null) {
+            rolloverRequest.addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs);
+        }
         getClient().admin()
             .indices()
             .rolloverIndex(
@@ -219,9 +225,13 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         return maxDocs;
     }
 
+    public Long getMaxPrimaryShardDocs() {
+        return maxPrimaryShardDocs;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        return Objects.hash(super.hashCode(), maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
     }
 
     @Override
@@ -237,7 +247,8 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             && Objects.equals(maxSize, other.maxSize)
             && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
             && Objects.equals(maxAge, other.maxAge)
-            && Objects.equals(maxDocs, other.maxDocs);
+            && Objects.equals(maxDocs, other.maxDocs)
+            && Objects.equals(maxPrimaryShardDocs, other.maxPrimaryShardDocs);
     }
 
     // We currently have no information to provide for this AsyncWaitStep, so this is an empty object

@@ -336,6 +336,49 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Deprecated
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
 
+    public static final String SETTING_VERSION_COMPATIBILITY = "index.version.compatibility";
+
+    /**
+     * See {@link #getCompatibilityVersion()}
+     */
+    public static final Setting<Version> SETTING_INDEX_VERSION_COMPATIBILITY = Setting.versionSetting(
+        SETTING_VERSION_COMPATIBILITY,
+        SETTING_INDEX_VERSION_CREATED, // fall back to index.version.created
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final Version compatibilityVersion) {
+
+            }
+
+            @Override
+            public void validate(final Version compatibilityVersion, final Map<Setting<?>, Object> settings) {
+                Version createdVersion = (Version) settings.get(SETTING_INDEX_VERSION_CREATED);
+                if (compatibilityVersion.before(createdVersion)) {
+                    throw new IllegalArgumentException(
+                        SETTING_VERSION_COMPATIBILITY
+                            + " ["
+                            + compatibilityVersion
+                            + "] must be >= "
+                            + SETTING_VERSION_CREATED
+                            + " ["
+                            + createdVersion
+                            + "]"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(SETTING_INDEX_VERSION_CREATED);
+                return settings.iterator();
+            }
+
+        },
+        Property.IndexScope,
+        Property.PrivateIndex
+    );
+
     /**
      * The user provided name for an index. This is the plain string provided by the user when the index was created.
      * It might still contain date math expressions etc. (added in 5.0)
@@ -484,6 +527,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final DiscoveryNodeFilters initialRecoveryFilters;
 
     private final Version indexCreatedVersion;
+    private final Version indexCompatibilityVersion;
 
     private final ActiveShardCount waitForActiveShards;
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
@@ -502,6 +546,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final List<String> tierPreference;
 
     private final int shardsPerNodeLimit;
+
+    @Nullable // if an index isn't managed by ilm, it won't have a policy
+    private final String lifecyclePolicyName;
 
     private final LifecycleExecutionState lifecycleExecutionState;
 
@@ -544,6 +591,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final boolean ignoreDiskWatermarks,
         @Nullable final List<String> tierPreference,
         final int shardsPerNodeLimit,
+        final String lifecyclePolicyName,
         final LifecycleExecutionState lifecycleExecutionState,
         final AutoExpandReplicas autoExpandReplicas,
         final boolean isSearchableSnapshot,
@@ -588,10 +636,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
         this.tierPreference = tierPreference;
         this.shardsPerNodeLimit = shardsPerNodeLimit;
+        this.lifecyclePolicyName = lifecyclePolicyName;
         this.lifecycleExecutionState = lifecycleExecutionState;
         this.autoExpandReplicas = autoExpandReplicas;
         this.isSearchableSnapshot = isSearchableSnapshot;
         this.isPartialSearchableSnapshot = isPartialSearchableSnapshot;
+        this.indexCompatibilityVersion = SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -632,6 +682,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.ignoreDiskWatermarks,
             this.tierPreference,
             this.shardsPerNodeLimit,
+            this.lifecyclePolicyName,
             this.lifecycleExecutionState,
             this.autoExpandReplicas,
             this.isSearchableSnapshot,
@@ -689,9 +740,21 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * Return the {@link Version} on which this index has been created. This
      * information is typically useful for backward compatibility.
+     * To check index compatibility (e.g. N-1 checks), use {@link #getCompatibilityVersion()} instead.
      */
     public Version getCreationVersion() {
         return indexCreatedVersion;
+    }
+
+    /**
+     * Return the {@link Version} that this index provides compatibility for.
+     * This is typically compared to the {@link Version#minimumIndexCompatibilityVersion()} to figure out whether the index can be handled
+     * by the cluster.
+     * By default, this is equal to the {@link #getCreationVersion()}, but can also be a newer version if the index has been imported as
+     * a legacy index from an older snapshot, and its metadata has been converted to be handled by newer version nodes.
+     */
+    public Version getCompatibilityVersion() {
+        return indexCompatibilityVersion;
     }
 
     public long getCreationDate() {
@@ -759,6 +822,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return tierPreference;
     }
 
+    /**
+     * Return the name of the Index Lifecycle Policy associated with this index, or null if it is not managed by ILM.
+     */
+    @Nullable
+    public String getLifecyclePolicyName() {
+        return lifecyclePolicyName;
+    }
+
     public LifecycleExecutionState getLifecycleExecutionState() {
         return lifecycleExecutionState;
     }
@@ -806,6 +877,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope,
         Property.PrivateIndex
     );
+
+    // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and
+    // LifecycleSettings.LIFECYCLE_NAME_SETTING for the 'real' version
+    public static final String LIFECYCLE_NAME = "index.lifecycle.name";
 
     ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
         return this.customData;
@@ -1642,6 +1717,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
                 tierPreference,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings),
+                settings.get(IndexMetadata.LIFECYCLE_NAME), // n.b. lookup by name to get null-if-not-present semantics
                 lifecycleExecutionState,
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,
@@ -1923,11 +1999,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
                         Settings settings = Settings.fromXContent(parser);
-                        if (SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+                        if (SETTING_INDEX_VERSION_COMPATIBILITY.get(settings)
+                            .onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion())) {
                             throw new IllegalStateException(
-                                "this method should only be used to parse older index metadata versions "
+                                "this method should only be used to parse older incompatible index metadata versions "
                                     + "but got "
-                                    + SETTING_INDEX_VERSION_CREATED.get(settings)
+                                    + SETTING_INDEX_VERSION_COMPATIBILITY.get(settings)
                             );
                         }
                         builder.settings(settings);
@@ -2008,7 +2085,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             IndexMetadata indexMetadata = builder.build();
-            assert indexMetadata.getCreationVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion());
+            assert indexMetadata.getCompatibilityVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion());
             return indexMetadata;
         }
 

@@ -59,7 +59,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             return clusterState;
         }
 
-        String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = indexMetadata.getLifecyclePolicyName();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         // validate that the snapshot repository exists -- because policies are refreshed on later retries, and because
@@ -70,7 +70,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
                 "repository ["
                     + snapshotRepository
                     + "] is missing. ["
-                    + policy
+                    + policyName
                     + "] policy for "
                     + "index ["
                     + index.getName()
@@ -83,13 +83,13 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         newCustomData.setSnapshotRepository(snapshotRepository);
         if (lifecycleState.snapshotName() == null) {
             // generate and validate the snapshotName
-            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policy + ">").toLowerCase(Locale.ROOT);
+            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policyName + ">").toLowerCase(Locale.ROOT);
             String snapshotName = generateSnapshotName(snapshotNamePrefix);
             ActionRequestValidationException validationException = validateGeneratedSnapshotName(snapshotNamePrefix, snapshotName);
             if (validationException != null) {
                 logger.warn(
                     "unable to generate a snapshot name as part of policy [{}] for index [{}] due to [{}]",
-                    policy,
+                    policyName,
                     index.getName(),
                     validationException.getMessage()
                 );
@@ -103,7 +103,6 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             .metadata(
                 Metadata.builder(clusterState.getMetadata())
                     .put(IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap()))
-                    .build(false)
             )
             .build();
     }

@@ -52,7 +52,7 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body:
           byte : 1
           double : 1.0
@@ -70,7 +70,7 @@ setup:
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body:
           byte : 2
           double : 2.0

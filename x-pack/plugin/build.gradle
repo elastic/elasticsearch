@@ -113,6 +113,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.skipTest("indices.freeze/20_stats/Translog stats on frozen indices", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Basic", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Test index options", "#70192 -- the freeze index API is removed from 8.0")
+  task.skipTest("service_accounts/10_basic/Test get service accounts", "new service accounts are added")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
@@ -153,6 +154,8 @@ testClusters.configureEach {
 
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    systemProperty 'es.random_sampler_feature_flag_registered', 'true'
+    systemProperty 'es.user_profile_feature_flag_enabled', 'true'
   }
 }
 

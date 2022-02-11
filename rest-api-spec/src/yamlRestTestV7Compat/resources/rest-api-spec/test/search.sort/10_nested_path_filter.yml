@@ -18,7 +18,7 @@ setup:
 - do:
     index:
       index: "my-index"
-      id: 1
+      id: "1"
       refresh: true
       body:
         offer:
@@ -51,7 +51,7 @@ setup:
 - do:
     index:
       index: "my-locations"
-      id: 1
+      id: "1"
       refresh: true
       body:
         offer:

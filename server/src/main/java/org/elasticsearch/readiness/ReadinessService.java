@@ -39,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
     private static final int RESPONSE_TIMEOUT_MILLIS = 1_000;
+    private static final int NOT_READY_DELAY_MS = 5_000;
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
         "readiness.service.enabled",
@@ -52,6 +53,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private ServerSocketChannel serverChannel;
 
     private volatile boolean ready = false;
+    private volatile long notReadyTimestamp = 0L;
     private final boolean enabled;
 
     private final HttpServerTransport httpTransport;
@@ -61,6 +63,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         this.serverChannel = null;
         this.environment = environment;
         this.enabled = ENABLED_SETTING.get(environment.settings());
+
         if (enabled) {
             this.workerExecutor = EsExecutors.newScaling(
                 "readiness-worker",
@@ -167,10 +170,25 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         }
     }
 
+    boolean readyStatus() {
+        if (ready) {
+            return true;
+        }
+
+        // We've never been ready before
+        if (notReadyTimestamp == 0L) {
+            return false;
+        }
+
+        // Return not ready with some grace period
+        long currentTime = System.currentTimeMillis();
+        return (currentTime - notReadyTimestamp) < NOT_READY_DELAY_MS;
+    }
+
     void sendStatus(SocketChannel channel) {
         try {
             BoundTransportAddress boundAddress = httpTransport.boundAddress();
-            StringBuilder sb = new StringBuilder(Boolean.toString(ready));
+            StringBuilder sb = new StringBuilder(Boolean.toString(readyStatus()));
 
             if (boundAddress != null && boundAddress.publishAddress() != null) {
                 sb.append(',').append(boundAddress.publishAddress().getPort());
@@ -187,6 +205,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         if (enabled == false) {
             return;
         }
+
+        boolean wasReady = ready;
         this.ready = event.state().nodes().getMasterNodeId() != null;
+        if (ready == false && wasReady) {
+            this.notReadyTimestamp = System.currentTimeMillis();
+        }
     }
 }

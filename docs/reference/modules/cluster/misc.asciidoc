@@ -65,10 +65,10 @@ calculates the limit as follows:
 
 `cluster.max_shards_per_node * number of non-frozen data nodes`
 
-Shards for closed indices do not count toward this limit.Defaults to `1000`.
+Shards for closed indices do not count toward this limit. Defaults to `1000`.
 A cluster with no data nodes is unlimited.
 
-{es} rejects any request that creates more shards than this limit allows.For
+{es} rejects any request that creates more shards than this limit allows. For
 example, a cluster with a `cluster.max_shards_per_node` setting of `100` and
 three data nodes has a shard limit of 300. If the cluster already contains 296
 shards, {es} rejects any request that adds five or more shards to the cluster.
@@ -80,20 +80,23 @@ Notice that frozen shards have their own independent limit.
 `cluster.max_shards_per_node.frozen`::
 +
 --
-(<<dynamic-cluster-setting,Dynamic>>) Limits the total number of primary and replica frozen shards for the cluster.
+(<<dynamic-cluster-setting,Dynamic>>)
+Limits the total number of primary and replica frozen shards for the cluster.
 {es} calculates the limit as follows:
 
 `cluster.max_shards_per_node * number of frozen data nodes`
 
-Shards for closed indices do not count toward this limit.Defaults to `3000`.
+Shards for closed indices do not count toward this limit. Defaults to `3000`.
 A cluster with no frozen data nodes is unlimited.
 
 {es} rejects any request that creates more frozen shards than this limit allows.
 For example, a cluster with a `cluster.max_shards_per_node.frozen` setting of
-`100` and three frozen data nodes has a frozen shard limit of 300. If the cluster already contains 296 shards, {es} rejects any request that adds five or more frozen shards to the cluster.
+`100` and three frozen data nodes has a frozen shard limit of 300. If the
+cluster already contains 296 shards, {es} rejects any request that adds five or
+more frozen shards to the cluster.
 
-NOTE: These setting do not limit shards for individual nodes.
-To limit the number of shards for each node, use the
+NOTE: These setting do not limit shards for individual nodes. To limit the
+number of shards for each node, use the
 <<cluster-total-shards-per-node,`cluster.routing.allocation.total_shards_per_node`>>
 setting.
 --
@@ -112,16 +115,20 @@ and <<indices-recovery, recovery>> APIs.
 `cluster.max_concurrent_bounded_diagnostic_requests_per_node`::
 +
 --
+(<<dynamic-cluster-setting,Dynamic>>)
+Limits the bounded diagnostic requests a coordinating node can concurrently handle.
 
-(<<dynamic-cluster-setting,Dynamic>>) Limits the bounded diagnostic requests a coordinating node can concurrently handle.
+
 
 [[user-defined-data]]
 ===== User-defined cluster metadata
 
 User-defined metadata can be stored and retrieved using the Cluster Settings API.
-This can be used to store arbitrary, infrequently-changing data about the cluster without the need to create an index to store it.
-This data may be stored using any key prefixed with `cluster.metadata.`.
-For example, to store the email address of the administrator of a cluster under the key `cluster.metadata.administrator`, issue this request:
+This can be used to store arbitrary, infrequently-changing data about the cluster
+without the need to create an index to store it. This data may be stored using
+any key prefixed with `cluster.metadata.`. For example, to store the email
+address of the administrator of a cluster under the key `cluster.metadata.administrator`,
+issue this request:
 
 [source,console]
 -------------------------------
@@ -134,7 +141,7 @@ PUT /_cluster/settings
 -------------------------------
 
 IMPORTANT: User-defined cluster metadata is not intended to store sensitive or
-confidential information.Any information stored in user-defined cluster
+confidential information. Any information stored in user-defined cluster
 metadata will be viewable by anyone with access to the
 <<cluster-get-settings,Cluster Get Settings>> API, and is recorded in the
 {es} logs.

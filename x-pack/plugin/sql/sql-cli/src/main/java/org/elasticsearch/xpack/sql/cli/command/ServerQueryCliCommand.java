@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.cli.command;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection;
-import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter;
@@ -20,16 +19,6 @@ import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.Format
 
 public class ServerQueryCliCommand extends AbstractServerCliCommand {
 
-    protected boolean lenient;
-
-    public ServerQueryCliCommand() {
-        this(CoreProtocol.FIELD_MULTI_VALUE_LENIENCY);
-    }
-
-    public ServerQueryCliCommand(boolean lenient) {
-        this.lenient = lenient;
-    }
-
     @Override
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, String line) {
         SqlQueryResponse response = null;
@@ -37,7 +26,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
         SimpleFormatter formatter;
         String data;
         try {
-            response = cliClient.basicQuery(line, cliSession.getFetchSize(), lenient);
+            response = cliClient.basicQuery(line, cliSession.getFetchSize(), cliSession.isLenient());
             formatter = new SimpleFormatter(response.columns(), response.rows(), CLI);
             data = formatter.formatWithHeader(response.columns(), response.rows());
             while (true) {

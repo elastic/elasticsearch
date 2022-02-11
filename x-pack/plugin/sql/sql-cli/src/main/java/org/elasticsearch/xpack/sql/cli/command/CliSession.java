@@ -24,6 +24,7 @@ public class CliSession {
     private String fetchSeparator = "";
     private boolean debug;
     private boolean binary;
+    private boolean lenient = CoreProtocol.FIELD_MULTI_VALUE_LENIENCY;
 
     public CliSession(HttpClient httpClient) {
         this.httpClient = httpClient;
@@ -66,6 +67,14 @@ public class CliSession {
 
     public boolean isBinary() {
         return binary;
+    }
+
+    public boolean isLenient() {
+        return lenient;
+    }
+
+    public void setLenient(boolean lenient) {
+        this.lenient = lenient;
     }
 
     public void checkConnection() throws ClientException {

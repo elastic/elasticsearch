@@ -1,0 +1,5 @@
+pr: 83832
+summary: Push back excessive requests for stats
+area: Stats
+type: enhancement
+issues: []

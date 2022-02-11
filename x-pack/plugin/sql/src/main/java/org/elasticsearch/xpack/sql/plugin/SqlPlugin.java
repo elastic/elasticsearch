@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
 
 import java.util.Arrays;
@@ -157,5 +158,10 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             usageAction,
             infoAction
         );
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Cursors.getNamedWriteables();
     }
 }

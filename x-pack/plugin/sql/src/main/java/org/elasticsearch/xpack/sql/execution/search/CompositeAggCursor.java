@@ -52,15 +52,22 @@ public class CompositeAggCursor implements Cursor {
     public static final String NAME = "c";
 
     private final String[] indices;
-    private final byte[] nextQuery;
+    private final SearchSourceBuilder nextQuery;
     private final List<BucketExtractor> extractors;
     private final BitSet mask;
     private final int limit;
     private final boolean includeFrozen;
 
-    CompositeAggCursor(byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen, String... indices) {
+    CompositeAggCursor(
+        SearchSourceBuilder nextQuery,
+        List<BucketExtractor> exts,
+        BitSet mask,
+        int remainingLimit,
+        boolean includeFrozen,
+        String... indices
+    ) {
         this.indices = indices;
-        this.nextQuery = next;
+        this.nextQuery = nextQuery;
         this.extractors = exts;
         this.mask = mask;
         this.limit = remainingLimit;
@@ -69,7 +76,7 @@ public class CompositeAggCursor implements Cursor {
 
     public CompositeAggCursor(StreamInput in) throws IOException {
         indices = in.readStringArray();
-        nextQuery = in.readByteArray();
+        nextQuery = new SearchSourceBuilder(in);
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(BucketExtractor.class);
@@ -80,7 +87,7 @@ public class CompositeAggCursor implements Cursor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
-        out.writeByteArray(nextQuery);
+        nextQuery.writeTo(out);
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
@@ -97,7 +104,7 @@ public class CompositeAggCursor implements Cursor {
         return indices;
     }
 
-    byte[] next() {
+    SearchSourceBuilder next() {
         return nextQuery;
     }
 
@@ -118,21 +125,12 @@ public class CompositeAggCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
-        SearchSourceBuilder q;
-        try {
-            q = deserializeQuery(registry, nextQuery);
-        } catch (Exception ex) {
-            listener.onFailure(ex);
-            return;
-        }
-
-        SearchSourceBuilder query = q;
+    public void nextPage(SqlConfiguration cfg, Client client, ActionListener<Page> listener) {
         if (log.isTraceEnabled()) {
-            log.trace("About to execute composite query {} on {}", StringUtils.toString(query), indices);
+            log.trace("About to execute composite query {} on {}", StringUtils.toString(nextQuery), indices);
         }
 
-        SearchRequest request = Querier.prepareRequest(query, cfg.requestTimeout(), includeFrozen, indices);
+        SearchRequest request = Querier.prepareRequest(nextQuery, cfg.requestTimeout(), includeFrozen, indices);
 
         client.search(request, new ActionListener.Delegating<>(listener) {
             @Override
@@ -154,7 +152,7 @@ public class CompositeAggCursor implements Cursor {
         return () -> new CompositeAggRowSet(extractors, mask, response, limit);
     }
 
-    protected BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor() {
+    protected BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor() {
         return (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData(), includeFrozen, indices);
     }
 
@@ -162,7 +160,7 @@ public class CompositeAggCursor implements Cursor {
         SearchResponse response,
         SearchSourceBuilder source,
         Supplier<CompositeAggRowSet> makeRowSet,
-        BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor,
+        BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor,
         Runnable retry,
         ActionListener<Page> listener,
         Schema schema
@@ -184,13 +182,11 @@ public class CompositeAggCursor implements Cursor {
                 CompositeAggRowSet rowSet = makeRowSet.get();
                 Map<String, Object> afterKey = rowSet.afterKey();
 
-                byte[] queryAsBytes = null;
                 if (afterKey != null) {
                     updateSourceAfterKey(afterKey, source);
-                    queryAsBytes = serializeQuery(source);
                 }
 
-                Cursor next = rowSet.remainingData() == 0 ? Cursor.EMPTY : makeCursor.apply(queryAsBytes, rowSet);
+                Cursor next = rowSet.remainingData() == 0 ? Cursor.EMPTY : makeCursor.apply(source, rowSet);
                 listener.onResponse(new Page(rowSet, next));
             } catch (Exception ex) {
                 listener.onFailure(ex);
@@ -274,7 +270,7 @@ public class CompositeAggCursor implements Cursor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(indices), Arrays.hashCode(nextQuery), extractors, limit, mask, includeFrozen);
+        return Objects.hash(Arrays.hashCode(indices), nextQuery, extractors, limit, mask, includeFrozen);
     }
 
     @Override
@@ -284,7 +280,7 @@ public class CompositeAggCursor implements Cursor {
         }
         CompositeAggCursor other = (CompositeAggCursor) obj;
         return Arrays.equals(indices, other.indices)
-            && Arrays.equals(nextQuery, other.nextQuery)
+            && Objects.equals(nextQuery, other.nextQuery)
             && Objects.equals(extractors, other.extractors)
             && Objects.equals(limit, other.limit)
             && Objects.equals(includeFrozen, other.includeFrozen);

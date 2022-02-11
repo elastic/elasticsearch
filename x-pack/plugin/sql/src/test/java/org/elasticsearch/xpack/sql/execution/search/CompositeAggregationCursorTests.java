@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractorTests;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
@@ -30,7 +31,7 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
         }
 
         return new CompositeAggCursor(
-            new byte[randomInt(1024)],
+            new SearchSourceBuilder().size(randomInt(1000)),
             extractors,
             randomBitSet(extractorsSize),
             randomIntBetween(10, 1024),

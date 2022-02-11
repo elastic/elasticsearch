@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -93,7 +94,9 @@ public class CursorTests extends ESTestCase {
         );
     }
 
+    private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(Cursors.getNamedWriteables());
+
     public static Cursor decodeFromString(String base64) {
-        return Cursors.decodeFromStringWithZone(base64).v1();
+        return Cursors.decodeFromStringWithZone(base64, WRITEABLE_REGISTRY).v1();
     }
 }

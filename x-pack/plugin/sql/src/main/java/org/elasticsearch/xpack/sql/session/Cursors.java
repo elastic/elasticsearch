@@ -32,7 +32,6 @@ import java.util.List;
  */
 public final class Cursors {
 
-    private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(getNamedWriteables());
     private static final Version VERSION = Version.CURRENT;
 
     private Cursors() {}
@@ -85,11 +84,11 @@ public final class Cursors {
     /**
      * Read a {@linkplain Cursor} from a string.
      */
-    public static Tuple<Cursor, ZoneId> decodeFromStringWithZone(String base64) {
+    public static Tuple<Cursor, ZoneId> decodeFromStringWithZone(String base64, NamedWriteableRegistry writeableRegistry) {
         if (base64.isEmpty()) {
             return new Tuple<>(Cursor.EMPTY, null);
         }
-        try (SqlStreamInput in = SqlStreamInput.fromString(base64, WRITEABLE_REGISTRY, VERSION, true)) {
+        try (SqlStreamInput in = SqlStreamInput.fromString(base64, writeableRegistry, VERSION, true)) {
             Cursor cursor = in.readNamedWriteable(Cursor.class);
             return new Tuple<>(cursor, in.zoneId());
         } catch (IOException ex) {

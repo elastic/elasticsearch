@@ -2,5 +2,4 @@ pr: 83832
 summary: Push back excessive stats and recovery requests
 area: Stats
 type: enhancement
-issues:
-  - 51992
+issues: []

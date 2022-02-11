@@ -18,12 +18,7 @@ public interface HealthIndicatorDetails extends ToXContentObject {
     HealthIndicatorDetails EMPTY = new HealthIndicatorDetails() {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().endObject();
-        }
-
-        @Override
-        public String toString() {
-            return "HealthIndicatorDetails{}";
+            return builder;
         }
     };
 }

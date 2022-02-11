@@ -793,7 +793,6 @@ public class MetadataIndexStateService {
         final Map<Index, ClusterBlock> blockedIndices,
         final Map<Index, IndexResult> verifyResult
     ) {
-
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());

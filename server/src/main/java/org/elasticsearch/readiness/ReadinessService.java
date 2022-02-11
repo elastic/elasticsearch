@@ -16,11 +16,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServerTransport;
 
 import java.io.IOException;
@@ -37,11 +35,8 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
-    private static final String READINESS_SERVICE_THREADPOOL_NAME = "readiness-service";
-    private static final String READINESS_WORKER_THREADPOOL_NAME = "readiness-worker";
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
     private static final int RESPONSE_TIMEOUT_MILLIS = 1_000;
 
@@ -53,7 +48,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private final Environment environment;
     private final ExecutorService workerExecutor;
-    private final ExecutorService executor;
 
     private ServerSocketChannel serverChannel;
 
@@ -68,17 +62,8 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         this.environment = environment;
         this.enabled = ENABLED_SETTING.get(environment.settings());
         if (enabled) {
-            this.executor = EsExecutors.newFixed(
-                READINESS_SERVICE_THREADPOOL_NAME,
-                1,
-                1000,
-                EsExecutors.daemonThreadFactory("elasticsearch[readiness-service]"),
-                new ThreadContext(environment.settings()),
-                false
-            );
-
             this.workerExecutor = EsExecutors.newScaling(
-                READINESS_WORKER_THREADPOOL_NAME,
+                "readiness-worker",
                 0,
                 EsExecutors.allocatedProcessors(environment.settings()) * 2,
                 60,
@@ -90,7 +75,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         } else {
             logger.info("readiness service disabled");
             this.workerExecutor = null;
-            this.executor = null;
         }
     }
 
@@ -128,7 +112,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
         this.serverChannel = setupUnixDomainSocket();
 
-        executor.execute(wrapReadinessService(() -> {
+        new Thread(() -> {
             while (serverChannel.isOpen()) {
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                     try (SocketChannel channel = serverChannel.accept()) {
@@ -139,11 +123,13 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                         workerExecutor.invokeAll(responders, RESPONSE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
                     } catch (IOException | InterruptedException e) {
                         logger.debug("encountered exception while responding to readiness check request", e);
+                    } catch (Exception other) {
+                        logger.warn("encountered unknown exception while responding to readiness check request", other);
                     }
                     return null;
                 });
             }
-        }, e -> logger.error("error starting readiness service", e)));
+        }, "elasticsearch[readiness-service]").start();
 
         logger.info("readiness service up and running");
     }
@@ -161,6 +147,13 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             logger.warn("error closing readiness service channel", e);
         } finally {
             this.ready = false;
+            try {
+                if (workerExecutor != null) {
+                    workerExecutor.shutdown();
+                }
+            } catch (Exception other) {
+                logger.info("error shutting down readiness service executor", other);
+            }
             logger.info("readiness service stopped");
         }
     }
@@ -189,25 +182,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private static AbstractRunnable wrapReadinessService(Runnable run, Consumer<Exception> exceptionConsumer) {
-        return new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                exceptionConsumer.accept(e);
-            }
-
-            @Override
-            protected void doRun() {
-                run.run();
-            }
-        };
-    }
-
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (enabled == false) {
             return;
         }
-        this.ready = event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false;
+        this.ready = event.state().nodes().getMasterNodeId() != null;
     }
 }

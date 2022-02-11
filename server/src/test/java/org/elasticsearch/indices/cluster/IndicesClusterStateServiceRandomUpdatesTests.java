@@ -463,7 +463,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             if (randomBoolean()) {
                 // add node
                 if (state.nodes().getSize() < 10) {
-                    state = cluster.addNodes(state, Collections.singletonList(createNode()));
+                    state = cluster.addNode(state, createNode());
                     updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                 }
             } else {
@@ -476,7 +476,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     }
                     if (randomBoolean()) {
                         // and add it back
-                        state = cluster.addNodes(state, Collections.singletonList(discoveryNode));
+                        state = cluster.addNode(state, discoveryNode);
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }
                 }

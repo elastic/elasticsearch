@@ -28,10 +28,12 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -84,10 +86,10 @@ public class ProfileService {
     }
 
     public void getProfile(String uid, @Nullable Set<String> dataKeys, ActionListener<Profile> listener) {
-        getVersionedDocument(uid, listener.map(versionedDocument -> {
-            // TODO: replace null with actual domain lookup
-            return versionedDocument != null ? versionedDocument.toProfile(null, dataKeys) : null;
-        }));
+        getVersionedDocument(
+            uid,
+            listener.map(versionedDocument -> versionedDocument != null ? versionedDocument.toProfile(dataKeys) : null)
+        );
     }
 
     // TODO: with request when we take request body for profile activation
@@ -119,7 +121,7 @@ public class ProfileService {
             return;
         }
 
-        getVersionedDocument(authentication, ActionListener.wrap(versionedDocument -> {
+        getVersionedDocument(subject, ActionListener.wrap(versionedDocument -> {
             if (versionedDocument == null) {
                 createNewProfile(subject, listener);
             } else {
@@ -183,16 +185,33 @@ public class ProfileService {
     }
 
     // Package private for testing
-    void getVersionedDocument(Authentication authentication, ActionListener<VersionedDocument> listener) {
+    void getVersionedDocument(Subject subject, ActionListener<VersionedDocument> listener) {
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
-            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)
-                .setQuery(
-                    QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery("user_profile.user.username", authentication.getUser().principal()))
-                        // TODO: this will be replaced by domain lookup and reverse lookup
-                        .must(QueryBuilders.termQuery("user_profile.user.realm.name", authentication.getSourceRealm().getName()))
-                )
-                .request();
+            final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("user_profile.user.username", subject.getUser().principal()));
+            if (subject.getRealm().getDomain() == null) {
+                boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.name", subject.getRealm().getName()))
+                    .filter(QueryBuilders.termQuery("user_profile.user.realm.type", subject.getRealm().getType()));
+            } else {
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "searching existing profile document for user [{}] from any of the realms [{}] under domain [{}]",
+                        subject.getUser().principal(),
+                        Strings.collectionToCommaDelimitedString(subject.getRealm().getDomain().realms()),
+                        subject.getRealm().getDomain().name()
+                    )
+                );
+                subject.getRealm().getDomain().realms().forEach(realmIdentifier -> {
+                    boolQuery.should(
+                        QueryBuilders.boolQuery()
+                            .filter(QueryBuilders.termQuery("user_profile.user.realm.name", realmIdentifier.getName()))
+                            .filter(QueryBuilders.termQuery("user_profile.user.realm.type", realmIdentifier.getType()))
+                    );
+                });
+                boolQuery.minimumShouldMatch(1);
+            }
+
+            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS).setQuery(boolQuery).request();
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
@@ -206,8 +225,8 @@ public class ProfileService {
                         if (hits.length < 1) {
                             logger.debug(
                                 "profile does not exist for username [{}] and realm name [{}]",
-                                authentication.getUser().principal(),
-                                authentication.getSourceRealm().getName()
+                                subject.getUser().principal(),
+                                subject.getRealm().getName()
                             );
                             listener.onResponse(null);
                         } else if (hits.length == 1) {
@@ -217,11 +236,14 @@ public class ProfileService {
                             );
                         } else {
                             final ParameterizedMessage errorMessage = new ParameterizedMessage(
-                                "multiple [{}] profiles [{}] found for user [{}]",
+                                "multiple [{}] profiles [{}] found for user [{}] from realm [{}]{}",
                                 hits.length,
                                 Arrays.stream(hits).map(SearchHit::getId).map(this::docIdToUid).sorted().collect(Collectors.joining(",")),
-                                // TODO: include domain information
-                                authentication.getUser().principal()
+                                subject.getUser().principal(),
+                                subject.getRealm().getName(),
+                                subject.getRealm().getDomain() == null
+                                    ? ""
+                                    : (" under domain [" + subject.getRealm().getDomain().name() + "]")
                             );
                             logger.error(errorMessage);
                             listener.onFailure(new ElasticsearchException(errorMessage.getFormattedMessage()));
@@ -252,9 +274,12 @@ public class ProfileService {
                 TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
                     assert docId.equals(indexResponse.getId());
                     // TODO: replace with actual domain information
-                    listener.onResponse(
-                        new VersionedDocument(profileDocument, indexResponse.getPrimaryTerm(), indexResponse.getSeqNo()).toProfile(null)
+                    final VersionedDocument versionedDocument = new VersionedDocument(
+                        profileDocument,
+                        indexResponse.getPrimaryTerm(),
+                        indexResponse.getSeqNo()
                     );
+                    listener.onResponse(versionedDocument.toProfile(Set.of()));
                 }, listener::onFailure))
             )
         );
@@ -274,7 +299,7 @@ public class ProfileService {
             ),
             listener.map(
                 updateResponse -> new VersionedDocument(profileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
-                    .toProfile(null)
+                    .toProfile(Set.of())
             )
         );
     }
@@ -400,14 +425,13 @@ public class ProfileService {
     // Package private for testing
     record VersionedDocument(ProfileDocument doc, long primaryTerm, long seqNo) {
 
-        Profile toProfile(@Nullable String realmDomain) {
-            return toProfile(realmDomain, Set.of());
-        }
-
-        Profile toProfile(@Nullable String realmDomain, @Nullable Set<String> dataKeys) {
+        /**
+         * Convert the index document to the user-facing Profile by filtering through the application data
+         */
+        Profile toProfile(Set<String> dataKeys) {
+            assert dataKeys != null : "data keys must not be null";
             final Map<String, Object> applicationData;
-            // NOTE null is the same as empty which means not retrieving any application data
-            if (dataKeys == null || dataKeys.isEmpty()) {
+            if (dataKeys.isEmpty()) {
                 applicationData = Map.of();
             } else {
                 applicationData = XContentHelper.convertToMap(doc.applicationData(), false, XContentType.JSON, dataKeys, null).v2();
@@ -417,7 +441,7 @@ public class ProfileService {
                 doc.uid(),
                 doc.enabled(),
                 doc.lastSynchronized(),
-                doc.user().toProfileUser(realmDomain),
+                doc.user().toProfileUser(),
                 doc.access(),
                 applicationData,
                 new Profile.VersionControl(primaryTerm, seqNo)

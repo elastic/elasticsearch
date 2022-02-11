@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -352,5 +353,10 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_16_0;
     }
 }

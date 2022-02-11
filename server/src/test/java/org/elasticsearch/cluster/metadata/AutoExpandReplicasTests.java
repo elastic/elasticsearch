@@ -248,7 +248,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                                                                                                                              // is the
                                                                                                                              // master
 
-            state = cluster.addNodes(state, Collections.singletonList(newNode));
+            state = cluster.addNode(state, newNode);
 
             // use allocation filtering
             state = cluster.updateSettings(

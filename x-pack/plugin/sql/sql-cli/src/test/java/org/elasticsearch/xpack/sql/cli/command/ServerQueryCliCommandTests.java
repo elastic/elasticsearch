@@ -44,7 +44,7 @@ public class ServerQueryCliCommandTests extends SqlCliTestCase {
         TestTerminal testTerminal = new TestTerminal();
         HttpClient client = mock(HttpClient.class);
         CliSession cliSession = new CliSession(client);
-        cliSession.setFetchSize(10);
+        cliSession.getConfiguration().setFetchSize(10);
         when(client.basicQuery("test query", 10, false)).thenReturn(fakeResponse("", true, "foo"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
@@ -61,7 +61,7 @@ public class ServerQueryCliCommandTests extends SqlCliTestCase {
         TestTerminal testTerminal = new TestTerminal();
         HttpClient client = mock(HttpClient.class);
         CliSession cliSession = new CliSession(client);
-        cliSession.setFetchSize(10);
+        cliSession.getConfiguration().setFetchSize(10);
         when(client.basicQuery("test query", 10, false)).thenReturn(fakeResponse("my_cursor1", true, "first"));
         when(client.nextPage("my_cursor1")).thenReturn(fakeResponse("my_cursor2", false, "second"));
         when(client.nextPage("my_cursor2")).thenReturn(fakeResponse("", false, "third"));
@@ -83,9 +83,9 @@ public class ServerQueryCliCommandTests extends SqlCliTestCase {
         TestTerminal testTerminal = new TestTerminal();
         HttpClient client = mock(HttpClient.class);
         CliSession cliSession = new CliSession(client);
-        cliSession.setFetchSize(15);
+        cliSession.getConfiguration().setFetchSize(15);
         // Set a separator
-        cliSession.setFetchSeparator("-----");
+        cliSession.getConfiguration().setFetchSeparator("-----");
         when(client.basicQuery("test query", 15, false)).thenReturn(fakeResponse("my_cursor1", true, "first"));
         when(client.nextPage("my_cursor1")).thenReturn(fakeResponse("", false, "second"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
@@ -106,7 +106,7 @@ public class ServerQueryCliCommandTests extends SqlCliTestCase {
         TestTerminal testTerminal = new TestTerminal();
         HttpClient client = mock(HttpClient.class);
         CliSession cliSession = new CliSession(client);
-        cliSession.setFetchSize(15);
+        cliSession.getConfiguration().setFetchSize(15);
         when(client.basicQuery("test query", 15, false)).thenReturn(fakeResponse("my_cursor1", true, "first"));
         when(client.nextPage("my_cursor1")).thenThrow(new SQLException("test exception"));
         when(client.queryClose("my_cursor1", Mode.CLI)).thenReturn(true);

@@ -26,7 +26,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
         SimpleFormatter formatter;
         String data;
         try {
-            response = cliClient.basicQuery(line, cliSession.getFetchSize(), cliSession.isLenient());
+            response = cliClient.basicQuery(line, cliSession.getConfiguration().getFetchSize(), cliSession.getConfiguration().isLenient());
             formatter = new SimpleFormatter(response.columns(), response.rows(), CLI);
             data = formatter.formatWithHeader(response.columns(), response.rows());
             while (true) {
@@ -36,8 +36,8 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
                     terminal.flush();
                     return true;
                 }
-                if (false == cliSession.getFetchSeparator().equals("")) {
-                    terminal.println(cliSession.getFetchSeparator());
+                if (false == cliSession.getConfiguration().getFetchSeparator().equals("")) {
+                    terminal.println(cliSession.getConfiguration().getFetchSeparator());
                 }
                 response = cliSession.getClient().nextPage(response.cursor());
                 data = formatter.formatWithoutHeader(response.rows());

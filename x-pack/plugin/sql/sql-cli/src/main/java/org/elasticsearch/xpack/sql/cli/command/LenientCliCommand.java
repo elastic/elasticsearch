@@ -24,8 +24,8 @@ public class LenientCliCommand extends AbstractCliCommand {
 
     @Override
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, Matcher m, String line) {
-        cliSession.setLenient(Boolean.parseBoolean(m.group(1)));
-        terminal.line().text("lenient set to ").em(Boolean.toString(cliSession.isLenient())).end();
+        cliSession.getConfiguration().setLenient(Boolean.parseBoolean(m.group(1)));
+        terminal.line().text("lenient set to ").em(Boolean.toString(cliSession.getConfiguration().isLenient())).end();
         return true;
     }
 }

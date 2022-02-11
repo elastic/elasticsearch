@@ -21,7 +21,7 @@ the same directory service. Similarly, a SAML realm might
 <<native-realm,native realm>>.
 
 If {es} detects that a `username` from two different realms is attempting to
-access a resource, {es} assumes that these users are unique and doesn't allow
+access a resource, {es} assumes that these users are distinct and doesn't allow
 resources to be shared between them. With security domains, you can associate a 
 single <<user-profile,user profile>> with a `username` to enable resource sharing.
 This means that user preferences, notifications, and other user data can be

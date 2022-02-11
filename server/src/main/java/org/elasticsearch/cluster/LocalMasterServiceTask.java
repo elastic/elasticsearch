@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 
@@ -23,7 +24,14 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
         this.priority = priority;
     }
 
-    public void execute(ClusterState currentState) throws Exception {}
+    protected void execute(ClusterState currentState) throws Exception {}
+
+    @Override
+    public final void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+        assert false : "not called";
+    }
+
+    protected void onPublicationComplete() {}
 
     public void submit(MasterService masterService, String source) {
         masterService.submitStateUpdateTask(
@@ -51,9 +59,17 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
                     assert tasks.size() == 1 && tasks.get(0) == thisTask
                         : "expected one-element task list containing current object but was " + tasks;
                     thisTask.execute(currentState);
-                    return ClusterTasksResult.<LocalMasterServiceTask>builder()
-                        .success(thisTask, new LegacyClusterTaskResultActionListener(thisTask, currentState))
-                        .build(currentState);
+                    return ClusterTasksResult.<LocalMasterServiceTask>builder().success(thisTask, new ActionListener<>() {
+                        @Override
+                        public void onResponse(ClusterState clusterState) {
+                            onPublicationComplete();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            LocalMasterServiceTask.this.onFailure(e);
+                        }
+                    }).build(currentState);
                 }
             }
         );

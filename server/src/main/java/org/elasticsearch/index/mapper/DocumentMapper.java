@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.List;
@@ -104,7 +103,8 @@ public class DocumentMapper {
                 mappingLookup.getFieldType(match).validateMatchedRoutingPath();
             }
             for (String objectName : mappingLookup.objectMappers().keySet()) {
-                if (Regex.simpleMatch(path, objectName)) {
+                // object type is not allowed in the routing paths
+                if (path.equals(objectName)) {
                     throw new IllegalArgumentException(
                         "All fields that match routing_path must be keywords with [time_series_dimension: true] "
                             + "and without the [script] parameter. ["

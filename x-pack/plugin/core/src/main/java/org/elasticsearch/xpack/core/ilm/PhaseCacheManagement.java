@@ -54,7 +54,7 @@ public final class PhaseCacheManagement {
         final IndexMetadata idxMeta = state.metadata().index(index);
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
         refreshPhaseDefinition(metadataBuilder, idxMeta, updatedPolicy);
-        return ClusterState.builder(state).metadata(metadataBuilder.build(false)).build();
+        return ClusterState.builder(state).metadata(metadataBuilder.build()).build();
     }
 
     /**
@@ -122,7 +122,7 @@ public final class PhaseCacheManagement {
     ) {
         Metadata.Builder mb = Metadata.builder(state.metadata());
         if (updateIndicesForPolicy(mb, state, xContentRegistry, client, oldPolicy, newPolicy, licenseState)) {
-            return ClusterState.builder(state).metadata(mb.build(false)).build();
+            return ClusterState.builder(state).metadata(mb).build();
         }
         return state;
     }

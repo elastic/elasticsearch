@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -126,7 +127,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
-        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
+        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {
             // the type name is the root value, reduce it
             mapping = (Map<String, Object>) mapping.get(type());

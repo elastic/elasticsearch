@@ -1763,18 +1763,26 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 }
                 builder.endArray();
             } else {
-                builder.startObject(KEY_MAPPINGS);
-                MappingMetadata mmd = indexMetadata.mapping();
-                if (mmd != null) {
-                    Map<String, Object> mapping = XContentHelper.convertToMap(mmd.source().uncompressed(), false).v2();
-                    if (mapping.size() == 1 && mapping.containsKey(mmd.type())) {
-                        // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(mmd.type());
+                final MappingMetadata mmd = indexMetadata.mapping();
+                if (params.paramAsBoolean(Metadata.MAPPINGS_BY_HASH_PARAM, true)) {
+                    if (mmd == null) {
+                        builder.nullField(KEY_MAPPINGS);
+                    } else {
+                        builder.field(KEY_MAPPINGS, indexMetadata.mapping().getSha256());
                     }
-                    builder.field(mmd.type());
-                    builder.map(mapping);
+                } else {
+                    builder.startObject(KEY_MAPPINGS);
+                    if (mmd != null) {
+                        Map<String, Object> mapping = mmd.sourceAsMap();
+                        if (mapping.size() == 1 && mapping.containsKey(mmd.type())) {
+                            // the type name is the root value, reduce it
+                            mapping = (Map<String, Object>) mapping.get(mmd.type());
+                        }
+                        builder.field(mmd.type());
+                        builder.map(mapping);
+                    }
+                    builder.endObject();
                 }
-                builder.endObject();
             }
 
             for (Map.Entry<String, DiffableStringMap> cursor : indexMetadata.customData.entrySet()) {

@@ -94,6 +94,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
 
+    public static final String MAPPINGS_BY_HASH_PARAM = "mappings_by_hash";
+
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
         API,
@@ -2124,6 +2126,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             builder.endObject();
 
             if (context == XContentContext.API) {
+                if (params.paramAsBoolean(MAPPINGS_BY_HASH_PARAM, true)) {
+                    builder.startObject("mappings");
+                    for (Map.Entry<String, MappingMetadata> mappingEntry : metadata.getMappingsByHash().entrySet()) {
+                        builder.startObject(mappingEntry.getKey());
+                        builder.mapContents(mappingEntry.getValue().sourceAsMap());
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
                 builder.startObject("indices");
                 for (IndexMetadata indexMetadata : metadata) {
                     IndexMetadata.Builder.toXContent(indexMetadata, builder, params);

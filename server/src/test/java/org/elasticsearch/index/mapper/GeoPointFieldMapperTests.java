@@ -239,6 +239,23 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertThat(doc.getFields("field.geohash")[1].binaryValue().utf8ToString(), equalTo("s0fu7n0xng81"));
     }
 
+    public void testKeywordWithGeopointSubfield() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "keyword").field("doc_values", false);
+            ;
+            b.startObject("fields");
+            {
+                b.startObject("geopoint").field("type", "geo_point").field("doc_values", false).endObject();
+            }
+            b.endObject();
+        }));
+        LuceneDocument doc = mapper.parse(source(b -> b.array("field", "s093jd0k72s1"))).rootDoc();
+        assertThat(doc.getFields("field"), arrayWithSize(1));
+        assertEquals("s093jd0k72s1", doc.getFields("field")[0].binaryValue().utf8ToString());
+        assertThat(doc.getFields("field.geopoint"), arrayWithSize(1));
+        assertThat(doc.getField("field.geopoint"), hasToString(both(containsString("field.geopoint:2.999")).and(containsString("1.999"))));
+    }
+
     private static XContentParser documentParser(String value, boolean prettyPrint) throws IOException {
         XContentBuilder docBuilder = JsonXContent.contentBuilder();
         if (prettyPrint) {

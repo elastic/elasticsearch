@@ -1,0 +1,99 @@
+# The three tests call the API in different ways but all get the
+# same result as they run against a single node cluster
+---
+"ML memory all nodes":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      ml.memory: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      ml.memory: {}
+
+  - match: { _nodes.total: 1 }
+  - match: { _nodes.successful: 1 }
+  - match: { _nodes.failed: 0 }
+  - is_true: cluster_name
+  - is_true: nodes.$node_id.name
+  - is_true: nodes.$node_id.ephemeral_id
+  - is_true: nodes.$node_id.transport_address
+  - is_true: nodes.$node_id.attributes
+  - is_true: nodes.$node_id.roles
+  - gt: { nodes.$node_id.mem.total_in_bytes: 0 }
+  - gt: { nodes.$node_id.mem.adjusted_total_in_bytes: 0 }
+  - gt: { nodes.$node_id.mem.ml.max_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.native_code_overhead_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.anomaly_detectors_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.data_frame_analytics_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.native_inference_in_bytes: 0 }
+  - gt: { nodes.$node_id.jvm.heap_max_in_bytes: 0 }
+  - gt: { nodes.$node_id.jvm.java_inference_max_in_bytes: 0 }
+  - match: { nodes.$node_id.jvm.java_inference_in_bytes: 0 }
+
+---
+"ML memory for ML nodes":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      ml.memory: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      ml.memory:
+        node_id: "ml:true"
+
+  - match: { _nodes.total: 1 }
+  - match: { _nodes.successful: 1 }
+  - match: { _nodes.failed: 0 }
+  - is_true: cluster_name
+  - is_true: nodes.$node_id.name
+  - is_true: nodes.$node_id.ephemeral_id
+  - is_true: nodes.$node_id.transport_address
+  - is_true: nodes.$node_id.attributes
+  - is_true: nodes.$node_id.roles
+  - gt: { nodes.$node_id.mem.total_in_bytes: 0 }
+  - gt: { nodes.$node_id.mem.adjusted_total_in_bytes: 0 }
+  - gt: { nodes.$node_id.mem.ml.max_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.native_code_overhead_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.anomaly_detectors_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.data_frame_analytics_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.native_inference_in_bytes: 0 }
+  - gt: { nodes.$node_id.jvm.heap_max_in_bytes: 0 }
+  - gt: { nodes.$node_id.jvm.java_inference_max_in_bytes: 0 }
+  - match: { nodes.$node_id.jvm.java_inference_in_bytes: 0 }
+
+---
+"ML memory for specific node":
+  - skip:
+      features: [arbitrary_key]
+  - do:
+      ml.memory: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      ml.memory:
+        node_id: $node_id
+
+  - match: { _nodes.total: 1 }
+  - match: { _nodes.successful: 1 }
+  - match: { _nodes.failed: 0 }
+  - is_true: cluster_name
+  - is_true: nodes.$node_id.name
+  - is_true: nodes.$node_id.ephemeral_id
+  - is_true: nodes.$node_id.transport_address
+  - is_true: nodes.$node_id.attributes
+  - is_true: nodes.$node_id.roles
+  - gt: { nodes.$node_id.mem.total_in_bytes: 0 }
+  - gt: { nodes.$node_id.mem.adjusted_total_in_bytes: 0 }
+  - gt: { nodes.$node_id.mem.ml.max_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.native_code_overhead_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.anomaly_detectors_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.data_frame_analytics_in_bytes: 0 }
+  - match: { nodes.$node_id.mem.ml.native_inference_in_bytes: 0 }
+  - gt: { nodes.$node_id.jvm.heap_max_in_bytes: 0 }
+  - gt: { nodes.$node_id.jvm.java_inference_max_in_bytes: 0 }
+  - match: { nodes.$node_id.jvm.java_inference_in_bytes: 0 }

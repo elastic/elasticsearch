@@ -300,7 +300,7 @@ public class MetadataIndexStateService {
             );
         }
 
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
 
         for (Index index : indicesToClose) {
             ClusterBlock indexBlock = null;
@@ -361,7 +361,7 @@ public class MetadataIndexStateService {
             return Tuple.tuple(currentState, Collections.emptyMap());
         }
 
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
 
         for (Index index : indicesToAddBlock) {
@@ -785,7 +785,7 @@ public class MetadataIndexStateService {
         final Map<Index, IndexResult> verifyResult
     ) {
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
 
         final Set<String> closedIndices = new HashSet<>();
@@ -929,7 +929,7 @@ public class MetadataIndexStateService {
         final Map<Index, AddBlockResult> verifyResult,
         final APIBlock block
     ) {
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
 
         final Set<String> effectivelyBlockedIndices = new HashSet<>();
         Map<Index, AddBlockResult> blockingResults = new HashMap<>(verifyResult);
@@ -1113,7 +1113,7 @@ public class MetadataIndexStateService {
             });
 
             final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-            final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+            final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
             final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion();
 
             for (IndexMetadata indexMetadata : indicesToOpen) {

@@ -15,6 +15,27 @@ data loss. If you upgrade from a released version, such as 7.16, to a
 pre-release version for testing, discard the contents of the cluster when you are
 done. Do not attempt to upgrade to the final 8.0 release.
 
+* If you installed {es} from an archive on an aarch64 platform like Linux ARM or macOS M1, the
+`elastic` user password and {kib} enrollment token are not generated
+automatically when starting your node for the first time.
++
+--
+After the node starts, generate the `elastic` password with the
+<<reset-password,`bin/elasticsearch-reset-password`>> tool:
+
+[source,bash]
+----
+bin/elasticsearch-reset-password -u elastic
+----
+
+Then, create an enrollment token for {kib} with the
+<<create-enrollment-token,`bin/elasticsearch-create-enrollment-token`>> tool:
+
+[source,bash]
+----
+bin/elasticsearch-create-enrollment-token -s kibana
+----
+--
 [[deprecation-8.0.0-rc2]]
 [float]
 === Deprecations
@@ -57,6 +78,9 @@ Machine Learning::
 
 Network::
 * Improve slow inbound handling to include response type {es-pull}80425[#80425]
+
+Packaging::
+* Convert repository plugins to modules {es-pull}81870[#81870] (issue: {es-issue}81652[#81652])
 
 Search::
 * Check nested fields earlier in kNN search {es-pull}80516[#80516] (issue: {es-issue}78473[#78473])

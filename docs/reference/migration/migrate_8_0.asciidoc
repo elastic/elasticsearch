@@ -9,8 +9,6 @@ your application to {es} 8.0.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.0.0]
-
 [discrete]
 [[breaking-changes-8.0]]
 === Breaking changes
@@ -19,13 +17,6 @@ The following changes in {es} 8.0 might affect your applications
 and prevent them from operating normally.
 Before upgrading to 8.0, review these changes and take the described steps
 to mitigate the impact.
-
-NOTE: Breaking changes introduced in minor versions are
-normally limited to security and bug fixes.
-Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
-To find out if you are using any deprecated functionality,
-enable <<deprecation-logging, deprecation logging>>.
 
 include::migrate_8_0/cluster-node-setting-changes.asciidoc[]
 include::migrate_8_0/command-line-tool-changes.asciidoc[]
@@ -38,9 +29,9 @@ include::migrate_8_0/packaging-changes.asciidoc[]
 include::migrate_8_0/painless-changes.asciidoc[]
 include::migrate_8_0/plugin-changes.asciidoc[]
 include::migrate_8_0/rest-api-changes.asciidoc[]
+include::migrate_8_0/sql-jdbc-changes.asciidoc[]
 include::migrate_8_0/system-req-changes.asciidoc[]
 include::migrate_8_0/transform.asciidoc[]
-include::migrate_8_0/sql-jdbc-changes.asciidoc[]
 
 [discrete]
 [[deprecated-8.0]]
@@ -52,8 +43,6 @@ While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code
 after upgrading to 8.0.
 
-NOTE: Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
@@ -104,34 +93,6 @@ starting {es}, it will fail because the `elastic`
 user password is already configured.
 ====
 //end::notable-breaking-changes[]
-
-
-[[deprecate-max-merge-at-once-explicit-setting]]
-.The setting `max_merge_at_once_explicit` is deprecated.
-[%collapsible]
-====
-*Details* +
-The setting `max_merge_at_once_explicit` is removed in Lucene 9.
-
-
-*Impact* +
-Remove the setting `max_merge_at_once_explicit` from your
-configuration.
-====
-
-[[deprecate-indices-query-bool-max-clause-count-setting]]
-.The setting `indices.query.bool.max_clause_count` is deprecated.
-[%collapsible]
-====
-*Details* +
-The setting `indices.query.bool.max_clause_count` is deprecated. Instead,
-{es} configures the maximum clause count for Lucene based on the available
-heap and the size of the thread pool.
-
-*Impact* +
-Remove the setting `indices.query.bool.max_clause_count` from
-your configuration.
-====
 
 include::migrate_8_0/migrate_to_java_time.asciidoc[]
 include::transient-settings-migration-guide.asciidoc[]

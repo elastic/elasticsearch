@@ -157,7 +157,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
                 out.writeOptionalString(key);
             } else {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
@@ -263,14 +263,24 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            String key = in.getVersion().onOrAfter(Version.V_7_17_0) ? in.readOptionalString() : in.readString();
+            String key = in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString() : in.readString();
             double from = in.readDouble();
             if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
-                in.readOptionalDouble();
+                final Double originalFrom = in.readOptionalDouble();
+                if (originalFrom != null) {
+                    from = originalFrom;
+                } else {
+                    from = Double.NEGATIVE_INFINITY;
+                }
             }
             double to = in.readDouble();
             if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
-                in.readOptionalDouble();
+                final Double originalTo = in.readOptionalDouble();
+                if (originalTo != null) {
+                    to = originalTo;
+                } else {
+                    to = Double.POSITIVE_INFINITY;
+                }
             }
             long docCount = in.readVLong();
             InternalAggregations aggregations = InternalAggregations.readFrom(in);

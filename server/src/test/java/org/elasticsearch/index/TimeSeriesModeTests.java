@@ -10,16 +10,21 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.StringFieldScript.LeafFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Map;
 
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesModeTests extends MapperServiceTestCase {
@@ -30,33 +35,87 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testPartitioned() {
-        Settings s = Settings.builder().put(getSettings()).put(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), 2).build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
+        Settings s = Settings.builder()
+            .put(getSettings())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+            .put(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), 2)
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.routing_partition_size]"));
     }
 
     public void testSortField() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "a").build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.field]"));
     }
 
     public void testSortMode() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last").build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.missing]"));
     }
 
     public void testSortOrder() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc").build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.order]"));
     }
 
     public void testWithoutRoutingPath() {
         Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
-        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires [index.routing_path]"));
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+    }
+
+    public void testWithEmptyRoutingPath() {
+        Settings s = getSettings("");
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+    }
+
+    public void testWithoutStartTime() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
+
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(indexSettings.getTimestampBounds().startTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
+        assertThat(indexSettings.getTimestampBounds().endTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
+    }
+
+    public void testWithoutEndTime() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(TIME_SERIES_START_TIME.getKey(), "1970-01-01T00:00:00Z")
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
+
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(indexSettings.getTimestampBounds().startTime(), CoreMatchers.equalTo(0L));
+        assertThat(indexSettings.getTimestampBounds().endTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
+    }
+
+    public void testSetDefaultTimeRangeValue() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999).toString())
+            .put(TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999).toString())
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(indexSettings.getTimestampBounds().startTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
+        assertThat(indexSettings.getTimestampBounds().endTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
     }
 
     public void testRequiredRouting() {
@@ -85,8 +144,22 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
-    public void testRoutingPathMatchesObject() {
-        Settings s = getSettings(randomBoolean() ? "dim.o" : "dim.*");
+    public void testRoutingPathMatchesObject() throws IOException {
+        Settings s = getSettings("dim.o*");
+        createMapperService(s, mapping(b -> {
+            b.startObject("dim").startObject("properties");
+            {
+                b.startObject("o").startObject("properties");
+                b.startObject("inner_dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.endObject().endObject();
+            }
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.endObject().endObject();
+        }));
+    }
+
+    public void testRoutingPathEqualsObjectNameError() {
+        Settings s = getSettings("dim.o");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             {

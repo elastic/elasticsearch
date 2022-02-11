@@ -26,7 +26,7 @@ resources to be shared between them. With security domains, you can associate a
 single <<user-profile,user profile>> with a `username` to enable resource sharing.
 This means that user preferences, notifications, and other user data can be
 shared across domains. The same user can view results from an asynchronous
-search request or a scrolling search, regardless of which domain they're 
+search request or a scrolling search, regardless of which realm under the same domain they're 
 authenticating from. If the user has the necessary privileges, they can also
 view and manage API keys across domains.
 

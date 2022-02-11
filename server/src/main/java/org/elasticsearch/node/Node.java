@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.broadcast.node.BoundedDiagnosticRequestPermits;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
@@ -901,6 +902,11 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
+            final BoundedDiagnosticRequestPermits broadcastedRequestPermits = new BoundedDiagnosticRequestPermits(
+                settings,
+                settingsModule.getClusterSettings()
+            );
+
             List<HealthIndicatorService> serverHealthIndicatorServices = List.of(
                 new InstanceHasMasterHealthIndicatorService(clusterService),
                 new RepositoryIntegrityHealthIndicatorService(clusterService)
@@ -992,6 +998,7 @@ public class Node implements Closeable {
                 b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
+                b.bind(BoundedDiagnosticRequestPermits.class).toInstance(broadcastedRequestPermits);
             });
             injector = modules.createInjector();
 

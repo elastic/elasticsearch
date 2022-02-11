@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.vectors.query;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.test.ESTestCase;
@@ -18,7 +16,6 @@ import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L1Norm;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L2Norm;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
@@ -36,9 +33,22 @@ public class DenseVectorFunctionTests extends ESTestCase {
         List<Number> queryVector = Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f);
         List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);
 
-        for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
-            BinaryDocValues docValues = BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, indexVersion);
-            DenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, indexVersion);
+        List<DenseVectorDocValuesField> fields = List.of(
+            new BinaryDenseVectorDocValuesField(
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, Version.V_7_4_0),
+                "test",
+                dims,
+                Version.V_7_4_0
+            ),
+            new BinaryDenseVectorDocValuesField(
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, Version.CURRENT),
+                "test",
+                dims,
+                Version.CURRENT
+            ),
+            new KnnDenseVectorDocValuesField(KnnDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }), "test", dims)
+        );
+        for (DenseVectorDocValuesField field : fields) {
             field.setNextDocId(0);
 
             ScoreScript scoreScript = mock(ScoreScript.class);
@@ -46,7 +56,26 @@ public class DenseVectorFunctionTests extends ESTestCase {
 
             // Test cosine similarity explicitly, as it must perform special logic on top of the doc values
             CosineSimilarity function = new CosineSimilarity(scoreScript, queryVector, fieldName);
-            assertEquals("cosineSimilarity result is not equal to the expected value!", 0.790, function.cosineSimilarity(), 0.001);
+            float cosineSimilarityExpected = 0.790f;
+            assertEquals(
+                "cosineSimilarity result is not equal to the expected value!",
+                cosineSimilarityExpected,
+                function.cosineSimilarity(),
+                0.001
+            );
+
+            // Test normalization for cosineSimilarity
+            float[] queryVectorArray = new float[queryVector.size()];
+            for (int i = 0; i < queryVectorArray.length; i++) {
+                queryVectorArray[i] = queryVector.get(i).floatValue();
+            }
+            field.getInternal().cosineSimilarity(queryVectorArray);
+            assertEquals(
+                "cosineSimilarity result is not equal to the expected value!",
+                cosineSimilarityExpected,
+                field.getInternal().cosineSimilarity(queryVectorArray),
+                0.001
+            );
 
             // Check each function rejects query vectors with the wrong dimension
             assertDimensionMismatch(() -> new DotProduct(scoreScript, invalidQueryVector, fieldName));
@@ -69,40 +98,5 @@ public class DenseVectorFunctionTests extends ESTestCase {
     private void assertDimensionMismatch(Supplier<ScoreScriptUtils.DenseVectorFunction> supplier) {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, supplier::get);
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
-    }
-
-    public void testQueryVector() {
-        int dims = randomIntBetween(1, 16);
-        float[] docVector = new float[dims];
-        float[] queryVector = new float[dims];
-        List<Number> listQueryVector = new ArrayList<>(dims);
-        for (int i = 0; i < docVector.length; i++) {
-            docVector[i] = randomFloat();
-            float q = randomFloat();
-            queryVector[i] = q;
-            listQueryVector.add(q);
-        }
-
-        QueryVector listQV = QueryVector.fromList(listQueryVector);
-        QueryVector arrayQV = QueryVector.fromArray(queryVector);
-
-        KnnDenseVector knn = new KnnDenseVector(docVector);
-        assertEquals(knn.dotProduct(listQV), knn.dotProduct(arrayQV), 0.001f);
-        assertEquals(knn.dotProduct(queryVector), knn.dotProduct(listQueryVector), 0.001f);
-        assertEquals(knn.l1Norm(listQV), knn.l1Norm(arrayQV), 0.001f);
-        assertEquals(knn.l1Norm(queryVector), knn.l1Norm(listQueryVector), 0.001f);
-        assertEquals(knn.l2Norm(listQV), knn.l2Norm(arrayQV), 0.001f);
-        assertEquals(knn.l2Norm(queryVector), knn.l2Norm(listQueryVector), 0.001f);
-
-        for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
-            BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(docVector, indexVersion);
-            BinaryDenseVector bdv = new BinaryDenseVector(value, dims, indexVersion);
-            assertEquals(bdv.dotProduct(listQV), bdv.dotProduct(arrayQV), 0.001f);
-            assertEquals(bdv.dotProduct(queryVector), bdv.dotProduct(listQueryVector), 0.001f);
-            assertEquals(bdv.l1Norm(listQV), bdv.l1Norm(arrayQV), 0.001f);
-            assertEquals(bdv.l1Norm(queryVector), bdv.l1Norm(listQueryVector), 0.001f);
-            assertEquals(bdv.l2Norm(listQV), bdv.l2Norm(arrayQV), 0.001f);
-            assertEquals(bdv.l2Norm(queryVector), bdv.l2Norm(listQueryVector), 0.001f);
-        }
     }
 }

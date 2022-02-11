@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.field.DocValuesField;
 
-public abstract class DenseVectorDocValuesField implements DocValuesField<Float>, DenseVectorScriptDocValues.DenseVectorSupplier {
+import java.util.Iterator;
+
+public abstract class DenseVectorDocValuesField implements DocValuesField<DenseVector>, DenseVectorScriptDocValues.DenseVectorSupplier {
     protected final String name;
 
     public DenseVectorDocValuesField(String name) {
@@ -40,4 +42,10 @@ public abstract class DenseVectorDocValuesField implements DocValuesField<Float>
     public abstract DenseVector get(DenseVector defaultValue);
 
     public abstract DenseVectorScriptDocValues getScriptDocValues();
+
+    // DenseVector fields are single valued, so Iterable does not make sense.
+    @Override
+    public Iterator<DenseVector> iterator() {
+        throw new UnsupportedOperationException("Cannot iterate over single valued dense_vector field, use get() instead");
+    }
 }

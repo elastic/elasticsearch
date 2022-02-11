@@ -11,7 +11,6 @@ import org.apache.lucene.index.VectorValues;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -71,11 +70,6 @@ public class KnnDenseVectorDocValuesField extends DenseVectorDocValuesField {
         }
 
         return new KnnDenseVector(vector);
-    }
-
-    @Override
-    public Iterator<Float> iterator() {
-        return get().iterator();
     }
 
     @Override

@@ -10,49 +10,102 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.util.VectorUtil;
 
 import java.util.Arrays;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
 
 public class KnnDenseVector implements DenseVector {
-    protected final float[] vector;
+    protected final float[] docVector;
+    protected float magnitude = -1.0f;
 
-    public KnnDenseVector(float[] vector) {
-        this.vector = vector;
-    }
-
-    @Override
-    public float getMagnitude() {
-        double magnitude = 0.0f;
-        for (float elem : vector) {
-            magnitude += elem * elem;
-        }
-        return (float) Math.sqrt(magnitude);
-    }
-
-    @Override
-    public double dotProduct(QueryVector queryVector) {
-        return VectorUtil.dotProduct(vector, queryVector.asFloatArray());
-    }
-
-    @Override
-    public double l1Norm(QueryVector queryVector) {
-        double result = 0.0;
-        for (int i = 0; i < queryVector.size(); i++) {
-            result += Math.abs(vector[i] - queryVector.get(i));
-        }
-        return result;
-    }
-
-    @Override
-    public double l2Norm(QueryVector queryVector) {
-        return Math.sqrt(VectorUtil.squareDistance(vector, queryVector.asFloatArray()));
+    public KnnDenseVector(float[] docVector) {
+        this.docVector = docVector;
     }
 
     @Override
     public float[] getVector() {
         // we need to copy the value, since {@link VectorValues} can reuse
         // the underlying array across documents
-        return Arrays.copyOf(vector, vector.length);
+        return Arrays.copyOf(docVector, docVector.length);
+    }
+
+    @Override
+    public float getMagnitude() {
+        if (this.magnitude != -1.0f) {
+            return this.magnitude;
+        }
+
+        double mag = 0.0f;
+        for (float elem : docVector) {
+            mag += elem * elem;
+        }
+        this.magnitude = (float) Math.sqrt(mag);
+        return this.magnitude;
+    }
+
+    @Override
+    public double dotProduct(float[] queryVector) {
+        return VectorUtil.dotProduct(docVector, queryVector);
+    }
+
+    @Override
+    public double dotProduct(QueryVector queryVector) {
+        double dotProduct = 0;
+        for (int i = 0; i < docVector.length; i++) {
+            dotProduct += docVector[i] * queryVector.get(i);
+        }
+        return dotProduct;
+    }
+
+    /**
+     * dotProduct of doc vector and query vector that normalizes the query vector while performing the calculation.
+     */
+    protected double dotProduct(QueryVector queryVector, float qvMagnitude) {
+        double dotProduct = 0;
+        for (int i = 0; i < docVector.length; i++) {
+            dotProduct += docVector[i] * (queryVector.get(i) / qvMagnitude);
+        }
+        return dotProduct;
+    }
+
+    @Override
+    public double l1Norm(float[] queryVector) {
+        double result = 0.0;
+        for (int i = 0; i < docVector.length; i++) {
+            result += Math.abs(docVector[i] - queryVector[i]);
+        }
+        return result;
+    }
+
+    @Override
+    public double l1Norm(QueryVector queryVector) {
+        double result = 0.0;
+        for (int i = 0; i < docVector.length; i++) {
+            result += Math.abs(docVector[i] - queryVector.get(i));
+        }
+        return result;
+    }
+
+    @Override
+    public double l2Norm(float[] queryVector) {
+        return Math.sqrt(VectorUtil.squareDistance(docVector, queryVector));
+    }
+
+    @Override
+    public double l2Norm(QueryVector queryVector) {
+        double l2norm = 0;
+        for (int i = 0; i < docVector.length; i++) {
+            double diff = docVector[i] - queryVector.get(i);
+            l2norm += diff * diff;
+        }
+        return Math.sqrt(l2norm);
+    }
+
+    @Override
+    public double cosineSimilarity(float[] queryVector) {
+        return dotProduct(queryVector) / getMagnitude();
+    }
+
+    @Override
+    public double cosineSimilarity(QueryVector queryVector) {
+        return dotProduct(queryVector, queryVector.getMagnitude()) / getMagnitude();
     }
 
     @Override
@@ -62,31 +115,11 @@ public class KnnDenseVector implements DenseVector {
 
     @Override
     public int getDims() {
-        return vector.length;
+        return docVector.length;
     }
 
     @Override
     public int size() {
         return 1;
-    }
-
-    @Override
-    public Iterator<Float> iterator() {
-        return new Iterator<>() {
-            int index = 0;
-
-            @Override
-            public Float next() {
-                if (hasNext() == false) {
-                    throw new NoSuchElementException();
-                }
-                return vector[index++];
-            }
-
-            @Override
-            public boolean hasNext() {
-                return index < vector.length;
-            }
-        };
     }
 }

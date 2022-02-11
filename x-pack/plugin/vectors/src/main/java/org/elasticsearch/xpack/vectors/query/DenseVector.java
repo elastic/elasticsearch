@@ -7,42 +7,112 @@
 
 package org.elasticsearch.xpack.vectors.query;
 
-import java.util.Iterator;
-import java.util.NoSuchElementException;
+import java.util.List;
 
-public interface DenseVector extends Iterable<Float> {
+/**
+ * DenseVector value type for the painless.
+ */
+/* dotProduct, l1Norm, l2Norm, cosineSimilarity have three flavors depending on the type of the queryVector
+ * 1) float[], this is for the ScoreScriptUtils class bindings which have converted a List based query vector into an array
+ * 2) QueryVector, a wrapped List.  A painless script will typically use Lists since they are easy to pass as params and have an easy
+ *      literal syntax.  Working with Lists via QueryVector, instead of converting to a float[], trades off runtime operations against
+ *      memory pressure.  Dense Vectors may have high dimensionality, up to 2048.  Allocating a float[] per doc per script API call is
+ *      prohibitively expensive.
+ * 3) Object, the whitelisted method for the painless API.  Calls into the float[] or QueryVector version based on the
+        class of the argument and checks dimensionality. Wraps Lists as QueryVectors.
+ */
+public interface DenseVector {
+    float[] getVector();
+
     float getMagnitude();
+
+    double dotProduct(float[] queryVector);
 
     double dotProduct(QueryVector queryVector);
 
+    default double dotProduct(Object queryVector) {
+        if (queryVector instanceof float[] array) {
+            checkDimensions(size(), array.length);
+            return dotProduct(array);
+
+        } else if (queryVector instanceof QueryVector qv) {
+            checkDimensions(size(), qv.size());
+            return dotProduct(qv);
+
+        } else if (queryVector instanceof List<?> list) {
+            QueryVector qv = new QueryVector(list);
+            checkDimensions(size(), qv.size());
+            return dotProduct(qv);
+        }
+
+        throw new IllegalArgumentException(badQueryVectorType(queryVector));
+    }
+
+    double l1Norm(float[] queryVector);
+
     double l1Norm(QueryVector queryVector);
+
+    default double l1Norm(Object queryVector) {
+        if (queryVector instanceof float[] array) {
+            checkDimensions(size(), array.length);
+            return l1Norm(array);
+
+        } else if (queryVector instanceof QueryVector qv) {
+            checkDimensions(size(), qv.size());
+            return l1Norm(qv);
+
+        } else if (queryVector instanceof List<?> list) {
+            QueryVector qv = new QueryVector(list);
+            checkDimensions(size(), qv.size());
+            return l1Norm(qv);
+        }
+
+        throw new IllegalArgumentException(badQueryVectorType(queryVector));
+    }
+
+    double l2Norm(float[] queryVector);
 
     double l2Norm(QueryVector queryVector);
 
-    // Take an Object to provide a consistent API if called with a float array or a list of numbers. These
-    // all call into the implementations above.
-    default double dotProduct(Object queryVector) {
-        if (queryVector instanceof QueryVector qv) {
-            return dotProduct(qv);
-        }
-        return dotProduct(QueryVector.fromObject(queryVector));
-    }
-
-    default double l1Norm(Object queryVector) {
-        if (queryVector instanceof QueryVector qv) {
-            return l1Norm(qv);
-        }
-        return l1Norm(QueryVector.fromObject(queryVector));
-    }
-
     default double l2Norm(Object queryVector) {
-        if (queryVector instanceof QueryVector qv) {
+        if (queryVector instanceof float[] array) {
+            checkDimensions(size(), array.length);
+            return l2Norm(array);
+
+        } else if (queryVector instanceof QueryVector qv) {
+            checkDimensions(size(), qv.size());
+            return l2Norm(qv);
+
+        } else if (queryVector instanceof List<?> list) {
+            QueryVector qv = new QueryVector(list);
+            checkDimensions(size(), qv.size());
             return l2Norm(qv);
         }
-        return l2Norm(QueryVector.fromObject(queryVector));
+
+        throw new IllegalArgumentException(badQueryVectorType(queryVector));
     }
 
-    float[] getVector();
+    double cosineSimilarity(float[] queryVector);
+
+    double cosineSimilarity(QueryVector queryVector);
+
+    default double cosineSimilarity(Object queryVector) {
+        if (queryVector instanceof float[] array) {
+            checkDimensions(size(), array.length);
+            return cosineSimilarity(array);
+
+        } else if (queryVector instanceof QueryVector qv) {
+            checkDimensions(size(), qv.size());
+            return cosineSimilarity(qv);
+
+        } else if (queryVector instanceof List<?> list) {
+            QueryVector qv = new QueryVector(list);
+            checkDimensions(size(), qv.size());
+            return cosineSimilarity(qv);
+        }
+
+        throw new IllegalArgumentException(badQueryVectorType(queryVector));
+    }
 
     boolean isEmpty();
 
@@ -50,12 +120,29 @@ public interface DenseVector extends Iterable<Float> {
 
     int size();
 
+    static void checkDimensions(int dvDims, int qvDims) {
+        if (dvDims != qvDims) {
+            throw new IllegalArgumentException(
+                "The query vector has a different number of dimensions [" + qvDims + "] than the document vectors [" + dvDims + "]."
+            );
+        }
+    }
+
+    private static String badQueryVectorType(Object queryVector) {
+        return "Cannot use vector [" + queryVector + "] with class [" + queryVector.getClass().getName() + "] as query vector";
+    }
+
     DenseVector EMPTY = new DenseVector() {
         public static final String MISSING_VECTOR_FIELD_MESSAGE = "Dense vector value missing for a field,"
             + " use isEmpty() to check for a missing vector value";
 
         @Override
         public float getMagnitude() {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public double dotProduct(float[] queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 
@@ -70,7 +157,27 @@ public interface DenseVector extends Iterable<Float> {
         }
 
         @Override
+        public double l1Norm(float[] queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
         public double l2Norm(QueryVector queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public double l2Norm(float[] queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public double cosineSimilarity(float[] queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public double cosineSimilarity(QueryVector queryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 
@@ -92,21 +199,6 @@ public interface DenseVector extends Iterable<Float> {
         @Override
         public int size() {
             return 0;
-        }
-
-        @Override
-        public Iterator<Float> iterator() {
-            return new Iterator<>() {
-                @Override
-                public Float next() {
-                    throw new NoSuchElementException();
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return false;
-                }
-            };
         }
     };
 }

@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
 
@@ -62,11 +61,6 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
             return defaultValue;
         }
         return new BinaryDenseVector(value, dims, indexVersion);
-    }
-
-    @Override
-    public Iterator<Float> iterator() {
-        return get().iterator();
     }
 
     @Override

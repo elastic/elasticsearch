@@ -50,11 +50,8 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
             assertEquals(1, dv.size());
             assertFalse(dv.isEmpty());
             assertEquals(dims, dv.getDims());
-            int j = 0;
-            for (double d : field) {
-                assertEquals(d, vectors[i][j], 0.1);
-                j++;
-            }
+            UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, field::iterator);
+            assertEquals("Cannot iterate over single valued dense_vector field, use get() instead", e.getMessage());
         }
         field.setNextDocId(vectors.length);
         DenseVector dv = field.get();

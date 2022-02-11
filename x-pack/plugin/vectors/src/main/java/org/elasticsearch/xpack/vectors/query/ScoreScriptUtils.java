@@ -17,7 +17,7 @@ public class ScoreScriptUtils {
 
     public static class DenseVectorFunction {
         final ScoreScript scoreScript;
-        final QueryVector queryVector;
+        final float[] queryVector;
         final DenseVectorDocValuesField field;
 
         public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
@@ -34,33 +34,22 @@ public class ScoreScriptUtils {
         public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String fieldName, boolean normalizeQuery) {
             this.scoreScript = scoreScript;
             this.field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
+            DenseVector.checkDimensions(field.get().getDims(), queryVector.size());
 
-            if (field.get().getDims() != queryVector.size()) {
-                throw new IllegalArgumentException(
-                    "The query vector has a different number of dimensions ["
-                        + queryVector.size()
-                        + "] than the document vectors ["
-                        + field.get().getDims()
-                        + "]."
-                );
-            }
-
-            float[] queryVectorArray = new float[queryVector.size()];
+            this.queryVector = new float[queryVector.size()];
             double queryMagnitude = 0.0;
             for (int i = 0; i < queryVector.size(); i++) {
                 float value = queryVector.get(i).floatValue();
-                queryVectorArray[i] = value;
+                this.queryVector[i] = value;
                 queryMagnitude += value * value;
             }
             queryMagnitude = Math.sqrt(queryMagnitude);
 
             if (normalizeQuery) {
-                for (int dim = 0; dim < queryVectorArray.length; dim++) {
-                    queryVectorArray[dim] /= queryMagnitude;
+                for (int dim = 0; dim < this.queryVector.length; dim++) {
+                    this.queryVector[dim] /= queryMagnitude;
                 }
             }
-
-            this.queryVector = QueryVector.fromArray(queryVectorArray);
         }
 
         void setNextVector() {
@@ -123,7 +112,7 @@ public class ScoreScriptUtils {
 
         public double cosineSimilarity() {
             setNextVector();
-            return field.get().dotProduct(queryVector) / field.get().getMagnitude();
+            return field.get().cosineSimilarity(queryVector);
         }
     }
 }

@@ -1,7 +1,7 @@
 ---
 "size and isEmpty code works for any vector, including empty":
   - skip:
-      version: " - 8.0.99"
+      version: " - 8.1.99"
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -85,7 +85,7 @@
 ---
 "null can be used for default value":
   - skip:
-      version: " - 8.0.99"
+      version: " - 8.1.99"
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -169,7 +169,7 @@
 ---
 "empty dense vector throws for vector accesses":
   - skip:
-      version: " - 8.0.99"
+      version: " - 8.1.99"
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -283,9 +283,9 @@
   - match: { hits.hits.0._score: 6543210 }
 
 ---
-"dot product is the same for list and float array":
+"dot product works on dense vectors":
   - skip:
-      version: " - 8.0.99"
+      version: " - 8.1.99"
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -324,51 +324,11 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  field(params.field).get().dotProduct(params.query)
-                params:
-                  query: [4, 5, 6]
-                  field: bdv
-
-  - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 27 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
-
-  - do:
-      search:
-        body:
-          query:
-            script_score:
-              query: { "exists": { "field": "bdv" } }
-              script:
-                source: |
                   float[] query = new float[3];
                   query[0] = 4; query[1] = 5; query[2] = 6;
                   field(params.field).get().dotProduct(query)
                 params:
                   field: bdv
-
-  - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 27 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 21 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 15 }
-
-  - do:
-      search:
-        body:
-          query:
-            script_score:
-              query: { "exists": { "field": "bdv" } }
-              script:
-                source: |
-                  field(params.field).get().dotProduct(params.query)
-                params:
-                  query: [4, 5, 6]
-                  field: knn
 
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.0._score: 27 }
@@ -401,7 +361,7 @@
 ---
 "iterator over dense vector values":
   - skip:
-      version: " - 8.0.99"
+      version: " - 8.1.99"
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -433,6 +393,7 @@
           - '{}'
 
   - do:
+      catch: bad_request
       search:
         body:
           query:
@@ -441,23 +402,18 @@
               script:
                 source: |
                   float sum = 0.0f;
-                  for (float v : field(params.field).get()) {
+                  for (def v : field(params.field)) {
                     sum += v;
                   }
                   return sum;
                 params:
                   field: bdv
 
-  - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 5 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 4 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 3 }
-  - match: { hits.hits.3._id: "missing_vector" }
-  - match: { hits.hits.3._score: 0 }
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason: "Cannot iterate over single valued dense_vector field, use get() instead" }
 
   - do:
+      catch: bad_request
       search:
         body:
           query:
@@ -466,26 +422,20 @@
               script:
                 source: |
                   float sum = 0.0f;
-                  for (float v : field(params.field).get()) {
+                  for (def v : field(params.field)) {
                     sum += v;
                   }
                   return sum;
                 params:
                   field: knn
 
-  - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._score: 5 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 4 }
-  - match: { hits.hits.2._id: "1" }
-  - match: { hits.hits.2._score: 3 }
-  - match: { hits.hits.3._id: "missing_vector" }
-  - match: { hits.hits.3._score: 0 }
+  - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason: "Cannot iterate over single valued dense_vector field, use get() instead"}
 
 ---
-"l1Norm is the same for list and float array":
+"l1Norm works on dense vectors":
   - skip:
-      version: " - 8.0.99"
+      version: " - 8.1.99"
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -515,22 +465,6 @@
           - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
           - '{"index": {"_id": "missing_vector"}}'
           - '{}'
-
-  - do:
-      search:
-        body:
-          query:
-            script_score:
-              query: { "exists": { "field": "bdv" } }
-              script:
-                source: |
-                  field(params.field).get().l1Norm(params.query)
-                params:
-                  query: [4, 5, 6]
-                  field: bdv
-
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._score: 12 }
 
   - do:
       search:
@@ -557,22 +491,6 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  field(params.field).get().l1Norm(params.query)
-                params:
-                  query: [4, 5, 6]
-                  field: knn
-
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._score: 12 }
-
-  - do:
-      search:
-        body:
-          query:
-            script_score:
-              query: { "exists": { "field": "bdv" } }
-              script:
-                source: |
                   float[] query = new float[3];
                   query[0] = 4; query[1] = 5; query[2] = 6;
                   field(params.field).get().l1Norm(query)
@@ -583,9 +501,9 @@
   - match: { hits.hits.0._score: 12 }
 
 ---
-"l2Norm is the same for list and float array":
+"l2Norm works on dense vectors":
   - skip:
-      version: " - 8.0.99"
+      version: " - 8.1.99"
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -615,26 +533,6 @@
           - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
           - '{"index": {"_id": "missing_vector"}}'
           - '{}'
-
-  - do:
-      search:
-        body:
-          query:
-            script_score:
-              query: { "exists": { "field": "bdv" } }
-              script:
-                source: |
-                  (int) field(params.field).get().l2Norm(params.query)
-                params:
-                  query: [4, 5, 6]
-                  field: bdv
-
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._score: 7 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 6 }
-  - match: { hits.hits.2._id: "3" }
-  - match: { hits.hits.2._score: 5 }
 
   - do:
       search:
@@ -665,26 +563,6 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  (int) field(params.field).get().l2Norm(params.query)
-                params:
-                  query: [4, 5, 6]
-                  field: knn
-
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._score: 7 }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._score: 6 }
-  - match: { hits.hits.2._id: "3" }
-  - match: { hits.hits.2._score: 5 }
-
-  - do:
-      search:
-        body:
-          query:
-            script_score:
-              query: { "exists": { "field": "bdv" } }
-              script:
-                source: |
                   float[] query = new float[3];
                   query[0] = 4; query[1] = 5; query[2] = 6;
                   (int) field(params.field).get().l2Norm(query)
@@ -699,9 +577,9 @@
   - match: { hits.hits.2._score: 5 }
 
 ---
-"query vector of wrong type errors":
+"cosineSimilarity works on dense vectors":
   - skip:
-      version: " - 8.0.99"
+      version: " - 8.1.99"
       reason: "Fields API for dense vector added in 8.2"
 
   - do:
@@ -725,9 +603,14 @@
         body:
           - '{"index": {"_id": "1"}}'
           - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"bdv": [1, 1, 2], "knn": [1, 1, 2]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"bdv": [1, 1, 3], "knn": [1, 1, 3]}'
+          - '{"index": {"_id": "missing_vector"}}'
+          - '{}'
 
   - do:
-      catch: bad_request
       search:
         body:
           query:
@@ -735,16 +618,20 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  (int) field(params.field).get().l2Norm(params.query)
+                  float[] query = new float[3];
+                  query[0] = 4; query[1] = 5; query[2] = 6;
+                  (int) (field(params.field).get().cosineSimilarity(query) * 100.0f)
                 params:
-                  query: "one, two, three"
                   field: bdv
 
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
-  - match: { error.failed_shards.0.reason.caused_by.reason: "Cannot use vector [one, two, three] with class [java.lang.String] as query vector" }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 98 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 97 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 92 }
 
   - do:
-      catch: bad_request
       search:
         body:
           query:
@@ -752,10 +639,15 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  (int) field(params.field).get().l2Norm(params.query)
+                  float[] query = new float[3];
+                  query[0] = 4; query[1] = 5; query[2] = 6;
+                  (int) (field(params.field).get().cosineSimilarity(query) * 100.0f)
                 params:
-                  query: "one, two, three"
                   field: knn
 
-  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
-  - match: { error.failed_shards.0.reason.caused_by.reason: "Cannot use vector [one, two, three] with class [java.lang.String] as query vector" }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 98 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 97 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 92 }

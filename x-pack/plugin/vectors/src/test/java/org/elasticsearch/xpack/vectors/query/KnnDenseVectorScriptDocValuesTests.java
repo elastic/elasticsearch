@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.NoSuchElementException;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -42,11 +41,8 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
             assertEquals(1, dv.size());
             assertFalse(dv.isEmpty());
             assertEquals(dims, dv.getDims());
-            int j = 0;
-            for (double d : field) {
-                assertEquals(d, vectors[i][j], 0.1);
-                j++;
-            }
+            UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, field::iterator);
+            assertEquals("Cannot iterate over single valued dense_vector field, use get() instead", e.getMessage());
         }
         field.setNextDocId(vectors.length);
         DenseVector dv = field.get();
@@ -116,11 +112,11 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         assertEquals(DenseVector.EMPTY, emptyKnn.get());
         assertNull(emptyKnn.get(null));
         assertNull(emptyKnn.getInternal());
-        assertFalse(emptyKnn.iterator().hasNext());
-        expectThrows(NoSuchElementException.class, () -> emptyKnn.iterator().next());
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, emptyKnn::iterator);
+        assertEquals("Cannot iterate over single valued dense_vector field, use get() instead", e.getMessage());
     }
 
-    private static VectorValues wrap(float[][] vectors) {
+    static VectorValues wrap(float[][] vectors) {
         return new VectorValues() {
             int index = 0;
 

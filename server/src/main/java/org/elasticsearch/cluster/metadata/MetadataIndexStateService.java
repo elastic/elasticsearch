@@ -1078,7 +1078,17 @@ public class MetadataIndexStateService {
                 state = allocationService.reroute(state, "indices opened");
 
                 for (OpenIndicesTask task : tasks) {
-                    builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
+                    builder.success(task, new ActionListener<>() {
+                        @Override
+                        public void onResponse(ClusterState clusterState) {
+                            // listener is notified at the end of acking
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            task.onFailure(e);
+                        }
+                    });
                 }
             } catch (Exception e) {
                 for (OpenIndicesTask task : tasks) {
@@ -1190,6 +1200,11 @@ public class MetadataIndexStateService {
         @Override
         public TimeValue ackTimeout() {
             return request.ackTimeout();
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "not called";
         }
     }
 }

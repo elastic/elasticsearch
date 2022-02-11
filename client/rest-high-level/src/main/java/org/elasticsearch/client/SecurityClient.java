@@ -8,7 +8,6 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.security.AuthenticateRequest;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
@@ -24,8 +23,6 @@ import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
-import org.elasticsearch.client.security.DisableUserRequest;
-import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
@@ -121,67 +118,6 @@ public final class SecurityClient {
             SecurityRequestConverters::putRoleMapping,
             options,
             PutRoleMappingResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Enable a native realm or built-in user synchronously.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html">
-     * the docs</a> for more.
-     *
-     * @param request the request with the user to enable
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return {@code true} if the request succeeded (the user is enabled)
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public boolean enableUser(EnableUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequest(
-            request,
-            SecurityRequestConverters::enableUser,
-            options,
-            RestHighLevelClient::convertExistsResponse,
-            emptySet()
-        );
-    }
-
-    /**
-     * Disable a native realm or built-in user synchronously.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html">
-     * the docs</a> for more.
-     *
-     * @param request the request with the user to disable
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return {@code true} if the request succeeded (the user is disabled)
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public boolean disableUser(DisableUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequest(
-            request,
-            SecurityRequestConverters::disableUser,
-            options,
-            RestHighLevelClient::convertExistsResponse,
-            emptySet()
-        );
-    }
-
-    /**
-     * Disable a native realm or built-in user asynchronously.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html">
-     * the docs</a> for more.
-     *
-     * @param request  the request with the user to disable
-     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public Cancellable disableUserAsync(DisableUserRequest request, RequestOptions options, ActionListener<Boolean> listener) {
-        return restHighLevelClient.performRequestAsync(
-            request,
-            SecurityRequestConverters::disableUser,
-            options,
-            RestHighLevelClient::convertExistsResponse,
-            listener,
             emptySet()
         );
     }

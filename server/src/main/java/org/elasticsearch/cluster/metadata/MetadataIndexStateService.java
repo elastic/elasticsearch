@@ -269,11 +269,9 @@ public class MetadataIndexStateService {
         final Map<Index, ClusterBlock> blockedIndices,
         final ClusterState currentState
     ) {
-        final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-
         final Set<Index> indicesToClose = new HashSet<>();
         for (Index index : indices) {
-            final IndexMetadata indexMetadata = metadata.getSafe(index);
+            final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
             if (indexMetadata.getState() != IndexMetadata.State.CLOSE) {
                 indicesToClose.add(index);
             } else {
@@ -331,7 +329,7 @@ public class MetadataIndexStateService {
                 blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.joining(","))
             )
         );
-        return ClusterState.builder(currentState).blocks(blocks).metadata(metadata).build();
+        return ClusterState.builder(currentState).blocks(blocks).build();
     }
 
     /**

@@ -380,7 +380,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             for (RolloverTask task : tasks) {
                 try {
                     state = task.performRollover(state);
-                    builder.success(task);
+                    builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
                 } catch (Exception e) {
                     builder.failure(task, e);
                 }

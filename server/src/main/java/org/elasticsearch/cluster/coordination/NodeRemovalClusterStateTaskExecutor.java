@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -39,7 +40,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
 
         @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            onClusterStateProcessed.run();
+            assert false : "not called";
         }
 
         @Override
@@ -59,6 +60,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
     public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
         final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
         boolean removed = false;
+        final var resultBuilder = ClusterTasksResult.<Task>builder();
         for (final Task task : tasks) {
             if (currentState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
@@ -66,18 +68,31 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
             } else {
                 logger.debug("node [{}] does not exist in cluster state, ignoring", task);
             }
+            resultBuilder.success(task, new ActionListener<>() {
+                @Override
+                public void onResponse(ClusterState clusterState) {
+                    task.onClusterStateProcessed.run();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    task.onFailure(e);
+                }
+            });
         }
 
-        if (removed == false) {
+        final ClusterState finalState;
+
+        if (removed) {
+            final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
+            final ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
+            finalState = allocationService.disassociateDeadNodes(ptasksDisassociatedState, true, describeTasks(tasks));
+        } else {
             // no nodes to remove, keep the current cluster state
-            return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
+            finalState = currentState;
         }
 
-        final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
-        final ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
-        final ClusterState finalState = allocationService.disassociateDeadNodes(ptasksDisassociatedState, true, describeTasks(tasks));
-
-        return ClusterTasksResult.<Task>builder().successes(tasks).build(finalState);
+        return resultBuilder.build(finalState);
     }
 
     // visible for testing

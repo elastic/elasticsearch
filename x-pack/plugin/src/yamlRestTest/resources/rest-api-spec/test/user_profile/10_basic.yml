@@ -39,6 +39,8 @@ teardown:
   - match: { "user.username" : "joe" }
   - match: { "user.roles" : [ "superuser" ] }
   - match: { "user.full_name" : "Bazooka Joe" }
+  - match: { "user.realm_name" : "default_native" }
+  - is_false: "user.realm_domain"
   - is_true: _doc
   - set: { uid: profile_uid }
 

@@ -70,9 +70,11 @@ An array of fractions to use when averaging and calculating variance. This shoul
 The configuration to calculate a metric correlation. This function is designed for
 determining the correlation of metrics given at two bucket_paths. Consequently, it
 needs to meet the following requirements.
-
++
+--
 * The `buckets_path` must point to a metric within a multi-bucket aggregation.
-
+--
++
 .Properties of `metric_correlation`
 [%collapsible%open]
 =====

@@ -115,6 +115,12 @@ and on a changing index this may mean that repeated searches may yield
 different results if they are executed on different shard copies which are in
 different refresh states.
 
+WARNING: If a node has <<allocation-awareness,shard allocation awareness>>
+attributes, then it will prefer shards with the same awareness attribute values.
+Because of these attributes, different coordinating nodes may route the same
+search differently, even if the searches use the same custom `preference` values.
+In recent {es} versions, awareness attributes no longer influence search routing.
+
 WARNING: The `_primary`, `_primary_first`, `_replica` and `_replica_first` are
 deprecated as their use is not recommended. They do not help to avoid
 inconsistent results that arise from the use of shards that have different

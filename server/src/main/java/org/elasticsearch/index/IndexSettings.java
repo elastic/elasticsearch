@@ -476,7 +476,7 @@ public final class IndexSettings {
      */
     public static final Setting<Instant> TIME_SERIES_START_TIME = Setting.dateSetting(
         "index.time_series.start_time",
-        Instant.ofEpochMilli(0),
+        Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999),
         v -> {},
         Property.IndexScope,
         Property.Final
@@ -518,7 +518,7 @@ public final class IndexSettings {
         IndexMode.class,
         "index.mode",
         IndexMode.STANDARD,
-        new Setting.Validator<IndexMode>() {
+        new Setting.Validator<>() {
             @Override
             public void validate(IndexMode value) {}
 
@@ -702,7 +702,7 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        this.timestampBounds = TIME_SERIES_START_TIME.exists(settings) ? new TimestampBounds(scopedSettings) : null;
+        this.timestampBounds = mode.getTimestampBound(scopedSettings);
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -937,6 +937,16 @@ public final class IndexSettings {
         Version newIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(newSettings);
         if (version.equals(newIndexVersion) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
+        }
+        Version newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
+        Version compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
+        if (compatibilityVersion.equals(newCompatibilityVersion) == false) {
+            throw new IllegalArgumentException(
+                "compatibility version mismatch on settings update expected: "
+                    + compatibilityVersion
+                    + " but was: "
+                    + newCompatibilityVersion
+            );
         }
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {

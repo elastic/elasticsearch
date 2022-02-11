@@ -143,7 +143,6 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             ClusterState latestState = clusterService.state();
             Set<String> nodesShuttingDown = TransportStartTrainedModelDeploymentAction.nodesShuttingDown(latestState);
             List<DiscoveryNode> nodes = latestState.getNodes()
-                .getAllNodes()
                 .stream()
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
                 .filter(StartTrainedModelDeploymentAction.TaskParams::mayAllocateToNode)

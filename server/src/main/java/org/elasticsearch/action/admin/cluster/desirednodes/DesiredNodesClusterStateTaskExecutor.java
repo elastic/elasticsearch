@@ -24,7 +24,7 @@ public class DesiredNodesClusterStateTaskExecutor implements ClusterStateTaskExe
         for (ClusterStateUpdateTask task : tasks) {
             try {
                 clusterState = task.execute(clusterState);
-                builder.success(task);
+                builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
             } catch (Exception e) {
                 builder.failure(task, e);
             }

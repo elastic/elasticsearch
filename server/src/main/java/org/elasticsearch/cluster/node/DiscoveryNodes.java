@@ -24,7 +24,6 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.util.AbstractCollection;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -164,14 +163,6 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         nodes.removeAll(dataNodes.keys());
         nodes.removeAll(ingestNodes.keys());
         return nodes.build();
-    }
-
-    /**
-     * Return all the nodes as a collection
-     * @return
-     */
-    public Collection<DiscoveryNode> getAllNodes() {
-        return this;
     }
 
     /**

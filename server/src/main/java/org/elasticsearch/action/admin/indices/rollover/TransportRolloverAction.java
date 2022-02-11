@@ -222,11 +222,22 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .max()
                 .orElse(0);
 
+            final long maxPrimaryShardDocs = indexStats.stream()
+                .map(IndexStats::getShards)
+                .filter(Objects::nonNull)
+                .flatMap(Arrays::stream)
+                .filter(shard -> shard.getShardRouting().primary())
+                .map(ShardStats::getStats)
+                .mapToLong(shard -> shard.docs.getCount())
+                .max()
+                .orElse(0);
+
             return new Condition.Stats(
                 docsStats == null ? 0 : docsStats.getCount(),
                 metadata.getCreationDate(),
                 new ByteSizeValue(docsStats == null ? 0 : docsStats.getTotalSizeInBytes()),
-                new ByteSizeValue(maxPrimaryShardSize)
+                new ByteSizeValue(maxPrimaryShardSize),
+                maxPrimaryShardDocs
             );
         }
     }
@@ -369,7 +380,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             for (RolloverTask task : tasks) {
                 try {
                     state = task.performRollover(state);
-                    builder.success(task);
+                    builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
                 } catch (Exception e) {
                     builder.failure(task, e);
                 }

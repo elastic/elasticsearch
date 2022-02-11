@@ -18,6 +18,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -39,6 +41,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalAttachRealmRef;
@@ -50,6 +54,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AT
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
@@ -442,7 +447,7 @@ public class Authentication implements ToXContentObject {
         return builder.toString();
     }
 
-    public static class RealmRef implements Writeable {
+    public static class RealmRef implements Writeable, ToXContentObject {
 
         private final String nodeName;
         private final String name;
@@ -479,6 +484,21 @@ public class Authentication implements ToXContentObject {
             if (out.getVersion().onOrAfter(VERSION_REALM_DOMAINS)) {
                 out.writeOptionalWriteable(domain);
             }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field("name", name);
+                builder.field("type", type);
+                builder.field("node_name", nodeName);
+                if (domain != null) {
+                    builder.field("domain", domain);
+                }
+            }
+            builder.endObject();
+            return builder;
         }
 
         public String getNodeName() {
@@ -558,6 +578,19 @@ public class Authentication implements ToXContentObject {
             // no domain for API Key tokens
             return new RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, nodeName, null);
         }
+    }
+
+    public static ConstructingObjectParser<RealmRef, Void> REALM_REF_PARSER = new ConstructingObjectParser<>(
+        "realm_ref",
+        false,
+        (args, v) -> new RealmRef((String) args[0], (String) args[1], (String) args[2], (RealmDomain) args[3])
+    );
+
+    static {
+        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("name"));
+        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("type"));
+        REALM_REF_PARSER.declareString(constructorArg(), new ParseField("node_name"));
+        REALM_REF_PARSER.declareObject(optionalConstructorArg(), (p, c) -> REALM_DOMAIN_PARSER.parse(p, c), new ParseField("domain"));
     }
 
     // TODO is a newer version than the node's a valid value?

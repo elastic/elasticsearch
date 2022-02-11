@@ -709,7 +709,6 @@ public interface DocValueFormat extends NamedWriteable {
             for (Map.Entry<?, ?> entry : m.entrySet()) {
                 String f = entry.getKey().toString();
                 Object v = entry.getValue();
-                BytesReference bytes;
 
                 if (v instanceof String s) {
                     builder.addString(f, s);

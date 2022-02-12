@@ -8,29 +8,22 @@
 
 package org.elasticsearch.xcontent.internal;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
+import java.security.SecureClassLoader;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.ServiceLoader;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -57,68 +50,80 @@ public final class ProviderLocator {
      */
     public static final XContentProvider INSTANCE = provider();
 
-    @SuppressForbidden(reason = "path separator")
-    private static String pathSeparator() {
-        return File.pathSeparator;
-    }
+    private static class EmbeddedImplClassLoader extends SecureClassLoader {
 
-    private static Path providerPath() {
-        // TODO: resolve x-content in stream, then expect one
-        String classpath = System.getProperty("java.class.path");
-        List<Path> path = Arrays.stream(classpath.split(ProviderLocator.pathSeparator()))
-            .filter(s -> s.endsWith("providers"))
-            .map(Path::of)
-            .filter(Files::isDirectory)
-            .toList();
-        if (path.size() != 1) {
-            throw new RuntimeException("Expected one provider path, found:" + path);
+        private final List<String> prefixes;
+
+        EmbeddedImplClassLoader() {
+            super(ProviderLocator.class.getClassLoader());
+
+            final InputStream is = ProviderLocator.class.getResourceAsStream("provider-jars.txt");
+            if (is == null) {
+                throw new IllegalStateException("missing x-content provider jars list");
+            }
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                prefixes = reader.lines().map(s -> "IMPL-JARS/" + s).collect(Collectors.toList());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
-        return checkPathExists(path.get(0).resolve("x-content"));
-    }
+        @Override
+        public Class<?> findClass(String name) throws ClassNotFoundException {
+            String filepath = name.replace('.', '/') + ".class";
+            for (String prefix : prefixes) {
+                InputStream is = getParent().getResourceAsStream(prefix + "/" + filepath);
+                if (is == null) {
+                    continue;
+                }
 
-    private static Path checkPathExists(Path path) {
-        if (Files.notExists(path) || Files.isDirectory(path) == false) {
-            throw new UncheckedIOException(new FileNotFoundException(path.toString()));
+                try {
+                    byte[] bytes = is.readAllBytes();
+                    return defineClass(name, bytes, 0, bytes.length);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            return super.findClass(name);
         }
-        return path;
+
+        @Override
+        protected URL findResource(String name) {
+            for (String prefix : prefixes) {
+                URL url = getParent().getResource(prefix + "/" + name);
+                if (url != null) {
+                    return url;
+                }
+            }
+            return super.findResource(name);
+        }
+
+        @Override
+        protected Enumeration<URL> findResources(String name) throws IOException {
+            // TODO: this is broken, need to build enumeration of enumerations
+            for (String prefix : prefixes) {
+                Enumeration<URL> urls = getParent().getResources(prefix + "/" + name);
+                if (urls.hasMoreElements()) {
+                    return urls;
+                }
+            }
+            return super.findResources(name);
+        }
     }
 
     private static XContentProvider provider() {
         try {
-            PrivilegedExceptionAction<XContentProvider> pa = () -> loadAsNonModule(gatherUrls(providerPath()));
+            PrivilegedExceptionAction<XContentProvider> pa = ProviderLocator::loadAsNonModule;
             return AccessController.doPrivileged(pa);
         } catch (PrivilegedActionException e) {
             throw new UncheckedIOException((IOException) e.getCause());
         }
     }
 
-    private static XContentProvider loadAsNonModule(URL[] urls) {
-        URLClassLoader loader = URLClassLoader.newInstance(urls, XContentProvider.class.getClassLoader());
+    private static XContentProvider loadAsNonModule() {
+        ClassLoader loader = new EmbeddedImplClassLoader();
         ServiceLoader<XContentProvider> sl = ServiceLoader.load(XContentProvider.class, loader);
         return sl.findFirst().orElseThrow(() -> new RuntimeException("cannot locate x-content provider"));
-    }
-
-    private static URL[] gatherUrls(Path providerPath) throws IOException {
-        final InputStream is = ProviderLocator.class.getResourceAsStream("provider-jars.txt");
-        if (is == null) {
-            throw new IllegalStateException("missing x-content provider jars list");
-        }
-
-        final List<Path> paths;
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-            paths = reader.lines().map(providerPath::resolve).collect(Collectors.toList());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
-        final Set<URL> urls = new LinkedHashSet<>();
-        for (Path path : paths) {
-            URL url = path.toRealPath().toUri().toURL();
-            if (urls.add(url) == false) {
-                throw new IllegalStateException("duplicate codebase: " + url);
-            }
-        }
-        return urls.toArray(URL[]::new);
     }
 }

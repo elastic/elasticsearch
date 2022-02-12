@@ -264,7 +264,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsXContentProvider', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -291,7 +291,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
-    libsXContentProvider project(path: ':libs:elasticsearch-x-content:impl', configuration: 'providerDir')
   }
 
   project.ext {
@@ -303,9 +302,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
-        into('providers') {
-          from(configurations.libsXContentProvider)
-        }
         into('tools/geoip-cli') {
           from(configurations.libsGeoIpCli)
         }

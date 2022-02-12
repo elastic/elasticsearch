@@ -9,10 +9,6 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
-configurations {
-  providerDir
-}
-
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
   compileOnly project(':libs:elasticsearch-x-content')
@@ -49,17 +45,4 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("jar").configure {
   archiveBaseName = "x-content-impl"
-}
-
-File providerDirPath = new File(buildDir, 'providers')
-def copyProviderJars = tasks.register("copyProviderJars", Copy) {
-  from configurations.runtimeClasspath
-  from tasks.named("jar")
-  into new File(providerDirPath, 'x-content')
-}
-
-artifacts {
-  providerDir(providerDirPath) {
-    builtBy copyProviderJars
-  }
 }

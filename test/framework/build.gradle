@@ -39,8 +39,6 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "org.apache.commons:commons-compress:1.19"
   api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
-
-  runtimeOnly project(path: ":libs:elasticsearch-x-content:impl", configuration: "providerDir")
 }
 
 // the main files are actually test files, so use the appropriate forbidden api sigs

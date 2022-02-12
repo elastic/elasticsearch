@@ -152,7 +152,6 @@ public class XContentFactory {
         // CBOR is not supported
 
         // fallback for JSON
-
         for (int i = 0; i < length; i++) {
             char c = content.charAt(i);
             if (c == '{') {
@@ -296,7 +295,6 @@ public class XContentFactory {
         }
 
         // fallback for JSON
-
         int jsonStart = 0;
         // JSON may be preceded by UTF-8 BOM
         if (length > 3 && first == (byte) 0xEF && bytes[offset + 1] == (byte) 0xBB && bytes[offset + 2] == (byte) 0xBF) {

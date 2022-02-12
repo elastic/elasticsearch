@@ -36,7 +36,7 @@ public class LuceneDocument implements Iterable<IndexableField> {
      * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
      * to build the _tsid field for the document.
      */
-    private SortedMap<String, BytesReference> dimensionBytes;
+    private SortedMap<BytesRef, BytesReference> dimensionBytes;
 
     LuceneDocument(String path, LuceneDocument parent) {
         fields = new ArrayList<>();
@@ -114,16 +114,17 @@ public class LuceneDocument implements Iterable<IndexableField> {
      * to build the _tsid field for the document.
      */
     public void addDimensionBytes(String fieldName, BytesReference tsidBytes) {
+        BytesRef fieldNameBytes = new BytesRef(fieldName);
         if (dimensionBytes == null) {
             // It is a {@link TreeMap} so that it is order by field name.
             dimensionBytes = new TreeMap<>();
-        } else if (dimensionBytes.containsKey(fieldName)) {
+        } else if (dimensionBytes.containsKey(fieldNameBytes)) {
             throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
         }
-        dimensionBytes.put(fieldName, tsidBytes);
+        dimensionBytes.put(fieldNameBytes, tsidBytes);
     }
 
-    public SortedMap<String, BytesReference> getDimensionBytes() {
+    public SortedMap<BytesRef, BytesReference> getDimensionBytes() {
         if (dimensionBytes == null) {
             return Collections.emptySortedMap();
         }

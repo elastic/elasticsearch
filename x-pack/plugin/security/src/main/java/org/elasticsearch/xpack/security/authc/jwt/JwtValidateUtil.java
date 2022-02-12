@@ -49,20 +49,20 @@ public class JwtValidateUtil {
     /**
      * Validate a SignedJWT. Use iss/aud/alg filters for those claims, JWKSet for signature, and skew seconds for time claims.
      * @param jwt Signed JWT to be validated.
-     * @param jwks JWKs of HMAC secret keys or RSA/EC public keys.
      * @param allowedIssuer Filter for the "iss" claim.
      * @param allowedAudiences Filter for the "aud" claim.
-     * @param allowedSignatureAlgorithms Filter for the "aud" header.
      * @param allowedClockSkewSeconds Skew tolerance for the "auth_time", "iat", "nbf", and "exp" claims.
+     * @param allowedSignatureAlgorithms Filter for the "aud" header.
+     * @param jwks JWKs of HMAC secret keys or RSA/EC public keys.
      * @throws Exception Error for the first validation to fail.
      */
     public static void validate(
         final SignedJWT jwt,
-        final List<JWK> jwks,
         final String allowedIssuer,
         final List<String> allowedAudiences,
+        final long allowedClockSkewSeconds,
         final List<String> allowedSignatureAlgorithms,
-        final long allowedClockSkewSeconds
+        final List<JWK> jwks
     ) throws Exception {
         final Date now = new Date();
         LOGGER.debug(
@@ -120,7 +120,8 @@ public class JwtValidateUtil {
     public static void validateAudiences(final SignedJWT jwt, List<String> allowedAudiences) throws Exception {
         final List<String> audiences = jwt.getJWTClaimsSet().getAudience();
         if ((audiences == null) || (allowedAudiences.stream().anyMatch(audiences::contains) == false)) {
-            throw new Exception("Rejected audiences [" + String.join(",", audiences) + "]. Allowed [" + allowedAudiences + "]");
+            final String audiencesString = (audiences == null) ? "null" : String.join(",", audiences);
+            throw new Exception("Rejected audiences [" + audiencesString + "]. Allowed [" + allowedAudiences + "]");
         }
     }
 

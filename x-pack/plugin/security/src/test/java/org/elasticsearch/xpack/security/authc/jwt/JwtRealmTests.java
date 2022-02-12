@@ -93,7 +93,9 @@ public class JwtRealmTests extends JwtTestCase {
         final Tuple<Integer, Integer> userRange = new Tuple<>(1, 3);
         final Tuple<Integer, Integer> roleRange = new Tuple<>(0, 0);
         final Tuple<Integer, Integer> jwtRange = new Tuple<>(2, 3);
-        this.realmTestHelper(authcRange, authzRange, algRange, audRange, userRange, roleRange, jwtRange);
+        final Tuple<Integer, Integer> authcCacheRange = new Tuple<>(0, 1);
+        final Tuple<Integer, Integer> authzCacheRange = new Tuple<>(0, 1);
+        this.realmTestHelper(authcRange, authzRange, algRange, audRange, userRange, roleRange, jwtRange, authcCacheRange, authzCacheRange);
     }
 
     public void testJwtAuthcRealmAuthenticateWithoutAuthzRealms() throws Exception {
@@ -104,7 +106,9 @@ public class JwtRealmTests extends JwtTestCase {
         final Tuple<Integer, Integer> userRange = new Tuple<>(1, 3);
         final Tuple<Integer, Integer> roleRange = new Tuple<>(0, 3);
         final Tuple<Integer, Integer> jwtRange = new Tuple<>(2, 3);
-        this.realmTestHelper(authcRange, authzRange, algRange, audRange, userRange, roleRange, jwtRange);
+        final Tuple<Integer, Integer> authcCacheRange = new Tuple<>(0, 1);
+        final Tuple<Integer, Integer> authzCacheRange = new Tuple<>(0, 1);
+        this.realmTestHelper(authcRange, authzRange, algRange, audRange, userRange, roleRange, jwtRange, authcCacheRange, authzCacheRange);
     }
 
     public void testJwtAuthcRealmAuthenticateWithAuthzRealms() throws Exception {
@@ -115,7 +119,9 @@ public class JwtRealmTests extends JwtTestCase {
         final Tuple<Integer, Integer> userRange = new Tuple<>(1, 3);
         final Tuple<Integer, Integer> roleRange = new Tuple<>(0, 3);
         final Tuple<Integer, Integer> jwtRange = new Tuple<>(2, 3);
-        this.realmTestHelper(authcRange, authzRange, algRange, audRange, userRange, roleRange, jwtRange);
+        final Tuple<Integer, Integer> authcCacheRange = new Tuple<>(0, 1);
+        final Tuple<Integer, Integer> authzCacheRange = new Tuple<>(0, 1);
+        this.realmTestHelper(authcRange, authzRange, algRange, audRange, userRange, roleRange, jwtRange, authcCacheRange, authzCacheRange);
     }
 
     public void realmTestHelper(
@@ -125,7 +131,9 @@ public class JwtRealmTests extends JwtTestCase {
         final Tuple<Integer, Integer> audRange,
         final Tuple<Integer, Integer> userRange,
         final Tuple<Integer, Integer> roleRange,
-        final Tuple<Integer, Integer> jwtRange
+        final Tuple<Integer, Integer> jwtRange,
+        final Tuple<Integer, Integer> authcCacheRange,
+        final Tuple<Integer, Integer> authzCacheRange
     ) throws Exception {
         assertThat(authcRange.v1(), is(greaterThanOrEqualTo(1)));
         assertThat(authzRange.v1(), is(greaterThanOrEqualTo(0)));
@@ -134,6 +142,8 @@ public class JwtRealmTests extends JwtTestCase {
         assertThat(userRange.v1(), is(greaterThanOrEqualTo(1)));
         assertThat(roleRange.v1(), is(greaterThanOrEqualTo(0)));
         assertThat(jwtRange.v1(), is(greaterThanOrEqualTo(1)));
+        assertThat(authcCacheRange.v1(), is(greaterThanOrEqualTo(0)));
+        assertThat(authzCacheRange.v1(), is(greaterThanOrEqualTo(0)));
 
         final int realmCount = randomIntBetween(authcRange.v1(), authcRange.v2());
         final List<Realm> allRealms = new ArrayList<>();
@@ -146,9 +156,11 @@ public class JwtRealmTests extends JwtTestCase {
                 final int audCount = randomIntBetween(audRange.v1(), audRange.v2());
                 final int userCount = randomIntBetween(userRange.v1(), userRange.v2());
                 final int roleCount = randomIntBetween(roleRange.v1(), roleRange.v2());
+                final int authcCacheSize = randomIntBetween(authcCacheRange.v1(), authcCacheRange.v2());
+                final int authzCacheSize = randomIntBetween(authzCacheRange.v1(), authzCacheRange.v2());
 
                 final JwtIssuer jwtIssuer = createJwtIssuer(i, algCount, audCount, userCount, roleCount);
-                final JwtRealm jwtRealm = createJwtRealm(allRealms, authzCount, jwtIssuer);
+                final JwtRealm jwtRealm = createJwtRealm(allRealms, authzCount, jwtIssuer, authcCacheSize, authzCacheSize);
                 jwtIssuerAndRealms.add(new Tuple<>(jwtIssuer, jwtRealm));
 
                 // verify exception before initialization
@@ -375,7 +387,13 @@ public class JwtRealmTests extends JwtTestCase {
         return new JwtIssuer(issuer, audiences, algAndJwks, users);
     }
 
-    private JwtRealm createJwtRealm(final List<Realm> allRealms, final int authzCount, final JwtIssuer jwtIssuer) throws Exception {
+    private JwtRealm createJwtRealm(
+        final List<Realm> allRealms,
+        final int authzCount,
+        final JwtIssuer jwtIssuer,
+        final int authcCacheSize,
+        final int authzCacheSize
+    ) throws Exception {
         final String authcRealmName = "jwt" + (allRealms.size() + 1) + randomIntBetween(0, 9);
         final String[] authzRealmNames = IntStream.range(0, authzCount).mapToObj(z -> authcRealmName + "_authz" + z).toArray(String[]::new);
 
@@ -406,7 +424,9 @@ public class JwtRealmTests extends JwtTestCase {
             .put(
                 RealmSettings.getFullSettingKey(authcRealmName, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
                 String.join(",", authzRealmNames)
-            );
+            )
+            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_VALIDATION_CACHE_MAX_USERS), authcCacheSize)
+            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ROLES_LOOKUP_CACHE_MAX_USERS), authzCacheSize);
         if (randomBoolean()) {
             authcSettings.put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_GROUPS.getClaim()),
@@ -422,10 +442,6 @@ public class JwtRealmTests extends JwtTestCase {
                 JwtUtil.serializeJwkSet(jwtIssuer.getJwkSetHmac(), false)
             );
         }
-        // secureSettings.setString(
-        // RealmSettings.getFullSettingKey(authcRealmName, SSLConfigurationSettings.TRUSTSTORE_PASSWORD.realm(JwtRealmSettings.TYPE)),
-        // randomAlphaOfLengthBetween(10, 10)
-        // );
         if (clientAuthenticationType.equals(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET)) {
             final String clientAuthenticationSharedSecret = Base64.getUrlEncoder().encodeToString(randomByteArrayOfLength(32));
             secureSettings.setString(

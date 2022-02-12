@@ -131,15 +131,18 @@ public class JwtUtil {
         switch (type) {
             case JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET:
                 if (Strings.hasText(actualSecret) == false) {
-                    throw new Exception("Rejected client authentication for type [" + type + "] due to no secret.");
+                    throw new Exception("Rejected client. Authentication type is [" + type + "] and secret is missing.");
                 } else if (expectedSecret.equals(actualSecret) == false) {
-                    throw new Exception("Rejected client authentication for type [" + type + "] due to secret mismatch.");
+                    throw new Exception("Rejected client. Authentication type is [" + type + "] and secret did not match.");
                 }
+                LOGGER.trace("Accepted client. Authentication type is [" + type + "] and secret matched.");
                 break;
             case JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE:
             default:
                 if (Strings.hasText(actualSecret)) {
-                    throw new Exception("Rejected client authentication for type [" + type + "] due to present secret.");
+                    LOGGER.debug("Accepted client. Authentication type [" + type + "]. Secret is present but ignored.");
+                } else {
+                    LOGGER.trace("Accepted client. Authentication type [" + type + "].");
                 }
                 break;
         }

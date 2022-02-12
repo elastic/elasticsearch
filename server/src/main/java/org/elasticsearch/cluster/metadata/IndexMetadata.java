@@ -547,6 +547,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final int shardsPerNodeLimit;
 
+    @Nullable // if an index isn't managed by ilm, it won't have a policy
+    private final String lifecyclePolicyName;
+
     private final LifecycleExecutionState lifecycleExecutionState;
 
     private final AutoExpandReplicas autoExpandReplicas;
@@ -588,6 +591,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final boolean ignoreDiskWatermarks,
         @Nullable final List<String> tierPreference,
         final int shardsPerNodeLimit,
+        final String lifecyclePolicyName,
         final LifecycleExecutionState lifecycleExecutionState,
         final AutoExpandReplicas autoExpandReplicas,
         final boolean isSearchableSnapshot,
@@ -632,6 +636,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
         this.tierPreference = tierPreference;
         this.shardsPerNodeLimit = shardsPerNodeLimit;
+        this.lifecyclePolicyName = lifecyclePolicyName;
         this.lifecycleExecutionState = lifecycleExecutionState;
         this.autoExpandReplicas = autoExpandReplicas;
         this.isSearchableSnapshot = isSearchableSnapshot;
@@ -677,6 +682,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.ignoreDiskWatermarks,
             this.tierPreference,
             this.shardsPerNodeLimit,
+            this.lifecyclePolicyName,
             this.lifecycleExecutionState,
             this.autoExpandReplicas,
             this.isSearchableSnapshot,
@@ -816,6 +822,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return tierPreference;
     }
 
+    /**
+     * Return the name of the Index Lifecycle Policy associated with this index, or null if it is not managed by ILM.
+     */
+    @Nullable
+    public String getLifecyclePolicyName() {
+        return lifecyclePolicyName;
+    }
+
     public LifecycleExecutionState getLifecycleExecutionState() {
         return lifecycleExecutionState;
     }
@@ -863,6 +877,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope,
         Property.PrivateIndex
     );
+
+    // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and
+    // LifecycleSettings.LIFECYCLE_NAME_SETTING for the 'real' version
+    public static final String LIFECYCLE_NAME = "index.lifecycle.name";
 
     ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
         return this.customData;
@@ -1699,6 +1717,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
                 tierPreference,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings),
+                settings.get(IndexMetadata.LIFECYCLE_NAME), // n.b. lookup by name to get null-if-not-present semantics
                 lifecycleExecutionState,
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,

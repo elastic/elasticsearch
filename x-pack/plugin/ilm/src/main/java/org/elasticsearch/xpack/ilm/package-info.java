@@ -75,7 +75,7 @@
  * and then rollover the index {@link org.elasticsearch.xpack.core.ilm.RolloverStep} followed by some more house-keeping steps).
  *
  * The ILM runner will advance last executed state (as indicated in
- * {@link org.elasticsearch.cluster.metadata.LifecycleExecutionState#getStep()}) and execute the next step of the index policy as
+ * {@link org.elasticsearch.cluster.metadata.LifecycleExecutionState#step()}) and execute the next step of the index policy as
  * defined in the {@link org.elasticsearch.xpack.ilm.PolicyStepsRegistry}.
  * Once all the steps of a policy are executed successfully the policy execution will reach the
  * {@link org.elasticsearch.xpack.core.ilm.TerminalPolicyStep} and any changes made to the policy definition will not have any effect on

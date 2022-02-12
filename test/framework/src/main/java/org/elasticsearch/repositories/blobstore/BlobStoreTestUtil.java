@@ -444,7 +444,7 @@ public final class BlobStoreTestUtil {
             appliers.forEach(
                 applier -> applier.applyClusterState(new ClusterChangedEvent((String) invocation.getArguments()[0], next, current))
             );
-            task.clusterStateProcessed((String) invocation.getArguments()[0], current, next);
+            task.clusterStateProcessed(current, next);
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
         doAnswer(invocation -> {

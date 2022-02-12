@@ -176,7 +176,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public boolean hasNested() {
-        return mappingLookup().hasNested();
+        return mappingLookup().nestedLookup() != NestedLookup.EMPTY;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -508,6 +508,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public boolean isMetadataField(String field) {
         return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
+    }
+
+    public boolean isMultiField(String field) {
+        return mappingLookup().isMultiField(field);
     }
 
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {

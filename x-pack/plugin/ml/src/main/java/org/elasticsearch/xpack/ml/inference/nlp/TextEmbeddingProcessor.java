@@ -26,9 +26,16 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 public class TextEmbeddingProcessor implements NlpTask.Processor {
 
     private final NlpTask.RequestBuilder requestBuilder;
+    private final NlpTokenizer tokenizer;
 
     TextEmbeddingProcessor(NlpTokenizer tokenizer, TextEmbeddingConfig config) {
         this.requestBuilder = tokenizer.requestBuilder();
+        this.tokenizer = tokenizer;
+    }
+
+    @Override
+    public void close() {
+        tokenizer.close();
     }
 
     @Override

@@ -1,0 +1,5 @@
+pr: 82855
+summary: Do no use x-opaque-id for deduplicating elastic originating requests
+area: Infra/Logging
+type: enhancement
+issues: []

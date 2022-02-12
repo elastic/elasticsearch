@@ -39,13 +39,13 @@ import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDevia
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.MetricInspectionHelper;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucket;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
@@ -150,9 +150,9 @@ public class AggregationInspectionHelper {
         return MetricInspectionHelper.hasValue(agg);
     }
 
-    public static boolean hasValue(InternalSum agg) {
+    public static boolean hasValue(Sum agg) {
         // TODO this could be incorrect... e.g. +1 + -1
-        return agg.getValue() != 0.0;
+        return agg.value() != 0.0;
     }
 
     public static boolean hasValue(InternalCardinality agg) {

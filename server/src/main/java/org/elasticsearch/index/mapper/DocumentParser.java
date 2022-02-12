@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -33,7 +32,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -97,7 +95,7 @@ public final class DocumentParser {
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
-            createDynamicUpdate(mappingLookup, context.getDynamicMappers(), context.getDynamicRuntimeFields())
+            createDynamicUpdate(context)
         );
     }
 
@@ -207,198 +205,20 @@ public final class DocumentParser {
         return new MapperParsingException("failed to parse", e);
     }
 
-    private static String[] splitAndValidatePath(String fullFieldPath) {
-        if (fullFieldPath.contains(".")) {
-            String[] parts = fullFieldPath.split("\\.");
-            if (parts.length == 0) {
-                throw new IllegalArgumentException("field name cannot contain only dots");
-            }
-            for (String part : parts) {
-                if (Strings.hasText(part) == false) {
-                    // check if the field name contains only whitespace
-                    if (Strings.isEmpty(part) == false) {
-                        throw new IllegalArgumentException("object field cannot contain only whitespace: ['" + fullFieldPath + "']");
-                    }
-                    throw new IllegalArgumentException(
-                        "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]"
-                    );
-                }
-            }
-            return parts;
-        } else {
-            if (Strings.isEmpty(fullFieldPath)) {
-                throw new IllegalArgumentException("field name cannot be an empty string");
-            }
-            return new String[] { fullFieldPath };
-        }
-    }
-
-    /**
-     * Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings.
-     */
-    static Mapping createDynamicUpdate(MappingLookup mappingLookup, List<Mapper> dynamicMappers, List<RuntimeField> dynamicRuntimeFields) {
-        if (dynamicMappers.isEmpty() && dynamicRuntimeFields.isEmpty()) {
+    static Mapping createDynamicUpdate(DocumentParserContext context) {
+        if (context.getDynamicMappers().isEmpty() && context.getDynamicRuntimeFields().isEmpty()) {
             return null;
         }
-        RootObjectMapper root;
-        if (dynamicMappers.isEmpty() == false) {
-            root = createDynamicUpdate(mappingLookup, dynamicMappers);
-            root.fixRedundantIncludes();
-        } else {
-            root = mappingLookup.getMapping().getRoot().copyAndReset();
+        RootObjectMapper.Builder rootBuilder = context.updateRoot();
+        for (Mapper mapper : context.getDynamicMappers()) {
+            rootBuilder.addDynamic(mapper.name(), null, mapper, context);
         }
-        root.addRuntimeFields(dynamicRuntimeFields);
-        return mappingLookup.getMapping().mappingUpdate(root);
-    }
-
-    private static RootObjectMapper createDynamicUpdate(MappingLookup mappingLookup, List<Mapper> dynamicMappers) {
-
-        // We build a mapping by first sorting the mappers, so that all mappers containing a common prefix
-        // will be processed in a contiguous block. When the prefix is no longer seen, we pop the extra elements
-        // off the stack, merging them upwards into the existing mappers.
-        dynamicMappers.sort(Comparator.comparing(Mapper::name));
-        Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
-        List<ObjectMapper> parentMappers = new ArrayList<>();
-        Mapper firstUpdate = dynamicMapperItr.next();
-        parentMappers.add(createUpdate(mappingLookup.getMapping().getRoot(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
-        Mapper previousMapper = null;
-        while (dynamicMapperItr.hasNext()) {
-            Mapper newMapper = dynamicMapperItr.next();
-            if (previousMapper != null && newMapper.name().equals(previousMapper.name())) {
-                // We can see the same mapper more than once, for example, if we had foo.bar and foo.baz, where
-                // foo did not yet exist. This will create 2 copies in dynamic mappings, which should be identical.
-                // Here we just skip over the duplicates, but we merge them to ensure there are no conflicts.
-                newMapper.merge(previousMapper);
-                continue;
-            }
-            previousMapper = newMapper;
-            String[] nameParts = splitAndValidatePath(newMapper.name());
-
-            // We first need the stack to only contain mappers in common with the previously processed mapper
-            // For example, if the first mapper processed was a.b.c, and we now have a.d, the stack will contain
-            // a.b, and we want to merge b back into the stack so it just contains a
-            int i = removeUncommonMappers(parentMappers, nameParts);
-
-            // Then we need to add back mappers that may already exist within the stack, but are not on it.
-            // For example, if we processed a.b, followed by an object mapper a.c.d, and now are adding a.c.d.e
-            // then the stack will only have a on it because we will have already merged a.c.d into the stack.
-            // So we need to pull a.c, followed by a.c.d, onto the stack so e can be added to the end.
-            i = expandCommonMappers(parentMappers, nameParts, i);
-
-            // If there are still parents of the new mapper which are not on the stack, we need to pull them
-            // from the existing mappings. In order to maintain the invariant that the stack only contains
-            // fields which are updated, we cannot simply add the existing mappers to the stack, since they
-            // may have other subfields which will not be updated. Instead, we pull the mapper from the existing
-            // mappings, and build an update with only the new mapper and its parents. This then becomes our
-            // "new mapper", and can be added to the stack.
-            if (i < nameParts.length - 1) {
-                newMapper = createExistingMapperUpdate(parentMappers, nameParts, i, mappingLookup, newMapper);
-            }
-
-            if (newMapper instanceof ObjectMapper) {
-                parentMappers.add((ObjectMapper) newMapper);
-            } else {
-                addToLastMapper(parentMappers, newMapper, true);
-            }
+        for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
+            rootBuilder.addRuntimeField(runtimeField);
         }
-        popMappers(parentMappers, 1, true);
-        assert parentMappers.size() == 1;
-        return (RootObjectMapper) parentMappers.get(0);
-    }
-
-    private static void popMappers(List<ObjectMapper> parentMappers, int keepBefore, boolean merge) {
-        assert keepBefore >= 1; // never remove the root mapper
-        // pop off parent mappers not needed by the current mapper,
-        // merging them backwards since they are immutable
-        for (int i = parentMappers.size() - 1; i >= keepBefore; --i) {
-            addToLastMapper(parentMappers, parentMappers.remove(i), merge);
-        }
-    }
-
-    /**
-     * Adds a mapper as an update into the last mapper. If merge is true, the new mapper
-     * will be merged in with other child mappers of the last parent, otherwise it will be a new update.
-     */
-    private static void addToLastMapper(List<ObjectMapper> parentMappers, Mapper mapper, boolean merge) {
-        assert parentMappers.size() >= 1;
-        int lastIndex = parentMappers.size() - 1;
-        ObjectMapper withNewMapper = parentMappers.get(lastIndex).mappingUpdate(mapper);
-        if (merge) {
-            withNewMapper = parentMappers.get(lastIndex).merge(withNewMapper);
-        }
-        parentMappers.set(lastIndex, withNewMapper);
-    }
-
-    /**
-     * Removes mappers that exist on the stack, but are not part of the path of the current nameParts,
-     * Returns the next unprocessed index from nameParts.
-     */
-    private static int removeUncommonMappers(List<ObjectMapper> parentMappers, String[] nameParts) {
-        int keepBefore = 1;
-        while (keepBefore < parentMappers.size() && parentMappers.get(keepBefore).simpleName().equals(nameParts[keepBefore - 1])) {
-            ++keepBefore;
-        }
-        popMappers(parentMappers, keepBefore, true);
-        return keepBefore - 1;
-    }
-
-    /**
-     * Adds mappers from the end of the stack that exist as updates within those mappers.
-     * Returns the next unprocessed index from nameParts.
-     */
-    private static int expandCommonMappers(List<ObjectMapper> parentMappers, String[] nameParts, int i) {
-        ObjectMapper last = parentMappers.get(parentMappers.size() - 1);
-        while (i < nameParts.length - 1 && last.getMapper(nameParts[i]) != null) {
-            Mapper newLast = last.getMapper(nameParts[i]);
-            assert newLast instanceof ObjectMapper;
-            last = (ObjectMapper) newLast;
-            parentMappers.add(last);
-            ++i;
-        }
-        return i;
-    }
-
-    /**
-     * Creates an update for intermediate object mappers that are not on the stack, but parents of newMapper.
-     */
-    private static ObjectMapper createExistingMapperUpdate(
-        List<ObjectMapper> parentMappers,
-        String[] nameParts,
-        int i,
-        MappingLookup mappingLookup,
-        Mapper newMapper
-    ) {
-        String updateParentName = nameParts[i];
-        final ObjectMapper lastParent = parentMappers.get(parentMappers.size() - 1);
-        if (parentMappers.size() > 1) {
-            // only prefix with parent mapper if the parent mapper isn't the root (which has a fake name)
-            updateParentName = lastParent.name() + '.' + nameParts[i];
-        }
-        ObjectMapper updateParent = mappingLookup.objectMappers().get(updateParentName);
-        assert updateParent != null : updateParentName + " doesn't exist";
-        return createUpdate(updateParent, nameParts, i + 1, newMapper);
-    }
-
-    /**
-     * Build an update for the parent which will contain the given mapper and any intermediate fields.
-     */
-    private static ObjectMapper createUpdate(ObjectMapper parent, String[] nameParts, int i, Mapper mapper) {
-        List<ObjectMapper> parentMappers = new ArrayList<>();
-        ObjectMapper previousIntermediate = parent;
-        for (; i < nameParts.length - 1; ++i) {
-            Mapper intermediate = previousIntermediate.getMapper(nameParts[i]);
-            assert intermediate != null : "Field " + previousIntermediate.name() + " does not have a subfield " + nameParts[i];
-            assert intermediate instanceof ObjectMapper;
-            parentMappers.add((ObjectMapper) intermediate);
-            previousIntermediate = (ObjectMapper) intermediate;
-        }
-        if (parentMappers.isEmpty() == false) {
-            // add the new mapper to the stack, and pop down to the original parent level
-            addToLastMapper(parentMappers, mapper, false);
-            popMappers(parentMappers, 1, false);
-            mapper = parentMappers.get(0);
-        }
-        return parent.mappingUpdate(mapper);
+        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.ROOT);
+        root.fixRedundantIncludes();
+        return context.mappingLookup().getMapping().mappingUpdate(root);
     }
 
     static void parseObjectOrNested(DocumentParserContext context, ObjectMapper mapper) throws IOException {
@@ -453,6 +273,11 @@ public final class DocumentParser {
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = context.parser().currentName();
+                if (currentFieldName.isBlank()) {
+                    throw new MapperParsingException(
+                        "Field name cannot contain only whitespace: [" + context.path().pathAsText(currentFieldName) + "]"
+                    );
+                }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, currentFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
@@ -759,7 +584,7 @@ public final class DocumentParser {
             parentMapper = context.mappingLookup().objectMappers().get(parentName);
             if (parentMapper == null) {
                 // If parentMapper is null, it means the parent of the current mapper is being dynamically created right now
-                parentMapper = context.getObjectMapper(parentName);
+                parentMapper = context.getDynamicObjectMapper(parentName);
                 if (parentMapper == null) {
                     // it can still happen that the path is ambiguous and we are not able to locate the parent
                     break;

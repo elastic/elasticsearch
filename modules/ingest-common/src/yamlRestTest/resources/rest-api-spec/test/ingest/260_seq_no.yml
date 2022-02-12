@@ -38,7 +38,7 @@ teardown:
       catch: conflict
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {}
   - match: { error.root_cause.0.type: "version_conflict_engine_exception" }
@@ -47,7 +47,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: {}
   - match: { _seq_no: 0 }
   - match: { _primary_term: 1 }
@@ -55,7 +55,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {}
   - match: { _seq_no: 1 }

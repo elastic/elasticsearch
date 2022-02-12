@@ -204,3 +204,21 @@ setup:
               }
             }
           }
+
+  - do:
+      catch: /\[categorization_filters\] cannot be used with \[categorization_analyzer\]/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "categorization_analyzer": "english",
+                  "categorization_filters": ["foo"]
+                }
+              }
+            }
+          }

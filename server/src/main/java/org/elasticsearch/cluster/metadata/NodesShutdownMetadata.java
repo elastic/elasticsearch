@@ -9,11 +9,11 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -193,7 +193,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         }
 
         static Diff<SingleNodeShutdownMetadata> readNodesDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(SingleNodeShutdownMetadata::new, in);
+            return SimpleDiffable.readDiffFrom(SingleNodeShutdownMetadata::new, in);
         }
 
         @Override

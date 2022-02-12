@@ -11,11 +11,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -30,7 +30,7 @@ public class TransformDestIndexSettingsTests extends AbstractSerializingTransfor
         Map<String, Object> mappings = null;
 
         if (randomBoolean()) {
-            mappings = new HashMap<>(size);
+            mappings = Maps.newMapWithExpectedSize(size);
             mappings.put("_meta", singletonMap("_transform", singletonMap("version", Version.CURRENT.toString())));
             for (int i = 0; i < size; i++) {
                 mappings.put(randomAlphaOfLength(10), singletonMap("type", randomAlphaOfLength(10)));

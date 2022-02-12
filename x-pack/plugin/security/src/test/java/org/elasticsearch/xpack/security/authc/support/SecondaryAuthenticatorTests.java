@@ -84,7 +84,6 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     private SecurityContext securityContext;
     private TokenService tokenService;
     private Client client;
-    private OperatorPrivileges operatorPrivileges;
 
     @Before
     public void setupMocks() throws Exception {

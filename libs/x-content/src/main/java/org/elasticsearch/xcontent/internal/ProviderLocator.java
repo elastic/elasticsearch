@@ -21,6 +21,8 @@ import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.SecureClassLoader;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.ServiceLoader;
@@ -52,18 +54,19 @@ public final class ProviderLocator {
 
     private static class EmbeddedImplClassLoader extends SecureClassLoader {
 
+        private static final String IMPL_PREFIX = "IMPL-JARS";
         private final List<String> prefixes;
 
         EmbeddedImplClassLoader() {
             super(ProviderLocator.class.getClassLoader());
 
-            final InputStream is = ProviderLocator.class.getResourceAsStream("provider-jars.txt");
+            final InputStream is = getParent().getResourceAsStream(IMPL_PREFIX + "/MANIFEST.TXT");
             if (is == null) {
                 throw new IllegalStateException("missing x-content provider jars list");
             }
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                prefixes = reader.lines().map(s -> "IMPL-JARS/" + s).collect(Collectors.toList());
+                prefixes = reader.lines().map(s -> IMPL_PREFIX + "/" + s).collect(Collectors.toList());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

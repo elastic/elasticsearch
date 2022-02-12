@@ -17,7 +17,7 @@ apply plugin: 'elasticsearch.publish'
 
 configurations {
   providerImpl {
-    attributes.attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
   }
 }
 
@@ -63,22 +63,21 @@ tasks.named("jarHell").configure { enabled = false }
 
 File generatedResourcesDir = new File(buildDir, 'generated-resources')
 def generateProviderManifest = tasks.register("generateProviderManifest") {
-  File manifestDir = new File(generatedResourcesDir, "impl-manifest")
-  File jarsFile = new File(manifestDir, 'org/elasticsearch/xcontent/internal/provider-jars.txt')
+  File manifestFile = new File(generatedResourcesDir, "MANIFEST.TXT")
   inputs.property('jars', configurations.providerImpl)
-  outputs.dir(manifestDir)
+  outputs.file(manifestFile)
   doLast {
-    jarsFile.parentFile.mkdirs()
-    jarsFile.setText(configurations.providerImpl.files.stream()
+    manifestFile.parentFile.mkdirs()
+    manifestFile.setText(configurations.providerImpl.files.stream()
       .map(f -> f.name).collect(Collectors.joining('\n')), 'UTF-8')
   }
 }
-sourceSets.main.output.dir(generateProviderManifest)
 
 def generateProviderImpl = tasks.register("generateProviderImpl", Copy) {
   destinationDir = new File(generatedResourcesDir, "impl")
   into("IMPL-JARS") {
     from(configurations.providerImpl)
+    from(generateProviderManifest)
   }
 }
 sourceSets.main.output.dir(generateProviderImpl)

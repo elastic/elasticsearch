@@ -251,7 +251,7 @@ public class WildcardServiceProviderResolver {
     }
 
     public interface Fields {
-        ParseField SERVICES = new ParseField("META-INF/services");
+        ParseField SERVICES = new ParseField("services");
     }
 
 }

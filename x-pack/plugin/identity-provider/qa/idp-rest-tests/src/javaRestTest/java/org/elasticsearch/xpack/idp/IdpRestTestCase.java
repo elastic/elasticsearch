@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.idp;
 
+import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -15,9 +16,7 @@ import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 
 import java.io.IOException;
@@ -67,11 +67,31 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         return highLevelAdminClient;
     }
 
-    protected User createUser(String username, SecureString password, String... roles) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final User user = new User(username, List.of(roles), Map.of(), username + " in " + getTestName(), username + "@test.example.com");
-        final PutUserRequest request = PutUserRequest.withPassword(user, password.getChars(), true, RefreshPolicy.IMMEDIATE);
-        client.security().putUser(request, RequestOptions.DEFAULT);
+    protected User createUser(String username, SecureString password, String role) throws IOException {
+        final User user = new User(
+            username,
+            new String[] { role },
+            username + " in " + getTestName(),
+            username + "@test.example.com",
+            Map.of(),
+            true
+        );
+        final String endpoint = "/_security/user/" + username;
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        final String body = """
+            {
+                "username": "%s",
+                "full_name": "%s",
+                "email": "%s",
+                "password": "%s",
+                "roles": [ "%s" ],
+            }
+            """.formatted(user.principal(), user.fullName(), user.email(), password.toString(), role);
+        request.setJsonEntity(body);
+        request.addParameters(Map.of("refresh", "true"));
+        request.setOptions(RequestOptions.DEFAULT);
+        adminClient().performRequest(request);
+
         return user;
     }
 

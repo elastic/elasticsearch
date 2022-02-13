@@ -10,10 +10,36 @@ package org.elasticsearch.test;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class SecurityClientTestHelper {
+
+    public static void putUser(RestClient client, User user, SecureString password) throws IOException {
+        final String endpoint = "/_security/user/" + user.principal();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        final Map<String, Object> map = XContentTestUtils.convertToMap(user);
+        if (password != null) {
+            map.put("password", password.toString());
+        }
+        final String body = toJson(map);
+        request.setJsonEntity(body);
+        request.addParameters(Map.of("refresh", "true"));
+        request.setOptions(SecuritySettingsSource.SECURITY_REQUEST_OPTIONS);
+        client.performRequest(request);
+    }
+
+    private static String toJson(Map<String, Object> map) throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder().map(map);
+        final BytesReference bytes = BytesReference.bytes(builder);
+        return bytes.utf8ToString();
+    }
 
     public static void setUserEnabled(RestClient client, String username, boolean enabled) throws IOException {
         final String endpoint = "/_security/user/" + username + "/" + (enabled ? "_enable" : "_disable");

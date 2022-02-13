@@ -26,7 +26,6 @@ import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -47,18 +46,6 @@ final class SecurityRequestConverters {
         request.setEntity(createEntity(changePasswordRequest, REQUEST_BODY_CONTENT_TYPE));
         RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(changePasswordRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request putUser(PutUserRequest putUserRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/user")
-            .addPathPart(putUserRequest.getUser().getUsername())
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(putUserRequest, REQUEST_BODY_CONTENT_TYPE));
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(putUserRequest.getRefreshPolicy());
         request.addParameters(params.asMap());
         return request;
     }

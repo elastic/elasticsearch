@@ -17,16 +17,15 @@ import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.PutUserRequest;
-import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.support.ApiKey;
-import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.SecurityClientTestHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -50,12 +49,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     }
 
     protected void createUser(String username, SecureString password, List<String> roles) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security()
-            .putUser(
-                PutUserRequest.withPassword(new User(username, roles), password.getChars(), true, RefreshPolicy.WAIT_UNTIL),
-                RequestOptions.DEFAULT
-            );
+        SecurityClientTestHelper.putUser(adminClient(), new User(username, roles.toArray(String[]::new)), password);
     }
 
     protected void createRole(String name, Collection<String> clusterPrivileges) throws IOException {

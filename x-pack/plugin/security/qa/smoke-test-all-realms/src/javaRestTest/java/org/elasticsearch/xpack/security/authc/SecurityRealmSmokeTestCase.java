@@ -15,17 +15,17 @@ import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.SecurityClientTestHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
@@ -111,12 +111,7 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
     }
 
     protected void createUser(String username, SecureString password, List<String> roles) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security()
-            .putUser(
-                PutUserRequest.withPassword(new User(username, roles), password.getChars(), true, RefreshPolicy.WAIT_UNTIL),
-                RequestOptions.DEFAULT
-            );
+        SecurityClientTestHelper.putUser(adminClient(), new User(username, roles.toArray(String[]::new)), password);
     }
 
     protected void changePassword(String username, SecureString password) throws IOException {

@@ -37,8 +37,6 @@ import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
-import org.elasticsearch.client.security.PutUserRequest;
-import org.elasticsearch.client.security.PutUserResponse;
 
 import java.io.IOException;
 
@@ -62,26 +60,6 @@ public final class SecurityClient {
 
     SecurityClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
-    }
-
-    /**
-     * Create/update a user in the native realm synchronously.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-users.html">
-     * the docs</a> for more.
-     *
-     * @param request the request with the user's information
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the put user call
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public PutUserResponse putUser(PutUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            request,
-            SecurityRequestConverters::putUser,
-            options,
-            PutUserResponse::fromXContent,
-            emptySet()
-        );
     }
 
     /**

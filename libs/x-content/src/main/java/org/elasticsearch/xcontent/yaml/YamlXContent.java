@@ -23,6 +23,9 @@ public final class YamlXContent {
 
     private YamlXContent() {}
 
+    /**
+     * Returns an {@link XContentBuilder} for building YAML based content.
+     */
     public static XContentBuilder contentBuilder() throws IOException {
         return provider.getContentBuilder();
     }

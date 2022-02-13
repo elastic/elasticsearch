@@ -24,7 +24,7 @@ public final class SmileXContent {
     private SmileXContent() {}
 
     /**
-     * Returns a {@link XContentBuilder} for building Smile XContent.
+     * Returns an {@link XContentBuilder} for building Smile XContent.
      */
     public static XContentBuilder contentBuilder() throws IOException {
         return provider.getContentBuilder();

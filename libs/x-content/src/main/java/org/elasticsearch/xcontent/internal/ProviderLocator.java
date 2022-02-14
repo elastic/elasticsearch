@@ -19,20 +19,6 @@ import java.util.ServiceLoader;
 
 /**
  * A provider locator for finding the {@link XContentProvider}.
- *
- * <p> Provider implementations are located as follows:
- * <ol>
- *   <li> First the <i>provider specific</i> path is found, </li>
- *   <li> then the provider is loaded from the artifacts located at that path. </li>
- * </ol>
- *
- * <p> The provider specific path is found by searching for the <i>root providers</i> path, then resolving the specific provider
- * type against that path, <i>x-content</i> in this case. The root providers' path is an entry on the class path referring to a directory
- * in ending with "providers". Within the distribution this will be <i>lib/providers</i>, but may vary when running tests.
- *
- * <p> The artifacts that constitute the provider implementation (the impl jar and its dependencies) are explicitly named in the
- * provider-jars.txt resource file. Each name is resolved against the provider specific path to locate the actual on disk jar artifact. The
- * collection of these artifacts constitute the provider implementation.
  */
 public final class ProviderLocator {
 

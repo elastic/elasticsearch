@@ -26,7 +26,27 @@ import java.util.Objects;
 /**
  * A class loader that is responsible for loading implementation classes and resources embedded within an archive.
  *
- * TODO: describe ...
+ * <p> This loader facilitates a scenario whereby an API can embed its implementation and dependencies all within the same archive as the
+ * API itself. The archive can be put directly on the class path, where it's API classes are loadable by the application class loader, but
+ * the embedded implementation and dependencies are not. When locating a concrete provider, the API can create an instance of an
+ * EmbeddedImplClassLoader to locate and load the implementation.
+ *
+ * <p> The archive typically consists of two disjoint logically groups:
+ *  1. the top-level classes and resources,
+ *  2. the embedded classes and resources
+ *
+ * <p> The top-level classes and resources are typically loaded and located, respectively, by the parent of an EmbeddedImplClassLoader
+ * loader. The embedded classes and resources, are located by the parent loader as pure resources with a provider specific name prefix, and
+ * classes are defined by the EmbeddedImplClassLoader. The list of prefixes is determined by reading the entries in the MANIFEST.TXT.
+ *
+ * <p> For example, the structure of the archive named x-content:
+ * <pre>
+ *  /org/elasticsearch/xcontent/XContent.class
+ *  /IMPL-JARS/x-content/MANIFEST.txt - contains x-content-impl.jar, dep-1.jar, dep-2.jar
+ *  /IMPL-JARS/x-content/x-content-impl.jar/xxx
+ *  /IMPL-JARS/x-content/dep-1.jar/abc
+ *  /IMPL-JARS/x-content/dep-2.jar/xyz
+ * </pre>
  */
 public final class EmbeddedImplClassLoader extends SecureClassLoader {
 

@@ -57,15 +57,10 @@ public class MetadataMappingService {
         this.indicesService = indicesService;
     }
 
-    static class PutMappingClusterStateUpdateTask implements ClusterStateTaskListener, ClusterStateAckListener {
-
-        private final PutMappingClusterStateUpdateRequest request;
-        private final ActionListener<AcknowledgedResponse> listener;
-
-        PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener) {
-            this.request = request;
-            this.listener = listener;
-        }
+    record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+        implements
+            ClusterStateTaskListener,
+            ClusterStateAckListener {
 
         @Override
         public void onFailure(Exception e) {
@@ -99,6 +94,7 @@ public class MetadataMappingService {
             ClusterState currentState,
             List<PutMappingClusterStateUpdateTask> tasks
         ) throws Exception {
+            final ClusterState originalState = currentState;
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             ClusterTasksResult.Builder<PutMappingClusterStateUpdateTask> builder = ClusterTasksResult.builder();
             try {
@@ -115,7 +111,17 @@ public class MetadataMappingService {
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
-                        builder.success(task);
+                        builder.success(task, new ActionListener<>() {
+                            @Override
+                            public void onResponse(ClusterState clusterState) {
+                                // listener is notified at the end of acking
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                task.onFailure(e);
+                            }
+                        });
                     } catch (Exception e) {
                         builder.failure(task, e);
                     }

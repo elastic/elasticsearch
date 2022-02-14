@@ -30,14 +30,14 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline_1"
         body: {}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - length: { _source: 2 }
   - match: { _source.index_type_id: "test/1" }
   - match: { _source.metadata: ["test", "1"] }
@@ -108,7 +108,7 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline_1"
         body: {
           metadata: "0",
@@ -120,7 +120,7 @@
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - length: { _source: 5 }
   - match: { _source.field1: "1" }
   - match: { _source.field2: "2" }
@@ -131,7 +131,7 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline_2"
         body: {
           field1: "field2"
@@ -140,7 +140,7 @@
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - length: { _source: 2 }
   - match: { _source.field1: "field2" }
   - match: { _source.field2: "value" }
@@ -148,7 +148,7 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline_3"
         body: {
           field_to_remove: "field2",
@@ -158,7 +158,7 @@
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - length: { _source: 1 }
   - match: { _source.field_to_remove: "field2" }
 
@@ -196,7 +196,7 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_handled_pipeline"
         body: {
           do_nothing: "foo",
@@ -205,7 +205,7 @@
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - length: { _source: 2 }
   - match: { _source.do_nothing: "foo" }
   - match: { _source.error: "processor first_processor [remove]: field [field_to_remove] not present as part of path [field_to_remove]" }
@@ -236,7 +236,7 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "_id"
         body: {
           values_flat : [],
@@ -257,7 +257,7 @@
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - length: { _source: 2 }
   - match: { _source.values_flat: ["foo_bar", "foo_baz"] }
 

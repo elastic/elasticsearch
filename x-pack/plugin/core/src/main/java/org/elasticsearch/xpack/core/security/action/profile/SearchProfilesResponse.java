@@ -97,16 +97,7 @@ public class SearchProfilesResponse extends ActionResponse implements ToXContent
             {
                 builder.field("_score", score);
                 builder.field("uid", profile.uid());
-                builder.startObject("user");
-                {
-                    builder.field("username", profile.user().username());
-                    builder.field("full_name", profile.user().fullName());
-                    builder.field("realm_name", profile.user().realmName());
-                    builder.field("email", profile.user().email());
-                    builder.field("display_name", profile.user().displayName());
-                    builder.field("active", profile.user().active());
-                }
-                builder.endObject();
+                profile.user().toXContent(builder, params);
                 builder.field("access", profile.access());
                 if (profile.applicationData() != null && false == profile.applicationData().isEmpty()) {
                     builder.field("data", profile.applicationData());

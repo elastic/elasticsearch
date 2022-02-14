@@ -157,21 +157,21 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
+            // while it is optional in for all subsequent versions.
             if (out.getVersion().equals(Version.V_8_0_0)) {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
+            } else if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
+                out.writeOptionalString(key);
             } else {
-                if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
-                    out.writeOptionalString(key);
-                } else {
-                    out.writeString(key == null ? generateKey(from, to, format) : key);
-                }
+                out.writeString(key == null ? generateKey(from, to, format) : key);
             }
             out.writeDouble(from);
-            if (out.getVersion().onOrAfter(Version.V_7_17_0) && out.getVersion().before(Version.V_8_2_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
                 out.writeOptionalDouble(from);
             }
             out.writeDouble(to);
-            if (out.getVersion().onOrAfter(Version.V_7_17_0) && out.getVersion().before(Version.V_8_2_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
                 out.writeOptionalDouble(to);
             }
             out.writeVLong(docCount);
@@ -271,7 +271,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 : in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString()
                 : in.readString();
             double from = in.readDouble();
-            if (in.getVersion().onOrAfter(Version.V_7_17_0) && in.getVersion().before(Version.V_8_2_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
                 final Double originalFrom = in.readOptionalDouble();
                 if (originalFrom != null) {
                     from = originalFrom;
@@ -280,7 +280,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 }
             }
             double to = in.readDouble();
-            if (in.getVersion().onOrAfter(Version.V_7_17_0) && in.getVersion().before(Version.V_8_2_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
                 final Double originalTo = in.readOptionalDouble();
                 if (originalTo != null) {
                     to = originalTo;

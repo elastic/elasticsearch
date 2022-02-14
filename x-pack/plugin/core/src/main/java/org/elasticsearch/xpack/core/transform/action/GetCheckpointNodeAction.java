@@ -30,7 +30,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
 
     public static final GetCheckpointNodeAction INSTANCE = new GetCheckpointNodeAction();
 
-    // note: this is an internal action
+    // note: this is an index action and requires `view_index_metadata`
     public static final String NAME = GetCheckpointAction.NAME + "[n]";
 
     private GetCheckpointNodeAction() {

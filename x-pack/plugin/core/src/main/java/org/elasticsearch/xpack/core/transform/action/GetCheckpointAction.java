@@ -24,11 +24,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
+/**
+ * Transform internal API (no REST layer) to retrieve index checkpoints.
+ */
 public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response> {
 
     public static final GetCheckpointAction INSTANCE = new GetCheckpointAction();
 
-    // note: this is an admin action, it must be called with user headers
+    // note: this is an index action and requires `view_index_metadata`
     public static final String NAME = "indices:internal/transform/checkpoint";
 
     private GetCheckpointAction() {

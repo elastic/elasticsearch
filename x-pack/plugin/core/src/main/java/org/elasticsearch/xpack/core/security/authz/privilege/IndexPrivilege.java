@@ -101,7 +101,7 @@ public final class IndexPrivilege extends Privilege {
         ResolveIndexAction.NAME,
         FieldCapabilitiesAction.NAME + "*",
         GetRollupIndexCapsAction.NAME + "*",
-        GetCheckpointAction.NAME + "*"
+        GetCheckpointAction.NAME + "*" // transform internal action
     );
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(
         PutFollowAction.NAME,

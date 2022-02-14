@@ -6,7 +6,7 @@
  - do:
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external_gte
           version:        0
@@ -16,7 +16,7 @@
  - do:
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external_gte
           version:        5
@@ -27,7 +27,7 @@
       catch:             conflict
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar }
           version_type:   external_gte
           version:        0
@@ -35,7 +35,7 @@
  - do:
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar2 }
           version_type:   external_gte
           version:        5
@@ -45,7 +45,7 @@
  - do:
       index:
           index:          test_1
-          id:             1
+          id:             "1"
           body:           { foo: bar2 }
           version_type:   external_gte
           version:        6

@@ -41,7 +41,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             dataStreamName,
             IndexMode.TIME_SERIES,
             metadata,
-            now.toEpochMilli(),
+            now,
             settings
         );
         assertThat(result.size(), equalTo(3));
@@ -63,7 +63,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             dataStreamName,
             IndexMode.TIME_SERIES,
             metadata,
-            now.toEpochMilli(),
+            now,
             settings
         );
         assertThat(result.size(), equalTo(3));
@@ -91,7 +91,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             dataStreamName,
             IndexMode.TIME_SERIES,
             metadata,
-            now.toEpochMilli(),
+            now,
             settings
         );
         assertThat(result.size(), equalTo(3));
@@ -142,7 +142,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 dataStreamName,
                 IndexMode.TIME_SERIES,
                 metadata,
-                now.toEpochMilli(),
+                now,
                 settings
             )
         );
@@ -167,7 +167,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             dataStreamName,
             null,
             metadata,
-            1L,
+            Instant.ofEpochMilli(1L),
             settings
         );
         assertThat(result.size(), equalTo(0));
@@ -184,7 +184,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             dataStreamName,
             IndexMode.STANDARD,
             metadata,
-            1L,
+            Instant.ofEpochMilli(1L),
             settings
         );
         assertThat(result.size(), equalTo(1));

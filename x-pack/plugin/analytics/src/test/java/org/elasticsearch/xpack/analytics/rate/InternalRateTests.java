@@ -14,6 +14,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -24,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.mockito.Mockito.mock;
 
 public class InternalRateTests extends InternalAggregationTestCase<InternalRate> {
@@ -51,6 +53,16 @@ public class InternalRateTests extends InternalAggregationTestCase<InternalRate>
             inputs.add(new InternalRate(name, randomDouble(), divider, formatter, null));
         }
         return new BuilderAndToReduce<>(mock(AggregationBuilder.class), inputs);
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalRate sampled, InternalRate reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getValue(), closeTo(samplingContext.inverseScale(reduced.getValue()), 1e-10));
     }
 
     @Override

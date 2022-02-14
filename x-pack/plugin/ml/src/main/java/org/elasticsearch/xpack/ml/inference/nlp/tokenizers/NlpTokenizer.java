@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
@@ -22,7 +23,7 @@ import java.util.OptionalInt;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.VOCABULARY;
 
-public interface NlpTokenizer {
+public interface NlpTokenizer extends Releasable {
 
     TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokenization> tokenizations);
 

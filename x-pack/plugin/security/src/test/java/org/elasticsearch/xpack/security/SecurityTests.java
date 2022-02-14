@@ -132,7 +132,7 @@ public class SecurityTests extends ESTestCase {
         NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT, Version.CURRENT);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
         SSLService sslService = new SSLService(env);
-        security = new Security(settings, null, Arrays.asList(extensions)) {
+        security = new Security(settings, Arrays.asList(extensions)) {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return licenseState;
@@ -658,7 +658,7 @@ public class SecurityTests extends ESTestCase {
 
         try {
             UsageService usageService = new UsageService();
-            Security security = new Security(settings, null);
+            Security security = new Security(settings);
             assertTrue(security.getRestHandlerWrapper(threadPool.getThreadContext()) != null);
 
         } finally {
@@ -680,7 +680,7 @@ public class SecurityTests extends ESTestCase {
 
         try {
             UsageService usageService = new UsageService();
-            Security security = new Security(settings, null);
+            Security security = new Security(settings);
 
             // Verify Security rest wrapper is about to be installed
             // We will throw later if another wrapper is already installed

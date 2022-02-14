@@ -56,6 +56,16 @@ public class YamlXContent implements XContent {
     }
 
     @Override
+    public boolean detectContent(byte[] bytes, int offset, int length) {
+        return length > 2 && bytes[offset] == '-' && bytes[offset + 1] == '-' && bytes[offset + 2] == '-';
+    }
+
+    @Override
+    public boolean detectContent(CharSequence chars) {
+        return chars.length() > 2 && chars.charAt(0) == '-' && chars.charAt(1) == '-' && chars.charAt(2) == '-';
+    }
+
+    @Override
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
         return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
     }

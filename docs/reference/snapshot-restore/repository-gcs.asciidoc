@@ -227,6 +227,10 @@ The following settings are supported:
 
     Specifies the path within bucket to repository data. Defaults to
     the root of the bucket.
++
+NOTE: Don't set `base_path` when configuring a snapshot repository for {ECE}.
+{ECE} automatically generates the `base_path` for each deployment so that
+multiple deployments may share the same bucket.
 
 `chunk_size`::
 

@@ -3,7 +3,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -41,7 +41,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -101,7 +101,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -109,7 +109,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test2" }
 
   - do:
@@ -153,7 +153,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -161,7 +161,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test2" }
 
   - do:
@@ -204,7 +204,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -212,7 +212,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test2" }
 
   - do:
@@ -245,12 +245,12 @@
   - do:
       index:
         index:   twitter
-        id:      1
+        id:      "1"
         body:    { "user": "kimchy" }
   - do:
       index:
         index:   twitter
-        id:      2
+        id:      "2"
         body:    { "user": "junk" }
   - do:
       indices.refresh: {}
@@ -284,12 +284,12 @@
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        id:     2
+        id:     "2"
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}
@@ -327,12 +327,12 @@
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        id:     2
+        id:     "2"
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}
@@ -370,12 +370,12 @@
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        id:     2
+        id:     "2"
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}

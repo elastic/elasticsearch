@@ -29,13 +29,13 @@ setup:
   - do:
       index:
           index: test1
-          id:    1
+          id:    "1"
           body:  { "bar": "bar" }
 
   - do:
       index:
           index: test1
-          id:    2
+          id:    "2"
           body:  { "bar": "foo" }
 
   - do:
@@ -54,7 +54,7 @@ setup:
   - do:
       index:
         index: test1
-        id:    3
+        id:    "3"
         body:  { "bar": "foo", "baz": "foo" }
 
   - do:

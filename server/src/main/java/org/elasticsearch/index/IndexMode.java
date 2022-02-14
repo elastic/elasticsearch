@@ -17,10 +17,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.StandardIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -102,6 +104,11 @@ public enum IndexMode {
         public boolean calculatesIdFromSource() {
             return false;
         }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions() {
+            return new DocumentDimensions.OnlySingleValueAllowed();
+        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -129,6 +136,9 @@ public enum IndexMode {
 
         @Override
         public void validateMapping(MappingLookup lookup) {
+            if (lookup.nestedLookup() != NestedLookup.EMPTY) {
+                throw new IllegalArgumentException("cannot have nested fields when index is in " + tsdbMode());
+            }
             if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
                 throw new IllegalArgumentException(routingRequiredBad());
             }
@@ -178,6 +188,11 @@ public enum IndexMode {
         @Override
         public boolean calculatesIdFromSource() {
             return true;
+        }
+        
+        @Override
+        public DocumentDimensions buildDocumentDimensions() {
+            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
         }
     };
 
@@ -276,6 +291,11 @@ public enum IndexMode {
     public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
 
     public abstract boolean calculatesIdFromSource();
+
+    /**
+     * How {@code time_series_dimension} fields are handled by indices in this more. 
+     */
+    public abstract DocumentDimensions buildDocumentDimensions();
 
     public static IndexMode fromString(String value) {
         return switch (value) {

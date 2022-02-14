@@ -89,6 +89,7 @@ public abstract class DocumentParserContext {
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
+    private final DocumentDimensions dimensions;
     private String id;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
@@ -107,6 +108,7 @@ public abstract class DocumentParserContext {
         this.id = in.id;
         this.version = in.version;
         this.seqID = in.seqID;
+        this.dimensions = in.dimensions;
     }
 
     protected DocumentParserContext(
@@ -126,6 +128,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
+        this.dimensions = indexSettings.getMode().buildDocumentDimensions();
     }
 
     public final IndexSettings indexSettings() {
@@ -345,6 +348,13 @@ public abstract class DocumentParserContext {
                 return parser;
             }
         };
+    }
+
+    /**
+     * The collection of dimensions for this document.
+     */
+    public DocumentDimensions getDimensions() {
+        return dimensions;
     }
 
     public abstract ContentPath path();

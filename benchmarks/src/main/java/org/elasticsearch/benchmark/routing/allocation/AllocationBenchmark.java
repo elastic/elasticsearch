@@ -156,8 +156,7 @@ public class AllocationBenchmark {
         while (clusterState.getRoutingNodes().hasUnassignedShards()) {
             clusterState = strategy.applyStartedShards(
                 clusterState,
-                clusterState.getRoutingNodes()
-                    .stream()
+                StreamSupport.stream(clusterState.getRoutingNodes().spliterator(), false)
                     .flatMap(shardRoutings -> StreamSupport.stream(shardRoutings.spliterator(), false))
                     .filter(ShardRouting::initializing)
                     .collect(Collectors.toList())

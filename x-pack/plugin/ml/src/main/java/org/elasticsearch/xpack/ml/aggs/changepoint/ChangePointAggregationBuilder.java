@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -61,6 +62,11 @@ public class ChangePointAggregationBuilder extends BucketMetricsPipelineAggregat
     @Override
     public String getWriteableName() {
         return NAME.getPreferredName();
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_8_2_0;
     }
 
     @Override

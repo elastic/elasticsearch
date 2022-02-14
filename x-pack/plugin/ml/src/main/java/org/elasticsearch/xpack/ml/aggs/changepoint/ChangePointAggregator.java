@@ -11,6 +11,7 @@ import org.apache.commons.math3.special.Beta;
 import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -31,11 +32,17 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     static final double P_VALUE_THRESHOLD = 0.025;
     private static final int MINIMUM_BUCKETS = 10;
+    private static final int MAXIMUM_CANDIDATE_CHANGE_POINTS = 100;
     private static final KolmogorovSmirnovTest KOLMOGOROV_SMIRNOV_TEST = new KolmogorovSmirnovTest();
 
-    static int[] candidateChangePoints(double[] values) {
+    static Tuple<int[], Integer> candidateChangePoints(double[] values) {
         int minValues = Math.max((int) (0.1 * values.length + 0.5), MINIMUM_BUCKETS);
-        return IntStream.range(minValues, values.length - minValues).toArray();
+        if (values.length - 2 * minValues <= MAXIMUM_CANDIDATE_CHANGE_POINTS) {
+            return Tuple.tuple(IntStream.range(minValues, values.length - minValues).toArray(), 1);
+        } else {
+            int step = (int) Math.ceil((double) (values.length - 2 * minValues) / MAXIMUM_CANDIDATE_CHANGE_POINTS);
+            return Tuple.tuple(IntStream.range(minValues, values.length - minValues).filter(i -> i % step == 0).toArray(), step);
+        }
     }
 
     public ChangePointAggregator(String name, String bucketsPath, Map<String, Object> metadata) {
@@ -62,7 +69,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                     + "]"
             );
         }
-        int[] candidatePoints = candidateChangePoints(maybeBucketsValue.getValues());
+        Tuple<int[], Integer> candidatePoints = candidateChangePoints(maybeBucketsValue.getValues());
         ChangeType changeType = changePValue(maybeBucketsValue, candidatePoints, P_VALUE_THRESHOLD);
         if (changeType.pValue() > P_VALUE_THRESHOLD) {
             changeType = maxDeviationNormalModelPValue(maybeBucketsValue, P_VALUE_THRESHOLD);
@@ -116,8 +123,14 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     }
 
-    static ChangeType changePValue(MlAggsHelper.DoubleBucketValues bucketValues, int[] candidateChangePoints, double pValueThreshold) {
+    static ChangeType changePValue(
+        MlAggsHelper.DoubleBucketValues bucketValues,
+        Tuple<int[], Integer> candidateChangePointsAndStep,
+        double pValueThreshold
+    ) {
         double[] timeWindow = bucketValues.getValues();
+        int[] candidateChangePoints = candidateChangePointsAndStep.v1();
+        int step = candidateChangePointsAndStep.v2();
         double totalVariance = RunningStats.from(timeWindow).variance();
         double vNull = totalVariance;
         ChangeType changeType = new ChangeType.Stationary();
@@ -143,7 +156,6 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         RunningStats lowerRange = new RunningStats();
         RunningStats upperRange = new RunningStats();
         // Initialize running stats so that they are only missing the individual changepoint values
-        // If we ever make changepoints non-contiguous, this will have to change
         upperRange.addValues(timeWindow, candidateChangePoints[0], timeWindow.length);
         lowerRange.addValues(timeWindow, 0, candidateChangePoints[0]);
         vAlt = Double.MAX_VALUE;
@@ -154,8 +166,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 vAlt = maybeVAlt;
                 changePoint = cp;
             }
-            lowerRange.addValue(timeWindow[cp]);
-            upperRange.removeValue(timeWindow[cp]);
+            lowerRange.addValues(timeWindow, cp, cp + step);
+            upperRange.removeValues(timeWindow, cp, cp + step);
         }
         dfAlt = n - 2;
 
@@ -170,7 +182,6 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         lowerRange = new RunningStats();
         upperRange = new RunningStats();
         // Initialize running stats so that they are only missing the individual changepoint values
-        // If we ever make changepoints non-contiguous, this will have to change
         upperRange.addValues(timeWindow, candidateChangePoints[0], timeWindow.length);
         lowerRange.addValues(timeWindow, 0, candidateChangePoints[0]);
         // TODO This is crazy inefficient, not only does it do multiple array copies, it calculates r_value without
@@ -181,8 +192,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             double v1 = lowerRange.variance() * (1 - Math.abs(rv1));
             double v2 = upperRange.variance() * (1 - Math.abs(rv2));
             vAndR = vAndR.min(new VarianceAndRValue((cp * v1 + (n - cp) * v2) / n, (cp * rv1 + (n - cp) * rv2) / n));
-            lowerRange.addValue(timeWindow[cp]);
-            upperRange.removeValue(timeWindow[cp]);
+            lowerRange.addValues(timeWindow, cp, cp + step);
+            upperRange.removeValues(timeWindow, cp, cp + step);
         }
 
         dfAlt = n - 6;
@@ -201,7 +212,6 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             lowerRange = new RunningStats();
             upperRange = new RunningStats();
             // Initialize running stats so that they are only missing the individual changepoint values
-            // If we ever make changepoints non-contiguous, this will have to change
             upperRange.addValues(timeWindow, candidateChangePoints[0], timeWindow.length);
             lowerRange.addValues(timeWindow, 0, candidateChangePoints[0]);
             for (int cp : candidateChangePoints) {
@@ -214,8 +224,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 } else if (otherDiff == diff) {
                     changePoint = cp;
                 }
-                lowerRange.addValue(timeWindow[cp]);
-                upperRange.removeValue(timeWindow[cp]);
+                lowerRange.addValues(timeWindow, cp, cp + step);
+                upperRange.removeValues(timeWindow, cp, cp + step);
             }
             double pValue = KOLMOGOROV_SMIRNOV_TEST.kolmogorovSmirnovTest(
                 Arrays.copyOfRange(timeWindow, 0, changePoint),

@@ -143,7 +143,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     ) throws IOException {
         long[] fixedRoundingPoints = preparedRounding.fixedRoundingPoints();
         if (fixedRoundingPoints == null) {
-            logger.trace("couldn't adapt [{}], no fixed rounding points", name);
+            logger.trace("couldn't adapt [{}], no fixed rounding points in [{}]", name, preparedRounding);
             return null;
         }
         // Range aggs use a double to aggregate and we don't want to lose precision.

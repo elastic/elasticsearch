@@ -70,7 +70,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         }
 
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
-            String key = in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString() : in.readString();
+            String key = in.getVersion().equals(Version.V_8_0_0) ? in.readString() : in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString() : in.readString();
             BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
             BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
             long docCount = in.readLong();
@@ -81,10 +81,14 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
-                out.writeOptionalString(key);
-            } else {
+            if (out.getVersion().equals(Version.V_8_0_0)) {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
+            } else {
+                if (out.getVersion().onOrAfter(Version.V_7_17_1)) {
+                    out.writeOptionalString(key);
+                } else {
+                    out.writeString(key == null ? generateKey(from, to, format) : key);
+                }
             }
             out.writeBoolean(from != null);
             if (from != null) {

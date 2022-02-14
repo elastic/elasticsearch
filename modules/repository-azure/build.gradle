@@ -305,9 +305,6 @@ tasks.named("thirdPartyAudit").configure {
 
     'javax.activation.MailcapCommandMap',
     'javax.activation.MimetypesFileTypeMap',
-
-//    'reactor.core.publisher.MultiProducerRingBuffer',
-//    'reactor.core.publisher.RingBufferFields',
     'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
   )
 }

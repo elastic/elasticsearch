@@ -27,6 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,6 +59,7 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     String.format(
+                        Locale.ROOT,
                         "This cluster has %d shards including %d primaries and %d replicas.",
                         indices.size() * 2,
                         indices.size(),
@@ -81,6 +83,7 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     YELLOW,
                     String.format(
+                        Locale.ROOT,
                         "This cluster has %d shards including %d primaries and %d replicas (%s unallocated).",
                         (greenIndices.size() + 1) * 2,
                         greenIndices.size() + 1,
@@ -105,6 +108,7 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     YELLOW,
                     String.format(
+                        Locale.ROOT,
                         "This cluster has %d shards including %d primaries (%s unreplicated) and %d replicas.",
                         greenIndices.size() * 2 + 1,
                         greenIndices.size() + 1,
@@ -129,6 +133,7 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     String.format(
+                        Locale.ROOT,
                         "This cluster has %d shards including %d primaries (%s unreplicated) (%s unallocated) and %d replicas.",
                         greenIndices.size() * 2 + 1,
                         greenIndices.size() + 1,

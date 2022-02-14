@@ -47,7 +47,7 @@ import java.util.Objects;
  * <p> For example, the structure of the archive named x-content:
  * <pre>
  *  /org/elasticsearch/xcontent/XContent.class
- *  /IMPL-JARS/x-content/MANIFEST.txt - contains x-content-impl.jar, dep-1.jar, dep-2.jar
+ *  /IMPL-JARS/x-content/LISTING.TXT - contains list of jar file names, newline separated
  *  /IMPL-JARS/x-content/x-content-impl.jar/xxx
  *  /IMPL-JARS/x-content/dep-1.jar/abc
  *  /IMPL-JARS/x-content/dep-2.jar/xyz
@@ -56,7 +56,7 @@ import java.util.Objects;
 public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
     private static final String IMPL_PREFIX = "IMPL-JARS/";
-    private static final String MANIFEST_FILE = "/MANIFEST.TXT";
+    private static final String MANIFEST_FILE = "/LISTING.TXT";
 
     private final List<String> prefixes;
     private final ClassLoader parent;

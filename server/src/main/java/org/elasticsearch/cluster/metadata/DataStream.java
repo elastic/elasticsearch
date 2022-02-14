@@ -202,7 +202,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 .map(index -> imSupplier.apply(index.getName()))
                 .filter(
                     // Migrated tsdb data streams have non tsdb backing indices:
-                    im -> IndexSettings.MODE.get(im.getSettings()) == IndexMode.TIME_SERIES
+                    im -> IndexSettings.TIME_SERIES_START_TIME.exists(im.getSettings())
+                        && IndexSettings.TIME_SERIES_END_TIME.exists(im.getSettings())
                 )
                 .map(im -> {
                     Instant start = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());

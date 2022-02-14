@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -194,5 +195,10 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         public String toString() {
             return origin.toString();
         }
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_2_0;
     }
 }

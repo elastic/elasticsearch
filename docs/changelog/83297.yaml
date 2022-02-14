@@ -1,0 +1,5 @@
+pr: 83297
+summary: GET _index_template and GET _component_template request support query parameter flat_settings
+area: ILM+SLM
+type: enhancement
+issues: []

@@ -153,4 +153,9 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     protected boolean doEquals(IdsQueryBuilder other) {
         return Objects.equals(ids, other.ids);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

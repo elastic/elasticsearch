@@ -13,7 +13,10 @@ import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
@@ -53,7 +56,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             throws IOException;
 
         private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
-            try (XContentParser parser = MapXContentParser.wrapObject(sourceMap)) {
+            try (XContentParser parser = wrapObject(sourceMap)) {
                 parse(parser, v -> consumer.accept(normalizeFromSource(v)), e -> {}); /* ignore malformed */
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -67,6 +70,18 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         // TODO: move geometry normalization to the geometry parser.
         public abstract T normalizeFromSource(T geometry);
 
+        private static XContentParser wrapObject(Object sourceMap) throws IOException {
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                Collections.singletonMap("dummy_field", sourceMap),
+                XContentType.JSON
+            );
+            parser.nextToken(); // start object
+            parser.nextToken(); // field name
+            parser.nextToken(); // field value
+            return parser;
+        }
     }
 
     public abstract static class AbstractGeometryFieldType<T> extends MappedFieldType {

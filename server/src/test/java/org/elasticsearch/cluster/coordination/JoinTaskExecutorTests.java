@@ -110,23 +110,37 @@ public class JoinTaskExecutorTests extends ESTestCase {
         Settings.builder().build();
         Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(
-                settings(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
-            )
+            .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
         metaBuilder.put(indexMetadata, false);
         indexMetadata = IndexMetadata.builder("test1")
-            .settings(
-                settings(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
-            )
+            .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
         JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT, metadata);
+    }
+
+    public static Settings.Builder randomCompatibleVersionSettings() {
+        Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(IndexMetadata.SETTING_VERSION_CREATED, getRandomCompatibleVersion());
+            if (randomBoolean()) {
+                builder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, getRandomCompatibleVersion());
+            }
+        } else {
+            builder.put(IndexMetadata.SETTING_VERSION_CREATED, randomFrom(Version.fromString("5.0.0"), Version.fromString("6.0.0")));
+            builder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, getRandomCompatibleVersion());
+        }
+        return builder;
+    }
+
+    private static Version getRandomCompatibleVersion() {
+        return VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
     }
 
     public void testUpdatesNodeWithNewRoles() throws Exception {
@@ -158,10 +172,10 @@ public class JoinTaskExecutorTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(bwcNode))
             .build();
 
-        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTask> result = joinTaskExecutor.execute(
             clusterState,
             List.of(
-                new JoinTaskExecutor.Task(
+                JoinTask.singleNode(
                     actualNode,
                     "test",
                     ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })

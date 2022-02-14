@@ -9,11 +9,8 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -21,14 +18,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.slm.DeleteSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyResponse;
-import org.elasticsearch.client.slm.ExecuteSnapshotLifecycleRetentionRequest;
-import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.client.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.common.Strings;
@@ -37,11 +26,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
-import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -63,7 +52,6 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -190,30 +178,12 @@ public class PermissionsIT extends ESRestTestCase {
         createUser("slm_admin", "slm-admin-password", "slm-manage");
         createUser("slm_user", "slm-user-password", "slm-read");
 
-        final HighLevelClient hlAdminClient = new HighLevelClient(adminClient());
-
-        // Build two high level clients, each using a different user
-        final RestClientBuilder adminBuilder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
-        final String adminToken = basicAuthHeaderValue("slm_admin", new SecureString("slm-admin-password".toCharArray()));
-        configureClient(adminBuilder, Settings.builder().put(ThreadContext.PREFIX + ".Authorization", adminToken).build());
-        adminBuilder.setStrictDeprecationMode(true);
-        final RestHighLevelClient adminHLRC = new RestHighLevelClient(adminBuilder);
-
-        final RestClientBuilder userBuilder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
-        final String userToken = basicAuthHeaderValue("slm_user", new SecureString("slm-user-password".toCharArray()));
-        configureClient(userBuilder, Settings.builder().put(ThreadContext.PREFIX + ".Authorization", userToken).build());
-        userBuilder.setStrictDeprecationMode(true);
-        final RestHighLevelClient readHlrc = new RestHighLevelClient(userBuilder);
-
         PutRepositoryRequest repoRequest = new PutRepositoryRequest();
-
         Settings.Builder settingsBuilder = Settings.builder().put("location", ".");
         repoRequest.settings(settingsBuilder);
         repoRequest.name(repo);
         repoRequest.type(FsRepository.TYPE);
-        org.elasticsearch.action.support.master.AcknowledgedResponse response = hlAdminClient.snapshot()
-            .createRepository(repoRequest, RequestOptions.DEFAULT);
-        assertTrue(response.isAcknowledged());
+        assertAcknowledged(performWithOptions(RequestOptions.DEFAULT, "PUT", "/_snapshot/" + repo, Strings.toString(repoRequest)));
 
         Map<String, Object> config = new HashMap<>();
         config.put("indices", Collections.singletonList("index"));
@@ -225,75 +195,65 @@ public class PermissionsIT extends ESRestTestCase {
             config,
             new SnapshotRetentionConfiguration(TimeValue.ZERO, null, null)
         );
-        PutSnapshotLifecyclePolicyRequest request = new PutSnapshotLifecyclePolicyRequest(policy);
+        final String policyStr = Strings.toString(policy);
 
-        expectThrows(
-            ElasticsearchStatusException.class,
-            () -> readHlrc.indexLifecycle().putSnapshotLifecyclePolicy(request, RequestOptions.DEFAULT)
-        );
+        // Build two client options, each using a different user
+        final RequestOptions adminOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", basicAuthHeaderValue("slm_admin", new SecureString("slm-admin-password".toCharArray())))
+            .build();
 
-        adminHLRC.indexLifecycle().putSnapshotLifecyclePolicy(request, RequestOptions.DEFAULT);
+        final RequestOptions userOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", basicAuthHeaderValue("slm_user", new SecureString("slm-user-password".toCharArray())))
+            .build();
 
-        GetSnapshotLifecyclePolicyRequest getRequest = new GetSnapshotLifecyclePolicyRequest("policy_id");
-        readHlrc.indexLifecycle().getSnapshotLifecyclePolicy(getRequest, RequestOptions.DEFAULT);
-        adminHLRC.indexLifecycle().getSnapshotLifecyclePolicy(getRequest, RequestOptions.DEFAULT);
+        expectThrows(ResponseException.class, () -> performWithOptions(userOptions, "PUT", "/_slm/policy/policy_id", policyStr));
 
-        ExecuteSnapshotLifecyclePolicyRequest executeRequest = new ExecuteSnapshotLifecyclePolicyRequest("policy_id");
-        expectThrows(
-            ElasticsearchStatusException.class,
-            () -> readHlrc.indexLifecycle().executeSnapshotLifecyclePolicy(executeRequest, RequestOptions.DEFAULT)
-        );
+        performWithOptions(adminOptions, "PUT", "/_slm/policy/policy_id", policyStr);
 
-        ExecuteSnapshotLifecyclePolicyResponse executeResp = adminHLRC.indexLifecycle()
-            .executeSnapshotLifecyclePolicy(executeRequest, RequestOptions.DEFAULT);
-        final String snapName = executeResp.getSnapshotName();
+        performWithOptions(userOptions, "GET", "/_slm/policy/policy_id", null);
+        performWithOptions(adminOptions, "GET", "/_slm/policy/policy_id", null);
+
+        expectThrows(ResponseException.class, () -> performWithOptions(userOptions, "PUT", "/_slm/policy/policy_id/_execute", null));
+
+        Response executeResponse = performWithOptions(adminOptions, "PUT", "/_slm/policy/policy_id/_execute", null);
+        String body = EntityUtils.toString(executeResponse.getEntity());
+        final String snapName = body.replace("{\"snapshot_name\":\"", "").replace("\"}", "");
 
         assertBusy(() -> {
             try {
-                logger.info("--> checking for snapshot to be created");
-                GetSnapshotsRequest getSnaps = new GetSnapshotsRequest(repo);
-                getSnaps.snapshots(new String[] { snapName });
-                GetSnapshotsResponse getResp = adminHLRC.snapshot().get(getSnaps, RequestOptions.DEFAULT);
-                assertThat(getResp.getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-            } catch (ElasticsearchException e) {
-                fail("expected snapshot to exist but it does not: " + e.getDetailedMessage());
+                logger.info("--> checking for snapshot [{}] to be created", snapName);
+                Request req = new Request("GET", "/_snapshot/" + repo + "/" + snapName);
+                Response resp = adminClient().performRequest(req);
+                String respStr = EntityUtils.toString(resp.getEntity());
+                if (respStr.contains("SUCCESS") == false) {
+                    fail("expected successful snapshot but got: " + respStr);
+                }
+            } catch (ResponseException e) {
+                fail("expected snapshot to exist but it does not: " + e);
             }
         });
 
-        ExecuteSnapshotLifecycleRetentionRequest executeRetention = new ExecuteSnapshotLifecycleRetentionRequest();
-        expectThrows(
-            ElasticsearchStatusException.class,
-            () -> readHlrc.indexLifecycle().executeSnapshotLifecycleRetention(executeRetention, RequestOptions.DEFAULT)
-        );
+        expectThrows(ResponseException.class, () -> performWithOptions(userOptions, "POST", "/_slm/_execute_retention"));
 
-        AcknowledgedResponse retentionResp = adminHLRC.indexLifecycle()
-            .executeSnapshotLifecycleRetention(executeRetention, RequestOptions.DEFAULT);
-        assertTrue(retentionResp.isAcknowledged());
+        assertAcknowledged(performWithOptions(adminOptions, "POST", "/_slm/_execute_retention"));
 
         assertBusy(() -> {
             try {
                 logger.info("--> checking for snapshot to be deleted");
-                GetSnapshotsRequest getSnaps = new GetSnapshotsRequest(repo);
-                getSnaps.snapshots(new String[] { snapName });
-                GetSnapshotsResponse getResp = adminHLRC.snapshot().get(getSnaps, RequestOptions.DEFAULT);
-                assertThat(getResp.getSnapshots().size(), equalTo(0));
-            } catch (ElasticsearchException e) {
-                // great, we want it to not exist
-                assertThat(e.getDetailedMessage(), containsString("snapshot_missing_exception"));
+                performWithOptions(adminOptions, "GET", "/_snapshot/" + repo + "/" + snapName);
+                fail("expected 404 because snapshot should be deleted, but it still exists");
+            } catch (ResponseException e) {
+                assertThat(
+                    "expected 404 for missing snapshot after it has been deleted",
+                    e.getResponse().getStatusLine().getStatusCode(),
+                    equalTo(404)
+                );
             }
         });
 
-        DeleteSnapshotLifecyclePolicyRequest deleteRequest = new DeleteSnapshotLifecyclePolicyRequest("policy_id");
-        expectThrows(
-            ElasticsearchStatusException.class,
-            () -> readHlrc.indexLifecycle().deleteSnapshotLifecyclePolicy(deleteRequest, RequestOptions.DEFAULT)
-        );
+        expectThrows(ResponseException.class, () -> performWithOptions(userOptions, "DELETE", "/_slm/policy/policy_id"));
 
-        adminHLRC.indexLifecycle().deleteSnapshotLifecyclePolicy(deleteRequest, RequestOptions.DEFAULT);
-
-        hlAdminClient.close();
-        readHlrc.close();
-        adminHLRC.close();
+        performWithOptions(adminOptions, "DELETE", "/_slm/policy/policy_id");
     }
 
     public void testCanViewExplainOnUnmanagedIndex() throws Exception {
@@ -315,7 +275,7 @@ public class PermissionsIT extends ESRestTestCase {
          * - Create role with just write and manage privileges on alias
          * - Create user and assign newly created role.
          */
-        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, null, 2L));
+        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, null, 2L, null));
         createIndexTemplate("foo-template", "foo-logs-*", "foo_alias", "foo-policy");
         createIndexAsAdmin("foo-logs-000001", "foo_alias", randomBoolean());
         createRole("foo_alias_role", "foo_alias");
@@ -346,6 +306,20 @@ public class PermissionsIT extends ESRestTestCase {
                 assertThat(totalHits, equalTo(1));
             }
         });
+    }
+
+    private Response performWithOptions(RequestOptions options, String verb, String endpoint) throws IOException {
+        return performWithOptions(options, verb, endpoint, null);
+    }
+
+    private Response performWithOptions(RequestOptions options, String verb, String endpoint, @Nullable String jsonBody)
+        throws IOException {
+        Request req = new Request(verb, endpoint);
+        if (jsonBody != null) {
+            req.setJsonEntity(jsonBody);
+        }
+        req.setOptions(options);
+        return adminClient().performRequest(req);
     }
 
     private void createNewSingletonPolicy(RestClient client, String policy, String phaseName, LifecycleAction action) throws IOException {
@@ -422,12 +396,6 @@ public class PermissionsIT extends ESRestTestCase {
     private void refresh(String index) throws IOException {
         Request request = new Request("POST", "/" + index + "/_refresh");
         assertOK(adminClient().performRequest(request));
-    }
-
-    private static class HighLevelClient extends RestHighLevelClient {
-        private HighLevelClient(RestClient restClient) {
-            super(restClient, (client) -> {}, Collections.emptyList());
-        }
     }
 
 }

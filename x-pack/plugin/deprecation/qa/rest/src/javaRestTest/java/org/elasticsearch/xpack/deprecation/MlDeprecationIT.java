@@ -15,8 +15,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.client.migration.DeprecationInfoRequest;
-import org.elasticsearch.client.migration.DeprecationInfoResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -32,6 +30,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -68,6 +67,7 @@ public class MlDeprecationIT extends ESRestTestCase {
         return false;
     }
 
+    @SuppressWarnings("unchecked")
     public void testMlDeprecationChecks() throws Exception {
         HLRC hlrc = new HLRC(client());
         String jobId = "deprecation_check_job";
@@ -96,18 +96,16 @@ public class MlDeprecationIT extends ESRestTestCase {
         hlrc.index(indexRequest, REQUEST_OPTIONS);
         hlrc.indices().refresh(new RefreshRequest(".ml-anomalies-*"), REQUEST_OPTIONS);
 
-        DeprecationInfoResponse response = hlrc.migration()
-            .getDeprecationInfo(
-                // specify an index so that deprecation checks don't run against any accidentally existing indices
-                new DeprecationInfoRequest(Collections.singletonList("index-that-does-not-exist-*")),
-                RequestOptions.DEFAULT
-            );
-        assertThat(response.getMlSettingsIssues(), hasSize(1));
+        // specify an index so that deprecation checks don't run against any accidentally existing indices
+        Request getDeprecations = new Request("GET", "/does-not-exist-*/_migration/deprecations");
+        Map<String, Object> deprecationsResponse = responseAsMap(adminClient().performRequest(getDeprecations));
+        List<Map<String, Object>> mlSettingsDeprecations = (List<Map<String, Object>>) deprecationsResponse.get("ml_settings");
+        assertThat(mlSettingsDeprecations, hasSize(1));
         assertThat(
-            response.getMlSettingsIssues().get(0).getMessage(),
+            (String) mlSettingsDeprecations.get(0).get("message"),
             containsString("Model snapshot [1] for job [deprecation_check_job] has an obsolete minimum version")
         );
-        assertThat(response.getMlSettingsIssues().get(0).getMeta(), equalTo(Map.of("job_id", jobId, "snapshot_id", "1")));
+        assertThat(mlSettingsDeprecations.get(0).get("_meta"), equalTo(Map.of("job_id", jobId, "snapshot_id", "1")));
     }
 
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -54,7 +55,16 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             service.calculate(),
             equalTo(
-                new HealthIndicatorResult(NAME, DATA, GREEN, "TODO 83240", createDetails(indices, indices, List.of(), List.of(), List.of()))
+                createExpectedResult(
+                    GREEN,
+                    String.format(
+                        "This cluster has %d shards including %d primaries and %d replicas.",
+                        indices.size() * 2,
+                        indices.size(),
+                        indices.size()
+                    ),
+                    createDetails(indices, indices, List.of(), List.of(), List.of())
+                )
             )
         );
     }
@@ -68,11 +78,15 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             service.calculate(),
             equalTo(
-                new HealthIndicatorResult(
-                    NAME,
-                    DATA,
+                createExpectedResult(
                     YELLOW,
-                    "TODO 83240",
+                    String.format(
+                        "This cluster has %d shards including %d primaries and %d replicas (%s unallocated).",
+                        (greenIndices.size() + 1) * 2,
+                        greenIndices.size() + 1,
+                        greenIndices.size() + 1,
+                        yellowIndex.shards().get(1).shardId().toString()
+                    ),
                     createDetails(appendToCopy(greenIndices, yellowIndex), greenIndices, List.of(), List.of(yellowIndex), List.of())
                 )
             )
@@ -88,11 +102,15 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             service.calculate(),
             equalTo(
-                new HealthIndicatorResult(
-                    NAME,
-                    DATA,
+                createExpectedResult(
                     YELLOW,
-                    "TODO 83240",
+                    String.format(
+                        "This cluster has %d shards including %d primaries (%s unreplicated) and %d replicas.",
+                        greenIndices.size() * 2 + 1,
+                        greenIndices.size() + 1,
+                        yellowIndex.shards().get(1).shardId().toString(),
+                        greenIndices.size()
+                    ),
                     createDetails(appendToCopy(greenIndices, yellowIndex), greenIndices, List.of(yellowIndex), List.of(), List.of())
                 )
             )
@@ -108,15 +126,24 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             service.calculate(),
             equalTo(
-                new HealthIndicatorResult(
-                    NAME,
-                    DATA,
+                createExpectedResult(
                     RED,
-                    "TODO 83240",
+                    String.format(
+                        "This cluster has %d shards including %d primaries (%s unreplicated) (%s unallocated) and %d replicas.",
+                        greenIndices.size() * 2 + 1,
+                        greenIndices.size() + 1,
+                        redIndex.shards().get(1).shardId().toString(),
+                        redIndex.shards().get(1).shardId().toString(),
+                        greenIndices.size()
+                    ),
                     createDetails(greenIndices, greenIndices, List.of(redIndex), List.of(), List.of(redIndex))
                 )
             )
         );
+    }
+
+    private HealthIndicatorResult createExpectedResult(HealthStatus status, String summary, SimpleHealthIndicatorDetails details) {
+        return new HealthIndicatorResult(NAME, DATA, status, summary, details);
     }
 
     private SimpleHealthIndicatorDetails createDetails(

@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLimit;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -130,8 +131,26 @@ public class ShardsHealthIndicatorService implements HealthIndicatorService {
             }
         }
 
+        private int getPrimariesShardsCount() {
+            return allocatedPrimaries + unallocatedPrimaries.size();
+        }
+
+        private int getReplicaShardsCount() {
+            return allocatedReplicas + unallocatedReplicas.size();
+        }
+
+        private int getTotalShardsCount() {
+            return getPrimariesShardsCount() + getReplicaShardsCount();
+        }
+
         String getSummary() {
-            return "TODO 83240";
+            var builder = new StringBuilder("This cluster has ").append(getTotalShardsCount()).append(" shards");
+            builder.append(" including ").append(getPrimariesShardsCount()).append(" primaries");
+            collectionToDelimitedStringWithLimit(unreplicatedPrimaries, ",", " (", " unreplicated)", 1024, builder);
+            collectionToDelimitedStringWithLimit(unallocatedPrimaries, ",", " (", " unallocated)", 1024, builder);
+            builder.append(" and ").append(getReplicaShardsCount()).append(" replicas");
+            collectionToDelimitedStringWithLimit(unallocatedReplicas, ",", " (", " unallocated)", 1024, builder);
+            return builder.append(".").toString();
         }
 
         HealthIndicatorDetails getDetails() {

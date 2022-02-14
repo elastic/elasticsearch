@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
@@ -115,11 +114,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
-        var rolledDs = ds.rollover(
-            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
-            newCoordinates.v2(),
-            IndexMode.TIME_SERIES
-        );
+        var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.TIME_SERIES);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
@@ -146,11 +141,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
-        var rolledDs = ds.rollover(
-            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
-            newCoordinates.v2(),
-            IndexMode.TIME_SERIES
-        );
+        var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.TIME_SERIES);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));

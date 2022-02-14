@@ -24,6 +24,7 @@ import java.security.PrivilegedExceptionAction;
 import java.security.SecureClassLoader;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
@@ -117,14 +118,15 @@ public final class ProviderLocator {
 
         @Override
         protected Enumeration<URL> findResources(String name) throws IOException {
-            // TODO: this is broken, need to build enumeration of enumerations
-            for (String prefix : prefixes) {
-                Enumeration<URL> urls = getParent().getResources(prefix + "/" + name);
-                if (urls.hasMoreElements()) {
-                    return urls;
-                }
+            final ClassLoader outer = getParent();
+            final int size = prefixes.size();
+            @SuppressWarnings("unchecked")
+            Enumeration<URL>[] tmp = (Enumeration<URL>[]) new Enumeration<?>[size + 1];
+            for (int i = 0; i < size; i++) {
+                tmp[i] = outer.getResources(prefixes.get(i) + "/" + name);
             }
-            return super.findResources(name);
+            tmp[size + 1] = super.findResources(name);
+            return new CompoundEnumeration<>(tmp);
         }
     }
 
@@ -141,5 +143,35 @@ public final class ProviderLocator {
         ClassLoader loader = new EmbeddedImplClassLoader();
         ServiceLoader<XContentProvider> sl = ServiceLoader.load(XContentProvider.class, loader);
         return sl.findFirst().orElseThrow(() -> new RuntimeException("cannot locate x-content provider"));
+    }
+
+    static final class CompoundEnumeration<E> implements Enumeration<E> {
+        private final Enumeration<E>[] enumerations;
+        private int index;
+
+        CompoundEnumeration(Enumeration<E>[] enumerations) {
+            this.enumerations = enumerations;
+        }
+
+        private boolean next() {
+            while (index < enumerations.length) {
+                if (enumerations[index] != null && enumerations[index].hasMoreElements()) {
+                    return true;
+                }
+                index++;
+            }
+            return false;
+        }
+
+        public boolean hasMoreElements() {
+            return next();
+        }
+
+        public E nextElement() {
+            if (next() == false) {
+                throw new NoSuchElementException();
+            }
+            return enumerations[index].nextElement();
+        }
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.idp.privileges;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -21,6 +20,8 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
@@ -68,20 +69,26 @@ public class UserPrivilegeResolverTests extends ESTestCase {
     public void testResolveZeroAccess() throws Exception {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final String app = randomAlphaOfLengthBetween(3, 8);
-        setupUser(username);
-        setupHasPrivileges(username, app);
-        final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        final Function<String, Set<String>> roleMapping = Map.of(
-            "role:cluster:view",
-            Set.of("viewer"),
-            "role:cluster:admin",
-            Set.of("admin")
-        )::get;
-        resolver.resolve(service(app, "cluster:" + randomLong(), roleMapping), future);
-        final UserPrivilegeResolver.UserPrivileges privileges = future.get();
-        assertThat(privileges.principal, equalTo(username));
-        assertThat(privileges.hasAccess, equalTo(false));
-        assertThat(privileges.roles, emptyIterable());
+        setupUser(username, () -> {
+            setupHasPrivileges(username, app);
+            final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
+            final Function<String, Set<String>> roleMapping = Map.of(
+                "role:cluster:view",
+                Set.of("viewer"),
+                "role:cluster:admin",
+                Set.of("admin")
+            )::get;
+            resolver.resolve(service(app, "cluster:" + randomLong(), roleMapping), future);
+            final UserPrivilegeResolver.UserPrivileges privileges;
+            try {
+                privileges = future.get();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            assertThat(privileges.principal, equalTo(username));
+            assertThat(privileges.hasAccess, equalTo(false));
+            assertThat(privileges.roles, emptyIterable());
+        });
     }
 
     public void testResolveSsoWithNoRoleAccess() throws Exception {
@@ -91,16 +98,22 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final String viewerAction = "role:cluster:view";
         final String adminAction = "role:cluster:admin";
 
-        setupUser(username);
-        setupHasPrivileges(username, app, access(resource, viewerAction, false), access(resource, adminAction, false));
+        setupUser(username, () -> {
+            setupHasPrivileges(username, app, access(resource, viewerAction, false), access(resource, adminAction, false));
 
-        final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        final Function<String, Set<String>> roleMapping = Map.of(viewerAction, Set.of("viewer"), adminAction, Set.of("admin"))::get;
-        resolver.resolve(service(app, resource, roleMapping), future);
-        final UserPrivilegeResolver.UserPrivileges privileges = future.get();
-        assertThat(privileges.principal, equalTo(username));
-        assertThat(privileges.hasAccess, equalTo(false));
-        assertThat(privileges.roles, emptyIterable());
+            final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
+            final Function<String, Set<String>> roleMapping = Map.of(viewerAction, Set.of("viewer"), adminAction, Set.of("admin"))::get;
+            resolver.resolve(service(app, resource, roleMapping), future);
+            final UserPrivilegeResolver.UserPrivileges privileges;
+            try {
+                privileges = future.get();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            assertThat(privileges.principal, equalTo(username));
+            assertThat(privileges.hasAccess, equalTo(false));
+            assertThat(privileges.roles, emptyIterable());
+        });
     }
 
     public void testResolveSsoWithSingleRole() throws Exception {
@@ -110,16 +123,22 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final String viewerAction = "role:cluster:view";
         final String adminAction = "role:cluster:admin";
 
-        setupUser(username);
-        setupHasPrivileges(username, app, access(resource, viewerAction, true), access(resource, adminAction, false));
+        setupUser(username, () -> {
+            setupHasPrivileges(username, app, access(resource, viewerAction, true), access(resource, adminAction, false));
 
-        final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        final Function<String, Set<String>> roleMapping = Map.of(viewerAction, Set.of("viewer"), adminAction, Set.of("admin"))::get;
-        resolver.resolve(service(app, resource, roleMapping), future);
-        final UserPrivilegeResolver.UserPrivileges privileges = future.get();
-        assertThat(privileges.principal, equalTo(username));
-        assertThat(privileges.hasAccess, equalTo(true));
-        assertThat(privileges.roles, containsInAnyOrder("viewer"));
+            final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
+            final Function<String, Set<String>> roleMapping = Map.of(viewerAction, Set.of("viewer"), adminAction, Set.of("admin"))::get;
+            resolver.resolve(service(app, resource, roleMapping), future);
+            final UserPrivilegeResolver.UserPrivileges privileges;
+            try {
+                privileges = future.get();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            assertThat(privileges.principal, equalTo(username));
+            assertThat(privileges.hasAccess, equalTo(true));
+            assertThat(privileges.roles, containsInAnyOrder("viewer"));
+        });
     }
 
     public void testResolveSsoWithMultipleRoles() throws Exception {
@@ -131,31 +150,37 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final String operatorAction = "role:cluster:operator";
         final String monitorAction = "role:cluster:monitor";
 
-        setupUser(username);
-        setupHasPrivileges(
-            username,
-            app,
-            access(resource, viewerAction, false),
-            access(resource, adminAction, false),
-            access(resource, operatorAction, true),
-            access(resource, monitorAction, true)
-        );
+        setupUser(username, () -> {
+            setupHasPrivileges(
+                username,
+                app,
+                access(resource, viewerAction, false),
+                access(resource, adminAction, false),
+                access(resource, operatorAction, true),
+                access(resource, monitorAction, true)
+            );
 
-        final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        Function<String, Set<String>> roleMapping = action -> {
-            return switch (action) {
-                case viewerAction -> Set.of("viewer");
-                case adminAction -> Set.of("admin");
-                case operatorAction -> Set.of("operator");
-                case monitorAction -> Set.of("monitor");
-                default -> Set.of();
+            final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
+            Function<String, Set<String>> roleMapping = action -> {
+                return switch (action) {
+                    case viewerAction -> Set.of("viewer");
+                    case adminAction -> Set.of("admin");
+                    case operatorAction -> Set.of("operator");
+                    case monitorAction -> Set.of("monitor");
+                    default -> Set.of();
+                };
             };
-        };
-        resolver.resolve(service(app, resource, roleMapping), future);
-        final UserPrivilegeResolver.UserPrivileges privileges = future.get();
-        assertThat(privileges.principal, equalTo(username));
-        assertThat(privileges.hasAccess, equalTo(true));
-        assertThat(privileges.roles, containsInAnyOrder("operator", "monitor"));
+            resolver.resolve(service(app, resource, roleMapping), future);
+            final UserPrivilegeResolver.UserPrivileges privileges;
+            try {
+                privileges = future.get();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            assertThat(privileges.principal, equalTo(username));
+            assertThat(privileges.hasAccess, equalTo(true));
+            assertThat(privileges.roles, containsInAnyOrder("operator", "monitor"));
+        });
     }
 
     private ServiceProviderPrivileges service(String appName, String resource, Function<String, Set<String>> roleMapping) {
@@ -198,9 +223,16 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         return new Tuple<>(resource, new Tuple<>(action, access));
     }
 
-    private void setupUser(String principal) {
-        final User user = new User(principal, randomAlphaOfLengthBetween(6, 12));
-        securityContext.setUser(user, Version.CURRENT);
+    private void setupUser(String principal, Runnable runnable) {
+        final Authentication authentication = new Authentication(
+            new User(principal, randomAlphaOfLengthBetween(6, 12)),
+            mock(RealmRef.class),
+            mock(RealmRef.class)
+        );
+        securityContext.executeWithAuthentication(authentication, ignored -> {
+            runnable.run();
+            return null;
+        });
     }
 
 }

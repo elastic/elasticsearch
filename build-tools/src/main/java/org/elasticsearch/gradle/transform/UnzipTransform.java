@@ -17,6 +17,7 @@ import org.gradle.api.logging.Logging;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Enumeration;
 import java.util.function.Function;
@@ -39,6 +40,7 @@ public abstract class UnzipTransform implements UnpackTransform {
                     continue;
                 }
                 Path outputPath = targetDir.toPath().resolve(child);
+                Files.createDirectories(outputPath.getParent());
                 if (zipEntry.isDirectory()) {
                     outputPath.toFile().mkdirs();
                     chmod(outputPath, zipEntry.getUnixMode());

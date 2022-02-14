@@ -11,6 +11,7 @@ import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
@@ -47,6 +49,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -55,6 +59,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.getNumberOfSearchContexts;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.COLUMNS_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_ID;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_PARTIAL;
@@ -71,6 +76,7 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_FORMAT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Integration test for the rest sql action. The one that speaks json directly to a
@@ -1152,6 +1158,16 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         deleteIndex("test_binary");
     }
 
+    public void testPreventedUnsignedLongMaskedAccess() throws IOException {
+        loadUnsignedLongTestData();
+        Version version = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(INTRODUCING_UNSIGNED_LONG));
+        String query = query("SELECT unsigned_long::STRING FROM " + indexPattern("test")).version(version.toString()).toString();
+        expectBadRequest(
+            () -> runSql(new StringEntity(query, ContentType.APPLICATION_JSON), "", randomMode()),
+            containsString("Cannot use field [unsigned_long] with unsupported type [UNSIGNED_LONG]")
+        );
+    }
+
     private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws IOException {
         int size = 20;
         String[] docs = new String[size];
@@ -1220,6 +1236,22 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         request.setJsonEntity(bulk.toString());
         provisioningClient().performRequest(request);
+    }
+
+    private void loadUnsignedLongTestData() throws IOException {
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "unsigned_long": {
+                    "type": "unsigned_long"
+                  }
+                }
+              }
+            }""");
+        provisioningClient().performRequest(request);
+        index("{\"unsigned_long\": 18446744073709551615}");
     }
 
     protected static Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {
@@ -1402,6 +1434,19 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             assertEquals(200, response.getStatusLine().getStatusCode());
             assertTrue((boolean) deleteStatus.get("acknowledged"));
         }
+    }
+
+    public void testCompressCursor() throws IOException {
+        String doc = IntStream.range(0, 1000)
+            .mapToObj(i -> String.format(Locale.ROOT, "\"field%d\": %d", i, i))
+            .collect(Collectors.joining(","));
+        index("{" + doc + "}");
+
+        String mode = randomMode();
+        Map<String, Object> resp = toMap(runSql(query("SHOW COLUMNS FROM " + indexPattern("test")).fetchSize(1).mode(mode)), mode);
+
+        // without compression, the cursor is at least <avg. fieldname length> * 1000 bytes (in fact it is ~35kb)
+        assertThat(resp.get("cursor").toString().length(), lessThan(5000));
     }
 
     static Map<String, Object> runSql(RequestObjectBuilder builder, String mode) throws IOException {

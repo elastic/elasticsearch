@@ -8,10 +8,15 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.stream.Stream;
 
-public enum HealthStatus {
+public enum HealthStatus implements Writeable {
     GREEN((byte) 0),
     YELLOW((byte) 1),
     RED((byte) 2);
@@ -22,11 +27,20 @@ public enum HealthStatus {
         this.value = value;
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(value);
+    }
+
     public byte value() {
         return value;
     }
 
     public static HealthStatus merge(Stream<HealthStatus> statuses) {
         return statuses.max(Comparator.comparing(HealthStatus::value)).orElse(GREEN);
+    }
+
+    public String xContentValue() {
+        return name().toLowerCase(Locale.ROOT);
     }
 }

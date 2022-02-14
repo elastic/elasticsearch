@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
@@ -80,7 +81,7 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
-        final SortedMap<String, BytesReference> dimensionFields = new TreeMap<>();
+        final SortedMap<BytesRef, BytesReference> dimensionFields = new TreeMap<>();
         for (int i = 0; i < dimensions.length; i += 2) {
             final BytesReference reference;
             if (dimensions[i + 1] instanceof Number) {
@@ -88,7 +89,7 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
             } else {
                 reference = TimeSeriesIdFieldMapper.encodeTsidValue(dimensions[i + 1].toString());
             }
-            dimensionFields.put(dimensions[i].toString(), reference);
+            dimensionFields.put(new BytesRef(dimensions[i].toString()), reference);
         }
         for (int i = 0; i < metrics.length; i += 2) {
             if (metrics[i + 1] instanceof Integer || metrics[i + 1] instanceof Long) {

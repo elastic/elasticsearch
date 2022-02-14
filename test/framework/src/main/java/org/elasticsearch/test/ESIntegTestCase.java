@@ -1627,6 +1627,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
     }
 
+    /** Sets cluster persistent settings **/
+    public void updateClusterSettings(Settings.Builder persistentSettings) {
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(persistentSettings).get());
+    }
+
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
         CountDownLatch l = new CountDownLatch(1);
         latches.add(l);

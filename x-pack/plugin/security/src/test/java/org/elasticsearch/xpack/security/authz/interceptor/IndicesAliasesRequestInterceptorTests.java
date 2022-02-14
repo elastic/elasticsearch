@@ -57,8 +57,8 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         Authentication authentication = new Authentication(
             new User("john", "role"),
-            new RealmRef(null, null, null),
-            new RealmRef(null, null, null)
+            new RealmRef("auth_name", "auth_type", "node"),
+            new RealmRef("look_name", "look_type", "node")
         );
         final FieldPermissions fieldPermissions;
         final boolean useFls = randomBoolean();
@@ -127,8 +127,8 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         Authentication authentication = new Authentication(
             new User("john", "role"),
-            new RealmRef(null, null, null),
-            new RealmRef(null, null, null)
+            new RealmRef("auth_name", "auth_type", "node"),
+            new RealmRef("look_name", "look_type", "node")
         );
         final String action = IndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());

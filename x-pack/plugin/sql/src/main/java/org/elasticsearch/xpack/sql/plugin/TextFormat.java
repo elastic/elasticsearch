@@ -47,20 +47,20 @@ enum TextFormat implements MediaType {
      */
     PLAIN_TEXT() {
         @Override
-        Tuple<String, RestCursorState> format(RestRequest request, RestCursorState state, SqlQueryResponse response) {
-            if (state.equals(RestCursorState.EMPTY) == false) {
+        Tuple<String, FormatterState> format(RestRequest request, FormatterState state, SqlQueryResponse response) {
+            if (state.equals(FormatterState.EMPTY) == false) {
                 // scroll response
                 return tuple(state.formatter().formatWithoutHeader(response.rows()), state);
             } else if (response.columns() != null) {
                 // initial response
                 BasicFormatter formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
 
-                return tuple(formatter.formatWithHeader(response.columns(), response.rows()), new RestCursorState(formatter));
+                return tuple(formatter.formatWithHeader(response.columns(), response.rows()), new FormatterState(formatter));
             } else if (CollectionUtils.isEmpty(response.rows())) {
                 // empty response or async query
-                return tuple(StringUtils.EMPTY, RestCursorState.EMPTY);
+                return tuple(StringUtils.EMPTY, FormatterState.EMPTY);
             } else {
-                throw new SqlIllegalArgumentException("Cannot format response");
+                throw new SqlIllegalArgumentException("Cannot format non-empty response without a text formatter");
             }
         }
 
@@ -294,7 +294,7 @@ enum TextFormat implements MediaType {
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
 
-    Tuple<String, RestCursorState> format(RestRequest request, RestCursorState state, SqlQueryResponse response) {
+    Tuple<String, FormatterState> format(RestRequest request, FormatterState state, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
 
         // if the header is requested (and the column info is present - namely it's the first page) return the info
@@ -311,7 +311,7 @@ enum TextFormat implements MediaType {
             );
         }
 
-        return tuple(sb.toString(), RestCursorState.EMPTY);
+        return tuple(sb.toString(), FormatterState.EMPTY);
     }
 
     boolean hasHeader(RestRequest request) {

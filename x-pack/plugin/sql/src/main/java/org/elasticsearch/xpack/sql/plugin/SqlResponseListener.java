@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -29,19 +30,18 @@ import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_ASYNC_RUNN
 import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_CURSOR;
 import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_TOOK_NANOS;
 import static org.elasticsearch.xpack.sql.action.Protocol.URL_PARAM_DELIMITER;
-import static org.elasticsearch.xpack.sql.plugin.RestCursorState.encodeCursorWithState;
 
 class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
 
     private final long startNanos = System.nanoTime();
     private final MediaType mediaType;
     private final RestRequest request;
-    private final RestCursorState state;
+    private final FormatterState state;
 
-    SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest, RestCursorState state) {
+    SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest) {
         super(channel);
         this.request = request;
-        this.state = state;
+        this.state = Cursors.decodeState(sqlRequest.cursor());
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request, sqlRequest);
 
         /*
@@ -73,21 +73,21 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
 
         // XContent branch
         if (mediaType instanceof XContentType type) {
-            wrapCursor(response, state);
-
             XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
             response.toXContent(builder, request);
             restResponse = new BytesRestResponse(RestStatus.OK, builder);
         } else { // TextFormat
             TextFormat type = (TextFormat) mediaType;
-            final Tuple<String, RestCursorState> dataWithNextFormatter = type.format(request, state, response);
+            final Tuple<String, FormatterState> dataWithNextState = type.format(request, state, response);
 
-            wrapCursor(response, dataWithNextFormatter.v2());
+            if (response.hasCursor()) {
+                response.cursor(Cursors.attachState(response.cursor(), dataWithNextState.v2()));
+            }
 
             restResponse = new BytesRestResponse(
                 RestStatus.OK,
                 type.contentType(request),
-                dataWithNextFormatter.v1().getBytes(StandardCharsets.UTF_8)
+                dataWithNextState.v1().getBytes(StandardCharsets.UTF_8)
             );
 
             if (response.hasCursor()) {
@@ -103,12 +103,6 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
 
         restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(System.nanoTime() - startNanos));
         return restResponse;
-    }
-
-    private void wrapCursor(SqlQueryResponse response, RestCursorState state) {
-        if (response.hasCursor()) {
-            response.cursor(encodeCursorWithState(response.cursor(), state));
-        }
     }
 
 }

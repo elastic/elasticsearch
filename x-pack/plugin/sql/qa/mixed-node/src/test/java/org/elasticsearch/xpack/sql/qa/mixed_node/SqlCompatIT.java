@@ -13,11 +13,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
@@ -25,7 +23,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -131,10 +129,9 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         query.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1 ORDER BY 1 NULLS LAST", bwcVersion));
         Response queryResponse = queryClient.performRequest(query);
 
-        assertEquals(200, queryResponse.getStatusLine().getStatusCode());
+        assertOK(queryResponse);
 
-        InputStream content = queryResponse.getEntity().getContent();
-        Map<String, Object> result = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        Map<String, Object> result = responseAsMap(queryResponse);
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         return rows.stream().map(row -> (Integer) row.get(0)).collect(Collectors.toList());
     }
@@ -171,14 +168,21 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         Request query = new Request("POST", "_sql");
         XContentBuilder json = XContentFactory.jsonBuilder()
             .startObject()
-            .field("query", "select foo from test")
+            .field("query", "select foo from test order by foo")
             .field("fetch_size", 1)
             .endObject();
 
         query.setJsonEntity(Strings.toString(json));
         query.addParameter("format", "txt");
 
-        assertOK(client.performRequest(query));
+        Response response = client.performRequest(query);
+        assertOK(response);
+        String content = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals("""
+                  foo     \s
+            ---------------
+            1             \s
+            """, content);
     }
 
 }

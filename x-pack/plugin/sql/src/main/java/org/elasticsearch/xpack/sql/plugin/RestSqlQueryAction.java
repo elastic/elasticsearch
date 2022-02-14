@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -51,14 +50,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
 
-            Tuple<String, RestCursorState> cursorWithState = RestCursorState.decodeCursorWithState(sqlRequest.cursor());
-            sqlRequest.cursor(cursorWithState.v1());
-
-            cancellableClient.execute(
-                SqlQueryAction.INSTANCE,
-                sqlRequest,
-                new SqlResponseListener(channel, request, sqlRequest, cursorWithState.v2())
-            );
+            cancellableClient.execute(SqlQueryAction.INSTANCE, sqlRequest, new SqlResponseListener(channel, request, sqlRequest));
         };
     }
 

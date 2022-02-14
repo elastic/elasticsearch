@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Tuple;
@@ -21,9 +22,11 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.SqlBucketExtractor
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlHitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.literal.Literals;
+import org.elasticsearch.xpack.sql.plugin.FormatterState;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -67,17 +70,51 @@ public final class Cursors {
         return encodeToString(info, VERSION, zoneId);
     }
 
-    static String encodeToString(Cursor info, Version version, ZoneId zoneId) {
+    public static String encodeToString(Cursor info, Version version, ZoneId zoneId) {
         if (info == Cursor.EMPTY) {
             return StringUtils.EMPTY;
         }
-        try (SqlStreamOutput output = SqlStreamOutput.create(version, zoneId, true)) {
+        try (SqlStreamOutput output = SqlStreamOutput.create(version, zoneId)) {
+            output.writeEnum(CursorType.NO_STATE);
             output.writeNamedWriteable(info);
             output.close();
             // return the string only after closing the resource
             return output.streamAsString();
         } catch (IOException ex) {
-            throw new SqlIllegalArgumentException("Unexpected failure retrieving next page", ex);
+            throw new SqlIllegalArgumentException("Unexpected failure writing cursor", ex);
+        }
+    }
+
+    public static String attachState(String cursor, FormatterState state) {
+        if (Strings.isNullOrEmpty(cursor) || state == FormatterState.EMPTY) {
+            return cursor;
+        } else {
+            try (SqlStreamOutput output = SqlStreamOutput.create(VERSION, ZoneOffset.UTC)) {
+                output.writeEnum(CursorType.WITH_STATE);
+                state.writeTo(output);
+                output.writeString(cursor);
+                output.close();
+                // return the string only after closing the resource
+                return output.streamAsString();
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Unexpected failure writing cursor", ex);
+            }
+        }
+    }
+
+    private static NamedWriteableRegistry EMPTY_REGISTRY = new NamedWriteableRegistry(List.of());
+
+    public static FormatterState decodeState(String base64) {
+        if (base64.isEmpty()) {
+            return FormatterState.EMPTY;
+        }
+        try (SqlStreamInput in = SqlStreamInput.fromString(base64, EMPTY_REGISTRY, VERSION)) {
+            return switch (in.readEnum(CursorType.class)) {
+                case WITH_STATE -> new FormatterState(in);
+                case NO_STATE -> FormatterState.EMPTY;
+            };
+        } catch (IOException ex) {
+            throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
         }
     }
 
@@ -88,12 +125,25 @@ public final class Cursors {
         if (base64.isEmpty()) {
             return new Tuple<>(Cursor.EMPTY, null);
         }
-        try (SqlStreamInput in = SqlStreamInput.fromString(base64, writeableRegistry, VERSION, true)) {
-            Cursor cursor = in.readNamedWriteable(Cursor.class);
-            return new Tuple<>(cursor, in.zoneId());
+        try (SqlStreamInput in = SqlStreamInput.fromString(base64, writeableRegistry, VERSION)) {
+            return switch (in.readEnum(CursorType.class)) {
+                case WITH_STATE -> {
+                    new FormatterState(in); // discard state
+                    yield decodeFromStringWithZone(in.readString(), writeableRegistry);
+                }
+                case NO_STATE -> {
+                    Cursor cursor = in.readNamedWriteable(Cursor.class);
+                    yield new Tuple<>(cursor, in.zoneId());
+                }
+            };
         } catch (IOException ex) {
-            throw new SqlIllegalArgumentException("Unexpected failure decoding cursor", ex);
+            throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
         }
+    }
+
+    private enum CursorType {
+        WITH_STATE(),
+        NO_STATE()
     }
 
 }

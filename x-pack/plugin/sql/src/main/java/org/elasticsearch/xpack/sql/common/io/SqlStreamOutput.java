@@ -29,11 +29,11 @@ public class SqlStreamOutput extends OutputStreamStreamOutput {
 
     private final ByteArrayOutputStream bytes;
 
-    public static SqlStreamOutput create(Version version, ZoneId zoneId, boolean compress) throws IOException {
+    public static SqlStreamOutput create(Version version, ZoneId zoneId) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         StreamOutput uncompressedOut = new OutputStreamStreamOutput(Base64.getEncoder().wrap(bytes));
         Version.writeVersion(version, uncompressedOut);
-        OutputStream out = compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(uncompressedOut) : uncompressedOut;
+        OutputStream out = CompressorFactory.COMPRESSOR.threadLocalOutputStream(uncompressedOut);
         return new SqlStreamOutput(bytes, out, version, zoneId);
     }
 

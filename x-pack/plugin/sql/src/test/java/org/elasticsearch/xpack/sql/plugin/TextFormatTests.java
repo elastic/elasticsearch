@@ -179,7 +179,7 @@ public class TextFormatTests extends ESTestCase {
             StringUtils.EMPTY,
             PLAIN_TEXT.format(
                 req(),
-                new RestCursorState(new BasicFormatter(emptyList(), emptyList(), TEXT)),
+                new FormatterState(new BasicFormatter(emptyList(), emptyList(), TEXT)),
                 new SqlQueryResponse(StringUtils.EMPTY, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, null, emptyList())
             ).v1()
         );
@@ -233,6 +233,6 @@ public class TextFormatTests extends ESTestCase {
     }
 
     private String format(TextFormat format, RestRequest request, SqlQueryResponse response) {
-        return format.format(request, RestCursorState.EMPTY, response).v1();
+        return format.format(request, FormatterState.EMPTY, response).v1();
     }
 }

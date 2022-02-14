@@ -25,12 +25,8 @@ import java.util.Base64;
  */
 public class SqlStreamInput extends NamedWriteableAwareStreamInput {
 
-    public static SqlStreamInput fromString(
-        String base64encoded,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Version version,
-        boolean compressed
-    ) throws IOException {
+    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version)
+        throws IOException {
         byte[] bytes = Base64.getDecoder().decode(base64encoded);
         StreamInput in = StreamInput.wrap(bytes);
         Version inVersion = Version.readVersion(in);
@@ -38,9 +34,7 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
             throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", inVersion, version);
         }
 
-        InputStreamStreamInput uncompressingIn = new InputStreamStreamInput(
-            compressed ? CompressorFactory.COMPRESSOR.threadLocalInputStream(in) : in
-        );
+        InputStreamStreamInput uncompressingIn = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));
         return new SqlStreamInput(uncompressingIn, namedWriteableRegistry, inVersion);
     }
 

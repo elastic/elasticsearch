@@ -54,32 +54,7 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             service.calculate(),
             equalTo(
-                new HealthIndicatorResult(
-                    NAME,
-                    DATA,
-                    GREEN,
-                    "TODO 83240",
-                    new SimpleHealthIndicatorDetails(
-                        Map.of(
-                            "allocated_primaries_count",
-                            indices.size(),
-                            "allocated_replicas_count",
-                            indices.size(),
-                            "unreplicated_primaries_count",
-                            0,
-                            "unreplicated_primaries",
-                            List.of(),
-                            "unallocated_replicas_count",
-                            0,
-                            "unallocated_replicas",
-                            List.of(),
-                            "unallocated_primaries_count",
-                            0,
-                            "unallocated_primaries",
-                            List.of()
-                        )
-                    )
-                )
+                new HealthIndicatorResult(NAME, DATA, GREEN, "TODO 83240", createDetails(indices, indices, List.of(), List.of(), List.of()))
             )
         );
     }
@@ -98,26 +73,7 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
                     DATA,
                     YELLOW,
                     "TODO 83240",
-                    new SimpleHealthIndicatorDetails(
-                        Map.of(
-                            "allocated_primaries_count",
-                            greenIndices.size() + 1,
-                            "allocated_replicas_count",
-                            greenIndices.size(),
-                            "unreplicated_primaries_count",
-                            0,
-                            "unreplicated_primaries",
-                            List.of(),
-                            "unallocated_replicas_count",
-                            1,
-                            "unallocated_replicas",
-                            List.of(yellowIndex.shards().get(1).shardId()),
-                            "unallocated_primaries_count",
-                            0,
-                            "unallocated_primaries",
-                            List.of()
-                        )
-                    )
+                    createDetails(appendToCopy(greenIndices, yellowIndex), greenIndices, List.of(), List.of(yellowIndex), List.of())
                 )
             )
         );
@@ -137,26 +93,7 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
                     DATA,
                     YELLOW,
                     "TODO 83240",
-                    new SimpleHealthIndicatorDetails(
-                        Map.of(
-                            "allocated_primaries_count",
-                            greenIndices.size() + 1,
-                            "allocated_replicas_count",
-                            greenIndices.size(),
-                            "unreplicated_primaries_count",
-                            1,
-                            "unreplicated_primaries",
-                            List.of(yellowIndex.shards().get(1).shardId()),
-                            "unallocated_replicas_count",
-                            0,
-                            "unallocated_replicas",
-                            List.of(),
-                            "unallocated_primaries_count",
-                            0,
-                            "unallocated_primaries",
-                            List.of()
-                        )
-                    )
+                    createDetails(appendToCopy(greenIndices, yellowIndex), greenIndices, List.of(yellowIndex), List.of(), List.of())
                 )
             )
         );
@@ -176,27 +113,37 @@ public class ShardsHealthIndicatorServiceTests extends ESTestCase {
                     DATA,
                     RED,
                     "TODO 83240",
-                    new SimpleHealthIndicatorDetails(
-                        Map.of(
-                            "allocated_primaries_count",
-                            greenIndices.size(),
-                            "allocated_replicas_count",
-                            greenIndices.size(),
-                            "unreplicated_primaries_count",
-                            1,
-                            "unreplicated_primaries",
-                            List.of(redIndex.shards().get(1).shardId()),
-                            "unallocated_replicas_count",
-                            0,
-                            "unallocated_replicas",
-                            List.of(),
-                            "unallocated_primaries_count",
-                            1,
-                            "unallocated_primaries",
-                            List.of(redIndex.shards().get(1).shardId())
-                        )
-                    )
+                    createDetails(greenIndices, greenIndices, List.of(redIndex), List.of(), List.of(redIndex))
                 )
+            )
+        );
+    }
+
+    private SimpleHealthIndicatorDetails createDetails(
+        List<IndexRoutingTable> allocatedPrimaries,
+        List<IndexRoutingTable> allocatedReplicas,
+        List<IndexRoutingTable> unreplicatedPrimaries,
+        List<IndexRoutingTable> unallocatedReplicas,
+        List<IndexRoutingTable> unallocatedPrimaries
+    ) {
+        return new SimpleHealthIndicatorDetails(
+            Map.of(
+                "allocated_primaries_count",
+                allocatedPrimaries.size(),
+                "allocated_replicas_count",
+                allocatedReplicas.size(),
+                "unreplicated_primaries_count",
+                unreplicatedPrimaries.size(),
+                "unreplicated_primaries",
+                unreplicatedPrimaries.stream().map(it -> it.shards().get(1).shardId()).toList(),
+                "unallocated_replicas_count",
+                unallocatedReplicas.size(),
+                "unallocated_replicas",
+                unallocatedReplicas.stream().map(it -> it.shards().get(1).shardId()).toList(),
+                "unallocated_primaries_count",
+                unallocatedPrimaries.size(),
+                "unallocated_primaries",
+                unallocatedPrimaries.stream().map(it -> it.shards().get(1).shardId()).toList()
             )
         );
     }

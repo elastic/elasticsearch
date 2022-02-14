@@ -25,10 +25,10 @@ import java.util.List;
  *
  * @see org.elasticsearch.index.mapper.LookupRuntimeFieldType
  */
-public record LookupField(String targetIndex, QueryBuilder query, List<FieldAndFormat> fetchFields) implements Writeable {
+public record LookupField(String targetIndex, QueryBuilder query, List<FieldAndFormat> fetchFields, int size) implements Writeable {
 
     public LookupField(StreamInput in) throws IOException {
-        this(in.readString(), in.readNamedWriteable(QueryBuilder.class), in.readList(FieldAndFormat::new));
+        this(in.readString(), in.readNamedWriteable(QueryBuilder.class), in.readList(FieldAndFormat::new), in.readVInt());
     }
 
     @Override
@@ -36,10 +36,11 @@ public record LookupField(String targetIndex, QueryBuilder query, List<FieldAndF
         out.writeString(targetIndex);
         out.writeNamedWriteable(query);
         out.writeCollection(fetchFields);
+        out.writeVInt(size);
     }
 
     public SearchRequest toSearchRequest(String clusterAlias) {
-        final SearchSourceBuilder source = new SearchSourceBuilder().query(query).trackScores(false).size(1).fetchSource(false);
+        final SearchSourceBuilder source = new SearchSourceBuilder().query(query).trackScores(false).size(size).fetchSource(false);
         fetchFields.forEach(source::fetchField);
         return new SearchRequest().source(source).indices(RemoteClusterAware.buildRemoteIndexName(clusterAlias, targetIndex));
     }

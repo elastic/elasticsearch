@@ -229,7 +229,7 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
             }
             final List<LookupField> lookupFields = inputDoc.getValues().stream().map(input -> {
                 final TermQueryBuilder query = new TermQueryBuilder(targetField, input.toString());
-                return new LookupField(lookupIndex, query, fetchFields);
+                return new LookupField(lookupIndex, query, fetchFields, 1);
             }).toList();
             return new DocumentField(docName, List.of(), List.of(), lookupFields);
         }

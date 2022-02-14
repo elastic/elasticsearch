@@ -60,7 +60,7 @@ public class LookupFieldTests extends AbstractWireSerializingTestCase<LookupFiel
     public static LookupField randomInstance() {
         final String lookupIndex = randomAlphaOfLength(10);
         final QueryBuilder queryBuilder = QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20));
-        return new LookupField(lookupIndex, queryBuilder, randomFetchFields());
+        return new LookupField(lookupIndex, queryBuilder, randomFetchFields(), randomIntBetween(1, 10));
     }
 
     private static List<FieldAndFormat> randomFetchFields() {
@@ -79,19 +79,21 @@ public class LookupFieldTests extends AbstractWireSerializingTestCase<LookupFiel
         String lookupIndex = old.targetIndex();
         QueryBuilder query = old.query();
         List<FieldAndFormat> fetchFields = old.fetchFields();
+        int size = old.size();
         int iterations = iterations(1, 5);
         for (int i = 0; i < iterations; i++) {
-            switch (randomIntBetween(0, 2)) {
+            switch (randomIntBetween(0, 3)) {
                 case 0 -> lookupIndex = randomValueOtherThan(old.targetIndex(), () -> randomAlphaOfLength(10));
                 case 1 -> query = randomValueOtherThan(
                     old.query(),
                     () -> QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
                 );
                 case 2 -> fetchFields = randomValueOtherThan(old.fetchFields(), LookupFieldTests::randomFetchFields);
+                case 3 -> size = randomValueOtherThan(old.size(), () -> randomIntBetween(1, 10));
                 default -> throw new AssertionError();
             }
         }
-        return new LookupField(lookupIndex, query, fetchFields);
+        return new LookupField(lookupIndex, query, fetchFields, size);
     }
 
     @Override

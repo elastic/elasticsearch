@@ -6,11 +6,15 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -75,6 +79,13 @@ public class TransportPutWatchActionTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), any(), any());
 
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
+
         action = new TransportPutWatchAction(
             transportService,
             threadPool,
@@ -82,7 +93,8 @@ public class TransportPutWatchActionTests extends ESTestCase {
             new ClockHolder(new ClockMock()),
             TestUtils.newTestLicenseState(),
             parser,
-            client
+            client,
+            clusterService
         );
     }
 

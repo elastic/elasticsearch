@@ -52,7 +52,8 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         configProvider = new DataFrameAnalyticsConfigProvider(
             client(),
             xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class))
+            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
+            getInstanceFromNode(ClusterService.class)
         );
         waitForMlTemplates();
     }

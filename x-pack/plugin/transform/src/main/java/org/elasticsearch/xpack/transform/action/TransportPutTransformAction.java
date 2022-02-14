@@ -94,7 +94,10 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         // set headers to run transform as calling user
-        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        Map<String, String> filteredHeaders = ClientHelper.extractBwcPersistableSafeHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state().nodes().getMinNodeVersion()
+        );
 
         TransformConfig config = request.getConfig().setHeaders(filteredHeaders).setCreateTime(Instant.now()).setVersion(Version.CURRENT);
 

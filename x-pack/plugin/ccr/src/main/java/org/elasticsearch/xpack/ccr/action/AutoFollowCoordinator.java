@@ -304,7 +304,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     Runnable successHandler,
                     Consumer<Exception> failureHandler
                 ) {
-                    Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
+                    Client followerClient = CcrLicenseChecker.wrapClient(
+                        client,
+                        headers,
+                        clusterService.state().nodes().getMinNodeVersion()
+                    );
                     followerClient.execute(
                         PutFollowAction.INSTANCE,
                         request,

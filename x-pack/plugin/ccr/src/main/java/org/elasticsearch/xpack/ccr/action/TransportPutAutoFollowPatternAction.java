@@ -95,7 +95,10 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             return;
         }
         final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
-        final Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        final Map<String, String> filteredHeaders = ClientHelper.extractBwcPersistableSafeHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state().nodes().getMinNodeVersion()
+        );
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);

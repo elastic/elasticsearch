@@ -13,11 +13,15 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.resolver.DefaultAddressResolverGroup;
+import io.netty.resolver.AddressResolver;
+import io.netty.resolver.AddressResolverGroup;
+import io.netty.resolver.DefaultNameResolver;
+import io.netty.util.concurrent.EventExecutor;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
+import reactor.netty.resources.LoopResources;
 
 import com.azure.core.http.HttpClient;
 import com.azure.core.http.HttpMethod;
@@ -46,6 +50,7 @@ import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorSe
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.URL;
 import java.time.Duration;
 import java.util.concurrent.Callable;
@@ -95,6 +100,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
     private final ClientLogger clientLogger = new ClientLogger(AzureClientProvider.class);
+    private final NioLoopResources nioLoopResources;
+    private final Resolver resolver;
     private volatile boolean closed = false;
 
     AzureClientProvider(
@@ -109,6 +116,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         this.eventLoopGroup = eventLoopGroup;
         this.connectionProvider = connectionProvider;
         this.byteBufAllocator = byteBufAllocator;
+        this.nioLoopResources = new NioLoopResources(eventLoopGroup);
+        this.resolver = new Resolver();
     }
 
     static int eventLoopThreadsFromSettings(Settings settings) {
@@ -167,8 +176,8 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);
         nettyHttpClient = nettyHttpClient.port(80)
             .wiretap(false)
-            .resolver(DefaultAddressResolverGroup.INSTANCE)
-            .runOn(eventLoopGroup)
+            .resolver(resolver)
+            .runOn(nioLoopResources)
             .option(ChannelOption.ALLOCATOR, byteBufAllocator);
 
         final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
@@ -273,6 +282,24 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                     logger.warn("Unable to notify a successful request", e);
                 }
             }
+        }
+    }
+
+    // The underlying http client uses this as part of the connection pool key,
+    // hence we need to use the same instance across all the client instances
+    // to avoid creating multiple connection pools.
+    record NioLoopResources(EventLoopGroup eventLoopGroup) implements LoopResources {
+        @Override
+        public EventLoopGroup onServer(boolean useNative) {
+            // We rely on Nio here, hence we ignore the useNative flag
+            return eventLoopGroup;
+        }
+    }
+
+    static class Resolver extends AddressResolverGroup<InetSocketAddress> {
+        @Override
+        protected AddressResolver<InetSocketAddress> newResolver(EventExecutor executor) {
+            return new DefaultNameResolver(executor).asAddressResolver();
         }
     }
 }

@@ -94,19 +94,12 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         String accountName = DEFAULT_ACCOUNT_NAME;
         secureSettings.setString(AzureStorageSettings.ACCOUNT_SETTING.getConcreteSettingForNamespace("test").getKey(), accountName);
         if (randomBoolean()) {
-            secureSettings.setString(
-                AzureStorageSettings.KEY_SETTING.getConcreteSettingForNamespace(
-                    "test"
-                ).getKey(),
-                key
-            );
+            secureSettings.setString(AzureStorageSettings.KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), key);
         } else {
             // The SDK expects a valid SAS TOKEN
             secureSettings.setString(
-                AzureStorageSettings.SAS_TOKEN_SETTING.getConcreteSettingForNamespace(
-                    "test"
-                ).getKey(),
-                "se=2021-07-20T13%3A21Z&sp=rwdl&sv=2018-11-09&sr=c&sig=" + key
+                AzureStorageSettings.SAS_TOKEN_SETTING.getConcreteSettingForNamespace("test").getKey(),
+                "se=2021-07-20T13%3A21Z&sp=rwdl&sv=2018-11-09&sr=c&sig=random"
             );
         }
 

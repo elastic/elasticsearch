@@ -33,7 +33,7 @@ enable <<deprecation-logging, deprecation logging>>.
 // tag::notable-breaking-changes[]
 [discrete]
 [[breaking_717_packaging_changes]]
-==== Packaging changes
+=== Packaging changes
 
 .The Windows MSI installer package is no longer available.
 [%collapsible]
@@ -45,6 +45,21 @@ were previously released in beta and didn't receive widespread adoption.
 *Impact* +
 To install {es} on Windows, use the {ref}/zip-windows.html[`.zip` archive
 package] instead.
+====
+
+=== Mappings changes
+.Camel case date formats are deprecated.
+[%collapsible]
+====
+*Details* +
+The use of camel case patterns on date formats is deprecated
+and will be removed in {es} 8.0.0.
+
+The corresponding snake case pattern should be used instead.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the camel case pattern.
+
 ====
 // end::notable-breaking-changes[]
 

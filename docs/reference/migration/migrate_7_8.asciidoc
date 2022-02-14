@@ -25,7 +25,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 As of the `7.8.1` release
 
-.Displays Enterprise license as Platinum in /_xpack 
+.Displays Enterprise license as Platinum in /_xpack
 [%collapsible]
 ====
 *Details*

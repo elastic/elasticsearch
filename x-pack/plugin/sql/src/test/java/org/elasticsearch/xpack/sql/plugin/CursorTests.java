@@ -16,7 +16,6 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -109,12 +108,12 @@ public class CursorTests extends ESTestCase {
         ZoneId zone = randomZone();
         String encoded = encodeToString(cursor, zone);
 
-        String withState = attachState(encoded, FormatterState.EMPTY);
+        String withState = attachState(encoded, null);
 
         Tuple<Cursor, ZoneId> decoded = decodeFromStringWithZone(withState, WRITEABLE_REGISTRY);
         assertEquals(cursor, decoded.v1());
         assertEquals(zone, decoded.v2());
-        assertEquals(FormatterState.EMPTY, Cursors.decodeState(withState));
+        assertNull(Cursors.decodeState(withState));
     }
 
     public void testAttachingStateToEmptyCursor() {
@@ -130,7 +129,7 @@ public class CursorTests extends ESTestCase {
         Tuple<Cursor, ZoneId> decoded = decodeFromStringWithZone(withState, WRITEABLE_REGISTRY);
         assertEquals(cursor, decoded.v1());
         assertNull(decoded.v2());
-        assertEquals(FormatterState.EMPTY, Cursors.decodeState(withState));
+        assertNull(Cursors.decodeState(withState));
     }
 
     public void testAttachingStateToCursorFromOtherVersion() {
@@ -147,12 +146,10 @@ public class CursorTests extends ESTestCase {
 
     private FormatterState randomFormatterState() {
         int cols = randomInt(3);
-        return new FormatterState(
-            new BasicFormatter(
-                randomList(cols, cols, () -> new ColumnInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5))),
-                List.of(randomList(cols, cols, () -> List.of(randomAlphaOfLength(5)))),
-                randomBoolean() ? SimpleFormatter.FormatOption.TEXT : SimpleFormatter.FormatOption.CLI
-            )
+        return new BasicFormatter(
+            randomList(cols, cols, () -> new ColumnInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5))),
+            List.of(randomList(cols, cols, () -> List.of(randomAlphaOfLength(5)))),
+            randomBoolean() ? SimpleFormatter.FormatOption.TEXT : SimpleFormatter.FormatOption.CLI
         );
     }
 }

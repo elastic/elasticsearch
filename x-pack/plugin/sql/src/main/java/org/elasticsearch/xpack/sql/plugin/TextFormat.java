@@ -13,7 +13,6 @@ import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -48,19 +47,19 @@ enum TextFormat implements MediaType {
     PLAIN_TEXT() {
         @Override
         Tuple<String, FormatterState> format(RestRequest request, FormatterState state, SqlQueryResponse response) {
-            if (state.equals(FormatterState.EMPTY) == false) {
+            if (state instanceof BasicFormatter basicFormatter) {
                 // scroll response
-                return tuple(state.formatter().formatWithoutHeader(response.rows()), state);
+                return tuple(basicFormatter.formatWithoutHeader(response.rows()), state);
             } else if (response.columns() != null) {
                 // initial response
                 BasicFormatter formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
 
-                return tuple(formatter.formatWithHeader(response.columns(), response.rows()), new FormatterState(formatter));
+                return tuple(formatter.formatWithHeader(response.columns(), response.rows()), formatter);
             } else if (CollectionUtils.isEmpty(response.rows())) {
                 // empty response or async query
-                return tuple(StringUtils.EMPTY, FormatterState.EMPTY);
+                return tuple(StringUtils.EMPTY, null);
             } else {
-                throw new SqlIllegalArgumentException("Cannot format non-empty response without a text formatter");
+                throw new SqlIllegalArgumentException("Cannot format non-empty response with formatter state {}", state);
             }
         }
 
@@ -311,7 +310,7 @@ enum TextFormat implements MediaType {
             );
         }
 
-        return tuple(sb.toString(), FormatterState.EMPTY);
+        return tuple(sb.toString(), null);
     }
 
     boolean hasHeader(RestRequest request) {

@@ -7,24 +7,6 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.sql.action.BasicFormatter;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 
-import java.io.IOException;
-
-public record FormatterState(BasicFormatter formatter) implements Writeable {
-
-    public FormatterState(StreamInput in) throws IOException {
-        this(in.<BasicFormatter>readOptionalWriteable(BasicFormatter::new));
-    }
-
-    public static FormatterState EMPTY = new FormatterState((BasicFormatter) null);
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(formatter);
-    }
-
-}
+public interface FormatterState extends NamedWriteable {}

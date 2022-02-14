@@ -4,11 +4,12 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.sql.action;
+package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter;
 
@@ -19,7 +20,7 @@ import java.util.List;
  * Formats {@link SqlQueryResponse} for the CLI and for the TEXT format. {@linkplain Writeable} so
  * that its state can be saved between pages of results.
  */
-public class BasicFormatter extends SimpleFormatter implements Writeable {
+public class BasicFormatter extends SimpleFormatter implements FormatterState {
     /**
      * Create a new {@linkplain BasicFormatter} for formatting responses similar
      * to the provided columns and rows.
@@ -41,5 +42,12 @@ public class BasicFormatter extends SimpleFormatter implements Writeable {
     @Override
     public int estimateSize(int rows) {
         return super.estimateSize(rows);
+    }
+
+    public static final String NAME = "b";
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

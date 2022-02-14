@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.SqlBucketExtractor
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlHitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.literal.Literals;
+import org.elasticsearch.xpack.sql.plugin.BasicFormatter;
 import org.elasticsearch.xpack.sql.plugin.FormatterState;
 
 import java.io.IOException;
@@ -60,6 +61,8 @@ public final class Cursors {
         // and custom types
         entries.addAll(Literals.getNamedWriteables());
 
+        entries.addAll(formatterStateWriteables());
+
         return entries;
     }
 
@@ -86,12 +89,12 @@ public final class Cursors {
     }
 
     public static String attachState(String cursor, FormatterState state) {
-        if (Strings.isNullOrEmpty(cursor) || state == FormatterState.EMPTY) {
+        if (Strings.isNullOrEmpty(cursor) || state == null) {
             return cursor;
         } else {
             try (SqlStreamOutput output = SqlStreamOutput.create(VERSION, ZoneOffset.UTC)) {
                 output.writeEnum(CursorType.WITH_STATE);
-                state.writeTo(output);
+                output.writeNamedWriteable(state);
                 output.writeString(cursor);
                 output.close();
                 // return the string only after closing the resource
@@ -102,16 +105,20 @@ public final class Cursors {
         }
     }
 
-    private static NamedWriteableRegistry EMPTY_REGISTRY = new NamedWriteableRegistry(List.of());
+    private static List<NamedWriteableRegistry.Entry> formatterStateWriteables() {
+        return List.of(new NamedWriteableRegistry.Entry(FormatterState.class, BasicFormatter.NAME, BasicFormatter::new));
+    }
+
+    private static final NamedWriteableRegistry FORMATTER_STATE_REGISTRY = new NamedWriteableRegistry(formatterStateWriteables());
 
     public static FormatterState decodeState(String base64) {
         if (base64.isEmpty()) {
-            return FormatterState.EMPTY;
+            return null;
         }
-        try (SqlStreamInput in = SqlStreamInput.fromString(base64, EMPTY_REGISTRY, VERSION)) {
+        try (SqlStreamInput in = SqlStreamInput.fromString(base64, FORMATTER_STATE_REGISTRY, VERSION)) {
             return switch (in.readEnum(CursorType.class)) {
-                case WITH_STATE -> new FormatterState(in);
-                case NO_STATE -> FormatterState.EMPTY;
+                case WITH_STATE -> in.readNamedWriteable(FormatterState.class);
+                case NO_STATE -> null;
             };
         } catch (IOException ex) {
             throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
@@ -128,7 +135,7 @@ public final class Cursors {
         try (SqlStreamInput in = SqlStreamInput.fromString(base64, writeableRegistry, VERSION)) {
             return switch (in.readEnum(CursorType.class)) {
                 case WITH_STATE -> {
-                    new FormatterState(in); // discard state
+                    in.readNamedWriteable(FormatterState.class); // discard state
                     yield decodeFromStringWithZone(in.readString(), writeableRegistry);
                 }
                 case NO_STATE -> {

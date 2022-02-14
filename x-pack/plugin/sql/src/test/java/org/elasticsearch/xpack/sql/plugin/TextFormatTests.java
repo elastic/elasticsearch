@@ -10,7 +10,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -179,7 +178,7 @@ public class TextFormatTests extends ESTestCase {
             StringUtils.EMPTY,
             PLAIN_TEXT.format(
                 req(),
-                new FormatterState(new BasicFormatter(emptyList(), emptyList(), TEXT)),
+                new BasicFormatter(emptyList(), emptyList(), TEXT),
                 new SqlQueryResponse(StringUtils.EMPTY, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, null, emptyList())
             ).v1()
         );
@@ -233,6 +232,6 @@ public class TextFormatTests extends ESTestCase {
     }
 
     private String format(TextFormat format, RestRequest request, SqlQueryResponse response) {
-        return format.format(request, FormatterState.EMPTY, response).v1();
+        return format.format(request, null, response).v1();
     }
 }

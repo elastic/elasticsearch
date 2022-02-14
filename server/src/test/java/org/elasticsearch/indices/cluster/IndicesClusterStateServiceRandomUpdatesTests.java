@@ -526,7 +526,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             Collections.emptyMap(),
             Collections.emptyMap(),
             threadPool,
-            preRestoreChecks
+            List.of()
         );
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
             threadPool,

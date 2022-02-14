@@ -94,7 +94,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             typesRegistry,
             typesRegistry,
             threadPool,
-            preRestoreChecks
+            List.of()
         );
         repositoriesService.start();
     }

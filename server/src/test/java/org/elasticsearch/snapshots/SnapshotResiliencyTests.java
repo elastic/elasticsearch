@@ -1716,7 +1716,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     ),
                     emptyMap(),
                     threadPool,
-                    preRestoreChecks
+                    List.of()
                 );
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
                 snapshotsService = new SnapshotsService(

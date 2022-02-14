@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.document.DocumentField;
@@ -78,6 +79,8 @@ final class FetchLookupFieldsPhase extends SearchPhase {
         for (Cluster cluster : clusters) {
             // Do not prepend the clusterAlias to the targetIndex if the search request is already on the remote cluster.
             final String clusterAlias = context.getRequest().getLocalClusterAlias() == null ? cluster.clusterAlias : null;
+            assert Strings.isEmpty(clusterAlias) || TransportSearchAction.shouldMinimizeRoundtrips(context.getRequest()) == false :
+                "lookup across clusters only if [ccs_minimize_roundtrips] is disable";
             for (LookupField lookupField : cluster.lookupFields) {
                 final SearchRequest searchRequest = lookupField.toSearchRequest(clusterAlias);
                 searchRequest.setCcsMinimizeRoundtrips(context.getRequest().isCcsMinimizeRoundtrips());

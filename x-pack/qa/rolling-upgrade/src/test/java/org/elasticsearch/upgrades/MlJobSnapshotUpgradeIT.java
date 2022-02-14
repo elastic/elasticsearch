@@ -116,8 +116,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         Response getSnapshotsResponse = getModelSnapshots(JOB_ID);
         List<Map<String, Object>> snapshots = (List<Map<String, Object>>) entityAsMap(getSnapshotsResponse).get("model_snapshots");
         assertThat(snapshots, hasSize(2));
-        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int)UPGRADE_FROM_VERSION.major));
-        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int)UPGRADE_FROM_VERSION.major));
+        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
+        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
 
         Map<String, Object> snapshotToUpgrade = snapshots.stream()
             .filter(s -> s.get("snapshot_id").equals(currentSnapshotId) == false)
@@ -146,10 +146,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         List<Map<String, Object>> upgradedSnapshot = (List<Map<String, Object>>) entityAsMap(getModelSnapshots(JOB_ID, snapshotToUpgradeId))
             .get("model_snapshots");
         assertThat(upgradedSnapshot, hasSize(1));
-        assertThat(
-            upgradedSnapshot.get(0).get("latest_record_time_stamp"),
-            equalTo(snapshotToUpgrade.get("latest_record_time_stamp"))
-        );
+        assertThat(upgradedSnapshot.get(0).get("latest_record_time_stamp"), equalTo(snapshotToUpgrade.get("latest_record_time_stamp")));
 
         // Does the snapshot still work?
         var stats = entityAsMap(getJobStats(JOB_ID));
@@ -228,8 +225,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         var modelSnapshots = entityAsMap(getModelSnapshots(JOB_ID));
         var snapshots = (List<Map<String, Object>>) modelSnapshots.get("model_snapshots");
         assertThat(snapshots, hasSize(2));
-        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int)UPGRADE_FROM_VERSION.major));
-        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int)UPGRADE_FROM_VERSION.major));
+        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
+        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
     }
 
     private Response buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {

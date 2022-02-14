@@ -6,8 +6,9 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.java'
+
+archivesBaseName = "x-content-impl"
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
@@ -33,6 +34,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
+// not published, so no need for javadoc
 tasks.named("javadoc").configure { enabled = false }
 
 tasks.named("thirdPartyAudit").configure {
@@ -41,8 +43,4 @@ tasks.named("thirdPartyAudit").configure {
     'com.fasterxml.jackson.databind.ObjectMapper',
     'com.fasterxml.jackson.databind.cfg.MapperBuilder'
   )
-}
-
-tasks.named("jar").configure {
-  archiveBaseName = "x-content-impl"
 }

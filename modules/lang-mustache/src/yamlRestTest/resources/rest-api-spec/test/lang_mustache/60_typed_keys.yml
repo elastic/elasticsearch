@@ -1,8 +1,6 @@
 setup:
   - skip:
-      version: all
-      reason: 'AwaitsFix: https://github.com/elastic/elasticsearch/issues/82502'
-      features: allowed_warnings
+      features: allowed_warnings_regex
   - do:
       indices.put_template:
         name: index_template
@@ -22,8 +20,8 @@ setup:
                  type: keyword
 
   - do:
-     allowed_warnings:
-      - "index [test-0] matches multiple legacy templates [global, index_template], composable templates will only match a single template"
+     allowed_warnings_regex:
+      - "index \\[test-[0-2]\\] matches multiple legacy templates \\[global, index_template\\], composable templates will only match a single template"
      bulk:
         refresh: true
         body:

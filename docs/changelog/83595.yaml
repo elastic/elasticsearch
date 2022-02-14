@@ -1,0 +1,6 @@
+pr: 83595
+summary: Completion field to support multiple completion multi-fields
+area: Mapping
+type: bug
+issues:
+ - 83534

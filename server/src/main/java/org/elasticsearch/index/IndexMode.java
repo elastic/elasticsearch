@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
@@ -110,6 +111,9 @@ public enum IndexMode {
 
         @Override
         public void validateMapping(MappingLookup lookup) {
+            if (lookup.nestedLookup() != NestedLookup.EMPTY) {
+                throw new IllegalArgumentException("cannot have nested fields when index is in " + tsdbMode());
+            }
             if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
                 throw new IllegalArgumentException(routingRequiredBad());
             }

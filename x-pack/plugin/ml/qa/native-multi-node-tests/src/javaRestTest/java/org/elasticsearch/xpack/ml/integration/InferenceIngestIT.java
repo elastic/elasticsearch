@@ -122,8 +122,8 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":10"));
         assertBusy(() -> {
             try {
-                assertStatsWithCacheMisses(classificationModelId, 10L);
-                assertStatsWithCacheMisses(regressionModelId, 10L);
+                assertStatsWithCacheMisses(classificationModelId, 10);
+                assertStatsWithCacheMisses(regressionModelId, 10);
             } catch (ResponseException ex) {
                 // this could just mean shard failures.
                 fail(ex.getMessage());
@@ -174,8 +174,8 @@ public class InferenceIngestIT extends ESRestTestCase {
 
         assertBusy(() -> {
             try {
-                assertStatsWithCacheMisses(classificationModelId, 10L);
-                assertStatsWithCacheMisses(regressionModelId, 15L);
+                assertStatsWithCacheMisses(classificationModelId, 10);
+                assertStatsWithCacheMisses(regressionModelId, 15);
             } catch (ResponseException ex) {
                 // this could just mean shard failures.
                 fail(ex.getMessage());
@@ -269,14 +269,18 @@ public class InferenceIngestIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void assertStatsWithCacheMisses(String modelId, long inferenceCount) throws IOException {
+    public void assertStatsWithCacheMisses(String modelId, int inferenceCount) throws IOException {
         Response statsResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + modelId + "/_stats"));
         var responseMap = entityAsMap(statsResponse);
         assertThat((List<?>) responseMap.get("trained_model_stats"), hasSize(1));
         var stats = ((List<Map<String, Object>>) responseMap.get("trained_model_stats")).get(0);
         assertThat(stats.get("inference_stats"), is(notNullValue()));
-        assertThat(XContentMapValues.extractValue(stats, "inference_stats.inference_count"), equalTo(inferenceCount));
-        assertThat((Long) XContentMapValues.extractValue(stats, "inference_stats.cache_miss_count"), greaterThan(0L));
+        assertThat(
+            stats.toString(),
+            (Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats),
+            equalTo(inferenceCount)
+        );
+        assertThat(stats.toString(), (Integer) XContentMapValues.extractValue("inference_stats.cache_miss_count", stats), greaterThan(0));
     }
 
     public void testSimulate() throws IOException {

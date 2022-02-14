@@ -116,8 +116,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         Response getSnapshotsResponse = getModelSnapshots(JOB_ID);
         List<Map<String, Object>> snapshots = (List<Map<String, Object>>) entityAsMap(getSnapshotsResponse).get("model_snapshots");
         assertThat(snapshots, hasSize(2));
-        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo(UPGRADE_FROM_VERSION.major));
-        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo(UPGRADE_FROM_VERSION.major));
+        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int)UPGRADE_FROM_VERSION.major));
+        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int)UPGRADE_FROM_VERSION.major));
 
         Map<String, Object> snapshotToUpgrade = snapshots.stream()
             .filter(s -> s.get("snapshot_id").equals(currentSnapshotId) == false)
@@ -147,7 +147,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             .get("model_snapshots");
         assertThat(upgradedSnapshot, hasSize(1));
         assertThat(
-            (long) upgradedSnapshot.get(0).get("latest_record_time_stamp"),
+            upgradedSnapshot.get(0).get("latest_record_time_stamp"),
             equalTo(snapshotToUpgrade.get("latest_record_time_stamp"))
         );
 
@@ -156,11 +156,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         List<Map<String, Object>> jobStats = (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", stats);
         assertThat(
             (long) XContentMapValues.extractValue("data_counts.latest_record_timestamp", jobStats.get(0)),
-            greaterThan((long) snapshots.get(0).get("latest_record_time_stamp"))
+            greaterThan((long) snapshotToUpgrade.get("latest_record_time_stamp"))
         );
 
         var revertResponse = entityAsMap(revertModelSnapshot(JOB_ID, snapshotToUpgradeId, true));
-        assertThat((String) XContentMapValues.extractValue(revertResponse, "model.snapshot_id"), equalTo(snapshotToUpgradeId));
+        assertThat((String) XContentMapValues.extractValue("model.snapshot_id", revertResponse), equalTo(snapshotToUpgradeId));
         assertThat(entityAsMap(openJob(JOB_ID)).get("opened"), is(true));
 
         stats = entityAsMap(getJobStats(JOB_ID));
@@ -195,9 +195,9 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             )
         );
 
-        assertThat((Long) dataCounts.get("invalid_date_count"), equalTo(0L));
-        assertThat((Long) dataCounts.get("bucket_count"), greaterThan(0L));
-        final long lastCount = (long) dataCounts.get("bucket_count");
+        assertThat((Integer) dataCounts.get("invalid_date_count"), equalTo(0));
+        assertThat((Integer) dataCounts.get("bucket_count"), greaterThan(0));
+        final int lastCount = (Integer) dataCounts.get("bucket_count");
         flushJob(JOB_ID);
         closeJob(JOB_ID);
 
@@ -220,16 +220,16 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 )
             )
         );
-        assertThat((Long) dataCounts.get("invalid_date_count"), equalTo(0L));
-        assertThat((Long) dataCounts.get("bucket_count"), greaterThan(lastCount));
+        assertThat((Integer) dataCounts.get("invalid_date_count"), equalTo(0));
+        assertThat((Integer) dataCounts.get("bucket_count"), greaterThan(lastCount));
         flushJob(JOB_ID);
         closeJob(JOB_ID);
 
         var modelSnapshots = entityAsMap(getModelSnapshots(JOB_ID));
         var snapshots = (List<Map<String, Object>>) modelSnapshots.get("model_snapshots");
         assertThat(snapshots, hasSize(2));
-        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo(UPGRADE_FROM_VERSION.major));
-        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo(UPGRADE_FROM_VERSION.major));
+        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int)UPGRADE_FROM_VERSION.major));
+        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int)UPGRADE_FROM_VERSION.major));
     }
 
     private Response buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {
@@ -241,8 +241,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 {
                     "analysis_config" : {
                         "bucket_span":""" + "\"" + bucketSpan + "\"," + """
-                        "detectors":[{"function":"mean", "field":"value", "partition_field_name":"series},
-                        {"function":"count", "by_field_name":"mlcategory"],
+                        "detectors":[{"function":"mean", "field_name":"value", "partition_field_name":"series"},
+                        {"function":"count", "by_field_name":"mlcategory"}],
                         "categorization_field_name":"text"
                     },
                     "data_description" : {
@@ -253,7 +253,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 {
                     "analysis_config" : {
                         "bucket_span":""" + "\"" + bucketSpan + "\"," + """
-                        "detectors":[{"function":"mean", "field":"value", "partition_field_name":"series}]
+                        "detectors":[{"function":"mean", "field_name":"value", "partition_field_name":"series"}]
                     },
                     "data_description" : {
                     }
@@ -360,7 +360,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response upgradeJobSnapshot(String jobId, String snapshotId, boolean waitForCompletion) throws IOException {
-        String url = "_ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId;
+        String url = "_ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_upgrade";
         if (waitForCompletion) {
             url = url + "?wait_for_completion=true";
         }

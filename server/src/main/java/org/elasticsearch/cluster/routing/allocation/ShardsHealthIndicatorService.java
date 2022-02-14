@@ -8,13 +8,11 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
@@ -47,12 +45,6 @@ public class ShardsHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "shards";
 
-    /**
-     * After timeout inactive shards assigned to the restarted node would be considered unavailable causing yellow or red health status.
-     * During normal operations fast restarts should not cause health indicator become yellow or red.
-     */
-    private static final TimeValue RESTART_HEALTH_DEGRADATION_DELAY = TimeValue.timeValueMinutes(5);
-
     private final ClusterService clusterService;
 
     public ShardsHealthIndicatorService(ClusterService clusterService) {
@@ -73,9 +65,6 @@ public class ShardsHealthIndicatorService implements HealthIndicatorService {
     public HealthIndicatorResult calculate() {
 
         var state = clusterService.state();
-        var shutdown = state.metadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
-        var now = System.currentTimeMillis();
-
         var stats = new ShardAllocationStats();
 
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
@@ -91,6 +80,8 @@ public class ShardsHealthIndicatorService implements HealthIndicatorService {
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
                     if (replicaShard.active()) {
                         stats.allocatedReplicas++;
+                    } else if (isRestarting(replicaShard)) {
+                        stats.restartingReplicas.add(replicaShard.shardId());
                     } else {
                         stats.unallocatedReplicas.add(replicaShard.shardId());
                     }
@@ -104,17 +95,15 @@ public class ShardsHealthIndicatorService implements HealthIndicatorService {
         return createIndicator(stats.getStatus(), stats.getSummary(), stats.getDetails());
     }
 
-    private static boolean isRestarting(String nodeId, NodesShutdownMetadata metadata, long now) {
-        var shutdown = metadata.getAllNodeMetadataMap().get(nodeId);
-        return shutdown != null
-            && shutdown.getType() == SingleNodeShutdownMetadata.Type.RESTART
-            && (now - shutdown.getStartedAtMillis()) <= RESTART_HEALTH_DEGRADATION_DELAY.getMillis();
+    private static boolean isRestarting(ShardRouting shard) {
+        return shard.unassignedInfo() != null && shard.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_RESTARTING;
     }
 
     private static final class ShardAllocationStats {
         // green
         private int allocatedPrimaries = 0;
         private int allocatedReplicas = 0;
+        private final List<ShardId> restartingReplicas = new ArrayList<>();
         // yellow
         private final List<ShardId> unreplicatedPrimaries = new ArrayList<>();
         private final List<ShardId> unallocatedReplicas = new ArrayList<>();
@@ -133,13 +122,21 @@ public class ShardsHealthIndicatorService implements HealthIndicatorService {
 
         String getSummary() {
             var primaries = allocatedPrimaries + unallocatedPrimaries.size();
-            var replicas = allocatedReplicas + unallocatedReplicas.size();
+            var replicas = allocatedReplicas + unallocatedReplicas.size() + restartingReplicas.size();
             var builder = new StringBuilder("This cluster has ").append(primaries + replicas).append(" shards");
             builder.append(" including ").append(primaries).append(" primaries");
             collectionToDelimitedStringWithLimit(unreplicatedPrimaries, ",", " (", " unreplicated)", 1024, builder);
             collectionToDelimitedStringWithLimit(unallocatedPrimaries, ",", " (", " unallocated)", 1024, builder);
             builder.append(" and ").append(replicas).append(" replicas");
             collectionToDelimitedStringWithLimit(unallocatedReplicas, ",", " (", " unallocated)", 1024, builder);
+            collectionToDelimitedStringWithLimit(
+                restartingReplicas,
+                ",",
+                " (",
+                " temporary unallocated due to node restarting)",
+                1024,
+                builder
+            );
             return builder.append(".").toString();
         }
 
@@ -158,6 +155,10 @@ public class ShardsHealthIndicatorService implements HealthIndicatorService {
                     unallocatedReplicas.size(),
                     "unallocated_replicas",
                     limitSize(unallocatedReplicas, 10),
+                    "restarting_replicas_count",
+                    restartingReplicas.size(),
+                    "restarting_replicas",
+                    limitSize(restartingReplicas, 10),
                     "unallocated_primaries_count",
                     unallocatedPrimaries.size(),
                     "unallocated_primaries",

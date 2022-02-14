@@ -60,9 +60,9 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
     private final List<String> prefixes;
     private final ClassLoader parent;
-    private final Map<String, URL> prefixToCodeBase;
+    private final Map<String, CodeSource> prefixToCodeBase;
 
-    private static Map<String, URL> getProviderPrefixes(ClassLoader parent, String providerName) {
+    private static Map<String, CodeSource> getProviderPrefixes(ClassLoader parent, String providerName) {
         String providerPrefix = IMPL_PREFIX + providerName;
         URL manifest = parent.getResource(providerPrefix + MANIFEST_FILE);
         if (manifest == null) {
@@ -74,9 +74,9 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             BufferedReader reader = new BufferedReader(isr)
         ) {
             List<String> prefixes = reader.lines().map(s -> providerPrefix + "/" + s).toList();
-            Map<String, URL> map = new HashMap<>();
+            Map<String, CodeSource> map = new HashMap<>();
             for (String prefix : prefixes) {
-                map.put(prefix, new URL(manifest, prefix));
+                map.put(prefix, new CodeSource(new URL(manifest, prefix), (CodeSigner[]) null /*signers*/));
             }
             return Collections.unmodifiableMap(map);
         } catch (IOException e) {
@@ -88,14 +88,14 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
     }
 
-    private EmbeddedImplClassLoader(ClassLoader parent, Map<String, URL> prefixToCodeBase) {
+    private EmbeddedImplClassLoader(ClassLoader parent, Map<String, CodeSource> prefixToCodeBase) {
         super(parent);
         this.prefixes = prefixToCodeBase.keySet().stream().toList();
         this.prefixToCodeBase = prefixToCodeBase;
         this.parent = parent;
     }
 
-    record Resource(InputStream inputStream, URL url) {}
+    record Resource(InputStream inputStream, CodeSource codeSource) {}
 
     /** Searches for the named resource. Iterates over all prefixes. */
     private Resource privilegedGetResourceOrNull(String name) {
@@ -125,8 +125,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         if (res != null) {
             try (InputStream in = res.inputStream()) {
                 byte[] bytes = in.readAllBytes();
-                CodeSource cs = new CodeSource(res.url(), (CodeSigner[]) null /*signers*/);
-                return defineClass(name, bytes, 0, bytes.length, cs);
+                return defineClass(name, bytes, 0, bytes.length, res.codeSource());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

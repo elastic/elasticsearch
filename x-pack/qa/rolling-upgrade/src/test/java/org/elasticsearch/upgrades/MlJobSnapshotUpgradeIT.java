@@ -12,10 +12,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.ml.job.config.AnalysisConfig;
-import org.elasticsearch.client.ml.job.config.DataDescription;
-import org.elasticsearch.client.ml.job.config.Detector;
-import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
@@ -237,24 +233,35 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {
-        Detector.Builder detector = new Detector.Builder("mean", "value");
-        detector.setPartitionFieldName("series");
-        List<Detector> detectors = new ArrayList<>();
-        detectors.add(detector.build());
         boolean isCategorization = randomBoolean();
+        String jobConfig;
+
         if (isCategorization) {
-            detectors.add(new Detector.Builder("count", null).setByFieldName("mlcategory").build());
+            jobConfig = """
+                {
+                    "analysis_config" : {
+                        "bucket_span":""" + "\"" + bucketSpan + "\"," + """
+                        "detectors":[{"function":"mean", "field":"value", "partition_field_name":"series},
+                        {"function":"count", "by_field_name":"mlcategory"],
+                        "categorization_field_name":"text"
+                    },
+                    "data_description" : {
+                    }
+                }""";
+        } else {
+            jobConfig = """
+                {
+                    "analysis_config" : {
+                        "bucket_span":""" + "\"" + bucketSpan + "\"," + """
+                        "detectors":[{"function":"mean", "field":"value", "partition_field_name":"series}]
+                    },
+                    "data_description" : {
+                    }
+                }""";
         }
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
-        analysisConfig.setBucketSpan(bucketSpan);
-        if (isCategorization) {
-            analysisConfig.setCategorizationFieldName("text");
-        }
-        Job.Builder job = new Job.Builder(jobId);
-        job.setAnalysisConfig(analysisConfig);
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        job.setDataDescription(dataDescription);
-        return putJob(job.build());
+        Request request = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
+        request.setJsonEntity(jobConfig);
+        return client().performRequest(request);
     }
 
     private static List<String> generateData(
@@ -292,12 +299,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     protected Response getJobStats(String jobId) throws IOException {
         return client().performRequest(new Request("GET", "/_ml/anomaly_detectors/" + jobId + "/_stats"));
-    }
-
-    protected Response putJob(Job job) throws IOException {
-        Request request = new Request("PUT", "/_ml/anomaly_detectors/" + job.getId());
-        request.setJsonEntity(Strings.toString(job));
-        return client().performRequest(request);
     }
 
     protected Response openJob(String jobId) throws IOException {

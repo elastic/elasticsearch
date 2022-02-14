@@ -1,0 +1,5 @@
+pr: 83637
+summary: "Fix: ip prefix bucket reduction"
+area: Aggregations
+type: bug
+issues: []

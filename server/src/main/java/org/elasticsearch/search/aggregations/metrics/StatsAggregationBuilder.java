@@ -72,6 +72,11 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Metr
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     public Set<String> metricNames() {
         return InternalStats.METRIC_NAMES;
     }

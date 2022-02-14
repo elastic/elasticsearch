@@ -49,6 +49,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -74,6 +76,7 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_FORMAT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Integration test for the rest sql action. The one that speaks json directly to a
@@ -1431,6 +1434,19 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             assertEquals(200, response.getStatusLine().getStatusCode());
             assertTrue((boolean) deleteStatus.get("acknowledged"));
         }
+    }
+
+    public void testCompressCursor() throws IOException {
+        String doc = IntStream.range(0, 1000)
+            .mapToObj(i -> String.format(Locale.ROOT, "\"field%d\": %d", i, i))
+            .collect(Collectors.joining(","));
+        index("{" + doc + "}");
+
+        String mode = randomMode();
+        Map<String, Object> resp = toMap(runSql(query("SHOW COLUMNS FROM " + indexPattern("test")).fetchSize(1).mode(mode)), mode);
+
+        // without compression, the cursor is at least <avg. fieldname length> * 1000 bytes (in fact it is ~35kb)
+        assertThat(resp.get("cursor").toString().length(), lessThan(5000));
     }
 
     static Map<String, Object> runSql(RequestObjectBuilder builder, String mode) throws IOException {

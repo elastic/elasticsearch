@@ -5,7 +5,7 @@ You can test that your {es} node is running by sending an HTTPS request to port
 
 ["source","sh",subs="attributes"]
 ----
-curl --cacert {os-dir}{slash}certs{slash}http_ca.crt -u elastic https://localhost:9200 <1>
+curl --cacert {os-dir}{slash}config{slash}certs{slash}http_ca.crt -u elastic https://localhost:9200 <1>
 ----
 // NOTCONSOLE
 <1> Ensure that you use `https` in your call, or the request will fail.

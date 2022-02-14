@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.transport.TransportRequest;
@@ -20,17 +22,21 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -39,6 +45,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
@@ -129,19 +136,92 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
                     Set.of(),
                     randomBoolean() ? Set.of(prefix + randomAlphaOfLengthBetween(0, 2), other) : Set.of(other)
                 );
-            assertFalse(
-                updateProfileDataPermission.check("cluster:admin/xpack/security/profile/put/data", updateProfileDataRequest, authentication)
-            );
+            assertFalse(updateProfileDataPermission.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication));
             updateProfileDataRequest = randomBoolean()
                 ? newUpdateProfileDataRequest(randomBoolean() ? Set.of(name, other) : Set.of(other), Set.of())
                 : newUpdateProfileDataRequest(Set.of(), randomBoolean() ? Set.of(name, other) : Set.of(other));
-            assertFalse(
-                updateProfileDataPermission.check("cluster:admin/xpack/security/profile/put/data", updateProfileDataRequest, authentication)
-            );
+            assertFalse(updateProfileDataPermission.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication));
         }
-        assertFalse(
-            updateProfileDataPermission.check("cluster:admin/xpack/security/profile/put/data", mock(TransportRequest.class), authentication)
-        );
+        assertFalse(updateProfileDataPermission.check(UpdateProfileDataAction.NAME, mock(TransportRequest.class), authentication));
+    }
+
+    public void testParseAbnormals() throws Exception {
+        final String nullApplications = "{\"update\":{\"applications\":null}}";
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    new ByteArrayInputStream(nullApplications.getBytes(StandardCharsets.UTF_8))
+                )
+        ) {
+            parser.nextToken(); // {
+            parser.nextToken(); // "update" field
+            expectThrows(XContentParseException.class, () -> ConfigurableClusterPrivileges.UpdateProfileDataPrivileges.parse(parser));
+            parser.nextToken();
+        }
+        final String emptyApplications = "{\"update\":{\"applications\":[]}}";
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    new ByteArrayInputStream(emptyApplications.getBytes(StandardCharsets.UTF_8))
+                )
+        ) {
+            parser.nextToken(); // {
+            parser.nextToken(); // "update" field
+            ConfigurableClusterPrivileges.UpdateProfileDataPrivileges priv = ConfigurableClusterPrivileges.UpdateProfileDataPrivileges
+                .parse(parser);
+            parser.nextToken();
+            assertThat(priv.getApplicationNames().size(), is(0));
+            UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
+                ? newUpdateProfileDataRequest(Set.of(randomAlphaOfLengthBetween(0, 2)), Set.of())
+                : newUpdateProfileDataRequest(Set.of(), Set.of(randomAlphaOfLengthBetween(0, 2)));
+            ClusterPermission perm = priv.buildPermission(ClusterPermission.builder()).build();
+            assertFalse(perm.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, mock(Authentication.class)));
+        }
+        final String aNullApplication = "{\"update\":{\"applications\":[null]}}";
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    new ByteArrayInputStream(aNullApplication.getBytes(StandardCharsets.UTF_8))
+                )
+        ) {
+            parser.nextToken(); // {
+            parser.nextToken(); // "update" field
+            expectThrows(ElasticsearchParseException.class, () -> ConfigurableClusterPrivileges.UpdateProfileDataPrivileges.parse(parser));
+            parser.nextToken();
+        }
+        final String anEmptyApplication = "{\"update\":{\"applications\":[\"\"]}}";
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    new ByteArrayInputStream(anEmptyApplication.getBytes(StandardCharsets.UTF_8))
+                )
+        ) {
+            parser.nextToken(); // {
+            parser.nextToken(); // "update" field
+            ConfigurableClusterPrivileges.UpdateProfileDataPrivileges priv = ConfigurableClusterPrivileges.UpdateProfileDataPrivileges
+                .parse(parser);
+            parser.nextToken();
+            assertThat(priv.getApplicationNames().size(), is(1));
+            assertThat(priv.getApplicationNames().stream().findFirst().get(), is(""));
+            UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
+                ? newUpdateProfileDataRequest(Set.of(randomAlphaOfLengthBetween(1, 2)), Set.of())
+                : newUpdateProfileDataRequest(Set.of(), Set.of(randomAlphaOfLengthBetween(1, 2)));
+            ClusterPermission perm = priv.buildPermission(ClusterPermission.builder()).build();
+            assertFalse(perm.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, mock(Authentication.class)));
+            updateProfileDataRequest = randomBoolean()
+                ? newUpdateProfileDataRequest(Set.of(""), Set.of())
+                : newUpdateProfileDataRequest(Set.of(), Set.of(""));
+            perm = priv.buildPermission(ClusterPermission.builder()).build();
+            assertTrue(perm.check("cluster:admin/xpack/security/profile/put/data", updateProfileDataRequest, mock(Authentication.class)));
+        }
     }
 
     public void testEqualsAndHashCode() {

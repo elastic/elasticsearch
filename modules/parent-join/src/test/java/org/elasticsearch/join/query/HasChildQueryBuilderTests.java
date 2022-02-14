@@ -247,7 +247,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         HasChildQueryBuilder queryBuilder = (HasChildQueryBuilder) parseQuery(query);
         checkGeneratedJson(
             /*
-             * Ignoring unampped is the default and we don't dump it and can't
+             * Ignoring unmapped is the default and we don't dump it and can't
              * change it if we're going to use inner_hits.
              */
             query.replaceFirst("\"ignore_unmapped\" : false,", ""),

@@ -101,7 +101,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         for (int i = 0; i < size; i++) {
             tmp[i] = parent.getResources(prefixes.get(i) + "/" + name);
         }
-        tmp[size + 1] = super.findResources(name);
+        tmp[size] = super.findResources(name);
         return new CompoundEnumeration<>(tmp);
     }
 

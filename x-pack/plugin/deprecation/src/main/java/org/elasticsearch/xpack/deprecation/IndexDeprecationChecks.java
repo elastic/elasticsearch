@@ -255,7 +255,7 @@ public class IndexDeprecationChecks {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Date fields use deprecated camel case formats",
-                "https://ela.st/es-deprecation-7-java-time",
+                "https://ela.st/es-deprecation-7-camel-case-format",
                 detailsMessageBeginning,
                 false,
                 null

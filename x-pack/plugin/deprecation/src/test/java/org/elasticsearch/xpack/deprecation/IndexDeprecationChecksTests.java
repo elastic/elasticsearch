@@ -541,7 +541,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "Date fields use deprecated camel case formats",
-            "https://ela.st/es-deprecation-7-java-time",
+            "https://ela.st/es-deprecation-7-camel-case-format",
             "Convert [date_time_field] format [strictDateOptionalTime] "
                 + "which contains deprecated camel case to snake case. [strictDateOptionalTime] to [strict_date_optional_time].",
             false,
@@ -574,7 +574,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "Date fields use deprecated camel case formats",
-            "https://ela.st/es-deprecation-7-java-time",
+            "https://ela.st/es-deprecation-7-camel-case-format",
             "Convert [date_time_field] format [strictDateOptionalTime||strictWeekDateTime||epoch_seconds] "
                 + "which contains deprecated camel case to snake case. [strictDateOptionalTime] to [strict_date_optional_time]. "
                 + "[strictWeekDateTime] to [strict_week_date_time].",

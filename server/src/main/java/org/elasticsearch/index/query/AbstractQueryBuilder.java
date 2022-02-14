@@ -78,8 +78,25 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
-    protected void printBoostAndQueryName(XContentBuilder builder) throws IOException {
+    /**
+     * Add {@code boost} and {@code query_name} to the builder.
+     * @deprecated use {@link #boostAndQueryNameToXContent}
+     */
+    @Deprecated
+    protected final void printBoostAndQueryName(XContentBuilder builder) throws IOException {
         builder.field(BOOST_FIELD.getPreferredName(), boost);
+        if (queryName != null) {
+            builder.field(NAME_FIELD.getPreferredName(), queryName);
+        }
+    }
+
+    /**
+     * Add {@code boost} and {@code query_name} to the builder.
+     */
+    protected final void boostAndQueryNameToXContent(XContentBuilder builder) throws IOException {
+        if (boost != DEFAULT_BOOST) {
+            builder.field(BOOST_FIELD.getPreferredName(), boost);
+        }
         if (queryName != null) {
             builder.field(NAME_FIELD.getPreferredName(), queryName);
         }

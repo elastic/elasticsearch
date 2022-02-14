@@ -35,7 +35,7 @@ public record Profile(
         String username,
         List<String> roles,
         String realmName,
-        @Nullable String realmDomain,
+        @Nullable String domainName,
         String email,
         String fullName,
         String displayName,
@@ -56,7 +56,7 @@ public record Profile(
         }
 
         public QualifiedName qualifiedName() {
-            return new QualifiedName(username, realmDomain);
+            return new QualifiedName(username, domainName);
         }
 
         @Override
@@ -65,8 +65,8 @@ public record Profile(
             builder.field("username", username);
             builder.field("roles", roles);
             builder.field("realm_name", realmName);
-            if (realmDomain != null) {
-                builder.field("realm_domain", realmDomain);
+            if (domainName != null) {
+                builder.field("realm_domain", domainName);
             }
             if (email != null) {
                 builder.field("email", email);
@@ -87,7 +87,7 @@ public record Profile(
             out.writeString(username);
             out.writeStringCollection(roles);
             out.writeString(realmName);
-            out.writeOptionalString(realmDomain);
+            out.writeOptionalString(domainName);
             out.writeOptionalString(email);
             out.writeOptionalString(fullName);
             out.writeOptionalString(displayName);
@@ -124,15 +124,19 @@ public record Profile(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerToXContent(builder, params);
+        versionControl.toXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("uid", uid);
         builder.field("enabled", enabled);
         builder.field("last_synchronized", lastSynchronized);
         user.toXContent(builder, params);
         builder.field("access", access);
         builder.field("data", applicationData);
-        versionControl.toXContent(builder, params);
-        builder.endObject();
-        return builder;
     }
 
     @Override

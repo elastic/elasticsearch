@@ -23,16 +23,22 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
+/**
+ * A class loader that is responsible for loading implementation classes and resources embedded within an archive.
+ *
+ * TODO: describe ...
+ */
 public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
-    private static final String IMPL_PREFIX = "IMPL-JARS";
-    private static final String PROVIDER_MANIFEST_FILE = IMPL_PREFIX + "/MANIFEST.TXT";
+    private static final String IMPL_PREFIX = "IMPL-JARS/";
+    private static final String MANIFEST_FILE = "/MANIFEST.TXT";
 
     private final List<String> prefixes;
     private final ClassLoader parent;
 
-    private static List<String> getProviderPrefixes(ClassLoader parent) {
-        final InputStream is = parent.getResourceAsStream(PROVIDER_MANIFEST_FILE);
+    private static List<String> getProviderPrefixes(ClassLoader parent, String providerName) {
+        final String providerPrefix = IMPL_PREFIX + providerName;
+        final InputStream is = parent.getResourceAsStream(providerPrefix + MANIFEST_FILE);
         if (is == null) {
             throw new IllegalStateException("missing x-content provider jars list");
         }
@@ -41,15 +47,19 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             InputStreamReader isr = new InputStreamReader(in, StandardCharsets.UTF_8);
             BufferedReader reader = new BufferedReader(isr)
         ) {
-            return reader.lines().map(s -> IMPL_PREFIX + "/" + s).toList();
+            return reader.lines().map(s -> providerPrefix + "/" + s).toList();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    EmbeddedImplClassLoader(ClassLoader parent) {
+    static EmbeddedImplClassLoader getInstance(ClassLoader parent, String providerName) {
+        return new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
+    }
+
+    private EmbeddedImplClassLoader(ClassLoader parent, List<String> prefixes) {
         super(parent);
-        prefixes = getProviderPrefixes(parent);
+        this.prefixes = prefixes;
         this.parent = parent;
     }
 

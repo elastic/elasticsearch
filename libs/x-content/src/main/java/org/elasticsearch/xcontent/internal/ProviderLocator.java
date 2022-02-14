@@ -51,7 +51,7 @@ public final class ProviderLocator {
     }
 
     private static XContentProvider loadAsNonModule() {
-        ClassLoader loader = new EmbeddedImplClassLoader(ProviderLocator.class.getClassLoader());
+        ClassLoader loader = EmbeddedImplClassLoader.getInstance(ProviderLocator.class.getClassLoader(), "x-content");
         ServiceLoader<XContentProvider> sl = ServiceLoader.load(XContentProvider.class, loader);
         return sl.findFirst().orElseThrow(() -> new RuntimeException("cannot locate x-content provider"));
     }

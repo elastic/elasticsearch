@@ -68,7 +68,6 @@ logging>>.
 [[breaking_717_mapping_deprecations]]
 === Mapping deprecations
 
-[[717_camel_case_date_format_deprecation]]
 .Camel case date formats are deprecated.
 [%collapsible]
 ====

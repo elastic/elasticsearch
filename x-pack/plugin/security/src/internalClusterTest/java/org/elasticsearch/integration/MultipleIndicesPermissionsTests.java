@@ -24,10 +24,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.SecurityClientTestHelper;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
@@ -55,8 +55,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
         // adds a dummy user to the native realm to force .security index creation
-        SecurityClientTestHelper.putUser(
-            getRestClient(),
+        new TestSecurityClient(getRestClient(), SecuritySettingsSource.SECURITY_REQUEST_OPTIONS).putUser(
             new User("dummy_user", "missing_role"),
             SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
         );

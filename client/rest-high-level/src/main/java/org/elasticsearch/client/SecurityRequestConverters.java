@@ -12,7 +12,6 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
@@ -35,19 +34,6 @@ import static org.elasticsearch.client.RequestConverters.createEntity;
 final class SecurityRequestConverters {
 
     private SecurityRequestConverters() {}
-
-    static Request changePassword(ChangePasswordRequest changePasswordRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/user")
-            .addPathPart(changePasswordRequest.getUsername())
-            .addPathPartAsIs("_password")
-            .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(changePasswordRequest, REQUEST_BODY_CONTENT_TYPE));
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(changePasswordRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
-        return request;
-    }
 
     static Request putRoleMapping(final PutRoleMappingRequest putRoleMappingRequest) throws IOException {
         final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/role_mapping")

@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.test.SecurityClientTestHelper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -69,11 +68,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         final char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
         final String snapshotUserToken = basicAuthHeaderValue(user, new SecureString(password));
         client = client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken));
-        SecurityClientTestHelper.putUser(
-            getRestClient(),
-            new org.elasticsearch.xpack.core.security.user.User(user, "snapshot_user"),
-            new SecureString(password)
-        );
+        getSecurityClient().putUser(new org.elasticsearch.xpack.core.security.user.User(user, "snapshot_user"), new SecureString(password));
         ensureGreen(INTERNAL_SECURITY_MAIN_INDEX_7);
     }
 

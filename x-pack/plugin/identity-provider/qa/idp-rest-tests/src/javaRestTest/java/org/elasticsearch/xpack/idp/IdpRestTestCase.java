@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.idp;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
@@ -84,7 +84,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
                 "full_name": "%s",
                 "email": "%s",
                 "password": "%s",
-                "roles": [ "%s" ],
+                "roles": [ "%s" ]
             }
             """.formatted(user.principal(), user.fullName(), user.email(), password.toString(), role);
         request.setJsonEntity(body);
@@ -136,9 +136,16 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
     }
 
     protected void setUserPassword(String username, SecureString password) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final ChangePasswordRequest request = new ChangePasswordRequest(username, password.getChars(), RefreshPolicy.NONE);
-        client.security().changePassword(request, RequestOptions.DEFAULT);
+        final String endpoint = "/_security/user/" + username + "/_password";
+        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        final String body = """
+            {
+                "password": "%s"
+            }
+            """.formatted(password.toString());
+        request.setJsonEntity(body);
+        request.setOptions(RequestOptions.DEFAULT);
+        adminClient().performRequest(request);
     }
 
     protected SamlServiceProviderIndex.DocumentVersion createServiceProvider(String entityId, Map<String, Object> body) throws IOException {

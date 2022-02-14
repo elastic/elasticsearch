@@ -10,7 +10,6 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.client.security.AuthenticateRequest;
 import org.elasticsearch.client.security.AuthenticateResponse;
-import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
@@ -113,26 +112,6 @@ public final class SecurityClient {
             SecurityRequestConverters::clearRealmCache,
             options,
             ClearRealmCacheResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Change the password of a user of a native realm or built-in user synchronously.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-change-password.html">
-     * the docs</a> for more.
-     *
-     * @param request the request with the user's new password
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return {@code true} if the request succeeded (the new password was set)
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public boolean changePassword(ChangePasswordRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequest(
-            request,
-            SecurityRequestConverters::changePassword,
-            options,
-            RestHighLevelClient::convertExistsResponse,
             emptySet()
         );
     }

@@ -75,6 +75,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * to how {@link ESIntegTestCase#nodeSettings(int, Settings)} works.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
+    private TestSecurityClient securityClient;
 
     @BeforeClass
     public static void generateBootstrapPassword() {
@@ -468,5 +469,12 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         public TestRestHighLevelClient() {
             super(getRestClient(), client -> {}, List.of());
         }
+    }
+
+    protected TestSecurityClient getSecurityClient() {
+        if (securityClient == null) {
+            securityClient = new TestSecurityClient(getRestClient(), SecuritySettingsSource.SECURITY_REQUEST_OPTIONS);
+        }
+        return securityClient;
     }
 }

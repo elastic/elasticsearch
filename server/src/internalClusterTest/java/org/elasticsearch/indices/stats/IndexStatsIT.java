@@ -79,7 +79,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.action.support.broadcast.node.BoundedDiagnosticRequestPermits.MAX_CONCURRENT_BOUNDED_DIAGNOSTIC_REQUESTS_PER_NODE;
+import static org.elasticsearch.action.support.StatsRequestLimiter.MAX_CONCURRENT_STATS_REQUESTS_PER_NODE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -1388,9 +1388,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         // start threads that will get stats concurrently with indexing
         try {
-            updateClusterSettings(
-                Settings.builder().put(MAX_CONCURRENT_BOUNDED_DIAGNOSTIC_REQUESTS_PER_NODE.getKey(), numberOfStatsThreads + 1)
-            );
+            updateClusterSettings(Settings.builder().put(MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.getKey(), numberOfStatsThreads + 1));
             for (int i = 0; i < numberOfStatsThreads; i++) {
                 final Thread thread = new Thread(() -> {
                     try {
@@ -1438,7 +1436,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             assertThat(shardFailures.get(), emptyCollectionOf(DefaultShardOperationFailedException.class));
             assertThat(executionFailures.get(), emptyCollectionOf(Exception.class));
         } finally {
-            updateClusterSettings(Settings.builder().putNull(MAX_CONCURRENT_BOUNDED_DIAGNOSTIC_REQUESTS_PER_NODE.getKey()));
+            updateClusterSettings(Settings.builder().putNull(MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.getKey()));
         }
     }
 

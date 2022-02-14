@@ -12,8 +12,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.node.BoundedDiagnosticRequestPermits;
-import org.elasticsearch.action.support.broadcast.node.TransportBoundedDiagnosticAction;
+import org.elasticsearch.action.support.StatsRequestLimiter;
+import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -38,9 +38,10 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportIndicesStatsAction extends TransportBoundedDiagnosticAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
+public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
 
     private final IndicesService indicesService;
+    private final StatsRequestLimiter statsRequestLimiter;
 
     @Inject
     public TransportIndicesStatsAction(
@@ -49,7 +50,7 @@ public class TransportIndicesStatsAction extends TransportBoundedDiagnosticActio
         IndicesService indicesService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        BoundedDiagnosticRequestPermits boundedDiagnosticRequestPermits
+        StatsRequestLimiter statsRequestLimiter
     ) {
         super(
             IndicesStatsAction.NAME,
@@ -58,10 +59,10 @@ public class TransportIndicesStatsAction extends TransportBoundedDiagnosticActio
             actionFilters,
             indexNameExpressionResolver,
             IndicesStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            boundedDiagnosticRequestPermits
+            ThreadPool.Names.MANAGEMENT
         );
         this.indicesService = indicesService;
+        this.statsRequestLimiter = statsRequestLimiter;
     }
 
     /**
@@ -146,5 +147,10 @@ public class TransportIndicesStatsAction extends TransportBoundedDiagnosticActio
                 retentionLeaseStats
             );
         });
+    }
+
+    @Override
+    protected void doExecute(Task task, IndicesStatsRequest request, ActionListener<IndicesStatsResponse> listener) {
+        statsRequestLimiter.maybeDoExecute(task, request, listener, super::doExecute);
     }
 }

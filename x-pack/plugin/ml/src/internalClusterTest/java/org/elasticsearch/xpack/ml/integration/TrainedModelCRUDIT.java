@@ -71,7 +71,7 @@ public class TrainedModelCRUDIT extends MlSingleNodeTestCase {
                     .setInferenceConfig(
                         new PassThroughConfig(
                             new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()),
-                            new BertTokenization(null, false, null, Tokenization.Truncate.NONE),
+                            new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1),
                             null
                         )
                     )

@@ -50,10 +50,10 @@ public class MPNetTokenizerTests extends ESTestCase {
         try (
             BertTokenizer tokenizer = MPNetTokenizer.mpBuilder(
                 TEST_CASED_VOCAB,
-                new MPNetTokenization(null, false, null, Tokenization.Truncate.NONE)
+                new MPNetTokenization(null, false, null, Tokenization.Truncate.NONE, -1)
             ).build()
         ) {
-            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE);
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE, -1, 0).get(0);
             assertThat(tokenStrings(tokenization.tokens()), contains("Elastic", "##search", "fun"));
             assertArrayEquals(new int[] { 0, 1, 3 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 0, 1 }, tokenization.tokenMap());
@@ -64,13 +64,14 @@ public class MPNetTokenizerTests extends ESTestCase {
         try (
             MPNetTokenizer tokenizer = MPNetTokenizer.mpBuilder(
                 TEST_CASED_VOCAB,
-                new MPNetTokenization(null, false, null, Tokenization.Truncate.NONE)
+                new MPNetTokenization(null, false, null, Tokenization.Truncate.NONE, -1)
             ).setDoLowerCase(false).setWithSpecialTokens(true).build()
         ) {
             TokenizationResult.Tokens tokenization = tokenizer.tokenize(
                 "Elasticsearch is fun",
                 "Godzilla my little red car",
-                Tokenization.Truncate.NONE
+                Tokenization.Truncate.NONE,
+                0
             );
 
             var tokenStream = Arrays.stream(tokenization.tokenIds()).mapToObj(TEST_CASED_VOCAB::get).collect(Collectors.toList());

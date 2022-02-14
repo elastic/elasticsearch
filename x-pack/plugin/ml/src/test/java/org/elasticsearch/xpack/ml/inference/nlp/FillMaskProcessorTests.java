@@ -55,7 +55,7 @@ public class FillMaskProcessorTests extends ESTestCase {
 
         TokenizationResult tokenization = new BertTokenizationResult(
             vocab,
-            List.of(new TokenizationResult.Tokens(input, tokens, false, tokenIds, tokenMap)),
+            List.of(new TokenizationResult.Tokens(input, tokens, false, tokenIds, tokenMap, -1, 0)),
             0
         );
 
@@ -89,7 +89,7 @@ public class FillMaskProcessorTests extends ESTestCase {
 
         TokenizationResult tokenization = new BertTokenizationResult(
             List.of(),
-            List.of(new TokenizationResult.Tokens("", List.of(), false, new int[0], new int[0])),
+            List.of(new TokenizationResult.Tokens("", List.of(), false, new int[0], new int[0], -1, 0)),
             0
         );
 

@@ -12,8 +12,12 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalInt;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public abstract class TokenizationResult {
@@ -29,10 +33,19 @@ public abstract class TokenizationResult {
         this.tokens = tokenizations;
         this.padTokenId = padTokenId;
         int max = 0;
+        Set<Integer> sequenceIds = new HashSet<>();
         for (Tokens tokenization : tokenizations) {
             max = Math.max(tokenization.tokenIds.length, max);
+            if (sequenceIds.contains(tokenization.sequenceId()) && tokenization.spanPrev == -1) {
+                throw new IllegalArgumentException("cannot window a sequence without a configured span");
+            }
+            sequenceIds.add(tokenization.sequenceId);
         }
         this.maxLength = max;
+    }
+
+    public Map<Integer, List<Tokens>> getTokensBySequenceId() {
+        return tokens.stream().collect(Collectors.groupingBy(Tokens::sequenceId));
     }
 
     List<Tokens> getTokens() {
@@ -114,10 +127,33 @@ public abstract class TokenizationResult {
         builder.endArray();
     }
 
-    public record Tokens(String input, List<? extends DelimitedToken> tokens, boolean truncated, int[] tokenIds, int[] tokenMap) {
-
+    /**
+     * Tokenization of a sequence
+     */
+    public record Tokens(
+        String input,
+        List<? extends DelimitedToken> tokens,
+        boolean truncated,
+        int[] tokenIds,
+        int[] tokenMap,
+        int spanPrev,
+        int sequenceId
+    ) {
+        /**
+         *
+         * @param input The whole sequence input
+         * @param tokens The delimited tokens (includes original text offsets)
+         * @param truncated Was this tokenization truncated
+         * @param tokenIds The token ids
+         * @param tokenMap The token positions
+         * @param spanPrev How many of the previous sub-sequence does this tokenization include
+         * @param sequenceId A unique sequence ID to allow sub-sequence reconstitution
+         */
         public Tokens {
             assert tokenIds.length == tokenMap.length;
+            if (spanPrev != -1 && truncated) {
+                throw new IllegalArgumentException("should not truncate when windowing is enabled");
+            }
         }
 
         public OptionalInt getTokenIndex(int token) {
@@ -149,8 +185,10 @@ public abstract class TokenizationResult {
          * @param input the original sequence input, may be a simple concatenation of a sequence pair
          * @param truncated Was this truncated when tokenized
          * @param allTokens All the tokens with their values and offsets
+         * @param spanPrev how many tokens from the previous subsequence are in this one. Only relevant when windowing
+         * @param seqId the sequence id, unique per tokenized sequence, useful for windowing
          * @return A new Tokens object
          */
-        Tokens build(String input, boolean truncated, List<? extends DelimitedToken> allTokens);
+        Tokens build(String input, boolean truncated, List<? extends DelimitedToken> allTokens, int spanPrev, int seqId);
     }
 }

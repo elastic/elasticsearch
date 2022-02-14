@@ -49,7 +49,20 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, 1024),
-            randomBoolean() ? null : randomFrom(Tokenization.Truncate.values())
+            randomBoolean() ? null : randomFrom(Tokenization.Truncate.values()),
+            null
+        );
+    }
+
+    public static BertTokenization createRandomWithSpan() {
+        Tokenization.Truncate truncate = randomBoolean() ? null : randomFrom(Tokenization.Truncate.values());
+        Integer maxSeq = randomBoolean() ? null : randomIntBetween(1, 1024);
+        return new BertTokenization(
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomBoolean(),
+            maxSeq,
+            truncate,
+            Tokenization.Truncate.NONE.equals(truncate) && randomBoolean() ? randomIntBetween(0, maxSeq != null ? maxSeq - 1 : 100) : null
         );
     }
 }

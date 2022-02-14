@@ -100,13 +100,20 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
     record RequestBuilder(NlpTokenizer tokenizer, String[] labels, String hypothesisTemplate) implements NlpTask.RequestBuilder {
 
         @Override
-        public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate) throws IOException {
+        public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span)
+            throws IOException {
             if (inputs.size() > 1) {
                 throw ExceptionsHelper.badRequestException("Unable to do zero-shot classification on more than one text input at a time");
             }
+            if (span > -1) {
+                throw ExceptionsHelper.badRequestException("Unable to span zero-shot classification on long text input");
+            }
             List<TokenizationResult.Tokens> tokenizations = new ArrayList<>(labels.length);
+            int seqId = 0;
             for (String label : labels) {
-                tokenizations.add(tokenizer.tokenize(inputs.get(0), LoggerMessageFormat.format(null, hypothesisTemplate, label), truncate));
+                tokenizations.add(
+                    tokenizer.tokenize(inputs.get(0), LoggerMessageFormat.format(null, hypothesisTemplate, label), truncate, seqId++)
+                );
             }
             TokenizationResult result = tokenizer.buildTokenizationResult(tokenizations);
             return result.buildRequest(requestId, truncate);

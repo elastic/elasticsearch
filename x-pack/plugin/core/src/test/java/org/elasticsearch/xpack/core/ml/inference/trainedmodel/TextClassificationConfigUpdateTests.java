@@ -35,7 +35,7 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
             List.of("foo", "bar"),
             3,
             "ml-results",
-            new BertTokenizationUpdate(Tokenization.Truncate.FIRST)
+            new BertTokenizationUpdate(Tokenization.Truncate.FIRST, null)
         );
         Map<String, Object> config = new HashMap<>() {
             {
@@ -85,9 +85,9 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
                 .isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("c", "d")).build())
         );
         assertFalse(
-            new TextClassificationConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(Tokenization.Truncate.SECOND))
-                .build()
-                .isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("c", "d")).build())
+            new TextClassificationConfigUpdate.Builder().setTokenizationUpdate(
+                new BertTokenizationUpdate(Tokenization.Truncate.SECOND, null)
+            ).build().isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("c", "d")).build())
         );
 
     }
@@ -128,7 +128,7 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
             new TextClassificationConfig.Builder(originalConfig).setTokenization(tokenization).build(),
             equalTo(
                 new TextClassificationConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate)
+                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
                 ).build().apply(originalConfig)
             )
         );
@@ -178,7 +178,7 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
             builder.setResultsField(randomAlphaOfLength(8));
         }
         if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values())));
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
         }
         return builder.build();
     }

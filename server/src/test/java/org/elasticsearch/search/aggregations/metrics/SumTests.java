@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
@@ -28,9 +29,18 @@ public class SumTests extends InternalAggregationTestCase<Sum> {
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected void assertReduced(Sum reduced, List<Sum> inputs) {
         double expectedSum = inputs.stream().mapToDouble(Sum::value).sum();
         assertEquals(expectedSum, reduced.value(), 0.0001d);
+    }
+
+    protected void assertSampled(Sum sampled, Sum reduced, SamplingContext samplingContext) {
+        assertEquals(sampled.value(), samplingContext.inverseScale(reduced.value()), 1e-7);
     }
 
     public void testSummationAccuracy() {

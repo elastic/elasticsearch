@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
-import org.elasticsearch.cluster.coordination.indicators.HasEligibleMasterNodeIndicator;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -168,6 +167,7 @@ import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
+import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -903,7 +903,7 @@ public class Node implements Closeable {
 
             List<HealthIndicatorService> serverHealthIndicatorServices = List.of(
                 new InstanceHasMasterHealthIndicatorService(clusterService),
-                new HasEligibleMasterNodeIndicator(clusterService)
+                new RepositoryIntegrityHealthIndicatorService(clusterService)
             );
             List<HealthIndicatorService> pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
                 .stream()

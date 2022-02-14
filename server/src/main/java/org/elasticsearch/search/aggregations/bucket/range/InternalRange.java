@@ -156,7 +156,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
+            // NOTE: the key is required for version == 8.0.0 and version <= 7.17.0,
             // while it is optional for all subsequent versions.
             if (out.getVersion().equals(Version.V_8_0_0)) {
                 out.writeString(key == null ? generateKey(from, to, format) : key);

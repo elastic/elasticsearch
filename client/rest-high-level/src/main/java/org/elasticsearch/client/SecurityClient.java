@@ -21,8 +21,6 @@ import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
-import org.elasticsearch.client.security.DeleteUserRequest;
-import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
@@ -60,25 +58,6 @@ public final class SecurityClient {
 
     SecurityClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
-    }
-
-    /**
-     * Removes user from the native realm synchronously.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-user.html">
-     * the docs</a> for more.
-     * @param request the request with the user to delete
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the delete user call
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public DeleteUserResponse deleteUser(DeleteUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            request,
-            SecurityRequestConverters::deleteUser,
-            options,
-            DeleteUserResponse::fromXContent,
-            singleton(404)
-        );
     }
 
     /**

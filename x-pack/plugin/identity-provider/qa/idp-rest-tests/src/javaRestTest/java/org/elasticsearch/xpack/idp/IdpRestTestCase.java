@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.idp;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -13,7 +14,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -96,9 +96,11 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
     }
 
     protected void deleteUser(String username) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final DeleteUserRequest request = new DeleteUserRequest(username, RefreshPolicy.WAIT_UNTIL);
-        client.security().deleteUser(request, RequestOptions.DEFAULT);
+        final String endpoint = "/_security/user/" + username;
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        request.addParameters(Map.of("refresh", "true"));
+        request.setOptions(RequestOptions.DEFAULT);
+        adminClient().performRequest(request);
     }
 
     protected void createRole(

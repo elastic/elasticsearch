@@ -13,7 +13,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.user.privileges.Role;
@@ -127,8 +126,7 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
     }
 
     protected void deleteUser(String username) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security().deleteUser(new DeleteUserRequest(username), RequestOptions.DEFAULT);
+        SecurityClientTestHelper.deleteUser(adminClient(), username);
     }
 
     protected void deleteRole(String name) throws IOException {

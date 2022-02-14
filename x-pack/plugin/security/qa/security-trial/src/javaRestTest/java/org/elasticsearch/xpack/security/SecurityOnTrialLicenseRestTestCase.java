@@ -12,7 +12,6 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
@@ -69,8 +68,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     }
 
     protected void deleteUser(String username) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security().deleteUser(new DeleteUserRequest(username), RequestOptions.DEFAULT);
+        SecurityClientTestHelper.deleteUser(adminClient(), username);
     }
 
     protected void deleteRole(String name) throws IOException {

@@ -18,7 +18,6 @@ import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
@@ -46,17 +45,6 @@ final class SecurityRequestConverters {
         request.setEntity(createEntity(changePasswordRequest, REQUEST_BODY_CONTENT_TYPE));
         RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(changePasswordRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request deleteUser(DeleteUserRequest deleteUserRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security", "user")
-            .addPathPart(deleteUserRequest.getName())
-            .build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(deleteUserRequest.getRefreshPolicy());
         request.addParameters(params.asMap());
         return request;
     }

@@ -22,26 +22,35 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
-public class EmbeddedImplClassLoader extends SecureClassLoader {
+public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
     private static final String IMPL_PREFIX = "IMPL-JARS";
+    private static final String PROVIDER_MANIFEST_FILE = IMPL_PREFIX + "/MANIFEST.TXT";
+
     private final List<String> prefixes;
+    private final ClassLoader parent;
 
-    EmbeddedImplClassLoader(ClassLoader parent) {
-        super(parent);
-
-        final InputStream is = getParent().getResourceAsStream(IMPL_PREFIX + "/MANIFEST.TXT");
+    private static List<String> getProviderPrefixes(ClassLoader parent) {
+        final InputStream is = parent.getResourceAsStream(PROVIDER_MANIFEST_FILE);
         if (is == null) {
             throw new IllegalStateException("missing x-content provider jars list");
         }
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-            prefixes = reader.lines().map(s -> IMPL_PREFIX + "/" + s).collect(Collectors.toList());
+        try (
+            InputStream in = is;
+            InputStreamReader isr = new InputStreamReader(in, StandardCharsets.UTF_8);
+            BufferedReader reader = new BufferedReader(isr)
+        ) {
+            return reader.lines().map(s -> IMPL_PREFIX + "/" + s).toList();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    EmbeddedImplClassLoader(ClassLoader parent) {
+        super(parent);
+        prefixes = getProviderPrefixes(parent);
+        this.parent = parent;
     }
 
     /** Searches for the named resource. Iterates over all prefixes. */
@@ -49,10 +58,9 @@ public class EmbeddedImplClassLoader extends SecureClassLoader {
         return AccessController.doPrivileged(new PrivilegedAction<InputStream>() {
             @Override
             public InputStream run() {
-                final ClassLoader outer = getParent();
                 return prefixes.stream()
                     .map(p -> p + "/" + name)
-                    .map(outer::getResourceAsStream)
+                    .map(parent::getResourceAsStream)
                     .filter(Objects::nonNull)
                     .findFirst()
                     .orElse(null);
@@ -78,23 +86,20 @@ public class EmbeddedImplClassLoader extends SecureClassLoader {
     @Override
     protected URL findResource(String name) {
         Objects.requireNonNull(name);
-        for (String prefix : prefixes) {
-            URL url = getParent().getResource(prefix + "/" + name);
-            if (url != null) {
-                return url;
-            }
+        URL url = prefixes.stream().map(p -> p + "/" + name).map(parent::getResource).filter(Objects::nonNull).findFirst().orElse(null);
+        if (url != null) {
+            return url;
         }
         return super.findResource(name);
     }
 
     @Override
     protected Enumeration<URL> findResources(String name) throws IOException {
-        final ClassLoader outer = getParent();
         final int size = prefixes.size();
         @SuppressWarnings("unchecked")
         Enumeration<URL>[] tmp = (Enumeration<URL>[]) new Enumeration<?>[size + 1];
         for (int i = 0; i < size; i++) {
-            tmp[i] = outer.getResources(prefixes.get(i) + "/" + name);
+            tmp[i] = parent.getResources(prefixes.get(i) + "/" + name);
         }
         tmp[size + 1] = super.findResources(name);
         return new CompoundEnumeration<>(tmp);

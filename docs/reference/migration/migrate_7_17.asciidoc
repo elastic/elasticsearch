@@ -34,7 +34,7 @@ enable <<deprecation-logging, deprecation logging>>.
 // tag::notable-breaking-changes[]
 [discrete]
 [[breaking_717_packaging_changes]]
-=== Packaging changes
+==== Packaging changes
 
 .The Windows MSI installer package is no longer available.
 [%collapsible]
@@ -66,7 +66,7 @@ logging>>.
 // tag::notable-breaking-changes[]
 [discrete]
 [[breaking_717_mapping_deprecations]]
-=== Mapping deprecations
+==== Mapping deprecations
 
 .Camel case date formats are deprecated.
 [%collapsible]

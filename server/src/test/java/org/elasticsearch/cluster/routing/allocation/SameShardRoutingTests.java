@@ -32,6 +32,7 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -204,14 +205,12 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                 new ClusterSettings(sameHostSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
 
-            final RoutingNode emptyNode = clusterState.getRoutingNodes()
-                .stream()
+            final RoutingNode emptyNode = StreamSupport.stream(clusterState.getRoutingNodes().spliterator(), false)
                 .filter(node -> node.getByShardId(unassignedShard.shardId()) == null)
                 .findFirst()
                 .orElseThrow(AssertionError::new);
 
-            final RoutingNode otherNode = clusterState.getRoutingNodes()
-                .stream()
+            final RoutingNode otherNode = StreamSupport.stream(clusterState.getRoutingNodes().spliterator(), false)
                 .filter(node -> node != emptyNode)
                 .findFirst()
                 .orElseThrow(AssertionError::new);

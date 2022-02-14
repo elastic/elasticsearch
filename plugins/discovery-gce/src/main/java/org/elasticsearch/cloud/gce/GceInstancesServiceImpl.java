@@ -39,7 +39,6 @@ import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -72,10 +71,9 @@ public class GceInstancesServiceImpl implements GceInstancesService {
                 // TODO: get this fixed
                 return Access.doPrivilegedIOException(() -> {
                     String nextPageToken = null;
-                    List<Instance> zoneInstances = new LinkedList<>();
+                    List<Instance> zoneInstances = new ArrayList<>();
                     do {
-                        Compute.Instances.List list = client().instances().list(project, zoneId);
-                        list.setPageToken(nextPageToken);
+                        Compute.Instances.List list = client().instances().list(project, zoneId).setPageToken(nextPageToken);
                         InstanceList instanceList = list.execute();
                         nextPageToken = instanceList.getNextPageToken();
                         if (instanceList.isEmpty() == false && instanceList.getItems() != null) {

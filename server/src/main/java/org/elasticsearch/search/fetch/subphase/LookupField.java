@@ -9,12 +9,12 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,12 +41,6 @@ public record LookupField(String lookupIndex, QueryBuilder query, List<FieldAndF
     public SearchRequest toSearchRequest(String clusterAlias) {
         final SearchSourceBuilder source = new SearchSourceBuilder().query(query).trackScores(false).size(1).fetchSource(false);
         fetchFields.forEach(source::fetchField);
-        final SearchRequest searchRequest = new SearchRequest().source(source);
-        if (Strings.isEmpty(clusterAlias)) {
-            searchRequest.indices(lookupIndex);
-        } else {
-            searchRequest.indices(clusterAlias + ":" + lookupIndex);
-        }
-        return searchRequest;
+        return new SearchRequest().source(source).indices(RemoteClusterAware.buildRemoteIndexName(clusterAlias, lookupIndex));
     }
 }

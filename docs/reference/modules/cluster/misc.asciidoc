@@ -101,22 +101,21 @@ number of shards for each node, use the
 setting.
 --
 
-[[bounded-diagnostic-requests-limit]]
-===== Bounded diagnostic requests limit
+[[stats-requests-limit]]
+===== Stats request limit
 
-A diagnostic request might require information from all nodes to be aggregated before it returns to the user.
-These calls can be heavy and they put extra pressure on the coordinating node (the node collecting the responses from all the nodes), for this reason there is a limit on the concurrent requests that a node can coordinate.
-Currently, the only bounded diagnostic requests are <<indices-stats, index stats>>
-and <<indices-recovery, recovery>> APIs.
+A stats request might require information from all nodes to be aggregated before it returns to the user.
+These requests can be heavy and they put extra pressure on the coordinating node (the node collecting the
+responses from all the nodes), for this reason there is a limit on the concurrent requests that a node can coordinate.
 
 --
 
-[[cluster-max-concurrent-bounded-diagnostic-requests-per-node]]
-`cluster.max_concurrent_bounded_diagnostic_requests_per_node`::
+[[node-stats-max-concurrent-requests]]
+`node.stats.max_concurrent_requests`::
 +
 --
 (<<dynamic-cluster-setting,Dynamic>>)
-Limits the bounded diagnostic requests a coordinating node can concurrently handle. Defaults to `20`.
+Limits the stats requests a coordinating node can concurrently handle. Defaults to `100`.
 
 
 

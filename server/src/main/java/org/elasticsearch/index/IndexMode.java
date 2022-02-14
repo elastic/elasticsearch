@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -84,6 +85,11 @@ public enum IndexMode {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions() {
+            return new DocumentDimensions.OnlySingleValueAllowed();
+        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -148,6 +154,11 @@ public enum IndexMode {
         @Override
         public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
             return TimeSeriesIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions() {
+            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
         }
     };
 
@@ -240,6 +251,8 @@ public enum IndexMode {
      * field mappers for the index.
      */
     public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
+
+    public abstract DocumentDimensions buildDocumentDimensions();
 
     public static IndexMode fromString(String value) {
         return switch (value) {

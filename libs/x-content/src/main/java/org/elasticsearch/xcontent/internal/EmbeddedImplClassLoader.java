@@ -16,10 +16,15 @@ import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
+import java.security.CodeSigner;
+import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
@@ -55,19 +60,25 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
     private final List<String> prefixes;
     private final ClassLoader parent;
+    private final Map<String, URL> prefixToCodeBase;
 
-    private static List<String> getProviderPrefixes(ClassLoader parent, String providerName) {
-        final String providerPrefix = IMPL_PREFIX + providerName;
-        final InputStream is = parent.getResourceAsStream(providerPrefix + MANIFEST_FILE);
-        if (is == null) {
+    private static Map<String, URL> getProviderPrefixes(ClassLoader parent, String providerName) {
+        String providerPrefix = IMPL_PREFIX + providerName;
+        URL manifest = parent.getResource(providerPrefix + MANIFEST_FILE);
+        if (manifest == null) {
             throw new IllegalStateException("missing x-content provider jars list");
         }
         try (
-            InputStream in = is;
+            InputStream in = manifest.openStream();
             InputStreamReader isr = new InputStreamReader(in, StandardCharsets.UTF_8);
             BufferedReader reader = new BufferedReader(isr)
         ) {
-            return reader.lines().map(s -> providerPrefix + "/" + s).toList();
+            List<String> prefixes = reader.lines().map(s -> providerPrefix + "/" + s).toList();
+            Map<String, URL> map = new HashMap<>();
+            for (String prefix : prefixes) {
+                map.put(prefix, new URL(manifest, prefix));
+            }
+            return Collections.unmodifiableMap(map);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -77,23 +88,32 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
     }
 
-    private EmbeddedImplClassLoader(ClassLoader parent, List<String> prefixes) {
+    private EmbeddedImplClassLoader(ClassLoader parent, Map<String, URL> prefixToCodeBase) {
         super(parent);
-        this.prefixes = prefixes;
+        this.prefixes = prefixToCodeBase.keySet().stream().toList();
+        this.prefixToCodeBase = prefixToCodeBase;
         this.parent = parent;
     }
 
+    record Resource(InputStream inputStream, URL url) {}
+
     /** Searches for the named resource. Iterates over all prefixes. */
-    private InputStream privilegedGetResourceAsStreamOrNull(String name) {
-        return AccessController.doPrivileged(new PrivilegedAction<InputStream>() {
+    private Resource privilegedGetResourceOrNull(String name) {
+        return AccessController.doPrivileged(new PrivilegedAction<Resource>() {
             @Override
-            public InputStream run() {
-                return prefixes.stream()
-                    .map(p -> p + "/" + name)
-                    .map(parent::getResourceAsStream)
-                    .filter(Objects::nonNull)
-                    .findFirst()
-                    .orElse(null);
+            public Resource run() {
+                for (String prefix : prefixes) {
+                    URL url = parent.getResource(prefix + "/" + name);
+                    if (url != null) {
+                        try {
+                            InputStream is = url.openStream();
+                            return new Resource(is, prefixToCodeBase.get(prefix));
+                        } catch (IOException e) {
+                            // silently ignore, same as ClassLoader
+                        }
+                    }
+                }
+                return null;
             }
         });
     }
@@ -101,11 +121,12 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     @Override
     public Class<?> findClass(String name) throws ClassNotFoundException {
         String filepath = name.replace('.', '/').concat(".class");
-        InputStream is = privilegedGetResourceAsStreamOrNull(filepath);
-        if (is != null) {
-            try (InputStream in = is) {
+        Resource res = privilegedGetResourceOrNull(filepath);
+        if (res != null) {
+            try (InputStream in = res.inputStream()) {
                 byte[] bytes = in.readAllBytes();
-                return defineClass(name, bytes, 0, bytes.length);
+                CodeSource cs = new CodeSource(res.url(), (CodeSigner[]) null /*signers*/);
+                return defineClass(name, bytes, 0, bytes.length, cs);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

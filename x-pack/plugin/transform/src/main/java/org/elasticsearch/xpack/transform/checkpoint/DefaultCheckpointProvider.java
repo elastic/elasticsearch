@@ -155,7 +155,14 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         if (fallbackToBWC.contains(cluster)) {
             getCheckpointsFromOneClusterBWC(client, headers, indices, cluster, listener);
         } else {
-            getCheckpointsFromOneClusterV2(client, headers, indices, cluster, ActionListener.wrap(listener::onResponse, e -> {
+            getCheckpointsFromOneClusterV2(client, headers, indices, cluster, ActionListener.wrap(response -> {
+                logger.debug(
+                    "[{}] Successfully retrieved checkpoints from cluster [{}] using transform checkpoint API",
+                    transformConfig.getId(),
+                    cluster
+                );
+                listener.onResponse(response);
+            }, e -> {
                 Throwable unwrappedException = ExceptionsHelper.unwrapCause(e);
                 if (unwrappedException instanceof ActionNotFoundTransportException) {
                     // this is an implementation detail, so not necessary to audit or warn, but only report as debug

@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public final class TransformNodes {
 
@@ -123,7 +124,8 @@ public final class TransformNodes {
      * @return number of transform nodes
      */
     public static boolean hasAnyTransformNode(DiscoveryNodes nodes) {
-        return nodes.stream().anyMatch(node -> node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE));
+        return StreamSupport.stream(nodes.spliterator(), false)
+            .anyMatch(node -> node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE));
     }
 
     /**
@@ -209,7 +211,9 @@ public final class TransformNodes {
      * @return selected node or {@code Optional.empty()} if none of the nodes satisfy the conditions
      */
     static Optional<DiscoveryNode> selectAnyNodeThatCanRunThisTransform(DiscoveryNodes nodes, boolean requiresRemote) {
-        return nodes.stream().filter(node -> nodeCanRunThisTransform(node, Version.V_7_13_0, requiresRemote, null)).findAny();
+        return StreamSupport.stream(nodes.spliterator(), false)
+            .filter(node -> nodeCanRunThisTransform(node, Version.V_7_13_0, requiresRemote, null))
+            .findAny();
     }
 
     public static boolean nodeCanRunThisTransform(

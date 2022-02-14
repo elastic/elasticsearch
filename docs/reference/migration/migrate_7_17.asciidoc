@@ -10,6 +10,7 @@ your application to {es} 7.17.
 See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_717_packaging_changes>>
+* <<breaking_717_mapping_deprecations>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -66,6 +67,8 @@ logging>>.
 [discrete]
 [[breaking_717_mapping_deprecations]]
 === Mapping deprecations
+
+[[717_camel_case_date_format_deprecation]]
 .Camel case date formats are deprecated.
 [%collapsible]
 ====

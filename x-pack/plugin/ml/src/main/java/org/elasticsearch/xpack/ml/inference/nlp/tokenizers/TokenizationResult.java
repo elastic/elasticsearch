@@ -121,7 +121,7 @@ public abstract class TokenizationResult {
         }
 
         public OptionalInt getTokenIndex(int token) {
-            return IntStream.of(tokenIds).filter(tokenId -> token == tokenId).findFirst();
+            return IntStream.range(0, tokenIds.length).filter(tokenIndex -> token == tokenIds[tokenIndex]).findFirst();
         }
     }
 

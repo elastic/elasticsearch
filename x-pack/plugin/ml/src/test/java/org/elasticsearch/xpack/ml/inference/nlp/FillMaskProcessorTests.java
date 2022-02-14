@@ -40,18 +40,18 @@ public class FillMaskProcessorTests extends ESTestCase {
                 { 0, 0, 0, 0, 0, 0, 0 }, // The
                 { 0, 0, 0, 0, 0, 0, 0 }, // capital
                 { 0, 0, 0, 0, 0, 0, 0 }, // of
-                { 0.01, 0.01, 0.3, 0.1, 0.01, 0.2, 1.2 }, // MASK
+                { 0.01, 0.01, 0.3, 0.01, 0.2, 1.2, 0.1 }, // MASK
                 { 0, 0, 0, 0, 0, 0, 0 }, // is
                 { 0, 0, 0, 0, 0, 0, 0 } // paris
             } };
 
         String input = "The capital of " + BertTokenizer.MASK_TOKEN + " is Paris";
 
-        List<String> vocab = Arrays.asList("The", "capital", "of", BertTokenizer.MASK_TOKEN, "is", "Paris", "France");
+        List<String> vocab = Arrays.asList("The", "capital", "of", "is", "Paris", "France", BertTokenizer.MASK_TOKEN);
         List<WordPieceTokenFilter.WordPieceToken> tokens = List.of();
 
         int[] tokenMap = new int[] { 0, 1, 2, 3, 4, 5 };
-        int[] tokenIds = new int[] { 0, 1, 2, 3, 4, 5 };
+        int[] tokenIds = new int[] { 0, 1, 2, 6, 4, 5 };
 
         TokenizationResult tokenization = new BertTokenizationResult(
             vocab,
@@ -61,7 +61,7 @@ public class FillMaskProcessorTests extends ESTestCase {
 
         BertTokenizer tokenizer = mock(BertTokenizer.class);
         when(tokenizer.getMaskToken()).thenReturn(BertTokenizer.MASK_TOKEN);
-        when(tokenizer.getMaskTokenId()).thenReturn(OptionalInt.of(3));
+        when(tokenizer.getMaskTokenId()).thenReturn(OptionalInt.of(6));
 
         String resultsField = randomAlphaOfLength(10);
         FillMaskResults result = (FillMaskResults) FillMaskProcessor.processResult(

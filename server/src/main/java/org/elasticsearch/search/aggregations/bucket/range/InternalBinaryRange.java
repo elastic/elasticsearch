@@ -71,7 +71,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
             // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
-            // while it is optional in for all subsequent versions.
+            // while it is optional for all subsequent versions.
             String key = in.getVersion().equals(Version.V_8_0_0) ? in.readString()
                 : in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString()
                 : in.readString();

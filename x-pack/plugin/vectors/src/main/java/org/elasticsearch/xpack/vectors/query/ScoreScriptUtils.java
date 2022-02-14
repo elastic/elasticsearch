@@ -112,7 +112,8 @@ public class ScoreScriptUtils {
 
         public double cosineSimilarity() {
             setNextVector();
-            return field.get().cosineSimilarity(queryVector);
+            // query vector normalized in constructor
+            return field.get().cosineSimilarity(queryVector, false);
         }
     }
 }

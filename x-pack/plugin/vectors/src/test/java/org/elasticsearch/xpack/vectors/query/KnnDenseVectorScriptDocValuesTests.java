@@ -26,6 +26,8 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
             field.setNextDocId(i);
+            assertEquals(1, field.size());
+            assertEquals(dims, scriptDocValues.dims());
             assertArrayEquals(vectors[i], scriptDocValues.getVectorValue(), 0.0001f);
             assertEquals(expectedMagnitudes[i], scriptDocValues.getMagnitude(), 0.0001f);
         }
@@ -44,6 +46,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
             UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, field::iterator);
             assertEquals("Cannot iterate over single valued dense_vector field, use get() instead", e.getMessage());
         }
+        assertEquals(1, field.size());
         field.setNextDocId(vectors.length);
         DenseVector dv = field.get();
         assertEquals(dv, DenseVector.EMPTY);

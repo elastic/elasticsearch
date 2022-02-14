@@ -13,7 +13,6 @@ import java.util.Arrays;
 
 public class KnnDenseVector implements DenseVector {
     protected final float[] docVector;
-    protected float magnitude = -1.0f;
 
     public KnnDenseVector(float[] docVector) {
         this.docVector = docVector;
@@ -28,16 +27,7 @@ public class KnnDenseVector implements DenseVector {
 
     @Override
     public float getMagnitude() {
-        if (this.magnitude != -1.0f) {
-            return this.magnitude;
-        }
-
-        double mag = 0.0f;
-        for (float elem : docVector) {
-            mag += elem * elem;
-        }
-        this.magnitude = (float) Math.sqrt(mag);
-        return this.magnitude;
+        return DenseVector.getMagnitude(docVector);
     }
 
     @Override
@@ -61,6 +51,14 @@ public class KnnDenseVector implements DenseVector {
         double dotProduct = 0;
         for (int i = 0; i < docVector.length; i++) {
             dotProduct += docVector[i] * (queryVector.get(i) / qvMagnitude);
+        }
+        return dotProduct;
+    }
+
+    protected double dotProduct(float[] queryVector, float qvMagnitude) {
+        double dotProduct = 0;
+        for (int i = 0; i < docVector.length; i++) {
+            dotProduct += docVector[i] * (queryVector[i] / qvMagnitude);
         }
         return dotProduct;
     }
@@ -99,7 +97,11 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
-    public double cosineSimilarity(float[] queryVector) {
+    public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
+        if (normalizeQueryVector) {
+            return dotProduct(queryVector, DenseVector.getMagnitude(queryVector)) / getMagnitude();
+        }
+
         return dotProduct(queryVector) / getMagnitude();
     }
 

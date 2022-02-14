@@ -32,16 +32,16 @@ public interface DenseVector {
 
     default double dotProduct(Object queryVector) {
         if (queryVector instanceof float[] array) {
-            checkDimensions(size(), array.length);
+            checkDimensions(getDims(), array.length);
             return dotProduct(array);
 
         } else if (queryVector instanceof QueryVector qv) {
-            checkDimensions(size(), qv.size());
+            checkDimensions(getDims(), qv.size());
             return dotProduct(qv);
 
         } else if (queryVector instanceof List<?> list) {
             QueryVector qv = new QueryVector(list);
-            checkDimensions(size(), qv.size());
+            checkDimensions(getDims(), qv.size());
             return dotProduct(qv);
         }
 
@@ -54,16 +54,16 @@ public interface DenseVector {
 
     default double l1Norm(Object queryVector) {
         if (queryVector instanceof float[] array) {
-            checkDimensions(size(), array.length);
+            checkDimensions(getDims(), array.length);
             return l1Norm(array);
 
         } else if (queryVector instanceof QueryVector qv) {
-            checkDimensions(size(), qv.size());
+            checkDimensions(getDims(), qv.size());
             return l1Norm(qv);
 
         } else if (queryVector instanceof List<?> list) {
             QueryVector qv = new QueryVector(list);
-            checkDimensions(size(), qv.size());
+            checkDimensions(getDims(), qv.size());
             return l1Norm(qv);
         }
 
@@ -76,38 +76,55 @@ public interface DenseVector {
 
     default double l2Norm(Object queryVector) {
         if (queryVector instanceof float[] array) {
-            checkDimensions(size(), array.length);
+            checkDimensions(getDims(), array.length);
             return l2Norm(array);
 
         } else if (queryVector instanceof QueryVector qv) {
-            checkDimensions(size(), qv.size());
+            checkDimensions(getDims(), qv.size());
             return l2Norm(qv);
 
         } else if (queryVector instanceof List<?> list) {
             QueryVector qv = new QueryVector(list);
-            checkDimensions(size(), qv.size());
+            checkDimensions(getDims(), qv.size());
             return l2Norm(qv);
         }
 
         throw new IllegalArgumentException(badQueryVectorType(queryVector));
     }
 
-    double cosineSimilarity(float[] queryVector);
+    /**
+     * Get the cosine similarity with the un-normalized query vector
+     */
+    default double cosineSimilarity(float[] queryVector) {
+        return cosineSimilarity(queryVector, true);
+    }
 
+    /**
+     * Get the cosine similarity with the query vector
+     * @param normalizeQueryVector - normalize the query vector, does not change the contents of passed in query vector
+     */
+    double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector);
+
+    /**
+     * Get the cosine similarity with the un-normalized query vector
+     */
     double cosineSimilarity(QueryVector queryVector);
 
+    /**
+     * Get the cosine similarity with the un-normalized query vector.  Handles queryVectors of type float[], QueryVector and List.
+     */
     default double cosineSimilarity(Object queryVector) {
         if (queryVector instanceof float[] array) {
-            checkDimensions(size(), array.length);
+            checkDimensions(getDims(), array.length);
             return cosineSimilarity(array);
 
         } else if (queryVector instanceof QueryVector qv) {
-            checkDimensions(size(), qv.size());
+            checkDimensions(getDims(), qv.size());
             return cosineSimilarity(qv);
 
         } else if (queryVector instanceof List<?> list) {
             QueryVector qv = new QueryVector(list);
-            checkDimensions(size(), qv.size());
+            checkDimensions(getDims(), qv.size());
             return cosineSimilarity(qv);
         }
 
@@ -119,6 +136,14 @@ public interface DenseVector {
     int getDims();
 
     int size();
+
+    static float getMagnitude(float[] vector) {
+        double mag = 0.0f;
+        for (float elem : vector) {
+            mag += elem * elem;
+        }
+        return (float) Math.sqrt(mag);
+    }
 
     static void checkDimensions(int dvDims, int qvDims) {
         if (dvDims != qvDims) {
@@ -173,6 +198,11 @@ public interface DenseVector {
 
         @Override
         public double cosineSimilarity(float[] queryVector) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

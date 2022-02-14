@@ -324,11 +324,51 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 21 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 15 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
                   float[] query = new float[3];
                   query[0] = 4; query[1] = 5; query[2] = 6;
                   field(params.field).get().dotProduct(query)
                 params:
                   field: bdv
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._score: 27 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 21 }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.2._score: 15 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  field(params.field).get().dotProduct(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: knn
 
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.0._score: 27 }
@@ -474,11 +514,43 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
+                  field(params.field).get().l1Norm(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 12 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
                   float[] query = new float[3];
                   query[0] = 4; query[1] = 5; query[2] = 6;
                   field(params.field).get().l1Norm(query)
                 params:
                   field: bdv
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 12 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  field(params.field).get().l1Norm(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: knn
 
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0._score: 12 }
@@ -542,11 +614,51 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
+                  (int) field(params.field).get().l2Norm(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 7 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 6 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 5 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
                   float[] query = new float[3];
                   query[0] = 4; query[1] = 5; query[2] = 6;
                   (int) field(params.field).get().l2Norm(query)
                 params:
                   field: bdv
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 7 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 6 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 5 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  (int) field(params.field).get().l2Norm(params.query)
+                params:
+                  query: [4, 5, 6]
+                  field: knn
 
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0._score: 7 }
@@ -596,6 +708,7 @@
                 dims: 3
                 index: true
                 similarity: l2_norm
+
   - do:
       bulk:
         index: test-index
@@ -639,10 +752,9 @@
               query: { "exists": { "field": "bdv" } }
               script:
                 source: |
-                  float[] query = new float[3];
-                  query[0] = 4; query[1] = 5; query[2] = 6;
-                  (int) (field(params.field).get().cosineSimilarity(query) * 100.0f)
+                  (int) (field(params.field).get().cosineSimilarity(params.query) * 100.0f)
                 params:
+                  query: [4, 5, 6]
                   field: knn
 
   - match: { hits.hits.0._id: "1" }
@@ -651,3 +763,85 @@
   - match: { hits.hits.1._score: 97 }
   - match: { hits.hits.2._id: "3" }
   - match: { hits.hits.2._score: 92 }
+
+  - do:
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  (int) (field(params.field).get().cosineSimilarity(params.query) * 100.0f)
+                params:
+                  query: [4, 5, 6]
+                  field: bdv
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 98 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._score: 97 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2._score: 92 }
+
+---
+"query vector of wrong type errors":
+  - skip:
+      version: " - 8.0.99"
+      reason: "Fields API for dense vector added in 8.2"
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              bdv:
+                type: dense_vector
+                dims: 3
+              knn:
+                type: dense_vector
+                dims: 3
+                index: true
+                similarity: l2_norm
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"bdv": [1, 1, 1], "knn": [1, 1, 1]}'
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  (int) field(params.field).get().l2Norm(params.query)
+                params:
+                  query: "one, two, three"
+                  field: bdv
+
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason: "Cannot use vector [one, two, three] with class [java.lang.String] as query vector" }
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            script_score:
+              query: { "exists": { "field": "bdv" } }
+              script:
+                source: |
+                  (int) field(params.field).get().l2Norm(params.query)
+                params:
+                  query: "one, two, three"
+                  field: knn
+
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+  - match: { error.failed_shards.0.reason.caused_by.reason: "Cannot use vector [one, two, three] with class [java.lang.String] as query vector" }

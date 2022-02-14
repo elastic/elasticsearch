@@ -19,7 +19,6 @@ public class BinaryDenseVector implements DenseVector {
     protected final Version indexVersion;
 
     protected float[] decodedDocVector;
-    protected float magnitude = -1.0f;
 
     public BinaryDenseVector(BytesRef docVector, int dims, Version indexVersion) {
         this.docVector = docVector;
@@ -38,11 +37,7 @@ public class BinaryDenseVector implements DenseVector {
 
     @Override
     public float getMagnitude() {
-        if (magnitude != -1.0f) {
-            return magnitude;
-        }
-        magnitude = VectorEncoderDecoder.getMagnitude(indexVersion, docVector);
-        return magnitude;
+        return VectorEncoderDecoder.getMagnitude(indexVersion, docVector);
     }
 
     @Override
@@ -76,6 +71,16 @@ public class BinaryDenseVector implements DenseVector {
         double dotProduct = 0;
         for (int i = 0; i < qv.size(); i++) {
             dotProduct += byteBuffer.getFloat() * (qv.get(i) / qvMagnitude);
+        }
+        return dotProduct;
+    }
+
+    protected double dotProduct(float[] qv, float qvMagnitude) {
+        ByteBuffer byteBuffer = wrap(docVector);
+
+        double dotProduct = 0;
+        for (int i = 0; i < qv.length; i++) {
+            dotProduct += byteBuffer.getFloat() * (qv[i] / qvMagnitude);
         }
         return dotProduct;
     }
@@ -125,7 +130,10 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public double cosineSimilarity(float[] queryVector) {
+    public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
+        if (normalizeQueryVector) {
+            return dotProduct(queryVector, DenseVector.getMagnitude(queryVector)) / getMagnitude();
+        }
         return dotProduct(queryVector) / getMagnitude();
     }
 

@@ -32,6 +32,8 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
             DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
             for (int i = 0; i < vectors.length; i++) {
                 field.setNextDocId(i);
+                assertEquals(1, field.size());
+                assertEquals(dims, scriptDocValues.dims());
                 assertArrayEquals(vectors[i], scriptDocValues.getVectorValue(), 0.0001f);
                 assertEquals(expectedMagnitudes[i], scriptDocValues.getMagnitude(), 0.0001f);
             }
@@ -75,6 +77,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
 
         field.setNextDocId(3);
+        assertEquals(0, field.size());
         Exception e = expectThrows(IllegalArgumentException.class, scriptDocValues::getVectorValue);
         assertEquals("A document doesn't have a value for a vector field!", e.getMessage());
 

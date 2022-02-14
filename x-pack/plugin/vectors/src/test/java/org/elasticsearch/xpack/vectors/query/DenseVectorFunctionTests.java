@@ -73,7 +73,7 @@ public class DenseVectorFunctionTests extends ESTestCase {
             assertEquals(
                 "cosineSimilarity result is not equal to the expected value!",
                 cosineSimilarityExpected,
-                field.getInternal().cosineSimilarity(queryVectorArray),
+                field.getInternal().cosineSimilarity(queryVectorArray, true),
                 0.001
             );
 

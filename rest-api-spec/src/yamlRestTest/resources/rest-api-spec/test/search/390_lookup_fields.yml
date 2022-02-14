@@ -36,9 +36,9 @@ setup:
           runtime_mappings:
             location:
               type: lookup
-              lookup_index: ip_locations
-              query_input_field: ip
-              query_target_field: _id
+              target_index: ip_locations
+              input_field: ip
+              target_field: _id
               fetch_fields: [ "city", "country" ]
           sort: ord
           fields:

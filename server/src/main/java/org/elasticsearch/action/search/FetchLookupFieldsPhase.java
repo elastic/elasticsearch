@@ -76,7 +76,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
         }
         final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         for (Cluster cluster : clusters) {
-            // Do not prepend the clusterAlias to the lookupIndex if the search request is already on the remote cluster.
+            // Do not prepend the clusterAlias to the targetIndex if the search request is already on the remote cluster.
             final String clusterAlias = context.getRequest().getLocalClusterAlias() == null ? cluster.clusterAlias : null;
             for (LookupField lookupField : cluster.lookupFields) {
                 final SearchRequest searchRequest = lookupField.toSearchRequest(clusterAlias);

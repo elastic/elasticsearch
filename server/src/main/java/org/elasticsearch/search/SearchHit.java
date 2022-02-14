@@ -517,6 +517,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 }
             });
         }
+        assert hasLookupFields() == false : "Some lookup fields are not resolved";
     }
 
     /**

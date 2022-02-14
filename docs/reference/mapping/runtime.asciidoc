@@ -841,9 +841,9 @@ POST logs/_search
   "runtime_mappings": {
     "location": {
         "type": "lookup", <1>
-        "lookup_index": "ip_location", <2>
-        "query_input_field": "host", <3>
-        "query_target_field": "ip", <4>
+        "target_index": "ip_location", <2>
+        "input_field": "host", <3>
+        "target_field": "ip", <4>
         "fetch_fields": ["country", "city"] <5>
     }
   },

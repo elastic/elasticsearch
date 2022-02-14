@@ -315,16 +315,16 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             {
                 "from": {
                     "type": "lookup",
-                    "lookup_index": "users",
-                    "query_input_field": "from_user",
-                    "query_target_field": "_id",
+                    "target_index": "users",
+                    "input_field": "from_user",
+                    "target_field": "_id",
                     "fetch_fields": ["name"]
                 },
                 "to": {
                     "type": "lookup",
-                    "lookup_index": "users",
-                    "query_input_field": "to_user",
-                    "query_target_field": "_id",
+                    "target_index": "users",
+                    "input_field": "to_user",
+                    "target_field": "_id",
                     "fetch_fields": ["name"]
                 }
             }

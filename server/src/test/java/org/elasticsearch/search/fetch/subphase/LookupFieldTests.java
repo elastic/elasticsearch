@@ -76,13 +76,13 @@ public class LookupFieldTests extends AbstractWireSerializingTestCase<LookupFiel
 
     @Override
     protected LookupField mutateInstance(LookupField old) throws IOException {
-        String lookupIndex = old.lookupIndex();
+        String lookupIndex = old.targetIndex();
         QueryBuilder query = old.query();
         List<FieldAndFormat> fetchFields = old.fetchFields();
         int iterations = iterations(1, 5);
         for (int i = 0; i < iterations; i++) {
             switch (randomIntBetween(0, 2)) {
-                case 0 -> lookupIndex = randomValueOtherThan(old.lookupIndex(), () -> randomAlphaOfLength(10));
+                case 0 -> lookupIndex = randomValueOtherThan(old.targetIndex(), () -> randomAlphaOfLength(10));
                 case 1 -> query = randomValueOtherThan(
                     old.query(),
                     () -> QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
@@ -104,14 +104,14 @@ public class LookupFieldTests extends AbstractWireSerializingTestCase<LookupFiel
         final SearchRequest localRequest = lookupField.toSearchRequest(randomBoolean() ? null : "");
         assertThat(localRequest.source().query(), equalTo(lookupField.query()));
         assertThat(localRequest.source().size(), equalTo(1));
-        assertThat(localRequest.indices(), equalTo(new String[] { lookupField.lookupIndex() }));
+        assertThat(localRequest.indices(), equalTo(new String[] { lookupField.targetIndex() }));
         assertThat(localRequest.source().fetchFields(), equalTo(lookupField.fetchFields()));
 
         final String clusterAlias = randomAlphaOfLength(10);
         final SearchRequest remoteRequest = lookupField.toSearchRequest(clusterAlias);
         assertThat(remoteRequest.source().query(), equalTo(lookupField.query()));
         assertThat(remoteRequest.source().size(), equalTo(1));
-        assertThat(remoteRequest.indices(), equalTo(new String[] { clusterAlias + ":" + lookupField.lookupIndex() }));
+        assertThat(remoteRequest.indices(), equalTo(new String[] { clusterAlias + ":" + lookupField.targetIndex() }));
         assertThat(remoteRequest.source().fetchFields(), equalTo(lookupField.fetchFields()));
     }
 }

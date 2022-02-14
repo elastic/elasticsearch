@@ -8,13 +8,10 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -77,9 +74,9 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
                     "runtime": {
                         "author": {
                             "type": "lookup",
-                            "lookup_index": "authors",
-                            "query_input_field": "author_id",
-                            "query_target_field": "author",
+                            "target_index": "authors",
+                            "input_field": "author_id",
+                            "target_field": "author",
                             "fetch_fields": ["first_name", "last_name"]
                         }
                     }
@@ -186,9 +183,9 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
                 {
                     "publisher": {
                         "type": "lookup",
-                        "lookup_index": "publishers",
-                        "query_input_field": "publisher_id",
-                        "query_target_field": "_id",
+                        "target_index": "publishers",
+                        "input_field": "publisher_id",
+                        "target_field": "_id",
                         "fetch_fields": ["name", "city"]
                     }
                 }
@@ -233,9 +230,9 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             {
                 "author": {
                     "type": "lookup",
-                    "lookup_index": "authors",
-                    "query_input_field": "author_id",
-                    "query_target_field": "author",
+                    "target_index": "authors",
+                    "input_field": "author_id",
+                    "target_field": "author",
                     "fetch_fields": ["first_name", {"field": "joined", "format": "MM/yyyy"}]
                 }
             }
@@ -245,33 +242,6 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         // "author", "john", "first_name", "John", "last_name", "New York", "joined", "2020-03-01"
         assertThat(hit0.field("title").getValues(), equalTo(List.of("the first book")));
         assertThat(hit0.field("author").getValues(), equalTo(List.of(Map.of("first_name", List.of("John"), "joined", List.of("03/2020")))));
-    }
-
-    public void testLookupIndexNotFound() throws IOException {
-        Exception failure = expectThrows(
-            Exception.class,
-            () -> client().prepareSearch("books")
-                .setRuntimeMappings(parseMapping("""
-                    {
-                        "another_author": {
-                            "type": "lookup",
-                            "lookup_index": "book_author",
-                            "query_input_field": "author_id",
-                            "query_target_field": "another_field",
-                            "fetch_fields": ["name*"]
-                        }
-                    }
-                    """))
-                .setFetchSource(false)
-                .setQuery(new TermQueryBuilder("title", "second"))
-                .addFetchField("title")
-                .addFetchField("another_author")
-                .get()
-        );
-        assertThat(failure.getMessage(), equalTo("failed to fetch lookup fields"));
-        Throwable indexNotFoundEx = ExceptionsHelper.unwrap(failure, IndexNotFoundException.class);
-        assertNotNull(indexNotFoundEx);
-        assertThat(indexNotFoundEx.getMessage(), equalTo("no such index [book_author]"));
     }
 
     private Map<String, Object> parseMapping(String mapping) throws IOException {

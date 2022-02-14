@@ -62,10 +62,20 @@ public class ConfigurableClusterPrivilegesTests extends ESTestCase {
     }
 
     private ConfigurableClusterPrivilege[] buildSecurityPrivileges() {
-        return buildSecurityPrivileges(randomIntBetween(4, 7));
-    }
-
-    private ConfigurableClusterPrivilege[] buildSecurityPrivileges(int applicationNameLength) {
-        return new ConfigurableClusterPrivilege[] { ManageApplicationPrivilegesTests.buildPrivileges(applicationNameLength) };
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                return new ConfigurableClusterPrivilege[0];
+            } else {
+                return new ConfigurableClusterPrivilege[] { ManageApplicationPrivilegesTests.buildPrivileges(randomIntBetween(2, 6)) };
+            }
+        } else {
+            if (randomBoolean()) {
+                return new ConfigurableClusterPrivilege[] { UpdateProfileDataPrivilegesTests.buildPrivileges(randomIntBetween(2, 6)) };
+            } else {
+                return new ConfigurableClusterPrivilege[] {
+                    ManageApplicationPrivilegesTests.buildPrivileges(randomIntBetween(2, 6)),
+                    UpdateProfileDataPrivilegesTests.buildPrivileges(randomIntBetween(2, 6)) };
+            }
+        }
     }
 }

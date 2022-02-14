@@ -391,10 +391,11 @@ public abstract class Rounding implements Writeable {
             int i = 0;
             values[i++] = rounded;
             while ((rounded = nextRoundingValue(rounded)) <= maxUtcMillis) {
-                if (i >= max* 1000) {
+                if (i >= max) {
                     logger.trace(
-                        "can't realize [{}] to fixed rounding points, too many rounding values between [{}] and [{}]",
+                        "can't realize [{}] to fixed rounding points, more than [{}] rounding points between [{}] and [{}]",
                         this,
+                        max,
                         minUtcMillis,
                         maxUtcMillis
                     );

@@ -276,18 +276,13 @@ public class RestHighLevelClient implements Closeable {
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
 
     private final IndicesClient indicesClient = new IndicesClient(this);
-    private final ClusterClient clusterClient = new ClusterClient(this);
     private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
-    private final TasksClient tasksClient = new TasksClient(this);
-    private final XPackClient xPackClient = new XPackClient(this);
-    private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
     private final TransformClient transformClient = new TransformClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
     private final SearchableSnapshotsClient searchableSnapshotsClient = new SearchableSnapshotsClient(this);
-    private final FeaturesClient featuresClient = new FeaturesClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -369,15 +364,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Provides a {@link ClusterClient} which can be used to access the Cluster API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
-     */
-    public final ClusterClient cluster() {
-        return clusterClient;
-    }
-
-    /**
      * Provides a {@link IngestClient} which can be used to access the Ingest API.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
@@ -396,28 +382,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Provides a {@link TasksClient} which can be used to access the Tasks API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
-     */
-    public final TasksClient tasks() {
-        return tasksClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed X-Pack Info
-     * and Usage APIs that are shipped with the default distribution of
-     * Elasticsearch. All of these APIs will 404 if run against the OSS
-     * distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
-     * Info APIs on elastic.co</a> for more information.
-     */
-    public final XPackClient xpack() {
-        return xPackClient;
-    }
-
-    /**
      * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Searchable Snapshots APIs.
      * <p>
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html">Searchable Snapshots
@@ -425,28 +389,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public SearchableSnapshotsClient searchableSnapshots() {
         return searchableSnapshotsClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Searchable Snapshots APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html">Searchable Snapshots
-     * APIs on elastic.co</a> for more information.
-     */
-    public FeaturesClient features() {
-        return featuresClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Migration APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api.html">
-     * Migration APIs on elastic.co</a> for more information.
-     */
-    public MigrationClient migration() {
-        return migrationClient;
     }
 
     /**

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.client.analytics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -128,5 +129,10 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         return Objects.equals(bucketPathMap, other.bucketPathMap)
             && Objects.equals(modelId, other.modelId)
             && Objects.equals(inferenceConfig, other.inferenceConfig);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_9_0;
     }
 }

@@ -15,12 +15,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.health.components.controller.ClusterCoordination;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,9 +26,9 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
@@ -69,6 +67,13 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             return components;
         }
 
+        public HealthComponentResult findComponent(String name) {
+            return components.stream()
+                .filter(c -> Objects.equals(c.name(), name))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Component [" + name + "] is not found"));
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
@@ -77,7 +82,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field("status", status);
+            builder.field("status", status.xContentValue());
             builder.field("cluster_name", clusterName.value());
             builder.array("impacts");
             builder.startObject("components");
@@ -86,6 +91,28 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             }
             builder.endObject();
             return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Response response = (Response) o;
+            return clusterName.equals(response.clusterName) && status == response.status && components.equals(response.components);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(clusterName, status, components);
+        }
+
+        @Override
+        public String toString() {
+            return "Response{clusterName=" + clusterName + ", status=" + status + ", components=" + components + '}';
         }
     }
 
@@ -100,27 +127,23 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     public static class TransportAction extends org.elasticsearch.action.support.TransportAction<Request, Response> {
 
         private final ClusterService clusterService;
+        private final HealthService healthService;
 
         @Inject
         public TransportAction(
-            final ActionFilters actionFilters,
-            final TransportService transportService,
-            final ClusterService clusterService
+            ActionFilters actionFilters,
+            TransportService transportService,
+            ClusterService clusterService,
+            HealthService healthService
         ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.clusterService = clusterService;
+            this.healthService = healthService;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            final ClusterState clusterState = clusterService.state();
-            final HealthComponentResult controller = ClusterCoordination.createClusterCoordinationComponent(
-                clusterService.localNode(),
-                clusterState
-            );
-            final HealthComponentResult snapshots = new HealthComponentResult("snapshots", HealthStatus.GREEN, Collections.emptyMap());
-            final ClusterName clusterName = clusterService.getClusterName();
-            listener.onResponse(new Response(clusterName, Arrays.asList(controller, snapshots)));
+            listener.onResponse(new Response(clusterService.getClusterName(), healthService.getHealth()));
         }
     }
 }

@@ -98,7 +98,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
-        id: 1
+        id: "1"
         index: only_index
         body: >
           {
@@ -108,7 +108,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
-        id: 2
+        id: "2"
         index: everything
         body: >
           {
@@ -162,7 +162,7 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
         refresh: true
-        id: 7
+        id: "7"
         index: only_read
         body: >
           {
@@ -174,7 +174,7 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
         refresh: true
-        id: 8
+        id: "8"
         index: only_delete
         body: >
           {

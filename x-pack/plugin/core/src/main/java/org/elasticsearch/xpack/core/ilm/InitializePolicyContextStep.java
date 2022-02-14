@@ -59,8 +59,8 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
                     );
             }
         } catch (Exception e) {
-            String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-            throw new InitializePolicyException(policy, index.getName(), e);
+            String policyName = indexMetadata.getLifecyclePolicyName();
+            throw new InitializePolicyException(policyName, index.getName(), e);
         }
 
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
@@ -69,7 +69,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
         newCustomData.setIndexCreationDate(indexMetadata.getCreationDate());
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
 
-        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder).build(false));
+        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder));
         return newClusterStateBuilder.build();
     }
 

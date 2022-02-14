@@ -478,15 +478,19 @@ public class DeploymentManager {
         synchronized void stopProcess() {
             resultProcessor.stop();
             executorService.shutdown();
-            if (process.get() == null) {
-                return;
-            }
             try {
+                if (process.get() == null) {
+                    return;
+                }
                 stateStreamer.cancel();
                 process.get().kill(true);
                 processContextByAllocation.remove(task.getId());
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Failed to kill process", task.getModelId()), e);
+            } finally {
+                if (nlpTaskProcessor.get() != null) {
+                    nlpTaskProcessor.get().close();
+                }
             }
         }
 
@@ -496,6 +500,9 @@ public class DeploymentManager {
                 resultProcessor.stop();
                 executorService.shutdownWithError(new IllegalStateException(reason));
                 processContextByAllocation.remove(task.getId());
+                if (nlpTaskProcessor.get() != null) {
+                    nlpTaskProcessor.get().close();
+                }
                 task.setFailed("inference process crashed due to reason [" + reason + "]");
             };
         }

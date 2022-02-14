@@ -273,6 +273,7 @@
                   try { score += dv.dotProduct(q) } catch (IllegalArgumentException e) { score += 200; }
                   try { score += dv.l1Norm(q) } catch (IllegalArgumentException e) { score += 3000; }
                   try { score += dv.l2Norm(q) } catch (IllegalArgumentException e) { score += 40000; }
+                  try { score += dv.cosineSimilarity(q) } catch (IllegalArgumentException e) { score += 200000; }
                   try { score += dv.vector[0] } catch (IllegalArgumentException e) { score += 500000; }
                   try { score += dv.dims } catch (IllegalArgumentException e) { score += 6000000; }
                   return score;
@@ -280,7 +281,7 @@
                   field: knn
 
   - match: { hits.hits.0._id: "missing_vector" }
-  - match: { hits.hits.0._score: 6543210 }
+  - match: { hits.hits.0._score: 6743210 }
 
 ---
 "dot product works on dense vectors":

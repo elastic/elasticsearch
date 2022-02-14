@@ -45,14 +45,6 @@ public class StatsRequestLimiter {
         this.maxConcurrentStatsRequestsPerNodeSemaphore.setMaxPermits(maxConcurrentBoundedDiagnosticRequestsPerNode);
     }
 
-    public boolean tryAcquire() {
-        return maxConcurrentStatsRequestsPerNodeSemaphore.tryAcquire();
-    }
-
-    public void release() {
-        maxConcurrentStatsRequestsPerNodeSemaphore.release();
-    }
-
     public <Request, Response> void maybeDoExecute(
         Task task,
         Request request,
@@ -73,5 +65,15 @@ public class StatsRequestLimiter {
         } else {
             listener.onFailure(new EsRejectedExecutionException("too many bounded diagnostic requests"));
         }
+    }
+
+    // visible for testing
+    boolean tryAcquire() {
+        return maxConcurrentStatsRequestsPerNodeSemaphore.tryAcquire();
+    }
+
+    // visible for testting
+    void release() {
+        maxConcurrentStatsRequestsPerNodeSemaphore.release();
     }
 }

@@ -267,7 +267,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            String key = in.getVersion().equals(Version.V_8_0_0) ? in.readString() : in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString() : in.readString();
+            String key = in.getVersion().equals(Version.V_8_0_0) ? in.readString()
+                : in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString()
+                : in.readString();
             double from = in.readDouble();
             if (in.getVersion().onOrAfter(Version.V_7_17_0) && in.getVersion().before(Version.V_8_2_0)) {
                 final Double originalFrom = in.readOptionalDouble();

@@ -99,9 +99,7 @@ public class SearchProfilesResponse extends ActionResponse implements ToXContent
                 builder.field("uid", profile.uid());
                 profile.user().toXContent(builder, params);
                 builder.field("access", profile.access());
-                if (profile.applicationData() != null && false == profile.applicationData().isEmpty()) {
-                    builder.field("data", profile.applicationData());
-                }
+                builder.field("data", profile.applicationData());
                 // TODO: output a field of sort which is just score plus uid?
             }
             builder.endObject();

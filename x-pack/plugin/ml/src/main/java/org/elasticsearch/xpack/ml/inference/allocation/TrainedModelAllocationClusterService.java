@@ -253,7 +253,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
 
         Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
         Map<String, String> nodeToReason = new TreeMap<>();
-        for (DiscoveryNode node : currentState.getNodes()) {
+        for (DiscoveryNode node : currentState.getNodes().getAllNodes()) {
             if (StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node) && shuttingDownNodes.contains(node.getId()) == false) {
                 Optional<String> maybeError = nodeHasCapacity(currentState, params, node);
                 if (maybeError.isPresent()) {
@@ -357,6 +357,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         final TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.builder(currentState);
         Set<String> shuttingDownNodes = nodesShuttingDown(currentState);
         Map<String, DiscoveryNode> currentEligibleNodes = currentState.getNodes()
+            .getAllNodes()
             .stream()
             // TODO: Change when we update `mayAllocateToNode`
             .filter(

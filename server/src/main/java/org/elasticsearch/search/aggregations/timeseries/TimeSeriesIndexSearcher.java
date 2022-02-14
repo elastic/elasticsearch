@@ -12,9 +12,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
@@ -28,7 +26,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.internal.CancellableScorer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,6 +37,7 @@ import java.util.List;
  * TODO: Convert it to use index sort instead of hard-coded tsid and timestamp values
  */
 public class TimeSeriesIndexSearcher {
+    private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
     // We need to delegate to the other searcher here as opposed to extending IndexSearcher and inheriting default implementations as the
     // IndexSearcher would most of the time be a ContextIndexSearcher that has important logic related to e.g. document-level security.
@@ -52,12 +50,16 @@ public class TimeSeriesIndexSearcher {
     }
 
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
+        int seen = 0;
         query = searcher.rewrite(query);
-        Weight weight = wrapWeight(searcher.createWeight(query, bucketCollector.scoreMode(), 1));
+        Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
 
         // Create LeafWalker for each subreader
         List<LeafWalker> leafWalkers = new ArrayList<>();
         for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+            if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
+                checkCancelled();
+            }
             LeafBucketCollector leafCollector = bucketCollector.getLeafCollector(leaf);
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
@@ -81,6 +83,9 @@ public class TimeSeriesIndexSearcher {
         // walkers are ordered by timestamp.
         while (populateQueue(leafWalkers, queue)) {
             do {
+                if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
+                    checkCancelled();
+                }
                 LeafWalker walker = queue.top();
                 walker.collectCurrent();
                 if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
@@ -139,39 +144,6 @@ public class TimeSeriesIndexSearcher {
     private void checkCancelled() {
         for (Runnable r : cancellations) {
             r.run();
-        }
-    }
-
-    private Weight wrapWeight(Weight weight) {
-        if (cancellations.isEmpty() == false) {
-            return new Weight(weight.getQuery()) {
-                @Override
-                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                    return weight.explain(context, doc);
-                }
-
-                @Override
-                public boolean isCacheable(LeafReaderContext ctx) {
-                    return weight.isCacheable(ctx);
-                }
-
-                @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    Scorer scorer = weight.scorer(context);
-                    if (scorer != null) {
-                        return new CancellableScorer(scorer, () -> checkCancelled());
-                    } else {
-                        return null;
-                    }
-                }
-
-                @Override
-                public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                    return weight.bulkScorer(context);
-                }
-            };
-        } else {
-            return weight;
         }
     }
 

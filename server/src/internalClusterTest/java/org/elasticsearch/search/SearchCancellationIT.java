@@ -260,13 +260,10 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
     public void testCancellationDuringTimeSeriesAggregation() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
-        boolean blockInReduce = false;
         int numberOfShards = between(2, 5);
         long now = Instant.now().toEpochMilli();
-        int numberOfRefreshes = between(2, 5);
-        // need to make sure we hit the low level check that happens only every 1024 docs, so we need to make sure that we have at
-        // least 1024 docs on the shard that we are blocked on otherwise we might never hit the low level cancellation there.
-        int numberOfDocsPerRefresh = numberOfShards * between(1500, 2000);
+        int numberOfRefreshes = between(1, 5);
+        int numberOfDocsPerRefresh = numberOfShards * between(1500, 2000) / numberOfRefreshes;
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
@@ -288,7 +285,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         );
 
         for (int i = 0; i < numberOfRefreshes; i++) {
-            // Make sure we have a few segments
+            // Make sure we sometimes have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < numberOfDocsPerRefresh; j++) {
                 bulkRequestBuilder.add(
@@ -310,23 +307,13 @@ public class SearchCancellationIT extends ESIntegTestCase {
                         new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.INIT_SCRIPT_NAME, Collections.emptyMap())
                     )
                         .mapScript(
-                            new Script(
-                                ScriptType.INLINE,
-                                "mockscript",
-                                blockInReduce ? ScriptedBlockPlugin.MAP_SCRIPT_NAME : ScriptedBlockPlugin.MAP_BLOCK_SCRIPT_NAME,
-                                Collections.emptyMap()
-                            )
+                            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.MAP_BLOCK_SCRIPT_NAME, Collections.emptyMap())
                         )
                         .combineScript(
                             new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.COMBINE_SCRIPT_NAME, Collections.emptyMap())
                         )
                         .reduceScript(
-                            new Script(
-                                ScriptType.INLINE,
-                                "mockscript",
-                                blockInReduce ? ScriptedBlockPlugin.REDUCE_BLOCK_SCRIPT_NAME : ScriptedBlockPlugin.REDUCE_FAIL_SCRIPT_NAME,
-                                Collections.emptyMap()
-                            )
+                            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.REDUCE_FAIL_SCRIPT_NAME, Collections.emptyMap())
                         )
                 )
             )
@@ -339,8 +326,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
         assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.BAD_REQUEST));
         logger.info("All shards failed with", ex);
         if (lowLevelCancellation) {
-            // Ensure that we cancelled in LeafWalker and not in reduce phase
-            assertThat(ExceptionsHelper.stackTrace(ex), containsString("LeafWalker"));
+            // Ensure that we cancelled in TimeSeriesIndexSearcher and not in reduce phase
+            assertThat(ExceptionsHelper.stackTrace(ex), containsString("TimeSeriesIndexSearcher"));
         }
 
     }

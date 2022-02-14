@@ -59,8 +59,6 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-tasks.named("jarHell").configure { enabled = false }
-
 File generatedResourcesDir = new File(buildDir, 'generated-resources')
 def generateProviderManifest = tasks.register("generateProviderManifest") {
   File manifestFile = new File(generatedResourcesDir, "MANIFEST.TXT")

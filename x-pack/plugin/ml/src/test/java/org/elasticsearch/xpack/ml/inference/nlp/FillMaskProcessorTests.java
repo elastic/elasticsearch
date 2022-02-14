@@ -14,10 +14,9 @@ import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BasicTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.DelimitedToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.WordPieceTokenFilter;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.util.Arrays;
@@ -49,7 +48,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         String input = "The capital of " + BertTokenizer.MASK_TOKEN + " is Paris";
 
         List<String> vocab = Arrays.asList("The", "capital", "of", BertTokenizer.MASK_TOKEN, "is", "Paris", "France");
-        List<DelimitedToken> tokens = new BasicTokenizer(randomBoolean(), randomBoolean(), randomBoolean()).tokenize(input);
+        List<WordPieceTokenFilter.WordPieceToken> tokens = List.of();
 
         int[] tokenMap = new int[] { 0, 1, 2, 3, 4, 5 };
         int[] tokenIds = new int[] { 0, 1, 2, 3, 4, 5 };

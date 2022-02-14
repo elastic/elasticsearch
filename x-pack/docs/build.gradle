@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -60,6 +62,11 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
+
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.user_profile_feature_flag_enabled', 'true'
+  }
+
   user username: 'test_admin'
 }
 

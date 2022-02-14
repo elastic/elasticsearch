@@ -10,6 +10,8 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -32,7 +34,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.cluster.routing.allocation.AllocationHealthIndicatorService.NAME;
+import static org.elasticsearch.cluster.routing.allocation.ShardsHealthIndicatorService.NAME;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
@@ -42,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AllocationHealthIndicatorServiceTests extends ESTestCase {
+public class ShardsHealthIndicatorServiceTests extends ESTestCase {
 
     public void testShouldBeGreenWhenActiveAndHasReplica() {
         var indices = randomList(1, 10, indexGenerator("green-index-", STARTED, STARTED));
@@ -59,15 +61,21 @@ public class AllocationHealthIndicatorServiceTests extends ESTestCase {
                     "TODO 83240",
                     new SimpleHealthIndicatorDetails(
                         Map.of(
-                            "green-shards-count",
+                            "allocated_primaries_count",
                             indices.size(),
-                            "yellow-shards-count",
+                            "allocated_replicas_count",
+                            indices.size(),
+                            "unreplicated_primaries_count",
                             0,
-                            "yellow-shards",
+                            "unreplicated_primaries",
                             List.of(),
-                            "red-shards-count",
+                            "unallocated_replicas_count",
                             0,
-                            "red-shards",
+                            "unallocated_replicas",
+                            List.of(),
+                            "unallocated_primaries_count",
+                            0,
+                            "unallocated_primaries",
                             List.of()
                         )
                     )
@@ -92,15 +100,21 @@ public class AllocationHealthIndicatorServiceTests extends ESTestCase {
                     "TODO 83240",
                     new SimpleHealthIndicatorDetails(
                         Map.of(
-                            "green-shards-count",
+                            "allocated_primaries_count",
+                            greenIndices.size() + 1,
+                            "allocated_replicas_count",
                             greenIndices.size(),
-                            "yellow-shards-count",
-                            1,
-                            "yellow-shards",
-                            List.of(yellowIndex.shards().get(1).shardId()),
-                            "red-shards-count",
+                            "unreplicated_primaries_count",
                             0,
-                            "red-shards",
+                            "unreplicated_primaries",
+                            List.of(),
+                            "unallocated_replicas_count",
+                            1,
+                            "unallocated_replicas",
+                            List.of(yellowIndex.shards().get(1).shardId()),
+                            "unallocated_primaries_count",
+                            0,
+                            "unallocated_primaries",
                             List.of()
                         )
                     )
@@ -125,15 +139,21 @@ public class AllocationHealthIndicatorServiceTests extends ESTestCase {
                     "TODO 83240",
                     new SimpleHealthIndicatorDetails(
                         Map.of(
-                            "green-shards-count",
+                            "allocated_primaries_count",
+                            greenIndices.size() + 1,
+                            "allocated_replicas_count",
                             greenIndices.size(),
-                            "yellow-shards-count",
+                            "unreplicated_primaries_count",
                             1,
-                            "yellow-shards",
+                            "unreplicated_primaries",
                             List.of(yellowIndex.shards().get(1).shardId()),
-                            "red-shards-count",
+                            "unallocated_replicas_count",
                             0,
-                            "red-shards",
+                            "unallocated_replicas",
+                            List.of(),
+                            "unallocated_primaries_count",
+                            0,
+                            "unallocated_primaries",
                             List.of()
                         )
                     )
@@ -158,15 +178,21 @@ public class AllocationHealthIndicatorServiceTests extends ESTestCase {
                     "TODO 83240",
                     new SimpleHealthIndicatorDetails(
                         Map.of(
-                            "green-shards-count",
+                            "allocated_primaries_count",
                             greenIndices.size(),
-                            "yellow-shards-count",
-                            0,
-                            "yellow-shards",
-                            List.of(),
-                            "red-shards-count",
+                            "allocated_replicas_count",
+                            greenIndices.size(),
+                            "unreplicated_primaries_count",
                             1,
-                            "red-shards",
+                            "unreplicated_primaries",
+                            List.of(redIndex.shards().get(1).shardId()),
+                            "unallocated_replicas_count",
+                            0,
+                            "unallocated_replicas",
+                            List.of(),
+                            "unallocated_primaries_count",
+                            1,
+                            "unallocated_primaries",
                             List.of(redIndex.shards().get(1).shardId())
                         )
                     )
@@ -180,7 +206,10 @@ public class AllocationHealthIndicatorServiceTests extends ESTestCase {
         for (IndexRoutingTable index : indexes) {
             builder.add(index);
         }
-        return ClusterState.builder(new ClusterName("test-cluster")).routingTable(builder.build()).build();
+        return ClusterState.builder(new ClusterName("test-cluster"))
+            .routingTable(builder.build())
+            .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of())).build())
+            .build();
     }
 
     private static Supplier<IndexRoutingTable> indexGenerator(
@@ -222,9 +251,9 @@ public class AllocationHealthIndicatorServiceTests extends ESTestCase {
         throw new AssertionError("Unexpected state [" + state + "]");
     }
 
-    private static AllocationHealthIndicatorService createAllocationHealthIndicatorService(ClusterState clusterState) {
+    private static ShardsHealthIndicatorService createAllocationHealthIndicatorService(ClusterState clusterState) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        return new AllocationHealthIndicatorService(clusterService);
+        return new ShardsHealthIndicatorService(clusterService);
     }
 }

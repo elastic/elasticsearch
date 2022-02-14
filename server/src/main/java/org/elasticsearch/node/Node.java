@@ -56,6 +56,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
+import org.elasticsearch.cluster.routing.allocation.ShardsHealthIndicatorService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -903,7 +904,8 @@ public class Node implements Closeable {
 
             List<HealthIndicatorService> serverHealthIndicatorServices = List.of(
                 new InstanceHasMasterHealthIndicatorService(clusterService),
-                new RepositoryIntegrityHealthIndicatorService(clusterService)
+                new RepositoryIntegrityHealthIndicatorService(clusterService),
+                new ShardsHealthIndicatorService(clusterService)
             );
             List<HealthIndicatorService> pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
                 .stream()

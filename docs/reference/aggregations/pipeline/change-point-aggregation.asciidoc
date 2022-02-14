@@ -1,14 +1,14 @@
 [role="xpack"]
 [[search-aggregations-change-point-aggregation]]
-=== Change Point aggregation
+=== Change point aggregation
 ++++
-<titleabbrev>Change Point</titleabbrev>
+<titleabbrev>Change point</titleabbrev>
 ++++
 
 experimental::[]
 
 A sibling pipeline that detects a change point in a metric. Given a distribution of values provided by the sibling
-multi-bucket aggregation, this aggregation where find the bucket at which the distribution of points significantly
+multi-bucket aggregation, this aggregation indicates where find the bucket at which the distribution of points significantly
 changes.
 
 
@@ -70,6 +70,7 @@ The found change point type and its related values. Possible types:
 * `step_change`: the change indicates a statistically significant step up or down in value distribution
 * `trend_change`: there is an overall trend change occurring at this change point
 --
+
 ==== Response example
 [source,js]
 --------------------------------------------------
@@ -94,5 +95,5 @@ The found change point type and its related values. Possible types:
 <2> The number of documents in that bucket.
 <3> Aggregated values in the bucket.
 <4> Type of change found.
-<5> The `p_value` indicates how extreme the change is, the lower indicates greater change.
+<5> The `p_value` indicates how extreme the change is; lower values indicate greater change.
 <6> The specific bucket where the change occurs (indexing starts at `0`).

@@ -11,6 +11,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,7 +31,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
     public static final GetCheckpointNodeAction INSTANCE = new GetCheckpointNodeAction();
 
     // note: this is an internal action
-    public static final String NAME = "cluster:internal/transform/checkpoint[n]";
+    public static final String NAME = GetCheckpointAction.NAME + "[n]";
 
     private GetCheckpointNodeAction() {
         super(NAME, GetCheckpointNodeAction.Response::new);
@@ -80,17 +83,20 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
         }
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements IndicesRequest {
 
         private final Set<ShardId> shards;
+        private final OriginalIndices originalIndices;
 
-        public Request(Set<ShardId> shards) {
+        public Request(Set<ShardId> shards, OriginalIndices originalIndices) {
             this.shards = shards;
+            this.originalIndices = originalIndices;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.shards = Collections.unmodifiableSet(in.readSet(ShardId::new));
+            this.originalIndices = OriginalIndices.readOriginalIndices(in);
         }
 
         @Override
@@ -102,10 +108,15 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeCollection(shards);
+            OriginalIndices.writeOriginalIndices(originalIndices, out);
         }
 
         public Set<ShardId> getShards() {
             return shards;
+        }
+
+        public OriginalIndices getOriginalIndices() {
+            return originalIndices;
         }
 
         @Override
@@ -118,12 +129,23 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
             }
             Request that = (Request) obj;
 
-            return Objects.equals(shards, that.shards);
+            return Objects.equals(shards, that.shards) && Objects.equals(originalIndices, that.originalIndices);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(shards);
+            return Objects.hash(shards, originalIndices);
         }
+
+        @Override
+        public String[] indices() {
+            return originalIndices.indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return originalIndices.indicesOptions();
+        }
+
     }
 }

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -88,7 +89,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             return;
         }
 
-        new AsyncGetCheckpointsFromNodesAction(state, task, nodesAndShards, listener).start();
+        new AsyncGetCheckpointsFromNodesAction(state, task, nodesAndShards, new OriginalIndices(request), listener).start();
     }
 
     private Map<String, Set<ShardId>> resolveIndicesToPrimaryShards(ClusterState state, String[] concreteIndices) {
@@ -120,6 +121,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         private final Task task;
         private final ActionListener<Response> listener;
         private final Map<String, Set<ShardId>> nodesAndShards;
+        private final OriginalIndices originalIndices;
         private final DiscoveryNodes nodes;
         private final String localNodeId;
 
@@ -127,11 +129,13 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             ClusterState clusterState,
             Task task,
             Map<String, Set<ShardId>> nodesAndShards,
+            OriginalIndices originalIndices,
             ActionListener<Response> listener
         ) {
             this.task = task;
             this.listener = listener;
             this.nodesAndShards = nodesAndShards;
+            this.originalIndices = originalIndices;
             this.nodes = clusterState.nodes();
             this.localNodeId = clusterService.localNode().getId();
         }
@@ -168,7 +172,8 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 }
 
                 GetCheckpointNodeAction.Request nodeCheckpointsRequest = new GetCheckpointNodeAction.Request(
-                    oneNodeAndItsShards.getValue()
+                    oneNodeAndItsShards.getValue(),
+                    originalIndices
                 );
                 DiscoveryNode node = nodes.get(oneNodeAndItsShards.getKey());
 

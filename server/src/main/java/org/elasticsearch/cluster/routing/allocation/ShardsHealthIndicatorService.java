@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -28,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLimit;
+import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -131,24 +131,14 @@ public class ShardsHealthIndicatorService implements HealthIndicatorService {
             }
         }
 
-        private int getPrimariesShardsCount() {
-            return allocatedPrimaries + unallocatedPrimaries.size();
-        }
-
-        private int getReplicaShardsCount() {
-            return allocatedReplicas + unallocatedReplicas.size();
-        }
-
-        private int getTotalShardsCount() {
-            return getPrimariesShardsCount() + getReplicaShardsCount();
-        }
-
         String getSummary() {
-            var builder = new StringBuilder("This cluster has ").append(getTotalShardsCount()).append(" shards");
-            builder.append(" including ").append(getPrimariesShardsCount()).append(" primaries");
+            var primaries = allocatedPrimaries + unallocatedPrimaries.size();
+            var replicas = allocatedReplicas + unallocatedReplicas.size();
+            var builder = new StringBuilder("This cluster has ").append(primaries + replicas).append(" shards");
+            builder.append(" including ").append(primaries).append(" primaries");
             collectionToDelimitedStringWithLimit(unreplicatedPrimaries, ",", " (", " unreplicated)", 1024, builder);
             collectionToDelimitedStringWithLimit(unallocatedPrimaries, ",", " (", " unallocated)", 1024, builder);
-            builder.append(" and ").append(getReplicaShardsCount()).append(" replicas");
+            builder.append(" and ").append(replicas).append(" replicas");
             collectionToDelimitedStringWithLimit(unallocatedReplicas, ",", " (", " unallocated)", 1024, builder);
             return builder.append(".").toString();
         }
@@ -163,15 +153,15 @@ public class ShardsHealthIndicatorService implements HealthIndicatorService {
                     "unreplicated_primaries_count",
                     unreplicatedPrimaries.size(),
                     "unreplicated_primaries",
-                    CollectionUtils.limitSize(unreplicatedPrimaries, 10),
+                    limitSize(unreplicatedPrimaries, 10),
                     "unallocated_replicas_count",
                     unallocatedReplicas.size(),
                     "unallocated_replicas",
-                    CollectionUtils.limitSize(unallocatedReplicas, 10),
+                    limitSize(unallocatedReplicas, 10),
                     "unallocated_primaries_count",
                     unallocatedPrimaries.size(),
                     "unallocated_primaries",
-                    CollectionUtils.limitSize(unallocatedPrimaries, 10)
+                    limitSize(unallocatedPrimaries, 10)
                 )
             );
         }

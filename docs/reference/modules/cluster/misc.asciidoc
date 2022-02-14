@@ -116,7 +116,7 @@ and <<indices-recovery, recovery>> APIs.
 +
 --
 (<<dynamic-cluster-setting,Dynamic>>)
-Limits the bounded diagnostic requests a coordinating node can concurrently handle.
+Limits the bounded diagnostic requests a coordinating node can concurrently handle. Defaults to `20`.
 
 
 

@@ -27,12 +27,10 @@ public class BoundedDiagnosticRequestPermits {
     );
 
     private final AdjustableSemaphore maxConcurrentBoundedDiagnosticRequestsPerNodeSemaphore;
-    private volatile Integer maxConcurrentBoundedDiagnosticRequestsPerNode;
 
     public BoundedDiagnosticRequestPermits(Settings settings, ClusterSettings clusterSettings) {
-        this.maxConcurrentBoundedDiagnosticRequestsPerNode = MAX_CONCURRENT_BOUNDED_DIAGNOSTIC_REQUESTS_PER_NODE.get(settings);
         this.maxConcurrentBoundedDiagnosticRequestsPerNodeSemaphore = new AdjustableSemaphore(
-            this.maxConcurrentBoundedDiagnosticRequestsPerNode,
+            MAX_CONCURRENT_BOUNDED_DIAGNOSTIC_REQUESTS_PER_NODE.get(settings),
             false
         );
         clusterSettings.addSettingsUpdateConsumer(
@@ -42,7 +40,6 @@ public class BoundedDiagnosticRequestPermits {
     }
 
     private void setMaxConcurrentBoundedDiagnosticRequestsPerNode(int maxConcurrentBoundedDiagnosticRequestsPerNode) {
-        this.maxConcurrentBoundedDiagnosticRequestsPerNode = maxConcurrentBoundedDiagnosticRequestsPerNode;
         this.maxConcurrentBoundedDiagnosticRequestsPerNodeSemaphore.setMaxPermits(maxConcurrentBoundedDiagnosticRequestsPerNode);
     }
 

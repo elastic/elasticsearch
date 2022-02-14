@@ -18,11 +18,13 @@ import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.SecureClassLoader;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 
@@ -70,20 +72,32 @@ public final class ProviderLocator {
             }
         }
 
+        /** Searches for the named resource. Iterates over all prefixes. */
+        private InputStream privilegedGetResourceAsStreamOrNull(String name) {
+            return AccessController.doPrivileged(new PrivilegedAction<InputStream>() {
+                @Override
+                public InputStream run() {
+                    final ClassLoader outer = getParent();
+                    return prefixes.stream()
+                        .map(p -> p + "/" + name)
+                        .map(outer::getResourceAsStream)
+                        .filter(Objects::nonNull)
+                        .findFirst()
+                        .orElse(null);
+                }
+            });
+        }
+
         @Override
         public Class<?> findClass(String name) throws ClassNotFoundException {
-            String filepath = name.replace('.', '/') + ".class";
-            for (String prefix : prefixes) {
-                InputStream is = getParent().getResourceAsStream(prefix + "/" + filepath);
-                if (is == null) {
-                    continue;
-                }
-
-                try {
-                    byte[] bytes = is.readAllBytes();
+            String filepath = name.replace('.', '/').concat(".class");
+            InputStream is = privilegedGetResourceAsStreamOrNull(filepath);
+            if (is != null) {
+                try (InputStream in = is) {
+                    byte[] bytes = in.readAllBytes();
                     return defineClass(name, bytes, 0, bytes.length);
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new UncheckedIOException(e);
                 }
             }
             return super.findClass(name);
@@ -91,6 +105,7 @@ public final class ProviderLocator {
 
         @Override
         protected URL findResource(String name) {
+            Objects.requireNonNull(name);
             for (String prefix : prefixes) {
                 URL url = getParent().getResource(prefix + "/" + name);
                 if (url != null) {

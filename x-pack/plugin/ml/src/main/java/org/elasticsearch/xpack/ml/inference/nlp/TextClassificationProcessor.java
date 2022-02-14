@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 public class TextClassificationProcessor implements NlpTask.Processor {
 
     private final NlpTask.RequestBuilder requestBuilder;
+    private final NlpTokenizer tokenizer;
     private final String[] classLabels;
     private final int numTopClasses;
 
@@ -40,6 +41,12 @@ public class TextClassificationProcessor implements NlpTask.Processor {
         // negative values are a special case of asking for ALL classes. Since we require the output size to equal the classLabel size
         // This is a nice way of setting the value
         this.numTopClasses = config.getNumTopClasses() < 0 ? this.classLabels.length : config.getNumTopClasses();
+        this.tokenizer = tokenizer;
+    }
+
+    @Override
+    public void close() {
+        tokenizer.close();
     }
 
     @Override

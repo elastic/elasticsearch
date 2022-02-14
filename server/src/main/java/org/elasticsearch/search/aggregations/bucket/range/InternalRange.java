@@ -266,11 +266,21 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             String key = in.getVersion().onOrAfter(Version.V_7_17_1) ? in.readOptionalString() : in.readString();
             double from = in.readDouble();
             if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
-                in.readOptionalDouble();
+                final Double originalFrom = in.readOptionalDouble();
+                if (originalFrom != null) {
+                    from = originalFrom;
+                } else {
+                    from = Double.NEGATIVE_INFINITY;
+                }
             }
             double to = in.readDouble();
             if (in.getVersion().onOrAfter(Version.V_7_17_0)) {
-                in.readOptionalDouble();
+                final Double originalTo = in.readOptionalDouble();
+                if (originalTo != null) {
+                    to = originalTo;
+                } else {
+                    to = Double.POSITIVE_INFINITY;
+                }
             }
             long docCount = in.readVLong();
             InternalAggregations aggregations = InternalAggregations.readFrom(in);

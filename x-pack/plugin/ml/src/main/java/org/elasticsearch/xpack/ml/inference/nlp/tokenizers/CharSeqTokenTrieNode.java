@@ -7,22 +7,22 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import org.apache.lucene.analysis.CharArrayMap;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 
+import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
-class TokenTrieNode {
+public class CharSeqTokenTrieNode {
 
-    private static final String EMPTY_STRING = "";
+    public static final CharSeqTokenTrieNode EMPTY = new CharSeqTokenTrieNode(new CharArrayMap<>(0, false));
 
-    private final Map<String, TokenTrieNode> children;
+    private final CharArrayMap<CharSeqTokenTrieNode> children;
 
-    private TokenTrieNode(Map<String, TokenTrieNode> children) {
+    private CharSeqTokenTrieNode(CharArrayMap<CharSeqTokenTrieNode> children) {
         this.children = Objects.requireNonNull(children);
     }
 
@@ -30,8 +30,18 @@ class TokenTrieNode {
         return children.isEmpty();
     }
 
+    public void clear() {
+        if (isLeaf()) {
+            return;
+        }
+        for (CharSeqTokenTrieNode c : children.values()) {
+            c.clear();
+        }
+        children.clear();
+    }
+
     @Nullable
-    TokenTrieNode getChild(String token) {
+    CharSeqTokenTrieNode getChild(CharSequence token) {
         return children.get(token);
     }
 
@@ -39,7 +49,7 @@ class TokenTrieNode {
         if (tokens.isEmpty()) {
             return;
         }
-        TokenTrieNode currentNode = this;
+        CharSeqTokenTrieNode currentNode = this;
         int currentTokenIndex = 0;
 
         // find leaf
@@ -49,15 +59,16 @@ class TokenTrieNode {
         }
         // add rest of tokens as new nodes
         while (currentTokenIndex < tokens.size()) {
-            TokenTrieNode childNode = new TokenTrieNode(new HashMap<>());
+            CharSeqTokenTrieNode childNode = new CharSeqTokenTrieNode(new CharArrayMap<>(1, false));
             currentNode.children.put(tokens.get(currentTokenIndex), childNode);
             currentNode = childNode;
             currentTokenIndex++;
         }
     }
 
-    static TokenTrieNode build(Collection<String> tokens, Function<String, List<String>> tokenizeFunction) {
-        TokenTrieNode root = new TokenTrieNode(new HashMap<>());
+    public static CharSeqTokenTrieNode build(Collection<String> tokens, CheckedFunction<String, List<String>, IOException> tokenizeFunction)
+        throws IOException {
+        CharSeqTokenTrieNode root = new CharSeqTokenTrieNode(new CharArrayMap<>(1, false));
         for (String token : tokens) {
             List<String> subTokens = tokenizeFunction.apply(token);
             root.insert(subTokens);

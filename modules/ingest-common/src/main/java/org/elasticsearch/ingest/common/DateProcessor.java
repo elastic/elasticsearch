@@ -72,10 +72,20 @@ public final class DateProcessor extends AbstractProcessor {
         this.targetField = targetField;
         this.formats = formats;
         this.dateParsers = new ArrayList<>(this.formats.size());
+        List<String> javaFormats = new ArrayList<>(this.formats.size());
         for (String format : formats) {
             DateFormat dateFormat = DateFormat.fromString(format);
-            dateParsers.add((params) -> dateFormat.getFunction(format, newDateTimeZone(params), newLocale(params)));
+            if (DateFormat.Java == dateFormat) {
+                javaFormats.add(format);
+            } else {
+                dateParsers.add((params) -> dateFormat.getFunction(format, newDateTimeZone(params), newLocale(params)));
+            }
         }
+
+        if (javaFormats.isEmpty() == false) {
+            dateParsers.add((params) -> DateFormat.Java.getFunction(String.join("||", javaFormats), newDateTimeZone(params), newLocale(params)));
+        }
+
         this.outputFormat = outputFormat;
         formatter = DateFormatter.forPattern(this.outputFormat);
     }

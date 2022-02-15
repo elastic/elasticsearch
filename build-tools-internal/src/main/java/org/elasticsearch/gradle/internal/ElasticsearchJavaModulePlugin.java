@@ -14,6 +14,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
+import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -236,14 +237,14 @@ public class ElasticsearchJavaModulePlugin implements Plugin<Project> {
         moduleConfiguration.setCanBeConsumed(false);
         moduleConfiguration.setCanBeResolved(true);
         // TODO:
-        // moduleConfiguration.attributes {
+        moduleConfiguration.attributes(attrs -> {
         // // Prefer class folders over JARs. The exception is made for tests projects which require a composition
         // // of classes and resources, otherwise split into two folders.
         // if (project.getName().endsWith(".tests")) {
         // attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
         // } else {
-        // attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.CLASSES))
-        // }
+          attrs.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES));
+        });
         // logger.info("Created resolvable module configuration for %s: %s".formatted(conventionConfiguration.getName(),
         // moduleConfiguration.getName()));
         return moduleConfiguration;

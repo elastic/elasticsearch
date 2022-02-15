@@ -67,7 +67,7 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
 
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener) {
-        new ActionRunnable<>(listener) {
+        new ActionRunnable<XPackUsageResponse>(listener) {
             final List<XPackFeatureSet.Usage> responses = new ArrayList<>(featureSets.size());
 
             @Override

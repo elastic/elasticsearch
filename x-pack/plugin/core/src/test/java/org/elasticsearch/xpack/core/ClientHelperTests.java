@@ -383,7 +383,7 @@ public class ClientHelperTests extends ESTestCase {
         }
     }
 
-    public void testGetPersistableSafeSecurityHeadersForVersion() throws IOException {
+    public void testGetPersistableSafeSecurityHeaders() throws IOException {
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);

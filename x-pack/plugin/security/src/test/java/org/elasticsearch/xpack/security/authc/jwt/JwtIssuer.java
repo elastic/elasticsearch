@@ -17,13 +17,14 @@ import java.util.List;
 import java.util.Map;
 
 public class JwtIssuer {
-    private final String issuer;
-    private final List<String> audiences;
-    private final Map<String, List<JWK>> signatureAlgorithmAndJwks;
-    private final Map<String, User> users; // and their roles
-    private final JWKSet jwksetAll;
-    private final JWKSet jwksetHmac; // contains list of secret keys
-    private final JWKSet jwksetPkc; // contains list of private/public key pairs (i.e. publicKeysOnly=false)
+    final String issuer;
+    final List<String> audiences;
+    final Map<String, List<JWK>> signatureAlgorithmAndJwks;
+    final Map<String, User> users; // and their roles
+    final JWKSet jwkSetAll;
+    final JWKSet jwkSetHmac; // contains list of secret keys
+    final JWKSet jwkSetPkc; // contains list of private/public key pairs (i.e. publicKeysOnly=false)
+    JwtRealm realm; // Not final due to order: 1) Create issuer, 2) Use issuer to create realm, 3) Add realm to issuer
 
     JwtIssuer(
         final String issuer,
@@ -35,36 +36,8 @@ public class JwtIssuer {
         this.audiences = audiences;
         this.signatureAlgorithmAndJwks = signatureAlgorithmAndJwks;
         this.users = users;
-        this.jwksetAll = new JWKSet(this.signatureAlgorithmAndJwks.values().stream().flatMap(List::stream).toList());
-        this.jwksetHmac = new JWKSet(this.jwksetAll.getKeys().stream().filter(e -> (e instanceof OctetSequenceKey)).toList());
-        this.jwksetPkc = new JWKSet(this.jwksetAll.getKeys().stream().filter(e -> (e instanceof OctetSequenceKey) == false).toList());
-    }
-
-    public String getIssuer() {
-        return this.issuer;
-    }
-
-    public List<String> getAudiences() {
-        return this.audiences;
-    }
-
-    public Map<String, List<JWK>> getSignatureAlgorithmAndJwks() {
-        return this.signatureAlgorithmAndJwks;
-    }
-
-    public Map<String, User> getUsers() {
-        return this.users;
-    }
-
-    public JWKSet getJwkSetAll() {
-        return this.jwksetAll;
-    }
-
-    public JWKSet getJwkSetHmac() {
-        return this.jwksetHmac;
-    }
-
-    public JWKSet getJwkSetPkc() {
-        return this.jwksetPkc;
+        this.jwkSetAll = new JWKSet(this.signatureAlgorithmAndJwks.values().stream().flatMap(List::stream).toList());
+        this.jwkSetHmac = new JWKSet(this.jwkSetAll.getKeys().stream().filter(e -> (e instanceof OctetSequenceKey)).toList());
+        this.jwkSetPkc = new JWKSet(this.jwkSetAll.getKeys().stream().filter(e -> (e instanceof OctetSequenceKey) == false).toList());
     }
 }

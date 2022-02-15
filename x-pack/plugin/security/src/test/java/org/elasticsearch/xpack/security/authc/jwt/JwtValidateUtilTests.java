@@ -15,8 +15,6 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
 import java.time.Instant;
@@ -99,76 +97,5 @@ public class JwtValidateUtilTests extends JwtTestCase {
         expectThrows(Exception.class, () -> JwtValidateUtil.validateExpiredTime(now, now, 0));
         JwtValidateUtil.validateExpiredTime(now, now, skewSeconds);
         JwtValidateUtil.validateExpiredTime(after, now, 0);
-    }
-
-    public void testClientAuthenticationTypeValidation() {
-        final String clientAuthenticationTypeKey = JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE.getKey();
-        final String clientAuthenticationSharedSecretKey = JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET.getKey();
-        final SecureString sharedSecretNonEmpty = new SecureString(randomAlphaOfLengthBetween(1, 32).toCharArray());
-        final SecureString sharedSecretNullOrEmpty = randomBoolean() ? new SecureString("".toCharArray()) : null;
-
-        // If type is None, verify null or empty is accepted
-        JwtUtil.validateClientAuthenticationSettings(
-            clientAuthenticationTypeKey,
-            JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE,
-            clientAuthenticationSharedSecretKey,
-            sharedSecretNullOrEmpty
-        );
-        // If type is None, verify non-empty is rejected
-        final Exception exception1 = expectThrows(
-            SettingsException.class,
-            () -> JwtUtil.validateClientAuthenticationSettings(
-                clientAuthenticationTypeKey,
-                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE,
-                clientAuthenticationSharedSecretKey,
-                sharedSecretNonEmpty
-            )
-        );
-        assertThat(
-            exception1.getMessage(),
-            is(
-                equalTo(
-                    "Setting ["
-                        + clientAuthenticationSharedSecretKey
-                        + "] is not supported, because setting ["
-                        + clientAuthenticationTypeKey
-                        + "] is ["
-                        + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_NONE
-                        + "]"
-                )
-            )
-        );
-
-        // If type is SharedSecret, verify non-empty is accepted
-        JwtUtil.validateClientAuthenticationSettings(
-            clientAuthenticationTypeKey,
-            JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET,
-            clientAuthenticationSharedSecretKey,
-            sharedSecretNonEmpty
-        );
-        // If type is SharedSecret, verify null or empty is rejected
-        final Exception exception2 = expectThrows(
-            SettingsException.class,
-            () -> JwtUtil.validateClientAuthenticationSettings(
-                clientAuthenticationTypeKey,
-                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET,
-                clientAuthenticationSharedSecretKey,
-                sharedSecretNullOrEmpty
-            )
-        );
-        assertThat(
-            exception2.getMessage(),
-            is(
-                equalTo(
-                    "Missing setting for ["
-                        + clientAuthenticationSharedSecretKey
-                        + "]. It is required when setting ["
-                        + clientAuthenticationTypeKey
-                        + "] is ["
-                        + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET
-                        + "]"
-                )
-            )
-        );
     }
 }

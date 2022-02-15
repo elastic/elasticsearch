@@ -101,7 +101,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.claimParserGroups = ClaimParser.forSetting(LOGGER, JwtRealmSettings.CLAIMS_GROUPS, realmConfig, false);
         this.populateUserMetadata = realmConfig.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
         this.clientAuthenticationType = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
-        this.clientAuthenticationSharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
+        final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
+        this.clientAuthenticationSharedSecret = Strings.hasText(sharedSecret) ? sharedSecret : null; // convert "" to null
         this.hasher = Hasher.resolve(realmConfig.getSetting(JwtRealmSettings.JWT_VALIDATION_CACHE_HASH_ALGO));
         this.jwtValidationCache = this.buildJwtValidationCache();
         this.rolesLookupCache = this.buildRolesLookupCache();
@@ -335,10 +336,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
             false
         );
-        if (authenticationParameterValue == null) {
-            return null; // Could not find non-empty SchemeParameters in HTTP header "Authorization: Bearer <SchemeParameters>"
-        }
-
         // Get all other possible parameters. A different JWT realm may do the actual authentication.
         final SecureString clientAuthenticationSharedSecretValue = JwtUtil.getHeaderValue(
             threadContext,
@@ -346,7 +343,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET,
             true
         );
-
         return new JwtAuthenticationToken(authenticationParameterValue, clientAuthenticationSharedSecretValue);
     }
 
@@ -455,7 +451,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     JwtValidateUtil.validate(jwt, this.allowedIssuer, this.allowedAudiences, this.allowedClockSkew.seconds(), algs, jwks);
                     LOGGER.trace("Realm [" + super.name() + "] JWT validation succeeded for token=[" + tokenPrincipal + "].");
                     if (this.jwtValidationCache != null) {
-                        this.jwtValidationCache.put(jwtValidationCacheKey, Optional.ofNullable(null)); // JWT Cache Hit(SigOnly)
+                        this.jwtValidationCache.put(jwtValidationCacheKey, Optional.empty()); // JWT Cache Hit(SigOnly)
                     }
                 } catch (Exception e) {
                     final String msg = "Realm [" + super.name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";
@@ -513,10 +509,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     final String rolesString = Arrays.toString(user.roles());
                     LOGGER.debug("Realm [" + super.name() + "] delegated roles [" + rolesString + "] for principal=[" + principal + "].");
                     if (this.rolesLookupCache != null) {
-                        this.rolesLookupCache.put(principal, success); // Cache SUCCESS
+                        this.rolesLookupCache.put(principal, success); // User Cache Hit(Pass)
                     }
                     if (this.jwtValidationCache != null) {
-                        this.jwtValidationCache.put(jwtValidationCacheKey, Optional.of(success)); // New JWT Cache Hit(Pass)
+                        this.jwtValidationCache.put(jwtValidationCacheKey, Optional.of(success)); // JWT Cache Hit(Pass)
                     }
                     listener.onResponse(success); // Return SUCCESS
                 }, e -> {
@@ -539,16 +535,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(rolesSet -> {
                 // Intercept the role mapper listener response to log the resolved roles here. Empty is OK.
                 final String[] rolesArray = new TreeSet<>(rolesSet).toArray(new String[rolesSet.size()]);
-                final String rolesString = Arrays.toString(rolesArray);
-                LOGGER.debug("Realm [" + super.name() + "] mapped roles " + rolesString + " for principal=[" + principal + "].");
                 final User user = new User(principal, rolesArray, null, null, userMetadata, true);
                 final AuthenticationResult<User> success = AuthenticationResult.success(user);
+                final String rolesString = Arrays.toString(rolesArray);
+                LOGGER.debug("Realm [" + super.name() + "] mapped roles " + rolesString + " for principal=[" + principal + "].");
                 if (this.rolesLookupCache != null) {
-                    this.rolesLookupCache.put(principal, success); // New User Cache Hit(Pass)
+                    this.rolesLookupCache.put(principal, success); // User Cache Hit(Pass)
                 }
                 if (this.jwtValidationCache != null) {
-                    this.jwtValidationCache.put(jwtValidationCacheKey, Optional.of(success)); // New JWT Cache Hit(Pass), or replace
-                                                                                              // Hit(SigOnly)
+                    this.jwtValidationCache.put(jwtValidationCacheKey, Optional.of(success)); // JWT Cache Hit(Pass)
                 }
                 listener.onResponse(success); // Return SUCCESS
             }, e -> {

@@ -22,6 +22,7 @@ import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
 import com.nimbusds.jose.jwk.gen.JWKGenerator;
 import com.nimbusds.jose.jwk.gen.OctetSequenceKeyGenerator;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
+import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nimbusds.openid.connect.sdk.Nonce;
@@ -31,6 +32,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
@@ -52,6 +54,7 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -347,6 +350,11 @@ public abstract class JwtTestCase extends ESTestCase {
         return JwtValidateUtil.signJwt(jwsSigner, headerAndBody.v1(), headerAndBody.v2());
     }
 
+    public SecureString buildJWT(final JWSHeader header, final JWTClaimsSet claims, final Base64URL signature) throws ParseException {
+        final SignedJWT signedJwt = new SignedJWT(header.toBase64URL(), claims.toPayload().toBase64URL(), signature);
+        return new SecureString(signedJwt.serialize().toCharArray());
+    }
+
     public static Tuple<JWSHeader, JWTClaimsSet> randomValidJwsHeaderAndJwtClaimsSet(
         final String signatureAlgorithm,
         final String issuer,
@@ -359,31 +367,60 @@ public abstract class JwtTestCase extends ESTestCase {
     ) {
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(signatureAlgorithm)).build();
-        final JWTClaimsSet.Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder().jwtID(
-            randomFrom((String) null, randomAlphaOfLengthBetween(1, 20))
-        )
-            .issuer(issuer)
-            .subject(randomAlphaOfLength(8))
-            .claim(principalClaimName, principalClaimValue) // If "sub", overwrite random from previous line.
-            .audience(audiences)
-            .claim("auth_time", randomFrom((Date) null, Date.from(now.minusSeconds(randomLongBetween(10, 20)))))
-            .notBeforeTime(randomFrom((Date) null, Date.from(now.minusSeconds(randomLongBetween(5, 10)))))
-            .issueTime(Date.from(now))
-            .expirationTime(Date.from(now.plusSeconds(randomLongBetween(3600, 7200))))
-            .claim("nonce", randomFrom((Nonce) null, new Nonce()));
-        // Custom extra claims. Principal claim name could be "sub" or something else
+        final JWTClaimsSet.Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder();
+        if (randomBoolean()) {
+            jwtClaimsSetBuilder.jwtID(randomAlphaOfLengthBetween(1, 20));
+        }
+        // iss, aud, sub
+        if (issuer != null) {
+            jwtClaimsSetBuilder.issuer(issuer);
+        }
+        if (audiences != null) {
+            if (audiences.stream().anyMatch(a -> Strings.hasText(a) == false)) {
+                throw new IllegalArgumentException("Null or blank audience not allowed.");
+            }
+            jwtClaimsSetBuilder.audience(audiences);
+        }
+        if (randomBoolean()) {
+            jwtClaimsSetBuilder.subject(randomAlphaOfLength(8));
+        }
+        // principal and groups claims
+        if ((Strings.hasText(principalClaimName)) && (principalClaimValue != null)) {
+            jwtClaimsSetBuilder.claim(principalClaimName, principalClaimValue);
+        }
         if ((Strings.hasText(groupsClaimName)) && (groupsClaimValue != null)) {
             jwtClaimsSetBuilder.claim(groupsClaimName, groupsClaimValue.toString());
         }
+        // auth_time, nbf, iat, exp
+        if (randomBoolean()) {
+            jwtClaimsSetBuilder.claim("auth_time", Date.from(now.minusSeconds(randomLongBetween(10, 20))));
+        }
+        if (randomBoolean()) {
+            jwtClaimsSetBuilder.notBeforeTime(Date.from(now.minusSeconds(randomLongBetween(5, 10))));
+        }
+        jwtClaimsSetBuilder.issueTime(Date.from(now));
+        jwtClaimsSetBuilder.expirationTime(Date.from(now.plusSeconds(randomLongBetween(3600, 7200))));
+        // nonce
+        if (randomBoolean()) {
+            jwtClaimsSetBuilder.claim("nonce", new Nonce());
+        }
+        // Custom extra claims. Principal claim name could be "sub" or something else
         if (otherClaims != null) {
             for (final Map.Entry<String, Object> entry : otherClaims.entrySet()) {
+                if (Strings.hasText(entry.getKey()) == false) {
+                    throw new IllegalArgumentException("Null or blank other claim key allowed.");
+                } else if (entry.getValue() == null) {
+                    throw new IllegalArgumentException("Null other claim value allowed.");
+                }
                 jwtClaimsSetBuilder.claim(entry.getKey(), entry.getValue());
             }
         }
         final JWTClaimsSet jwtClaimsSet = jwtClaimsSetBuilder.build();
         LOGGER.info(
-            "CLAIMS: iat=["
-                + jwtClaimsSet.getIssueTime()
+            "CLAIMS: , alg=["
+                + jwtHeader.getAlgorithm().getName()
+                + "], jti=["
+                + jwtClaimsSet.getJWTID()
                 + "], iss=["
                 + jwtClaimsSet.getIssuer()
                 + "], aud="
@@ -398,16 +435,14 @@ public abstract class JwtTestCase extends ESTestCase {
                 + groupsClaimName
                 + "="
                 + jwtClaimsSet.getClaim(groupsClaimName)
-                + "], alg=["
-                + jwtHeader.getAlgorithm().getName()
-                + "], exp=["
-                + jwtClaimsSet.getExpirationTime()
                 + "], nbf=["
                 + jwtClaimsSet.getNotBeforeTime()
                 + "], auth_time=["
                 + jwtClaimsSet.getClaim("auth_time")
-                + "], jti=["
-                + jwtClaimsSet.getJWTID()
+                + "], iat=["
+                + jwtClaimsSet.getIssueTime()
+                + "], exp=["
+                + jwtClaimsSet.getExpirationTime()
                 + "], nonce=["
                 + jwtClaimsSet.getClaim("nonce")
                 + "], other=["
@@ -428,7 +463,7 @@ public abstract class JwtTestCase extends ESTestCase {
                     IntStream.range(0, numRolesPerUser).mapToObj(j -> "role" + j).toArray(String[]::new),
                     null,
                     null,
-                    Collections.singletonMap("metadata", i),
+                    randomBoolean() ? Collections.singletonMap("metadata", i) : null,
                     true
                 )
             );

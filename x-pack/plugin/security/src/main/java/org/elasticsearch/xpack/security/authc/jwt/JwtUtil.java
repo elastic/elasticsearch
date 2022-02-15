@@ -71,9 +71,7 @@ public class JwtUtil {
             final String schemeValuePlusSpace = schemeName + " ";
             if (headerValue.regionMatches(ignoreSchemeNameCase, 0, schemeValuePlusSpace, 0, schemeValuePlusSpace.length())) {
                 final String trimmedSchemeParameters = headerValue.substring(schemeValuePlusSpace.length()).trim();
-                if (Strings.hasText(trimmedSchemeParameters)) {
-                    return new SecureString(trimmedSchemeParameters.toCharArray());
-                }
+                return new SecureString(trimmedSchemeParameters.toCharArray());
             }
         }
         return null;

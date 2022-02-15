@@ -83,7 +83,9 @@ public final class DateProcessor extends AbstractProcessor {
         }
 
         if (javaFormats.isEmpty() == false) {
-            dateParsers.add((params) -> DateFormat.Java.getFunction(String.join("||", javaFormats), newDateTimeZone(params), newLocale(params)));
+            dateParsers.add(
+                (params) -> DateFormat.Java.getFunction(String.join("||", javaFormats), newDateTimeZone(params), newLocale(params))
+            );
         }
 
         this.outputFormat = outputFormat;

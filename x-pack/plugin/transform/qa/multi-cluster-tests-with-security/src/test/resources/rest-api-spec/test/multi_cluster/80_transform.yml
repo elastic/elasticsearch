@@ -146,7 +146,8 @@ teardown:
   - match: { count: 1 }
   - match: { transforms.0.id: "simple-remote-transform" }
   - match: { transforms.0.state: "stopped" }
-  # we added test_index_2, which has 2 more docs:
+  # the source now includes test_index_2, which has 2 more docs
+  # note that test_index_3 fits the wildcard pattern, but is not authorized, this test should not return a count of 4 as this would mean broken access control
   - match: { transforms.0.checkpointing.operations_behind: 2 }
 
   - do:

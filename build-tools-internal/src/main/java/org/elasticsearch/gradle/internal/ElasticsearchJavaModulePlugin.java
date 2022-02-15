@@ -238,12 +238,15 @@ public class ElasticsearchJavaModulePlugin implements Plugin<Project> {
         moduleConfiguration.setCanBeResolved(true);
         // TODO:
         moduleConfiguration.attributes(attrs -> {
-        // // Prefer class folders over JARs. The exception is made for tests projects which require a composition
-        // // of classes and resources, otherwise split into two folders.
-        // if (project.getName().endsWith(".tests")) {
-        // attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
-        // } else {
-          attrs.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES));
+            // // Prefer class folders over JARs. The exception is made for tests projects which require a composition
+            // // of classes and resources, otherwise split into two folders.
+            // if (project.getName().endsWith(".tests")) {
+            // attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+            // } else {
+            attrs.attribute(
+                LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+                project.getObjects().named(LibraryElements.class, LibraryElements.CLASSES)
+            );
         });
         // logger.info("Created resolvable module configuration for %s: %s".formatted(conventionConfiguration.getName(),
         // moduleConfiguration.getName()));

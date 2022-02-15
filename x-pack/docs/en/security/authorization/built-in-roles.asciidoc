@@ -84,8 +84,10 @@ This role does not have access to editing tools in {kib}.
 [[built-in-roles-kibana-system]] `kibana_system` ::
 Grants access necessary for the {kib} system user to read from and write to the
 {kib} indices, manage index templates and tokens, and check the availability of
-the {es} cluster. This role grants read access to the `.monitoring-*` indices
-and read and write access to the `.reporting-*` indices. For more information,
+the {es} cluster. It also permits activating, searching, and retrieving user
+profiles, as well as updating user profile data for the `kibana-*` namespace.
+This role grants read access to the `.monitoring-*` indices and read and write
+access to the `.reporting-*` indices. For more information,
 see {kibana-ref}/using-kibana-with-security.html[Configuring Security in {kib}].
 +
 NOTE: This role should not be assigned to users as the granted permissions may

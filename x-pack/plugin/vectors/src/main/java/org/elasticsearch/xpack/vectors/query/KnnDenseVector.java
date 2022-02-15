@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.util.VectorUtil;
 
 import java.util.Arrays;
+import java.util.List;
 
 public class KnnDenseVector implements DenseVector {
     protected final float[] docVector;
@@ -36,29 +37,10 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
-    public double dotProduct(QueryVector queryVector) {
+    public double dotProduct(List<Number> queryVector) {
         double dotProduct = 0;
         for (int i = 0; i < docVector.length; i++) {
-            dotProduct += docVector[i] * queryVector.get(i);
-        }
-        return dotProduct;
-    }
-
-    /**
-     * dotProduct of doc vector and query vector that normalizes the query vector while performing the calculation.
-     */
-    protected double dotProduct(QueryVector queryVector, float qvMagnitude) {
-        double dotProduct = 0;
-        for (int i = 0; i < docVector.length; i++) {
-            dotProduct += docVector[i] * (queryVector.get(i) / qvMagnitude);
-        }
-        return dotProduct;
-    }
-
-    protected double dotProduct(float[] queryVector, float qvMagnitude) {
-        double dotProduct = 0;
-        for (int i = 0; i < docVector.length; i++) {
-            dotProduct += docVector[i] * (queryVector[i] / qvMagnitude);
+            dotProduct += docVector[i] * queryVector.get(i).floatValue();
         }
         return dotProduct;
     }
@@ -73,10 +55,10 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
-    public double l1Norm(QueryVector queryVector) {
+    public double l1Norm(List<Number> queryVector) {
         double result = 0.0;
         for (int i = 0; i < docVector.length; i++) {
-            result += Math.abs(docVector[i] - queryVector.get(i));
+            result += Math.abs(docVector[i] - queryVector.get(i).floatValue());
         }
         return result;
     }
@@ -87,10 +69,10 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
-    public double l2Norm(QueryVector queryVector) {
+    public double l2Norm(List<Number> queryVector) {
         double l2norm = 0;
         for (int i = 0; i < docVector.length; i++) {
-            double diff = docVector[i] - queryVector.get(i);
+            double diff = docVector[i] - queryVector.get(i).floatValue();
             l2norm += diff * diff;
         }
         return Math.sqrt(l2norm);
@@ -99,15 +81,15 @@ public class KnnDenseVector implements DenseVector {
     @Override
     public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
         if (normalizeQueryVector) {
-            return dotProduct(queryVector, DenseVector.getMagnitude(queryVector)) / getMagnitude();
+            return (dotProduct(queryVector) / DenseVector.getMagnitude(queryVector)) / getMagnitude();
         }
 
         return dotProduct(queryVector) / getMagnitude();
     }
 
     @Override
-    public double cosineSimilarity(QueryVector queryVector) {
-        return dotProduct(queryVector, queryVector.getMagnitude()) / getMagnitude();
+    public double cosineSimilarity(List<Number> queryVector) {
+        return (dotProduct(queryVector) / DenseVector.getMagnitude(queryVector)) / getMagnitude();
     }
 
     @Override

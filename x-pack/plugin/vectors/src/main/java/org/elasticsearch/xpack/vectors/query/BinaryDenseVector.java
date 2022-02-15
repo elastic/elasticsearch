@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 public class BinaryDenseVector implements DenseVector {
     protected final BytesRef docVector;
@@ -52,35 +53,12 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public double dotProduct(QueryVector queryVector) {
+    public double dotProduct(List<Number> queryVector) {
         ByteBuffer byteBuffer = wrap(docVector);
 
         double dotProduct = 0;
         for (int i = 0; i < queryVector.size(); i++) {
-            dotProduct += byteBuffer.getFloat() * queryVector.get(i);
-        }
-        return dotProduct;
-    }
-
-    /**
-     * dotProduct of doc vector and query vector that normalizes the query vector while performing the calculation.
-     */
-    protected double dotProduct(QueryVector qv, float qvMagnitude) {
-        ByteBuffer byteBuffer = wrap(docVector);
-
-        double dotProduct = 0;
-        for (int i = 0; i < qv.size(); i++) {
-            dotProduct += byteBuffer.getFloat() * (qv.get(i) / qvMagnitude);
-        }
-        return dotProduct;
-    }
-
-    protected double dotProduct(float[] qv, float qvMagnitude) {
-        ByteBuffer byteBuffer = wrap(docVector);
-
-        double dotProduct = 0;
-        for (int i = 0; i < qv.length; i++) {
-            dotProduct += byteBuffer.getFloat() * (qv[i] / qvMagnitude);
+            dotProduct += byteBuffer.getFloat() * queryVector.get(i).floatValue();
         }
         return dotProduct;
     }
@@ -97,12 +75,12 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public double l1Norm(QueryVector queryVector) {
+    public double l1Norm(List<Number> queryVector) {
         ByteBuffer byteBuffer = wrap(docVector);
 
         double l1norm = 0;
         for (int i = 0; i < queryVector.size(); i++) {
-            l1norm += Math.abs(queryVector.get(i) - byteBuffer.getFloat());
+            l1norm += Math.abs(queryVector.get(i).floatValue() - byteBuffer.getFloat());
         }
         return l1norm;
     }
@@ -119,11 +97,11 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public double l2Norm(QueryVector queryVector) {
+    public double l2Norm(List<Number> queryVector) {
         ByteBuffer byteBuffer = wrap(docVector);
         double l2norm = 0;
-        for (int i = 0; i < queryVector.size(); i++) {
-            double diff = byteBuffer.getFloat() - queryVector.get(i);
+        for (Number number : queryVector) {
+            double diff = byteBuffer.getFloat() - number.floatValue();
             l2norm += diff * diff;
         }
         return Math.sqrt(l2norm);
@@ -132,14 +110,14 @@ public class BinaryDenseVector implements DenseVector {
     @Override
     public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
         if (normalizeQueryVector) {
-            return dotProduct(queryVector, DenseVector.getMagnitude(queryVector)) / getMagnitude();
+            return (dotProduct(queryVector) / DenseVector.getMagnitude(queryVector)) / getMagnitude();
         }
         return dotProduct(queryVector) / getMagnitude();
     }
 
     @Override
-    public double cosineSimilarity(QueryVector queryVector) {
-        return dotProduct(queryVector, queryVector.getMagnitude()) / getMagnitude();
+    public double cosineSimilarity(List<Number> queryVector) {
+        return (dotProduct(queryVector) / DenseVector.getMagnitude(queryVector)) / getMagnitude();
     }
 
     @Override
@@ -157,7 +135,7 @@ public class BinaryDenseVector implements DenseVector {
         return dims;
     }
 
-    protected static ByteBuffer wrap(BytesRef dv) {
+    private static ByteBuffer wrap(BytesRef dv) {
         return ByteBuffer.wrap(dv.bytes, dv.offset, dv.length);
     }
 }

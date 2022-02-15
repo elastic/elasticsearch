@@ -50,51 +50,34 @@ public class DenseVectorTests extends ESTestCase {
             listQV.add(q);
         }
 
-        QueryVector qv = new QueryVector(listQV);
-
         KnnDenseVector knn = new KnnDenseVector(docVector);
-        assertEquals(knn.dotProduct(qv), knn.dotProduct(arrayQV), 0.001f);
         assertEquals(knn.dotProduct(arrayQV), knn.dotProduct(listQV), 0.001f);
-        assertEquals(knn.dotProduct((Object) qv), knn.dotProduct((Object) arrayQV), 0.001f);
-        assertEquals(knn.dotProduct((Object) qv), knn.dotProduct(listQV), 0.001f);
+        assertEquals(knn.dotProduct((Object) listQV), knn.dotProduct((Object) arrayQV), 0.001f);
 
-        assertEquals(knn.l1Norm(qv), knn.l1Norm(arrayQV), 0.001f);
         assertEquals(knn.l1Norm(arrayQV), knn.l1Norm(listQV), 0.001f);
-        assertEquals(knn.l1Norm((Object) qv), knn.l1Norm((Object) arrayQV), 0.001f);
-        assertEquals(knn.l1Norm((Object) qv), knn.l1Norm(listQV), 0.001f);
+        assertEquals(knn.l1Norm((Object) listQV), knn.l1Norm((Object) arrayQV), 0.001f);
 
-        assertEquals(knn.l2Norm(qv), knn.l2Norm(arrayQV), 0.001f);
         assertEquals(knn.l2Norm(arrayQV), knn.l2Norm(listQV), 0.001f);
-        assertEquals(knn.l2Norm((Object) qv), knn.l2Norm((Object) arrayQV), 0.001f);
-        assertEquals(knn.l2Norm((Object) qv), knn.l2Norm(listQV), 0.001f);
+        assertEquals(knn.l2Norm((Object) listQV), knn.l2Norm((Object) arrayQV), 0.001f);
 
-        assertEquals(knn.cosineSimilarity(qv), knn.cosineSimilarity(arrayQV), 0.001f);
         assertEquals(knn.cosineSimilarity(arrayQV), knn.cosineSimilarity(listQV), 0.001f);
-        assertEquals(knn.cosineSimilarity((Object) qv), knn.cosineSimilarity((Object) arrayQV), 0.001f);
-        assertEquals(knn.cosineSimilarity((Object) qv), knn.cosineSimilarity((Object) listQV), 0.001f);
+        assertEquals(knn.cosineSimilarity((Object) listQV), knn.cosineSimilarity((Object) arrayQV), 0.001f);
 
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(docVector, indexVersion);
             BinaryDenseVector bdv = new BinaryDenseVector(value, dims, indexVersion);
-            assertEquals(bdv.dotProduct(qv), bdv.dotProduct(arrayQV), 0.001f);
+
             assertEquals(bdv.dotProduct(arrayQV), bdv.dotProduct(listQV), 0.001f);
-            assertEquals(bdv.dotProduct((Object) qv), bdv.dotProduct((Object) arrayQV), 0.001f);
-            assertEquals(bdv.dotProduct((Object) qv), bdv.dotProduct(listQV), 0.001f);
+            assertEquals(bdv.dotProduct((Object) listQV), bdv.dotProduct((Object) arrayQV), 0.001f);
 
-            assertEquals(bdv.l1Norm(qv), bdv.l1Norm(arrayQV), 0.001f);
             assertEquals(bdv.l1Norm(arrayQV), bdv.l1Norm(listQV), 0.001f);
-            assertEquals(bdv.l1Norm((Object) qv), bdv.l1Norm((Object) arrayQV), 0.001f);
-            assertEquals(bdv.l1Norm((Object) qv), bdv.l1Norm(listQV), 0.001f);
+            assertEquals(bdv.l1Norm((Object) listQV), bdv.l1Norm((Object) arrayQV), 0.001f);
 
-            assertEquals(bdv.l2Norm(qv), bdv.l2Norm(arrayQV), 0.001f);
             assertEquals(bdv.l2Norm(arrayQV), bdv.l2Norm(listQV), 0.001f);
-            assertEquals(bdv.l2Norm((Object) qv), bdv.l2Norm((Object) arrayQV), 0.001f);
-            assertEquals(bdv.l2Norm((Object) qv), bdv.l2Norm(listQV), 0.001f);
+            assertEquals(bdv.l2Norm((Object) listQV), bdv.l2Norm((Object) arrayQV), 0.001f);
 
-            assertEquals(bdv.cosineSimilarity(qv), bdv.cosineSimilarity(arrayQV), 0.001f);
             assertEquals(bdv.cosineSimilarity(arrayQV), bdv.cosineSimilarity(listQV), 0.001f);
-            assertEquals(bdv.cosineSimilarity((Object) qv), bdv.cosineSimilarity((Object) arrayQV), 0.001f);
-            assertEquals(bdv.cosineSimilarity((Object) qv), bdv.cosineSimilarity(listQV), 0.001f);
+            assertEquals(bdv.cosineSimilarity((Object) listQV), bdv.cosineSimilarity((Object) arrayQV), 0.001f);
         }
     }
 

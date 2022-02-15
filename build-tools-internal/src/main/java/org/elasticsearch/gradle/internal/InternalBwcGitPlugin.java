@@ -82,25 +82,20 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             String remoteRepo = remote.get();
             // for testing only we can override the base remote url
             String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
-                .forUseAtConfigurationTime()
                 .getOrElse("https://github.com/" + remoteRepo + "/elasticsearch.git");
             addRemote.setCommandLine(asList("git", "remote", "add", remoteRepo, remoteRepoUrl));
         });
 
         TaskProvider<LoggedExec> fetchLatestTaskProvider = tasks.register("fetchLatest", LoggedExec.class, fetchLatest -> {
-            var gitFetchLatest = project.getProviders()
-                .systemProperty("tests.bwc.git_fetch_latest")
-                .forUseAtConfigurationTime()
-                .orElse("true")
-                .map(fetchProp -> {
-                    if ("true".equals(fetchProp)) {
-                        return true;
-                    }
-                    if ("false".equals(fetchProp)) {
-                        return false;
-                    }
-                    throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + fetchProp + "]");
-                });
+            var gitFetchLatest = project.getProviders().systemProperty("tests.bwc.git_fetch_latest").orElse("true").map(fetchProp -> {
+                if ("true".equals(fetchProp)) {
+                    return true;
+                }
+                if ("false".equals(fetchProp)) {
+                    return false;
+                }
+                throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + fetchProp + "]");
+            });
             fetchLatest.onlyIf(t -> project.getGradle().getStartParameter().isOffline() == false && gitFetchLatest.get());
             fetchLatest.dependsOn(addRemoteTaskProvider);
             fetchLatest.setWorkingDir(gitExtension.getCheckoutDir().get());

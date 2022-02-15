@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -75,6 +77,8 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
     }
 
     protected void resolveIndicesAndGetCheckpoint(Task task, Request request, ActionListener<Response> listener, final ClusterState state) {
+        // note: when security is turned on, the indices are already resolved
+        // TODO: do a quick check and only resolve if necessary??
         String[] concreteIndices = this.indexNameExpressionResolver.concreteIndexNames(
             state,
             request.indicesOptions(),
@@ -108,6 +112,11 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 continue;
             }
             if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
+                // special case: a node that holds the shard is on an old version
+                if (nodes.get(shard.currentNodeId()).getVersion().before(Version.V_8_2_0)) {
+                    throw new ActionNotFoundTransportException(GetCheckpointNodeAction.NAME);
+                }
+
                 String nodeId = shard.currentNodeId();
                 nodesAndShards.computeIfAbsent(nodeId, k -> new HashSet<>()).add(shard.shardId());
             } else {

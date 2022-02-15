@@ -17,14 +17,10 @@ public record HealthIndicatorResult(String name, String component, HealthStatus 
     implements
         ToXContentObject {
 
-    public static HealthIndicatorResult of(String name, String component, HealthStatus status, String summary) {
-        return new HealthIndicatorResult(name, component, status, summary, HealthIndicatorDetails.EMPTY);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("status", status);
+        builder.field("status", status.xContentValue());
         builder.field("summary", summary);
         builder.field("details", details, params);
         // TODO 83303: Add detail / documentation

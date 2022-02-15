@@ -190,7 +190,11 @@ public class RoleDescriptorTests extends ESTestCase {
                   "privileges": [ "p1", "p2" ],
                   "allow_restricted_indices": true
                 }
-              ]
+              ],
+              "global": {
+                "profile": {
+                }
+              }
             }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
@@ -484,6 +488,88 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f1")));
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f2")));
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f3")));
+    }
+
+    public void testGlobalPrivilegesOrdering() throws IOException {
+        final String roleName = randomAlphaOfLengthBetween(3, 30);
+        final String[] applicationNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);
+        final String[] profileNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);
+        ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
+            new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(Sets.newHashSet(profileNames)),
+            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(applicationNames)) };
+        RoleDescriptor role1 = new RoleDescriptor(
+            roleName,
+            new String[0],
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            configurableClusterPrivileges,
+            new String[0],
+            Map.of(),
+            Map.of()
+        );
+        // swap
+        var temp = configurableClusterPrivileges[0];
+        configurableClusterPrivileges[0] = configurableClusterPrivileges[1];
+        configurableClusterPrivileges[1] = temp;
+        RoleDescriptor role2 = new RoleDescriptor(
+            roleName,
+            new String[0],
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            configurableClusterPrivileges,
+            new String[0],
+            Map.of(),
+            Map.of()
+        );
+        assertThat(role2, is(role1));
+        StringBuilder applicationNamesString = new StringBuilder();
+        for (int i = 0; i < applicationNames.length; i++) {
+            if (i > 0) {
+                applicationNamesString.append(", ");
+            }
+            applicationNamesString.append("\"" + applicationNames[i] + "\"");
+        }
+        StringBuilder profileNamesString = new StringBuilder();
+        for (int i = 0; i < profileNames.length; i++) {
+            if (i > 0) {
+                profileNamesString.append(", ");
+            }
+            profileNamesString.append("\"" + profileNames[i] + "\"");
+        }
+        String json = """
+            {
+              "global": {
+                "profile": {
+                  "update": {
+                    "applications": [ %s ]
+                  }
+                },
+                "application": {
+                  "manage": {
+                    "applications": [ %s ]
+                  }
+                }
+              }
+            }""".formatted(profileNamesString.toString(), applicationNamesString.toString());
+        RoleDescriptor role3 = RoleDescriptor.parse(roleName, new BytesArray(json), false, XContentType.JSON);
+        assertThat(role3, is(role1));
+        json = """
+            {
+              "global": {
+                "application": {
+                  "manage": {
+                    "applications": [ %s ]
+                  }
+                },
+                "profile": {
+                  "update": {
+                    "applications": [ %s ]
+                  }
+                }
+              }
+            }""".formatted(applicationNamesString.toString(), profileNamesString.toString());
+        RoleDescriptor role4 = RoleDescriptor.parse(roleName, new BytesArray(json), false, XContentType.JSON);
+        assertThat(role4, is(role1));
     }
 
     public void testIsEmpty() {

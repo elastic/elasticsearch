@@ -32,7 +32,6 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -901,12 +900,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
         if (dimension) {
-            // Encode the tsid part of the dimension field. Although, it would seem reasonable
-            // to skip the encode part if we don't generate a _tsid field (as we do with number
-            // and ip fields), we keep this test because we must ensure that the value of this
-            // dimension field is not larger than TimeSeriesIdFieldMapper.DIMENSION_VALUE_LIMIT
-            BytesReference bytes = TimeSeriesIdFieldMapper.encodeTsidValue(value);
-            context.doc().addDimensionBytes(fieldType().name(), bytes);
+            context.getDimensions().addString(fieldType().name(), value);
         }
 
         // convert to utf8 only once before feeding postings/dv/stored fields

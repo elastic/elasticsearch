@@ -10,16 +10,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 /**
  * Fork of {@link org.apache.lucene.document.Document} with additional functionality.
@@ -31,12 +27,6 @@ public class LuceneDocument implements Iterable<IndexableField> {
     private final String prefix;
     private final List<IndexableField> fields;
     private Map<Object, IndexableField> keyedFields;
-    /**
-     * A sorted map of the serialized values of dimension fields that will be used
-     * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
-     * to build the _tsid field for the document.
-     */
-    private SortedMap<BytesRef, BytesReference> dimensionBytes;
 
     LuceneDocument(String path, LuceneDocument parent) {
         fields = new ArrayList<>();
@@ -107,28 +97,6 @@ public class LuceneDocument implements Iterable<IndexableField> {
      */
     public IndexableField getByKey(Object key) {
         return keyedFields == null ? null : keyedFields.get(key);
-    }
-
-    /**
-     * Add the serialized byte reference for a dimension field. This will be used by {@link TimeSeriesIdFieldMapper}
-     * to build the _tsid field for the document.
-     */
-    public void addDimensionBytes(String fieldName, BytesReference tsidBytes) {
-        BytesRef fieldNameBytes = new BytesRef(fieldName);
-        if (dimensionBytes == null) {
-            // It is a {@link TreeMap} so that it is order by field name.
-            dimensionBytes = new TreeMap<>();
-        } else if (dimensionBytes.containsKey(fieldNameBytes)) {
-            throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
-        }
-        dimensionBytes.put(fieldNameBytes, tsidBytes);
-    }
-
-    public SortedMap<BytesRef, BytesReference> getDimensionBytes() {
-        if (dimensionBytes == null) {
-            return Collections.emptySortedMap();
-        }
-        return dimensionBytes;
     }
 
     public IndexableField[] getFields(String name) {

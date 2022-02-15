@@ -37,7 +37,6 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   headerLine = "name,version,url,license,sourceURL"
   target = new File(providers.systemProperty('csv')
                       .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
-                      .forUseAtConfigurationTime()
                       .get()
   )
   // explicitly add our dependency on the JDK

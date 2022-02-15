@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -98,9 +99,8 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
               "can_remain_on_current_node": "yes",
               "can_rebalance_cluster": "yes",
               "can_rebalance_to_other_node": "no",
-              "rebalance_explanation": "cannot rebalance as no target node exists that can both allocate this shard \
-            and improve the cluster balance"
-            }""".formatted(cae.getCurrentNode().getAddress())), Strings.toString(builder));
+              "rebalance_explanation": "%s"
+            }""".formatted(cae.getCurrentNode().getAddress(), Explanations.Rebalance.ALREADY_BALANCED)), Strings.toString(builder));
     }
 
     public void testRandomShardExplanationToXContent() throws Exception {
@@ -108,25 +108,35 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String actual = Strings.toString(builder);
-        assertThat(actual, equalTo(XContentHelper.stripWhitespace("""
-            {
-              "note": "%s",
-              "index": "idx",
-              "shard": 0,
-              "primary": true,
-              "current_state": "started",
-              "current_node": {
-                "id": "node-0",
-                "name": "",
-                "transport_address": "%s",
-                "weight_ranking": 3
-              },
-              "can_remain_on_current_node": "yes",
-              "can_rebalance_cluster": "yes",
-              "can_rebalance_to_other_node": "no",
-              "rebalance_explanation": "cannot rebalance as no target node exists that can both allocate this shard \
-            and improve the cluster balance"
-            }""".formatted(ClusterAllocationExplanation.NO_SHARD_SPECIFIED_MESSAGE, cae.getCurrentNode().getAddress()))));
+        assertThat(
+            actual,
+            equalTo(
+                XContentHelper.stripWhitespace(
+                    """
+                        {
+                          "note": "%s",
+                          "index": "idx",
+                          "shard": 0,
+                          "primary": true,
+                          "current_state": "started",
+                          "current_node": {
+                            "id": "node-0",
+                            "name": "",
+                            "transport_address": "%s",
+                            "weight_ranking": 3
+                          },
+                          "can_remain_on_current_node": "yes",
+                          "can_rebalance_cluster": "yes",
+                          "can_rebalance_to_other_node": "no",
+                          "rebalance_explanation": "%s"
+                        }""".formatted(
+                        ClusterAllocationExplanation.NO_SHARD_SPECIFIED_MESSAGE,
+                        cae.getCurrentNode().getAddress(),
+                        Explanations.Rebalance.ALREADY_BALANCED
+                    )
+                )
+            )
+        );
         assertThat(
             actual,
             allOf(

@@ -915,13 +915,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
 
-        // If document contains a keyword field and the utf8 length of field value is bigger than 32766, lucene will fail to write the field
-        // into memory index buffer and marks the document deleted(maybe partial fields of the document have been successfully written, and
-        // the written index buffer cannot be rolled back), the document will be totally deleted in lucene segment merge process, the
-        // segment merge includes StoredFields merge, which contains the following merge types: MergeStrategy.DOC, MergeStrategy.BULK
-        // MergeStrategy.VISITOR, as long as a document is marked as deleted by the case, the type of StoredFields chunk merge will be
-        // changed from MergeStrategy.BULK to MergeStrategy.DOC, actually the efficiency of MergeStrategy.BULK is higher than
-        // MergeStrategy.DOC, to avoid the bad case, es should actively discard the total document not pass it to lucene.
+        // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to roll
+        // back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only
+        // workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC instead of
+        // MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
         if (binaryValue.length > BYTE_BLOCK_SIZE - 2) {
             byte[] prefix = new byte[30];
             System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);

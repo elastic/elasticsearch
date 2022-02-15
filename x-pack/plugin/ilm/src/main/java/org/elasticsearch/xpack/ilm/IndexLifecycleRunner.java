@@ -61,13 +61,11 @@ class IndexLifecycleRunner {
         for (IndexLifecycleClusterStateUpdateTask task : tasks) {
             try {
                 state = task.execute(state);
-                builder.success(task);
+                builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
             } catch (Exception e) {
                 builder.failure(task, e);
             }
         }
-        // Trigger indices lookup creation and related validation
-        state.metadata().getIndicesLookup();
         return builder.build(state);
     };
 

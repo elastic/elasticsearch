@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.join.query.HasChildQueryBuilder.LateParsingQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -55,7 +56,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.join.query.HasChildQueryBuilder.LateParsingQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -245,7 +245,14 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
               }
             }""";
         HasChildQueryBuilder queryBuilder = (HasChildQueryBuilder) parseQuery(query);
-        checkGeneratedJson(query, queryBuilder);
+        checkGeneratedJson(
+            /*
+             * Ignoring unmapped is the default and we don't dump it and can't
+             * change it if we're going to use inner_hits.
+             */
+            query.replaceFirst("\"ignore_unmapped\" : false,", ""),
+            queryBuilder
+        );
         assertEquals(query, queryBuilder.maxChildren(), 1217235442);
         assertEquals(query, queryBuilder.minChildren(), 883170873);
         assertEquals(query, queryBuilder.boost(), 2.0f, 0.0f);
@@ -257,6 +264,74 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             .setSize(100)
             .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC));
         assertEquals(query, queryBuilder.innerHit(), expected);
+    }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        String query = """
+            {
+              "has_child" : {
+                "query" : {
+                  "range" : {
+                    "mapped_string" : {
+                      "gte" : "agJhRET",
+                      "lte" : "zvqIq",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "type" : "child",
+                "score_mode" : "none",
+                "min_children" : 1,
+                "max_children" : MAX_CHILDREN,
+                "ignore_unmapped" : false,
+                "boost" : 1.0,
+                "inner_hits" : {
+                  "name" : "inner_hits_name",
+                  "ignore_unmapped" : false,
+                  "from" : 0,
+                  "size" : 100,
+                  "version" : false,
+                  "seq_no_primary_term" : false,
+                  "explain" : false,
+                  "track_scores" : false,
+                  "sort" : [ {
+                    "mapped_string" : {
+                      "order" : "asc"
+                    }
+                  } ]
+                }
+              }
+            }""".replaceAll("MAX_CHILDREN", Integer.toString(Integer.MAX_VALUE));
+        checkGeneratedJson("""
+            {
+              "has_child" : {
+                "query" : {
+                  "range" : {
+                    "mapped_string" : {
+                      "gte" : "agJhRET",
+                      "lte" : "zvqIq",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "type" : "child",
+                "inner_hits" : {
+                  "name" : "inner_hits_name",
+                  "ignore_unmapped" : false,
+                  "from" : 0,
+                  "size" : 100,
+                  "version" : false,
+                  "seq_no_primary_term" : false,
+                  "explain" : false,
+                  "track_scores" : false,
+                  "sort" : [ {
+                    "mapped_string" : {
+                      "order" : "asc"
+                    }
+                  } ]
+                }
+              }
+            }""", parseQuery(query));
     }
 
     public void testToQueryInnerQueryType() throws IOException {

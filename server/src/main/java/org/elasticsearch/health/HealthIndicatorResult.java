@@ -20,7 +20,7 @@ public record HealthIndicatorResult(String name, String component, HealthStatus 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("status", status);
+        builder.field("status", status.xContentValue());
         builder.field("summary", summary);
         builder.field("details", details, params);
         // TODO 83303: Add detail / documentation

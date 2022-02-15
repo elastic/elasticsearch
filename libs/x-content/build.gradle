@@ -59,7 +59,7 @@ tasks.named("compileJava").configure {
 
 File generatedResourcesDir = new File(buildDir, 'generated-resources')
 def generateProviderManifest = tasks.register("generateProviderManifest") {
-  File manifestFile = new File(generatedResourcesDir, "MANIFEST.TXT")
+  File manifestFile = new File(generatedResourcesDir, "LISTING.TXT")
   inputs.property('jars', configurations.providerImpl)
   outputs.file(manifestFile)
   doLast {

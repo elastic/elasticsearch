@@ -16,10 +16,15 @@ import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
+import java.security.CodeSigner;
+import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
@@ -42,7 +47,7 @@ import java.util.Objects;
  * <p> For example, the structure of the archive named x-content:
  * <pre>
  *  /org/elasticsearch/xcontent/XContent.class
- *  /IMPL-JARS/x-content/MANIFEST.txt - contains x-content-impl.jar, dep-1.jar, dep-2.jar
+ *  /IMPL-JARS/x-content/LISTING.TXT - contains list of jar file names, newline separated
  *  /IMPL-JARS/x-content/x-content-impl.jar/xxx
  *  /IMPL-JARS/x-content/dep-1.jar/abc
  *  /IMPL-JARS/x-content/dep-2.jar/xyz
@@ -51,23 +56,29 @@ import java.util.Objects;
 public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
     private static final String IMPL_PREFIX = "IMPL-JARS/";
-    private static final String MANIFEST_FILE = "/MANIFEST.TXT";
+    private static final String MANIFEST_FILE = "/LISTING.TXT";
 
     private final List<String> prefixes;
     private final ClassLoader parent;
+    private final Map<String, CodeSource> prefixToCodeBase;
 
-    private static List<String> getProviderPrefixes(ClassLoader parent, String providerName) {
-        final String providerPrefix = IMPL_PREFIX + providerName;
-        final InputStream is = parent.getResourceAsStream(providerPrefix + MANIFEST_FILE);
-        if (is == null) {
+    private static Map<String, CodeSource> getProviderPrefixes(ClassLoader parent, String providerName) {
+        String providerPrefix = IMPL_PREFIX + providerName;
+        URL manifest = parent.getResource(providerPrefix + MANIFEST_FILE);
+        if (manifest == null) {
             throw new IllegalStateException("missing x-content provider jars list");
         }
         try (
-            InputStream in = is;
+            InputStream in = manifest.openStream();
             InputStreamReader isr = new InputStreamReader(in, StandardCharsets.UTF_8);
             BufferedReader reader = new BufferedReader(isr)
         ) {
-            return reader.lines().map(s -> providerPrefix + "/" + s).toList();
+            List<String> prefixes = reader.lines().map(s -> providerPrefix + "/" + s).toList();
+            Map<String, CodeSource> map = new HashMap<>();
+            for (String prefix : prefixes) {
+                map.put(prefix, new CodeSource(new URL(manifest, prefix), (CodeSigner[]) null /*signers*/));
+            }
+            return Collections.unmodifiableMap(map);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -77,23 +88,32 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
     }
 
-    private EmbeddedImplClassLoader(ClassLoader parent, List<String> prefixes) {
+    private EmbeddedImplClassLoader(ClassLoader parent, Map<String, CodeSource> prefixToCodeBase) {
         super(parent);
-        this.prefixes = prefixes;
+        this.prefixes = prefixToCodeBase.keySet().stream().toList();
+        this.prefixToCodeBase = prefixToCodeBase;
         this.parent = parent;
     }
 
+    record Resource(InputStream inputStream, CodeSource codeSource) {}
+
     /** Searches for the named resource. Iterates over all prefixes. */
-    private InputStream privilegedGetResourceAsStreamOrNull(String name) {
-        return AccessController.doPrivileged(new PrivilegedAction<InputStream>() {
+    private Resource privilegedGetResourceOrNull(String name) {
+        return AccessController.doPrivileged(new PrivilegedAction<Resource>() {
             @Override
-            public InputStream run() {
-                return prefixes.stream()
-                    .map(p -> p + "/" + name)
-                    .map(parent::getResourceAsStream)
-                    .filter(Objects::nonNull)
-                    .findFirst()
-                    .orElse(null);
+            public Resource run() {
+                for (String prefix : prefixes) {
+                    URL url = parent.getResource(prefix + "/" + name);
+                    if (url != null) {
+                        try {
+                            InputStream is = url.openStream();
+                            return new Resource(is, prefixToCodeBase.get(prefix));
+                        } catch (IOException e) {
+                            // silently ignore, same as ClassLoader
+                        }
+                    }
+                }
+                return null;
             }
         });
     }
@@ -101,11 +121,11 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     @Override
     public Class<?> findClass(String name) throws ClassNotFoundException {
         String filepath = name.replace('.', '/').concat(".class");
-        InputStream is = privilegedGetResourceAsStreamOrNull(filepath);
-        if (is != null) {
-            try (InputStream in = is) {
+        Resource res = privilegedGetResourceOrNull(filepath);
+        if (res != null) {
+            try (InputStream in = res.inputStream()) {
                 byte[] bytes = in.readAllBytes();
-                return defineClass(name, bytes, 0, bytes.length);
+                return defineClass(name, bytes, 0, bytes.length, res.codeSource());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

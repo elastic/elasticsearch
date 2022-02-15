@@ -29,6 +29,7 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CURSOR_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.FETCH_SIZE_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.FILTER_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.INDEX_INCLUDE_FROZEN_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.KEEP_ALIVE_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.KEEP_ON_COMPLETION_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.MODE_NAME;
@@ -139,6 +140,11 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
 
         public RequestObjectBuilder runtimeMappings(String runtimeMappings) {
             request.append(field(RUNTIME_MAPPINGS_NAME, runtimeMappings));
+            return this;
+        }
+
+        public RequestObjectBuilder indexIncludeFrozen(boolean includeFrozen) {
+            request.append(field(INDEX_INCLUDE_FROZEN_NAME, includeFrozen));
             return this;
         }
 

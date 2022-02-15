@@ -1449,6 +1449,26 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertThat(resp.get("cursor").toString().length(), lessThan(5000));
     }
 
+    public void testIndexIncludeFrozenIsDeprecated() throws IOException {
+        index("{\"foo\": 1}");
+
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        request.setEntity(
+            new StringEntity(
+                query("SELECT * FROM test").mode(randomMode()).indexIncludeFrozen(randomBoolean()).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        request.setOptions(
+            expectWarnings(
+                "[index_include_frozen] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers "
+                    + "in place of frozen indices."
+            )
+        );
+
+        assertTrue(client().performRequest(request).hasWarnings());
+    }
+
     static Map<String, Object> runSql(RequestObjectBuilder builder, String mode) throws IOException {
         return toMap(runSql(builder.mode(mode)), mode);
     }

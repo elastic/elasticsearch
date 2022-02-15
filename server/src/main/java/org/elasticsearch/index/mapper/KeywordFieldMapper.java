@@ -915,8 +915,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
 
-        // make suer the utf8 length of keyword value is not bigger than 32766 in ES, not in lucene.
-        // See https://github.com/elastic/elasticsearch/issues/80865 details.
+        // If document contains a keyword field and the utf8 length of field value is bigger than 32766, lucene will fail to write the field
+        // into memory index buffer and marks the document deleted(maybe partial fields of the document have been successfully written, and
+        // the written index buffer cannot be rolled back), the document will be totally deleted in lucene segment merge process, the
+        // segment merge includes StoredFields merge, which contains the following merge types: MergeStrategy.DOC, MergeStrategy.BULK
+        // MergeStrategy.VISITOR, as long as a document is marked as deleted by the case, the type of StoredFields chunk merge will be
+        // changed from MergeStrategy.BULK to MergeStrategy.DOC, actually the efficiency of MergeStrategy.BULK is higher than
+        // MergeStrategy.DOC, to avoid the bad case, es should actively discard the total document not pass it to lucene.
         if (binaryValue.length > BYTE_BLOCK_SIZE - 2) {
             byte[] prefix = new byte[30];
             System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);

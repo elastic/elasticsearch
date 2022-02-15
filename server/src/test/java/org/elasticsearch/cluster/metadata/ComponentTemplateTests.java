@@ -191,20 +191,32 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
 
     public void testSettingsEquals() {
         assertThat(
-            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build(),
-            equalTo(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build())
+            Template.settingsEquals(
+                Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build(),
+                Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build()
+            ),
+            equalTo(true)
         );
         assertThat(
-            Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1).build(),
-            equalTo(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build())
+            Template.settingsEquals(
+                Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1).build(),
+                Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build()
+            ),
+            equalTo(true)
         );
         assertThat(
-            Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1).build(),
-            equalTo(Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1).build())
+            Template.settingsEquals(
+                Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1).build(),
+                Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1).build()
+            ),
+            equalTo(true)
         );
         assertThat(
-            Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1).build(),
-            not(Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 1).build())
+            Template.settingsEquals(
+                Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1).build(),
+                Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 1).build()
+            ),
+            equalTo(false)
         );
     }
 

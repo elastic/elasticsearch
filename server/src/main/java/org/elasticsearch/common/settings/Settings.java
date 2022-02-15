@@ -13,7 +13,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -570,9 +569,7 @@ public final class Settings implements ToXContentFragment {
         if (o == null || getClass() != o.getClass()) return false;
 
         Settings that = (Settings) o;
-        Settings thisSettings = Settings.builder().put(this).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
-        Settings thatSettings = Settings.builder().put(that).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
-        return Objects.equals(thisSettings.settings, thatSettings.settings);
+        return Objects.equals(settings, that.settings);
     }
 
     @Override

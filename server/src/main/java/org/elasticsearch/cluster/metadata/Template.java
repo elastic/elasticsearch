@@ -156,7 +156,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             return false;
         }
         Template other = (Template) obj;
-        return Objects.equals(settings, other.settings)
+        return settingsEquals(settings, other.settings)
             && mappingsEquals(this.mappings, other.mappings)
             && Objects.equals(aliases, other.aliases);
     }
@@ -228,5 +228,11 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             XContentHelper.convertToMap(m2.uncompressed(), true, XContentType.JSON).v2()
         );
         return Maps.deepEquals(thisUncompressedMapping, otherUncompressedMapping);
+    }
+
+    static boolean settingsEquals(Settings s1, Settings s2) {
+        Settings thisSettings = Settings.builder().put(s1).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
+        Settings thatSettings = Settings.builder().put(s2).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
+        return thisSettings.equals(thatSettings);
     }
 }

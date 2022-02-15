@@ -23,6 +23,7 @@ public class SamplingContextTests extends ESTestCase {
         return new SamplingContext(randomDoubleBetween(1e-8, 0.1, false), randomInt());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83748")
     public void testScaling() {
         for (int i = 0; i < 20; i++) {
             SamplingContext samplingContext = randomContext();

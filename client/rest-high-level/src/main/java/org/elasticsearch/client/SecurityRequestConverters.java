@@ -19,8 +19,6 @@ import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
-import org.elasticsearch.client.security.DisableUserRequest;
-import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
@@ -29,7 +27,6 @@ import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
-import org.elasticsearch.client.security.SetUserEnabledRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -85,26 +82,6 @@ final class SecurityRequestConverters {
         request.setEntity(createEntity(putRoleMappingRequest, REQUEST_BODY_CONTENT_TYPE));
         final RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(putRoleMappingRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request enableUser(EnableUserRequest enableUserRequest) {
-        return setUserEnabled(enableUserRequest);
-    }
-
-    static Request disableUser(DisableUserRequest disableUserRequest) {
-        return setUserEnabled(disableUserRequest);
-    }
-
-    private static Request setUserEnabled(SetUserEnabledRequest setUserEnabledRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/user")
-            .addPathPart(setUserEnabledRequest.getUsername())
-            .addPathPart(setUserEnabledRequest.isEnabled() ? "_enable" : "_disable")
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(setUserEnabledRequest.getRefreshPolicy());
         request.addParameters(params.asMap());
         return request;
     }

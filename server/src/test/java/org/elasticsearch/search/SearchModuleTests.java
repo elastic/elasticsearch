@@ -584,6 +584,11 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         protected void validate(ValidationContext context) {}
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
+        }
     }
 
     /**

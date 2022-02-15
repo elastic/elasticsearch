@@ -417,20 +417,30 @@ image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 [[ccs-supported-configurations]]
 === Supported {ccs} configurations
 
-Before 8.0, Elastic supports searches from a local cluster to a remote cluster in the following matrix.
-+
-[%collapsible]
-[[ccs-version-compatibility]]
-.CCS cluster version compatibility matrix
-====
-include::{es-repo-dir}/modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
-====
-
-From 8.0, Elastic only supports searches from a local cluster to a remote cluster running:
+For local clusters running {es} 8.0 or later, Elastic only supports searches to
+a remote cluster running:
 
 * The previous minor version.
 * The same version.
-* A newer version.
+* A newer version. This version must also be compatible with the local cluster
+as outlined in the following table.
++
+[%collapsible%open]
+[[ccs-version-compatibility]]
+.{ccs-cap} version compatibility table
+====
+[cols="^,^,^,^,^,^,^"]
+|====
+| 6+^h| Local cluster
+h| Remote cluster |  6.8        | 7.1–7.16   | 7.17       | 8.0        | 8.1        | 8.2
+| 6.8             |  {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}
+| 7.1–7.16        |  {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}
+| 7.17            |  {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}
+| 8.0             |  {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}
+| 8.1             |  {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.2             |  {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon}
+|====
+====
 
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
 clusters must use the same {es} version.

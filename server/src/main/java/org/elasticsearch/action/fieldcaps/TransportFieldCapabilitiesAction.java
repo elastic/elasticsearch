@@ -113,6 +113,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         checkIndexBlocks(clusterState, concreteIndices);
 
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
+        // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
         final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
         final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
             if (resp.canMatch() && resp.getIndexMappingHash() != null) {

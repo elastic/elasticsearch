@@ -105,14 +105,14 @@ public class LookupFieldTests extends AbstractWireSerializingTestCase<LookupFiel
         LookupField lookupField = createTestInstance();
         final SearchRequest localRequest = lookupField.toSearchRequest(randomBoolean() ? null : "");
         assertThat(localRequest.source().query(), equalTo(lookupField.query()));
-        assertThat(localRequest.source().size(), equalTo(1));
+        assertThat(localRequest.source().size(), equalTo(lookupField.size()));
         assertThat(localRequest.indices(), equalTo(new String[] { lookupField.targetIndex() }));
         assertThat(localRequest.source().fetchFields(), equalTo(lookupField.fetchFields()));
 
         final String clusterAlias = randomAlphaOfLength(10);
         final SearchRequest remoteRequest = lookupField.toSearchRequest(clusterAlias);
         assertThat(remoteRequest.source().query(), equalTo(lookupField.query()));
-        assertThat(remoteRequest.source().size(), equalTo(1));
+        assertThat(remoteRequest.source().size(), equalTo(lookupField.size()));
         assertThat(remoteRequest.indices(), equalTo(new String[] { clusterAlias + ":" + lookupField.targetIndex() }));
         assertThat(remoteRequest.source().fetchFields(), equalTo(lookupField.fetchFields()));
     }

@@ -4,6 +4,8 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -22,8 +24,8 @@ restResources {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
-  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
   setting 'xpack.security.enabled', 'false'
+  requiresFeature 'es.rollup_v2_feature_flag_enabled', Version.fromString("8.0.0")
 }
 
 if (BuildParams.inFipsJvm){

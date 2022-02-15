@@ -38,7 +38,7 @@ class EmptyCursor implements Cursor {
     }
 
     @Override
-    public void clear(Client client, ActionListener<Boolean> listener) {
+    public void clear(Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener) {
         // There is nothing to clean
         listener.onResponse(false);
     }

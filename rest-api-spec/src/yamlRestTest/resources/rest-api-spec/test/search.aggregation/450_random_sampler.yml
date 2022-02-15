@@ -32,8 +32,8 @@ setup:
 "Test random_sampler aggregation with no filter":
   - skip:
       features: close_to
-      version: " - 8.0.99"
-      reason: added in 8.1.0
+      version: " - 8.1.99"
+      reason: added in 8.2.0
   - do:
       search:
         index: data
@@ -60,8 +60,8 @@ setup:
 ---
 "Test random_sampler aggregation with filter":
   - skip:
-      version: " - 8.0.99"
-      reason: added in 8.1.0
+      version: " - 8.1.99"
+      reason: added in 8.2.0
   - do:
       search:
         index: data
@@ -124,8 +124,8 @@ setup:
 ---
 "Test random_sampler aggregation with poor settings":
   - skip:
-      version: " - 8.0.99"
-      reason: added in 8.1.0
+      version: " - 8.1.99"
+      reason: added in 8.2.0
   - do:
       catch: /\[probability\] must be between 0 and 1/
       search:

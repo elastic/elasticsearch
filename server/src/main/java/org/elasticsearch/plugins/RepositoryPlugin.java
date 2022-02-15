@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
@@ -17,6 +18,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom snapshot repositories.
@@ -57,6 +59,15 @@ public interface RepositoryPlugin {
         RecoverySettings recoverySettings
     ) {
         return Collections.emptyMap();
+    }
+
+    /**
+     * Returns a check that is run on restore. This allows plugins to prevent certain restores from happening.
+     *
+     * returns null if no check is provided
+     */
+    default Consumer<IndexMetadata> addPreRestoreCheck() {
+        return null;
     }
 
 }

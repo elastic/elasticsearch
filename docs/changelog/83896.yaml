@@ -1,0 +1,6 @@
+pr: 83896
+summary: Update system index mappings if `_meta` is null
+area: Infra/Core
+type: bug
+issues:
+ - 83890

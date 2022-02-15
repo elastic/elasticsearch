@@ -17,9 +17,9 @@ Geo::
 === Bug fixes
 
 Aggregations::
-* Fix: backward compatibility with version 7.17.0 {es-pull}83715[#83715]
-* Fix: ip prefix bucket reduction {es-pull}83637[#83637]
-* Fix: reduce float and half-float values to their stored precision {es-pull}83213[#83213]
+* backward compatibility with version 7.17.0 {es-pull}83715[#83715]
+* ip prefix bucket reduction {es-pull}83637[#83637]
+* reduce float and half-float values to their stored precision {es-pull}83213[#83213]
 * Reenable `BooleanTermsIT` {es-pull}83421[#83421] (issue: {es-issue}83351[#83351])
 
 Allocation::

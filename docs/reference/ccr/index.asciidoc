@@ -23,16 +23,33 @@ leader indices, and the other cluster contains only follower indices.
 * In a bi-directional configuration, each cluster contains both leader and
 follower indices.
 
+The versions for the cluster, and any replicated indices must be compatible.
+[discrete]
+[[ccr-cluster-compatibility]]
+=== Cluster version compatibility
+
 In a uni-directional configuration, the cluster containing follower indices
 must be running **the same or newer** version of {es} as the remote cluster.
 If newer, the versions must also be compatible as outlined in the following matrix.
 
-[%collapsible]
+[%collapsible%open]
 [[ccr-version-compatibility]]
-.Version compatibility matrix
+.CCR uni-directional cluster version compatibility matrix
 ====
-include::../modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
+include::../modules/ccr-uni-directional-compatibility.asciidoc[tag=ccr-uni-directional-version-compatibility-matrix]
 ====
+
+In a bi-directional configuration, the two clusters must remain on the same version.
+
+[discrete]
+[[ccr-index-compatibility]]
+=== Index compatibility
+
+All indices replicated by cross-cluster replication must also be compatible 
+with the cluster's version. If you try to replicate an index created in an
+incompatible version, the replication attempt will fail.
+
+include::../snapshot-restore/cluster-index-compat.asciidoc[]
 
 [discrete]
 [[ccr-multi-cluster-architectures]]

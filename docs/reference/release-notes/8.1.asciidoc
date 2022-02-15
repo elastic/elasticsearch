@@ -17,6 +17,8 @@ Geo::
 === Bug fixes
 
 Aggregations::
+* Fix: backward compatibility with version 7.17.0 {es-pull}83715[#83715]
+* Fix: ip prefix bucket reduction {es-pull}83637[#83637]
 * Fix: reduce float and half-float values to their stored precision {es-pull}83213[#83213]
 * Reenable `BooleanTermsIT` {es-pull}83421[#83421] (issue: {es-issue}83351[#83351])
 
@@ -41,6 +43,7 @@ Indices APIs::
 
 Infra/Core::
 * Copy `trace.id` in threadcontext stash {es-pull}83218[#83218]
+* Update system index mappings if `_meta` is null {es-pull}83896[#83896] (issue: {es-issue}83890[#83890])
 
 Infra/REST API::
 * Do not allow safelisted media types on Content-Type {es-pull}83448[#83448]
@@ -56,6 +59,7 @@ Machine Learning::
 * Fix `ZeroShotClassificationConfig` update mixing fields {es-pull}82848[#82848]
 * Fix submit after shutdown in process worker service {es-pull}83645[#83645] (issue: {es-issue}83633[#83633])
 * Fixes `categorize_text` parameter validation to be parse order independent {es-pull}82628[#82628] (issue: {es-issue}82629[#82629])
+* Retry anomaly detection job recovery during relocation {es-pull}83456[#83456]
 * Return `zxx` for `lang_ident_model_1` if no valid text is found for language identification {es-pull}82746[#82746] (issue: {es-issue}81933[#81933])
 * Validate vocabulary on model deployment {es-pull}81548[#81548] (issue: {es-issue}81470[#81470])
 * Wait for model process to stop in stop deployment {es-pull}83644[#83644]
@@ -68,6 +72,7 @@ Machine Learning::
 Mapping::
 * Add support for sub-fields to `search_as_you_type` fields {es-pull}82430[#82430] (issue: {es-issue}56326[#56326])
 * Better exception message for `MappingParser.parse` {es-pull}80696[#80696]
+* Completion field to support multiple completion multi-fields {es-pull}83595[#83595] (issue: {es-issue}83534[#83534])
 
 Network::
 * Throw `NoSeedNodeLeftException` on proxy failure {es-pull}80961[#80961] (issue: {es-issue}80898[#80898])
@@ -83,6 +88,7 @@ SQL::
 * Fix txt format for empty result sets {es-pull}83376[#83376]
 
 Search::
+* Avoid eagerly loading `StoredFieldsReader` in fetch phase {es-pull}83693[#83693] (issue: {es-issue}82777[#82777])
 * Returns valid PIT when no index matched {es-pull}83424[#83424]
 
 Security::
@@ -100,6 +106,9 @@ Transform::
 * Fix NPE in transform version check {es-pull}81756[#81756]
 * Fix condition on which the transform stops processing buckets {es-pull}82852[#82852]
 * Prevent stopping of transforms due to threadpool limitation {es-pull}81912[#81912] (issue: {es-issue}81796[#81796])
+
+Watcher::
+* Tolerate empty types array in Watch definitions {es-pull}83524[#83524] (issue: {es-issue}83235[#83235])
 
 [[deprecation-8.1.0]]
 [float]
@@ -224,6 +233,7 @@ Recovery::
 * Adjust `indices.recovery.max_bytes_per_sec` according to external settings {es-pull}82819[#82819]
 
 SQL::
+* Compress Cursors {es-pull}83591[#83591]
 * Extend Tableau connector to reconnect with catalog {es-pull}81321[#81321]
 
 Search::

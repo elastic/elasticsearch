@@ -282,7 +282,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.rest.action.admin.cluster.dangling;
     exports org.elasticsearch.rest.action.admin.indices;
     exports org.elasticsearch.rest.action.cat;
-    exports org.elasticsearch.rest.action.datastreams;
     exports org.elasticsearch.rest.action.document;
     exports org.elasticsearch.rest.action.ingest;
     exports org.elasticsearch.rest.action.search;

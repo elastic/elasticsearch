@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -106,6 +107,11 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.NONE;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_8_2_0;
     }
 
 }

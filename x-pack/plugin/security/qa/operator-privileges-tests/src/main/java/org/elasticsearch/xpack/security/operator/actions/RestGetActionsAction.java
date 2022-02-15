@@ -29,8 +29,6 @@ public class RestGetActionsAction extends BaseRestHandler {
         return "test_get_actions";
     }
 
-    @SuppressForbidden(reason = "Use reflection for testing only")
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final List<String> actionNames = client.getActionNames();

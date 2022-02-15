@@ -73,7 +73,7 @@ public class NodeClient extends AbstractClient {
      * Return the names of all available actions registered with this client.
      */
     public List<String> getActionNames() {
-        return actions.keySet().stream().map(ActionType::name).collect(Collectors.toList());
+        return actions.keySet().stream().map(ActionType::name).toList();
     }
 
     @Override

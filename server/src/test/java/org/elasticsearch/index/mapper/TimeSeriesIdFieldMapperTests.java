@@ -135,7 +135,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     public void testUnicodeKeys() throws IOException {
         String fire = new String(new int[] { 0x1F525 }, 0, 1);
         String coffee = "\u2615";
-        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+        DocumentMapper docMapper = createDocumentMapper(fire + "," + coffee, mapping(b -> {
             b.startObject(fire).field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject(coffee).field("type", "keyword").field("time_series_dimension", true).endObject();
         }));

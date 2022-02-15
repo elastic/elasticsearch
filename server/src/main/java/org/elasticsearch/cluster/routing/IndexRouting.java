@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.Transports;
@@ -30,6 +31,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
@@ -212,6 +214,7 @@ public abstract class IndexRouting {
     }
 
     public static class ExtractFromSource extends IndexRouting {
+        private final List<String> routingPaths;
         private final XContentParserConfiguration parserConfig;
 
         ExtractFromSource(IndexMetadata metadata) {
@@ -219,7 +222,8 @@ public abstract class IndexRouting {
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
-            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(metadata.getRoutingPaths()), null, true);
+            this.routingPaths = metadata.getRoutingPaths();
+            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
         }
 
         @Override
@@ -227,6 +231,21 @@ public abstract class IndexRouting {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
             return hashToShardId(hashSource(sourceType, source));
+        }
+
+        public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
+            return createId(hashSource(sourceType, source), suffix);
+        }
+
+        public String createId(Map<String, Object> flat, byte[] suffix) {
+            return createId(hashSource(flat), suffix);
+        }
+
+        private String createId(int routingHash, byte[] suffix) {
+            byte[] idBytes = new byte[4 + suffix.length];
+            ByteUtils.writeIntLE(routingHash, idBytes, 0);
+            System.arraycopy(suffix, 0, idBytes, 4, suffix.length);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
         }
 
         private int hashSource(XContentType sourceType, BytesReference source) {
@@ -245,16 +264,6 @@ public abstract class IndexRouting {
                 throw new IllegalArgumentException("Error extracting routing: " + e.getMessage(), e);
             }
             return hashesToHash(hashes);
-        }
-
-        public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
-            byte[] idBytes = new byte[4 + suffix.length];
-
-            // TODO it'd be way faster to use the fields that we've extract here rather than the source
-            int routingHash = hashSource(sourceType, source);
-            ByteUtils.writeIntLE(routingHash, idBytes, 0);
-            System.arraycopy(suffix, 0, idBytes, 4, suffix.length);
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
         }
 
         private static void extractObject(List<NameAndHash> hashes, @Nullable String path, XContentParser source) throws IOException {
@@ -288,6 +297,16 @@ public abstract class IndexRouting {
                         source.currentToken()
                     );
             }
+        }
+
+        private int hashSource(Map<String, Object> flat) {
+            List<NameAndHash> hashes = new ArrayList<>();
+            for (Map.Entry<String, Object> e : flat.entrySet()) {
+                if (Regex.simpleMatch(routingPaths, e.getKey())) {
+                    hashes.add(new NameAndHash(new BytesRef(e.getKey()), hash(new BytesRef(e.getValue().toString()))));
+                }
+            }
+            return hashesToHash(hashes);
         }
 
         private static int hash(BytesRef ref) {

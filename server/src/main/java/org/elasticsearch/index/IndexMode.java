@@ -189,7 +189,7 @@ public enum IndexMode {
         public boolean calculatesIdFromSource() {
             return true;
         }
-        
+
         @Override
         public DocumentDimensions buildDocumentDimensions() {
             return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
@@ -293,7 +293,7 @@ public enum IndexMode {
     public abstract boolean calculatesIdFromSource();
 
     /**
-     * How {@code time_series_dimension} fields are handled by indices in this more. 
+     * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
     public abstract DocumentDimensions buildDocumentDimensions();
 

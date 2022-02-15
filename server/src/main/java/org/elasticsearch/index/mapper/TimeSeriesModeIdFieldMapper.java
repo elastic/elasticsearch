@@ -118,8 +118,10 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         ByteUtils.writeLongLE(timestamp, suffix, 8);   // TODO compare disk usage for LE and BE on timestamp
 
         IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
+        // TODO it'd be way faster to use the fields that we've extract here rather than the source or parse the tsid
         context.id(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
         assert Uid.isURLBase64WithoutPadding(context.id()); // Make sure we get to use Uid's nice optimizations
+        assert context.id().equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new Field(NAME, uidEncoded, Defaults.FIELD_TYPE));

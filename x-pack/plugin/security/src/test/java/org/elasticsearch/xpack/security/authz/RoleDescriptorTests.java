@@ -90,6 +90,7 @@ public class RoleDescriptorTests extends ESTestCase {
             ApplicationResourcePrivileges.builder().application("my_app").privileges("read", "write").resources("*").build() };
 
         final ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
+            new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("app*"))),
             new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))) };
 
         RoleDescriptor descriptor = new RoleDescriptor(
@@ -107,7 +108,7 @@ public class RoleDescriptorTests extends ESTestCase {
             descriptor.toString(),
             is(
                 "Role[name=test, cluster=[all,none]"
-                    + ", global=[{APPLICATION:manage:applications=app01,app02}]"
+                    + ", global=[{APPLICATION:manage:applications=app01,app02},{PROFILE:update:applications=app*}]"
                     + ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], privileges=[read]"
                     + ", field_security=[grant=[body,title], except=null], query={\"match_all\": {}}],]"
                     + ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]"
@@ -259,12 +260,51 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getApplicationPrivileges()[1].getApplication(), equalTo("app2"));
         assertThat(rd.getConditionalClusterPrivileges(), Matchers.arrayWithSize(1));
 
-        final ConfigurableClusterPrivilege conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
+        ConfigurableClusterPrivilege conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
         assertThat(conditionalPrivilege.getCategory(), equalTo(ConfigurableClusterPrivilege.Category.APPLICATION));
         assertThat(conditionalPrivilege, instanceOf(ConfigurableClusterPrivileges.ManageApplicationPrivileges.class));
         assertThat(
             ((ConfigurableClusterPrivileges.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
             containsInAnyOrder("kibana", "logstash")
+        );
+
+        q = """
+            {
+              "cluster": [ "manage" ],
+              "global": {
+                "profile": {
+                  "update": {
+                    "applications": [ "", "kibana-*" ]
+                  }
+                },
+                "application": {
+                  "manage": {
+                    "applications": [ "apm*", "kibana-1" ]
+                  }
+                }
+              }
+            }""";
+        rd = RoleDescriptor.parse("testUpdateProfile", new BytesArray(q), false, XContentType.JSON);
+        assertThat(rd.getName(), is("testUpdateProfile"));
+        assertThat(rd.getClusterPrivileges(), arrayContaining("manage"));
+        assertThat(rd.getIndicesPrivileges(), Matchers.emptyArray());
+        assertThat(rd.getRunAs(), Matchers.emptyArray());
+        assertThat(rd.getApplicationPrivileges(), Matchers.emptyArray());
+        assertThat(rd.getConditionalClusterPrivileges(), Matchers.arrayWithSize(2));
+
+        conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
+        assertThat(conditionalPrivilege.getCategory(), equalTo(ConfigurableClusterPrivilege.Category.APPLICATION));
+        assertThat(conditionalPrivilege, instanceOf(ConfigurableClusterPrivileges.ManageApplicationPrivileges.class));
+        assertThat(
+            ((ConfigurableClusterPrivileges.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
+            containsInAnyOrder("apm*", "kibana-1")
+        );
+        conditionalPrivilege = rd.getConditionalClusterPrivileges()[1];
+        assertThat(conditionalPrivilege.getCategory(), equalTo(ConfigurableClusterPrivilege.Category.PROFILE));
+        assertThat(conditionalPrivilege, instanceOf(ConfigurableClusterPrivileges.UpdateProfileDataPrivileges.class));
+        assertThat(
+            ((ConfigurableClusterPrivileges.UpdateProfileDataPrivileges) conditionalPrivilege).getApplicationNames(),
+            containsInAnyOrder("", "kibana-*")
         );
 
         q = """
@@ -483,7 +523,9 @@ public class RoleDescriptorTests extends ESTestCase {
             booleans.get(3)
                 ? new ConfigurableClusterPrivilege[0]
                 : new ConfigurableClusterPrivilege[] {
-                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo")) },
+                    randomBoolean()
+                        ? new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo"))
+                        : new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(Collections.singleton("bar")) },
             booleans.get(4) ? new String[0] : new String[] { "foo" },
             booleans.get(5) ? new HashMap<>() : Collections.singletonMap("foo", "bar"),
             Collections.singletonMap("foo", "bar")

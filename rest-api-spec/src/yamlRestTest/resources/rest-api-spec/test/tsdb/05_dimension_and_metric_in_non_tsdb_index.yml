@@ -244,3 +244,36 @@ nested dimensions:
           "@timestamp": "2021-04-28T18:35:24.467Z"
           nested:
             - dim: foo
+
+---
+muiti fields nested dimensions:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                nested:
+                  type: nested
+                  properties:
+                      dim:
+                        type: keyword
+                        time_series_dimension: true
+
+  - do:
+      catch: /Dimension field \[nested.dim\] cannot be a multi-valued field./
+      index:
+        index: test
+        refresh: true
+        body:
+          "@timestamp": "2021-04-28T18:35:24.467Z"
+          nested:
+            - dim: foo            
+            - dim: bar
+            - dim: baz            

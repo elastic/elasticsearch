@@ -124,7 +124,7 @@ public class PlanExecutor {
     }
 
     public void cleanCursor(Cursor cursor, ActionListener<Boolean> listener) {
-        cursor.clear(client, listener);
+        cursor.clear(client, writableRegistry, listener);
     }
 
     public Client client() {

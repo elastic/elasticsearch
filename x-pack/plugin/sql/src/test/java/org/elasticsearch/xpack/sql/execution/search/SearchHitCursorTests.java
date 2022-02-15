@@ -21,18 +21,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class ScrollCursorTests extends AbstractSqlWireSerializingTestCase<ScrollCursor> {
-    public static ScrollCursor randomScrollCursor() {
+public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<SearchHitCursor> {
+    public static SearchHitCursor randomSearchHitCursor() {
         int extractorsSize = between(1, 20);
         List<HitExtractor> extractors = new ArrayList<>(extractorsSize);
         for (int i = 0; i < extractorsSize; i++) {
             extractors.add(randomHitExtractor(0));
         }
-        return new ScrollCursor(
-            randomAlphaOfLength(5),
+        return new SearchHitCursor(
+            new byte[randomInt(256)],
             extractors,
             CompositeAggregationCursorTests.randomBitSet(extractorsSize),
-            randomIntBetween(10, 1024)
+            randomIntBetween(10, 1024),
+            randomBoolean()
         );
     }
 
@@ -46,12 +47,13 @@ public class ScrollCursorTests extends AbstractSqlWireSerializingTestCase<Scroll
     }
 
     @Override
-    protected ScrollCursor mutateInstance(ScrollCursor instance) throws IOException {
-        return new ScrollCursor(
-            instance.scrollId(),
+    protected SearchHitCursor mutateInstance(SearchHitCursor instance) throws IOException {
+        return new SearchHitCursor(
+            instance.next(),
             instance.extractors(),
             randomValueOtherThan(instance.mask(), () -> CompositeAggregationCursorTests.randomBitSet(instance.extractors().size())),
-            randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 1024))
+            randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 1024)),
+            instance.includeFrozen() == false
         );
     }
 
@@ -61,22 +63,22 @@ public class ScrollCursorTests extends AbstractSqlWireSerializingTestCase<Scroll
     }
 
     @Override
-    protected ScrollCursor createTestInstance() {
-        return randomScrollCursor();
+    protected SearchHitCursor createTestInstance() {
+        return randomSearchHitCursor();
     }
 
     @Override
-    protected Reader<ScrollCursor> instanceReader() {
-        return ScrollCursor::new;
+    protected Reader<SearchHitCursor> instanceReader() {
+        return SearchHitCursor::new;
     }
 
     @Override
-    protected ScrollCursor copyInstance(ScrollCursor instance, Version version) throws IOException {
+    protected SearchHitCursor copyInstance(SearchHitCursor instance, Version version) throws IOException {
         /* Randomly choose between internal protocol round trip and String based
          * round trips used to toXContent. */
         if (randomBoolean()) {
             return super.copyInstance(instance, version);
         }
-        return (ScrollCursor) CursorTests.decodeFromString(Cursors.encodeToString(instance, randomZone()));
+        return (SearchHitCursor) CursorTests.decodeFromString(Cursors.encodeToString(instance, randomZone()));
     }
 }

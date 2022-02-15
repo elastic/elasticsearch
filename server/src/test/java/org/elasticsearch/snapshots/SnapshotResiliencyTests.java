@@ -1715,7 +1715,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         }
                     ),
                     emptyMap(),
-                    threadPool
+                    threadPool,
+                    List.of()
                 );
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
                 snapshotsService = new SnapshotsService(

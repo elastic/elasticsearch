@@ -17,14 +17,13 @@ import java.util.Deque;
  *
  * A fieldname named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}
  */
-public class DotExpandingXContentParser extends FilterXContentParser {
+public class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
-    private static class WrappingParser extends FilterXContentParser {
+    private static final class WrappingParser extends FilterXContentParser {
 
         final Deque<XContentParser> parsers = new ArrayDeque<>();
 
         WrappingParser(XContentParser in) throws IOException {
-            super(null);
             parsers.push(in);
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots();
@@ -232,7 +231,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
         return super.booleanValue();
     }
 
-    private static class SingletonValueXContentParser extends FilterXContentParser {
+    private static class SingletonValueXContentParser extends FilterXContentParserWrapper {
 
         protected SingletonValueXContentParser(XContentParser in) {
             super(in);

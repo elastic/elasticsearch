@@ -18,19 +18,13 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Filters an existing XContentParser by using a delegate
+ * Delegates every method to the parser returned by the {@link #delegate()} method.
+ * To be used extended directly when the delegated parser may dynamically changed.
+ * Extend {@link FilterXContentParserWrapper} instead when the delegate is fixed and can be provided at construction time.
  */
 public abstract class FilterXContentParser implements XContentParser {
 
-    private final XContentParser in;
-
-    protected FilterXContentParser(XContentParser in) {
-        this.in = in;
-    }
-
-    protected XContentParser delegate() {
-        return in;
-    }
+    protected abstract XContentParser delegate();
 
     @Override
     public XContentType contentType() {

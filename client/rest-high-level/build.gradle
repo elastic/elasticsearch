@@ -67,11 +67,9 @@ File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security
 
 def clusterUserNameProvider = providers.systemProperty('tests.rest.cluster.username')
         .orElse('test_user')
-        .forUseAtConfigurationTime()
 
 def clusterPasswordProvider = providers.systemProperty('tests.rest.cluster.password')
         .orElse('test-user-password')
-        .forUseAtConfigurationTime()
 
 tasks.named("integTest").configure {
   systemProperty 'tests.rest.async', 'false'

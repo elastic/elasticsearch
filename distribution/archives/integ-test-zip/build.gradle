@@ -43,7 +43,7 @@ tasks.named("integTest").configure {
    * 2. *One* of these tests is incompatible with that and should be skipped
    *    when running against an external cluster.
    */
-  if (project.providers.systemProperty("tests.rest.cluster").forUseAtConfigurationTime().isPresent()) {
+  if (project.providers.systemProperty("tests.rest.cluster").isPresent()) {
     nonInputProperties.systemProperty 'tests.logfile', testClusters.named('integTest').map(c -> c.singleNode().serverLog)
   } else {
     systemProperty 'tests.logfile', '--external--'

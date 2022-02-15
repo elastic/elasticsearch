@@ -25,7 +25,7 @@ public class ZeroBytesReference extends AbstractBytesReference {
 
     @Override
     public int indexOf(byte marker, int from) {
-        if (marker == 0) {
+        if (marker == 0 && from < length) {
             return from;
         } else {
             return -1;

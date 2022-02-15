@@ -13,7 +13,7 @@ module org.elasticsearch.xcontent {
     exports org.elasticsearch.xcontent.cbor;
     exports org.elasticsearch.xcontent.json;
     exports org.elasticsearch.xcontent.smile;
-    exports org.elasticsearch.xcontent.spi;
+    exports org.elasticsearch.xcontent.spi to org.elasticsearch.xcontent.impl;
     exports org.elasticsearch.xcontent.support;
     exports org.elasticsearch.xcontent.support.filtering;
     exports org.elasticsearch.xcontent.yaml;

@@ -55,6 +55,7 @@ tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("compileJava").configure {
   options.compilerArgs.add("-Xlint:-missing-explicit-ctor")
+  options.compilerArgs.add("-Xlint:-module")  // qualified export
 }
 
 File generatedResourcesDir = new File(buildDir, 'generated-resources')

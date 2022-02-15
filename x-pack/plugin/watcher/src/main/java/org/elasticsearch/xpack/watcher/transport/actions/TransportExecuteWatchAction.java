@@ -156,7 +156,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
              */
             watch.status()
                 .setHeaders(
-                    ClientHelper.extractBwcPersistableSafeHeaders(
+                    ClientHelper.getPersistableSafeSecurityHeadersForVersion(
                         threadPool.getThreadContext(),
                         clusterService.state().nodes().getMinNodeVersion()
                     )

@@ -108,7 +108,7 @@ public class AsyncTaskManagementService<
 
         @Override
         public Task createTask(long id, String type, String actionName, TaskId parentTaskId, Map<String, String> headers) {
-            Map<String, String> originHeaders = ClientHelper.extractBwcPersistableSafeHeaders(
+            Map<String, String> originHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
                 threadPool.getThreadContext(),
                 clusterService.state().nodes().getMinNodeVersion()
             );

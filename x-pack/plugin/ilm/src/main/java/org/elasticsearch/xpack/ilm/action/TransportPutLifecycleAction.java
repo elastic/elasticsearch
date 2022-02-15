@@ -96,7 +96,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
-        Map<String, String> filteredHeaders = ClientHelper.extractBwcPersistableSafeHeaders(
+        Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
             threadPool.getThreadContext(),
             state.nodes().getMinNodeVersion()
         );

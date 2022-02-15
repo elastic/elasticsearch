@@ -116,7 +116,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         DatafeedConfig.Builder previewDatafeedBuilder = buildPreviewDatafeed(datafeedConfig);
         useSecondaryAuthIfAvailable(securityContext, () -> {
             previewDatafeedBuilder.setHeaders(
-                ClientHelper.extractBwcPersistableSafeHeaders(
+                ClientHelper.getPersistableSafeSecurityHeadersForVersion(
                     threadPool.getThreadContext(),
                     clusterService.state().nodes().getMinNodeVersion()
                 )

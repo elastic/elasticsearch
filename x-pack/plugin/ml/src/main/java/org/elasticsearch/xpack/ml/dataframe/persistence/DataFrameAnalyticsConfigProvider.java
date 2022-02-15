@@ -124,7 +124,7 @@ public class DataFrameAnalyticsConfigProvider {
         return headers.isEmpty()
             ? config
             : new DataFrameAnalyticsConfig.Builder(config).setHeaders(
-                ClientHelper.extractBwcPersistableSafeHeaders(headers, clusterService.state().nodes().getMinNodeVersion())
+                ClientHelper.getPersistableSafeSecurityHeadersForVersion(headers, clusterService.state().nodes().getMinNodeVersion())
             ).build();
     }
 
@@ -196,7 +196,7 @@ public class DataFrameAnalyticsConfigProvider {
             DataFrameAnalyticsConfig.Builder updatedConfigBuilder = update.mergeWithConfig(originalConfig);
             if (headers.isEmpty() == false) {
                 updatedConfigBuilder.setHeaders(
-                    ClientHelper.extractBwcPersistableSafeHeaders(headers, clusterService.state().nodes().getMinNodeVersion())
+                    ClientHelper.getPersistableSafeSecurityHeadersForVersion(headers, clusterService.state().nodes().getMinNodeVersion())
                 );
             }
             DataFrameAnalyticsConfig updatedConfig = updatedConfigBuilder.build();

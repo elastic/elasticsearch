@@ -398,7 +398,7 @@ public class CcrLicenseChecker {
         if (headers.isEmpty()) {
             return client;
         } else {
-            Map<String, String> filteredHeaders = ClientHelper.extractBwcPersistableSafeHeaders(headers, minNodeVersion);
+            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(headers, minNodeVersion);
             if (filteredHeaders.isEmpty()) {
                 return client;
             }

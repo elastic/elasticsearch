@@ -179,7 +179,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
         final int numShards = followIndexMetadata.getNumberOfShards();
         final ResponseHandler handler = new ResponseHandler(numShards, listener);
-        Map<String, String> filteredHeaders = ClientHelper.extractBwcPersistableSafeHeaders(
+        Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
             threadPool.getThreadContext(),
             clusterService.state().nodes().getMinNodeVersion()
         );

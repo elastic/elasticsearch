@@ -89,7 +89,7 @@ public final class ClientHelper {
      * and rewrite them using minNodeVersion so that they are safe to be persisted as index data
      * and loaded by all nodes in the cluster.
      */
-    public static Map<String, String> extractBwcPersistableSafeHeaders(ThreadContext threadContext, Version minNodeVersion) {
+    public static Map<String, String> getPersistableSafeSecurityHeadersForVersion(ThreadContext threadContext, Version minNodeVersion) {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(threadContext.getHeaders()),
             key -> new AuthenticationContextSerializer(key).readFromContext(threadContext),
@@ -98,10 +98,10 @@ public final class ClientHelper {
     }
 
     /**
-     * Similar to {@link #extractBwcPersistableSafeHeaders(ThreadContext, Version)}, but works on a Map of headers instead of
+     * Similar to {@link #getPersistableSafeSecurityHeadersForVersion(ThreadContext, Version)}, but works on a Map of headers instead of
      * ThreadContext.
      */
-    public static Map<String, String> extractBwcPersistableSafeHeaders(Map<String, String> headers, Version minNodeVersion) {
+    public static Map<String, String> getPersistableSafeSecurityHeadersForVersion(Map<String, String> headers, Version minNodeVersion) {
         final CheckedFunction<String, Authentication, IOException> authenticationReader = key -> {
             final String authHeader = headers.get(key);
             return authHeader == null ? null : AuthenticationContextSerializer.decode(authHeader);

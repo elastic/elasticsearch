@@ -30,7 +30,7 @@ public class CliSession {
         return httpClient;
     }
 
-    public CliSessionConfiguration getConfiguration() {
+    public CliSessionConfiguration cfg() {
         return configuration;
     }
 

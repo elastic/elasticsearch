@@ -138,7 +138,7 @@ public class Cli extends Command {
             ConnectionBuilder connectionBuilder = new ConnectionBuilder(cliTerminal);
             ConnectionConfiguration con = connectionBuilder.buildConnection(uri, keystoreLocation, binary);
             CliSession cliSession = new CliSession(new HttpClient(con));
-            cliSession.getConfiguration().setDebug(debug);
+            cliSession.cfg().setDebug(debug);
             if (checkConnection) {
                 checkConnection(cliSession, cliTerminal, con);
             }
@@ -152,7 +152,7 @@ public class Cli extends Command {
         try {
             cliSession.checkConnection();
         } catch (ClientException ex) {
-            if (cliSession.getConfiguration().isDebug()) {
+            if (cliSession.cfg().isDebug()) {
                 cliTerminal.error("Client Exception", ex.getMessage());
                 cliTerminal.println();
                 cliTerminal.printStackTrace(ex);

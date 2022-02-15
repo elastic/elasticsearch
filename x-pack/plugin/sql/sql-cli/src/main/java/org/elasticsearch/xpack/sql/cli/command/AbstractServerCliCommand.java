@@ -34,7 +34,7 @@ public abstract class AbstractServerCliCommand implements CliCommand {
             .param(e.getMessage() == null ? e.getClass().getName() : e.getMessage())
             .error("]")
             .ln();
-        if (cliSession.getConfiguration().isDebug()) {
+        if (cliSession.cfg().isDebug()) {
             terminal.printStackTrace(e);
         }
     }

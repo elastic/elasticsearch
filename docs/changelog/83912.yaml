@@ -1,7 +1,7 @@
 pr: 83912
 summary: Delete ML HLRC client and request/response classes
 area: "Machine Learning, Java High Level REST Client"
-type: "tech debt, breaking"
+type: breaking
 issues: []
 breaking:
   title: Delete ML HLRC client and request/response classes

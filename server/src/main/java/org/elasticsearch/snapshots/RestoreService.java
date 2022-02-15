@@ -977,8 +977,8 @@ public class RestoreService implements ClusterStateApplier {
                     + "]"
             );
         }
-        if (ALLOW_BWC_INDICES_SETTING.get(repository.settings()) == false &&
-            snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+        if (ALLOW_BWC_INDICES_SETTING.get(repository.settings()) == false
+            && snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with Elasticsearch version ["

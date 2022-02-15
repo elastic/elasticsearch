@@ -272,13 +272,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
 
         // close indices
+        assertTrue(client.indices().close(new CloseIndexRequest("restored_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged());
         assertTrue(
-            client.indices().close(new CloseIndexRequest("restored_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged()
-        );
-        assertTrue(
-            client.indices()
-                .close(new CloseIndexRequest("mounted_full_copy_" + indexName), RequestOptions.DEFAULT)
-                .isShardsAcknowledged()
+            client.indices().close(new CloseIndexRequest("mounted_full_copy_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged()
         );
         assertTrue(
             client.indices()

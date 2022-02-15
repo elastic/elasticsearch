@@ -282,5 +282,7 @@ public class GceDiscoveryTests extends ESTestCase {
         mock = new GceInstancesServiceMock(nodeSettings);
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
         assertThat(dynamicHosts, hasSize(2));
+        assertEquals("10.240.79.59", dynamicHosts.get(0).getAddress());
+        assertEquals("10.240.79.60", dynamicHosts.get(1).getAddress());
     }
 }

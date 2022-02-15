@@ -19,7 +19,7 @@
           ],
           "name": "nic0",
           "network": "default",
-          "networkIP": "10.240.79.59"
+          "networkIP": "10.240.79.60"
         }
       ],
       "status": "RUNNING",

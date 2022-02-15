@@ -1,0 +1,5 @@
+pr: 83955
+summary: Fix to read `explain` as query string
+area: Search
+type: bug
+issues: []

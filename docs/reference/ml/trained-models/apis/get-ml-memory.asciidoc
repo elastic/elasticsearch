@@ -53,23 +53,23 @@ Contains statistics about the number of nodes selected by the request.
 .Properties of `_nodes`
 [%collapsible%open]
 ====
-`total`::
+`failed`::
 (integer)
-Total number of nodes selected by the request.
+Number of nodes that rejected the request or failed to respond. If this value
+is not `0`, a reason for the rejection or failure is included in the response.
 
 `successful`::
 (integer)
 Number of nodes that responded successfully to the request.
 
-`failed`::
+`total`::
 (integer)
-Number of nodes that rejected the request or failed to respond. If this value
-is not `0`, a reason for the rejection or failure is included in the response.
+Total number of nodes selected by the request.
 ====
 
 `cluster_name`::
 (string)
-Name of the cluster. Based on the <<cluster-name>> setting.
+Name of the cluster. Based on the <<cluster-name,cluster.name>> setting.
 
 `nodes`::
 (object)
@@ -85,26 +85,45 @@ Contains statistics for the node.
 .Properties of `<node_id>`
 [%collapsible%open]
 =====
-
-`name`::
-(string)
-Human-readable identifier for the node. Based on the <<node-name>> setting.
+`attributes`::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
 
 `ephemeral_id`::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
-`transport_address`::
-(string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
-
-`attributes`::
+`jvm`::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
+Contains Java Virtual Machine (JVM) statistics for the node.
++
+.Properties of `jvm`
+[%collapsible%open]
+======
+`heap_max`::
+(<<byte-units,byte value>>)
+Maximum amount of memory available for use by the heap.
 
-`roles`::
-(array of strings)
-Roles assigned to the node. See <<modules-node>>.
+`heap_max_in_bytes`::
+(integer)
+Maximum amount of memory, in bytes, available for use by the heap.
+
+`java_inference`::
+(<<byte-units,byte value>>)
+Amount of Java heap currently being used for caching inference models.
+
+`java_inference_in_bytes`::
+(integer)
+Amount of Java heap, in bytes, currently being used for caching inference models.
+
+`java_inference_max`::
+(<<byte-units,byte value>>)
+Maximum amount of Java heap to be used for caching inference models.
+
+`java_inference_max_in_bytes`::
+(integer)
+Maximum amount of Java heap, in bytes, to be used for caching inference models.
+======
 
 `mem`::
 (object)
@@ -113,14 +132,6 @@ Contains statistics about memory usage for the node.
 .Properties of `mem`
 [%collapsible%open]
 ======
-`total`::
-(<<byte-units,byte value>>)
-Total amount of physical memory.
-
-`total_in_bytes`::
-(integer)
-Total amount of physical memory in bytes.
-
 `adjusted_total`::
 (<<byte-units,byte value>>)
 If the amount of physical memory has been overridden using the `es.total_memory_bytes`
@@ -140,6 +151,22 @@ Contains statistics about {ml} use of native memory on the node.
 .Properties of `ml`
 [%collapsible%open]
 =======
+`anomaly_detectors`::
+(<<byte-units,byte value>>)
+Amount of native memory set aside for {anomaly-jobs}.
+
+`anomaly_detectors_in_bytes`::
+(integer)
+Amount of native memory, in bytes, set aside for {anomaly-jobs}.
+
+`data_frame_analytics`::
+(<<byte-units,byte value>>)
+Amount of native memory set aside for {dfanalytics-jobs}.
+
+`data_frame_analytics_in_bytes`::
+(integer)
+Amount of native memory, in bytes, set aside for {dfanalytics-jobs}.
+
 `max`::
 (<<byte-units,byte value>>)
 Maximum amount of native memory (separate to the JVM heap) that may be used by {ml}
@@ -158,22 +185,6 @@ Amount of native memory set aside for loading {ml} native code shared libraries.
 (integer)
 Amount of native memory, in bytes, set aside for loading {ml} native code shared libraries.
 
-`anomaly_detectors`::
-(<<byte-units,byte value>>)
-Amount of native memory set aside for {anomaly-jobs}.
-
-`anomaly_detectors_in_bytes`::
-(integer)
-Amount of native memory, in bytes, set aside for {anomaly-jobs}.
-
-`data_frame_analytics`::
-(<<byte-units,byte value>>)
-Amount of native memory set aside for {dfanalytics-jobs}.
-
-`data_frame_analytics_in_bytes`::
-(integer)
-Amount of native memory, in bytes, set aside for {dfanalytics-jobs}.
-
 `native_inference`::
 (<<byte-units,byte value>>)
 Amount of native memory set aside for trained models that have a PyTorch `model_type`.
@@ -182,39 +193,29 @@ Amount of native memory set aside for trained models that have a PyTorch `model_
 (integer)
 Amount of native memory, in bytes, set aside for trained models that have a PyTorch `model_type`.
 =======
+
+`total`::
+(<<byte-units,byte value>>)
+Total amount of physical memory.
+
+`total_in_bytes`::
+(integer)
+Total amount of physical memory in bytes.
+
 ======
 
-`jvm`::
-(object)
-Contains Java Virtual Machine (JVM) statistics for the node.
-+
-.Properties of `jvm`
-[%collapsible%open]
-======
-`heap_max`::
-(<<byte-units,byte value>>)
-Maximum amount of memory available for use by the heap.
+`name`::
+(string)
+Human-readable identifier for the node. Based on the <<node-name>> setting.
 
-`heap_max_in_bytes`::
-(integer)
-Maximum amount of memory, in bytes, available for use by the heap.
+`roles`::
+(array of strings)
+Roles assigned to the node. See <<modules-node>>.
 
-`java_inference_max`::
-(<<byte-units,byte value>>)
-Maximum amount of Java heap to be used for caching inference models.
+`transport_address`::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 
-`java_inference_max_in_bytes`::
-(integer)
-Maximum amount of Java heap, in bytes, to be used for caching inference models.
-
-`java_inference`::
-(<<byte-units,byte value>>)
-Amount of Java heap currently being used for caching inference models.
-
-`java_inference_in_bytes`::
-(integer)
-Amount of Java heap, in bytes, currently being used for caching inference models.
-======
 =====
 ====
 

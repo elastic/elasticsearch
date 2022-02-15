@@ -29,7 +29,6 @@ import org.elasticsearch.transport.Transport;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Client that executes actions on the local node.

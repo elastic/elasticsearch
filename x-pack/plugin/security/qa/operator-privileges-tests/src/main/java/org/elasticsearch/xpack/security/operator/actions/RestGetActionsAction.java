@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.operator.actions;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;

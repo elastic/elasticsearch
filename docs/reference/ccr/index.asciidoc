@@ -44,7 +44,7 @@ In a bi-directional configuration, the two clusters must remain on the same vers
 
 [discrete]
 [[ccr-index-compatibility]]
-=== Index compatibility
+=== {ccr-init} index compatibility
 
 All indices replicated by cross-cluster replication must also be compatible 
 with the cluster's version. If you try to replicate an index created in an

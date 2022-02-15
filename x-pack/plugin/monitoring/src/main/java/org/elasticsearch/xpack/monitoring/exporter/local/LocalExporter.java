@@ -598,64 +598,64 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     @Override
     public void onCleanUpIndices(TimeValue retention) {
-        if (state.get() != State.RUNNING) {
+        ClusterState clusterState = clusterService.state();
+        if (clusterService.localNode() == null
+            || clusterState == null
+            || clusterState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.METADATA_WRITE)) {
             logger.debug("exporter not ready");
             return;
         }
 
-        if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+        if (clusterState.nodes().isLocalNodeElectedMaster()) {
             // Reference date time will be compared to index.creation_date settings,
             // that's why it must be in UTC
             ZonedDateTime expiration = ZonedDateTime.now(ZoneOffset.UTC).minus(retention.millis(), ChronoUnit.MILLIS);
             logger.debug("cleaning indices [expiration={}, retention={}]", expiration, retention);
 
-            ClusterState clusterState = clusterService.state();
-            if (clusterState != null) {
-                final long expirationTimeMillis = expiration.toInstant().toEpochMilli();
-                final long currentTimeMillis = System.currentTimeMillis();
+            final long expirationTimeMillis = expiration.toInstant().toEpochMilli();
+            final long currentTimeMillis = System.currentTimeMillis();
 
-                // list of index patterns that we clean up
-                final String[] indexPatterns = new String[] { ".monitoring-*" };
+            // list of index patterns that we clean up
+            final String[] indexPatterns = new String[] { ".monitoring-*" };
 
-                // Get the names of the current monitoring indices
-                final Set<String> currents = MonitoredSystem.allSystems()
-                    .map(s -> MonitoringTemplateUtils.indexName(dateTimeFormatter, s, currentTimeMillis))
-                    .collect(Collectors.toSet());
+            // Get the names of the current monitoring indices
+            final Set<String> currents = MonitoredSystem.allSystems()
+                .map(s -> MonitoringTemplateUtils.indexName(dateTimeFormatter, s, currentTimeMillis))
+                .collect(Collectors.toSet());
 
-                // avoid deleting the current alerts index, but feel free to delete older ones
-                currents.add(MonitoringTemplateRegistry.ALERTS_INDEX_TEMPLATE_NAME);
+            // avoid deleting the current alerts index, but feel free to delete older ones
+            currents.add(MonitoringTemplateRegistry.ALERTS_INDEX_TEMPLATE_NAME);
 
-                Set<String> indices = new HashSet<>();
-                for (ObjectObjectCursor<String, IndexMetadata> index : clusterState.getMetadata().indices()) {
-                    String indexName = index.key;
+            Set<String> indices = new HashSet<>();
+            for (ObjectObjectCursor<String, IndexMetadata> index : clusterState.getMetadata().indices()) {
+                String indexName = index.key;
 
-                    if (Regex.simpleMatch(indexPatterns, indexName)) {
-                        // Never delete any "current" index (e.g., today's index or the most recent version no timestamp, like alerts)
-                        if (currents.contains(indexName)) {
-                            continue;
+                if (Regex.simpleMatch(indexPatterns, indexName)) {
+                    // Never delete any "current" index (e.g., today's index or the most recent version no timestamp, like alerts)
+                    if (currents.contains(indexName)) {
+                        continue;
+                    }
+
+                    long creationDate = index.value.getCreationDate();
+                    if (creationDate <= expirationTimeMillis) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug(
+                                "detected expired index [name={}, created={}, expired={}]",
+                                indexName,
+                                Instant.ofEpochMilli(creationDate).atZone(ZoneOffset.UTC),
+                                expiration
+                            );
                         }
-
-                        long creationDate = index.value.getCreationDate();
-                        if (creationDate <= expirationTimeMillis) {
-                            if (logger.isDebugEnabled()) {
-                                logger.debug(
-                                    "detected expired index [name={}, created={}, expired={}]",
-                                    indexName,
-                                    Instant.ofEpochMilli(creationDate).atZone(ZoneOffset.UTC),
-                                    expiration
-                                );
-                            }
-                            indices.add(indexName);
-                        }
+                        indices.add(indexName);
                     }
                 }
+            }
 
-                if (indices.isEmpty() == false) {
-                    logger.info("cleaning up [{}] old indices", indices.size());
-                    deleteIndices(indices);
-                } else {
-                    logger.debug("no old indices found for clean up");
-                }
+            if (indices.isEmpty() == false) {
+                logger.info("cleaning up [{}] old indices", indices.size());
+                deleteIndices(indices);
+            } else {
+                logger.debug("no old indices found for clean up");
             }
         }
     }

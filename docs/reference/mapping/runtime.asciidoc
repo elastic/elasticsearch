@@ -163,7 +163,7 @@ The `runtime` section can be any of these data types:
 Runtime fields with a `type` of `date` can accept the
 <<mapping-date-format,`format`>> parameter exactly as the `date` field type.
 
-Runtime fields with a `type` of `lookup` allows retrieving fields from
+Runtime fields with a `type` of `lookup` allow retrieving fields from
 related indices. See <<lookup-runtime-fields, `retrieve fields from related indices`>>.
 
 
@@ -855,9 +855,9 @@ POST logs/_search
   "_source": false
 }
 ----
-<1> Define a runtime field in the main search request with a type of `lookup` that retrieves fields from the lookup index using the <<query-dsl-term-query, `term`>> queries.
-<2> The lookup index where the lookup query executes against
-<3> A field on the main index whose values are used as the input values of the lookup query
+<1> Define a runtime field in the main search request with a type of `lookup` that retrieves fields from the target index using the <<query-dsl-term-query, `term`>> queries.
+<2> The target index where the lookup query executes against
+<3> A field on the main index whose values are used as the input values of the lookup term query
 <4> A field on the lookup index which the lookup query searches against
 <5> A list of fields to retrieve from the lookup index. See the <<search-fields, `fields`>> parameter of a search request.
 
@@ -913,9 +913,10 @@ for each ip address of the returned search hits.
 // TESTRESPONSE[s/"took": 3/"took": $body.took/]
 
 The response of lookup fields are grouped to maintain the independence
-of each document from the lookup index. The lookup query is expected to
-match at most one document on the lookup index. If more than one documents
-match, then a random document will be selected.
+of each document from the lookup index. The lookup query for each input
+value is expected to match at most one document on the lookup index.
+If the lookup query matches more than one documents, then a random document
+will be selected.
 
 [[runtime-indexed]]
 === Index a runtime field

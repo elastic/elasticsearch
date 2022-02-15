@@ -24,21 +24,13 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
  * A NLP processor that directly returns the PyTorch result
  * without any post-processing
  */
-public class PassThroughProcessor implements NlpTask.Processor {
+public class PassThroughProcessor extends NlpTask.Processor {
 
     private final NlpTask.RequestBuilder requestBuilder;
-    private final NlpTokenizer tokenizer;
-    private final String resultsField;
 
     PassThroughProcessor(NlpTokenizer tokenizer, PassThroughConfig config) {
+        super(tokenizer);
         this.requestBuilder = tokenizer.requestBuilder();
-        this.resultsField = config.getResultsField();
-        this.tokenizer = tokenizer;
-    }
-
-    @Override
-    public void close() {
-        tokenizer.close();
     }
 
     @Override

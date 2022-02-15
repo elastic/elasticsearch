@@ -7,20 +7,18 @@
  */
 
 module org.elasticsearch.xcontent {
-    requires transitive com.fasterxml.jackson.core;
-    requires com.fasterxml.jackson.dataformat.cbor;
-    requires com.fasterxml.jackson.dataformat.smile;
-    requires com.fasterxml.jackson.dataformat.yaml;
     requires transitive org.elasticsearch.core;
 
     exports org.elasticsearch.xcontent;
     exports org.elasticsearch.xcontent.cbor;
     exports org.elasticsearch.xcontent.json;
     exports org.elasticsearch.xcontent.smile;
+    exports org.elasticsearch.xcontent.spi;
     exports org.elasticsearch.xcontent.support;
     exports org.elasticsearch.xcontent.support.filtering;
     exports org.elasticsearch.xcontent.yaml;
 
     uses org.elasticsearch.xcontent.ErrorOnUnknown;
     uses org.elasticsearch.xcontent.XContentBuilderExtension;
+    uses org.elasticsearch.xcontent.spi.XContentProvider;
 }

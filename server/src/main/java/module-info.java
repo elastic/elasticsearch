@@ -7,7 +7,6 @@
  */
 
 module org.elasticsearch.server {
-    requires com.fasterxml.jackson.core;
     requires org.elasticsearch.lz4;
     requires org.elasticsearch.plugin.classloader;
     requires java.logging;

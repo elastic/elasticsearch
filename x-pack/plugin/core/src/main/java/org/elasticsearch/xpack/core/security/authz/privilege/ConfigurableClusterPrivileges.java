@@ -146,7 +146,12 @@ public final class ConfigurableClusterPrivileges {
         }
     }
 
-    // TODO javadoc
+    /**
+     * The {@code UpdateProfileDataPrivileges} privilege is a {@link ConfigurableClusterPrivilege} that grants the
+     * ability to update the {@code data} and {@code access} sections of any profile.
+     * The grant privilege is namespace configurable such that only specific top-level keys in the {@code data} and {@code access}
+     * dictionary become updateable (wildcards are supported, but exclusion is not).
+     */
     public static class UpdateProfileDataPrivileges implements ConfigurableClusterPrivilege {
         public static final String WRITEABLE_NAME = "update-profile-data-privileges";
 

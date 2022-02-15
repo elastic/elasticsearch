@@ -14,6 +14,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ilm.RollupILMAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 
 import java.util.ArrayList;
@@ -115,7 +116,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
 
     public void testValidateHotPhase() {
         LifecycleAction invalidAction = null;
-        Map<String, LifecycleAction> actions = randomSubsetOf(VALID_HOT_ACTIONS).stream()
+        Map<String, LifecycleAction> actions = randomSubsetOf(getValidActionsForPhase("hot")).stream()
             .map(this::getTestAction)
             .collect(Collectors.toMap(LifecycleAction::getName, Function.identity()));
         if (randomBoolean()) {
@@ -138,7 +139,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
 
     public void testValidateWarmPhase() {
         LifecycleAction invalidAction = null;
-        Map<String, LifecycleAction> actions = randomSubsetOf(VALID_WARM_ACTIONS).stream()
+        Map<String, LifecycleAction> actions = randomSubsetOf(getValidActionsForPhase("warm")).stream()
             .map(this::getTestAction)
             .collect(Collectors.toMap(LifecycleAction::getName, Function.identity()));
         if (randomBoolean()) {
@@ -157,7 +158,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
 
     public void testValidateColdPhase() {
         LifecycleAction invalidAction = null;
-        Map<String, LifecycleAction> actions = randomSubsetOf(VALID_COLD_ACTIONS).stream()
+        Map<String, LifecycleAction> actions = randomSubsetOf(getValidActionsForPhase("cold")).stream()
             .map(this::getTestAction)
             .collect(Collectors.toMap(LifecycleAction::getName, Function.identity()));
         if (randomBoolean()) {
@@ -195,7 +196,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
 
     public void testValidateDeletePhase() {
         LifecycleAction invalidAction = null;
-        Map<String, LifecycleAction> actions = VALID_DELETE_ACTIONS.stream()
+        Map<String, LifecycleAction> actions = getValidActionsForPhase("delete").stream()
             .map(this::getTestAction)
             .collect(Collectors.toMap(LifecycleAction::getName, Function.identity()));
         if (randomBoolean()) {
@@ -225,15 +226,6 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
     public static LifecyclePolicy createRandomPolicy(String lifecycleName) {
         List<String> phaseNames = Arrays.asList("hot", "warm", "cold", "delete");
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
-        Function<String, Set<String>> validActions = (phase) -> {
-            return switch (phase) {
-                case "hot" -> VALID_HOT_ACTIONS;
-                case "warm" -> VALID_WARM_ACTIONS;
-                case "cold" -> VALID_COLD_ACTIONS;
-                case "delete" -> VALID_DELETE_ACTIONS;
-                default -> throw new IllegalArgumentException("invalid phase [" + phase + "]");
-            };
-        };
         Function<String, Boolean> allowEmptyActions = (phase) -> {
             return switch (phase) {
                 case "hot", "warm", "cold" -> true;
@@ -268,9 +260,9 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames;
             if (allowEmptyActions.apply(phase)) {
-                actionNames = randomSubsetOf(validActions.apply(phase));
+                actionNames = randomSubsetOf(getValidActionsForPhase(phase));
             } else {
-                actionNames = randomSubsetOf(randomIntBetween(1, validActions.apply(phase).size()), validActions.apply(phase));
+                actionNames = randomSubsetOf(randomIntBetween(1, getValidActionsForPhase(phase).size()), getValidActionsForPhase(phase));
             }
             if ("hot".equals(phase)) {
                 actions.put(
@@ -292,6 +284,18 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
             phases.put(phase, new Phase(phase, after, actions));
         }
         return new LifecyclePolicy(lifecycleName, phases);
+    }
+
+    private static Set<String> getValidActionsForPhase(String phase) {
+        Set<String> actions = switch (phase) {
+            case "hot" -> VALID_HOT_ACTIONS;
+            case "warm" -> VALID_WARM_ACTIONS;
+            case "cold" -> VALID_COLD_ACTIONS;
+            case "delete" -> VALID_DELETE_ACTIONS;
+            default -> throw new IllegalArgumentException("invalid phase [" + phase + "]");
+        };
+        // No test coverage exists here
+        return actions.stream().filter(a -> a.equals(RollupILMAction.NAME) == false).collect(Collectors.toSet());
     }
 
     private LifecycleAction getTestAction(String actionName) {

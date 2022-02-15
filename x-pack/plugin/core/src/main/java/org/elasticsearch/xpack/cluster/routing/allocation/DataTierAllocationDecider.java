@@ -169,11 +169,15 @@ public final class DataTierAllocationDecider extends AllocationDecider {
 
     private static Optional<String> preferredAvailableTierDesiredNodes(
         List<String> prioritizedTiers,
-        DesiredNodes nodes,
+        DesiredNodes desiredNodes,
         DiscoveryNodes discoveryNodes
     ) {
+        if (desiredNodes == null) {
+            return Optional.empty();
+        }
+
         for (String tier : prioritizedTiers) {
-            if (tierPresentInDesiredNodes(tier, nodes) && tierNodesPresent(tier, discoveryNodes)) {
+            if (tierPresentInDesiredNodes(tier, desiredNodes) && tierNodesPresent(tier, discoveryNodes)) {
                 return Optional.of(tier);
             }
         }

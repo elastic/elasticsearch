@@ -208,6 +208,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.discovery;
     exports org.elasticsearch.env;
     exports org.elasticsearch.gateway;
+    exports org.elasticsearch.health;
     exports org.elasticsearch.http;
     exports org.elasticsearch.index;
     exports org.elasticsearch.index.analysis;

@@ -81,7 +81,7 @@ public class KnnDenseVector implements DenseVector {
     @Override
     public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
         if (normalizeQueryVector) {
-            return (dotProduct(queryVector) / DenseVector.getMagnitude(queryVector)) / getMagnitude();
+            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
         }
 
         return dotProduct(queryVector) / getMagnitude();
@@ -89,7 +89,7 @@ public class KnnDenseVector implements DenseVector {
 
     @Override
     public double cosineSimilarity(List<Number> queryVector) {
-        return (dotProduct(queryVector) / DenseVector.getMagnitude(queryVector)) / getMagnitude();
+        return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
     }
 
     @Override

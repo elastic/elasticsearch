@@ -137,7 +137,16 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
             final DesiredNodes desiredNodes = new DesiredNodes(
                 randomAlphaOfLength(10),
                 1,
-                List.of(new DesiredNode(nodeSettings, desiredNodeProcessors, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT))
+                List.of(
+                    new DesiredNode(
+                        nodeSettings,
+                        desiredNodeProcessors,
+                        ByteSizeValue.ofGb(1),
+                        ByteSizeValue.ofGb(1),
+                        Version.CURRENT,
+                        false
+                    )
+                )
             );
 
             validator.validate(desiredNodes);
@@ -152,7 +161,16 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
             final DesiredNodes desiredNodes = new DesiredNodes(
                 randomAlphaOfLength(10),
                 1,
-                List.of(new DesiredNode(nodeSettings, desiredNodeProcessors, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT))
+                List.of(
+                    new DesiredNode(
+                        nodeSettings,
+                        desiredNodeProcessors,
+                        ByteSizeValue.ofGb(1),
+                        ByteSizeValue.ofGb(1),
+                        Version.CURRENT,
+                        false
+                    )
+                )
             );
 
             final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));

@@ -12,19 +12,28 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
+import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
@@ -32,6 +41,8 @@ import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -187,5 +198,127 @@ public class JoinTaskExecutorTests extends ESTestCase {
         assertTrue(taskResult.isSuccess());
 
         assertThat(result.resultingState().getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
+    }
+
+    public void testDesiredNodesMembershipIsUpdatedAfterJoin() {
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final DiscoveryNode masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final String knownNodeName = "name";
+        final DiscoveryNode actualNode = new DiscoveryNode(
+            knownNodeName,
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.emptySet(),
+            Version.CURRENT
+        );
+
+        DesiredNode desiredNodePresentInCluster = new DesiredNode(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), knownNodeName).build(),
+            1,
+            ByteSizeValue.ONE,
+            ByteSizeValue.ONE,
+            Version.CURRENT,
+            false
+        );
+        DesiredNode desiredNodeUnknownToCluster = new DesiredNode(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "unknown").build(),
+            1,
+            ByteSizeValue.ONE,
+            ByteSizeValue.ONE,
+            Version.CURRENT,
+            false
+        );
+        final DesiredNodes desiredNodes = new DesiredNodes("history", 1, List.of(desiredNodePresentInCluster, desiredNodeUnknownToCluster));
+        Metadata.Builder metadata = Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes));
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
+            .metadata(metadata)
+            .build();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTask> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(
+                JoinTask.singleNode(
+                    actualNode,
+                    "test",
+                    ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                )
+            )
+        );
+        assertThat(result.executionResults().entrySet(), hasSize(1));
+        final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults().values().iterator().next();
+        assertTrue(taskResult.isSuccess());
+
+        final ClusterState resultingClusterState = result.resultingState();
+        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(resultingClusterState);
+
+        assertThat(latestDesiredNodes.find(knownNodeName), is(notNullValue()));
+        assertThat(latestDesiredNodes.find(knownNodeName).isMember(), is(equalTo(true)));
+
+        assertThat(latestDesiredNodes.find("unknown"), is(notNullValue()));
+        assertThat(latestDesiredNodes.find("unknown").isMember(), is(equalTo(false)));
+    }
+
+    public void testDesiredNodesMembershipIsNotUpdatedAfterJoinIfRolesAreDifferent() {
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final DiscoveryNode masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final String knownNodeName = "name";
+        final DiscoveryNode actualNode = new DiscoveryNode(
+            knownNodeName,
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE),
+            Version.CURRENT
+        );
+        DesiredNode desiredNodeWithDifferentRoles = new DesiredNode(
+            Settings.builder()
+                .put(Node.NODE_NAME_SETTING.getKey(), knownNodeName)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_WARM_NODE_ROLE.roleName())
+                .build(),
+            1,
+            ByteSizeValue.ONE,
+            ByteSizeValue.ONE,
+            Version.CURRENT,
+            false
+        );
+        final DesiredNodes desiredNodes = new DesiredNodes("history", 1, List.of(desiredNodeWithDifferentRoles));
+        Metadata.Builder metadata = Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes));
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
+            .metadata(metadata)
+            .build();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTask> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(
+                JoinTask.singleNode(
+                    actualNode,
+                    "test",
+                    ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                )
+            )
+        );
+        assertThat(result.executionResults().entrySet(), hasSize(1));
+        final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults().values().iterator().next();
+        assertTrue(taskResult.isSuccess());
+
+        final ClusterState resultingClusterState = result.resultingState();
+        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(resultingClusterState);
+        assertThat(latestDesiredNodes.find(knownNodeName), is(notNullValue()));
+        assertThat(latestDesiredNodes.find(knownNodeName).isMember(), is(equalTo(false)));
     }
 }

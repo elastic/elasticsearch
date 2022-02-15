@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
-import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -23,7 +21,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -170,7 +167,11 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         return Optional.empty();
     }
 
-    private static Optional<String> preferredAvailableTierDesiredNodes(List<String> prioritizedTiers, DesiredNodes nodes, DiscoveryNodes discoveryNodes) {
+    private static Optional<String> preferredAvailableTierDesiredNodes(
+        List<String> prioritizedTiers,
+        DesiredNodes nodes,
+        DiscoveryNodes discoveryNodes
+    ) {
         for (String tier : prioritizedTiers) {
             if (tierPresentInDesiredNodes(tier, nodes) && tierNodesPresent(tier, discoveryNodes)) {
                 return Optional.of(tier);

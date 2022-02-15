@@ -8,9 +8,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -18,15 +23,21 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 
-public record DesiredNodes(String historyID, long version, List<DesiredNode> nodes) implements Writeable, ToXContentObject {
+public class DesiredNodes implements Writeable, ToXContentObject {
 
     private static final ParseField HISTORY_ID_FIELD = new ParseField("history_id");
     private static final ParseField VERSION_FIELD = new ParseField("version");
@@ -45,10 +56,20 @@ public record DesiredNodes(String historyID, long version, List<DesiredNode> nod
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNode.fromXContent(p), NODES_FIELD);
     }
 
-    public DesiredNodes {
+    private final String historyID;
+    private final long version;
+    private final List<DesiredNode> nodes;
+    private final Map<String, DesiredNode> nodesByExternalId;
+
+    public DesiredNodes(String historyID, long version, List<DesiredNode> nodes) {
         assert historyID != null && historyID.isBlank() == false;
         assert version != Long.MIN_VALUE;
         checkForDuplicatedExternalIDs(nodes);
+
+        this.historyID = historyID;
+        this.version = version;
+        this.nodes = List.copyOf(nodes);
+        this.nodesByExternalId = nodes.stream().collect(Collectors.toMap(DesiredNode::externalId, Function.identity()));
     }
 
     public DesiredNodes(StreamInput in) throws IOException {
@@ -88,6 +109,18 @@ public record DesiredNodes(String historyID, long version, List<DesiredNode> nod
         return historyID.equals(other.historyID);
     }
 
+    public DesiredNodes withMembershipInformationUpdated(DiscoveryNodes discoveryNodes) {
+        List<DesiredNode> updatedDesiredNodes = new ArrayList<>(nodes.size());
+        for (DesiredNode node : nodes) {
+            if (node.isClusterMember(discoveryNodes)) {
+                updatedDesiredNodes.add(node.asClusterMember());
+            } else {
+                updatedDesiredNodes.add(node);
+            }
+        }
+        return new DesiredNodes(historyID, version, updatedDesiredNodes);
+    }
+
     private static void checkForDuplicatedExternalIDs(List<DesiredNode> nodes) {
         Set<String> nodeIDs = new HashSet<>(nodes.size());
         Set<String> duplicatedIDs = new HashSet<>();
@@ -108,6 +141,82 @@ public record DesiredNodes(String historyID, long version, List<DesiredNode> nod
                     NODE_EXTERNAL_ID_SETTING.getKey()
                 )
             );
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DesiredNodes that = (DesiredNodes) o;
+        return version == that.version && Objects.equals(historyID, that.historyID) && Objects.equals(nodes, that.nodes);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(historyID, version, nodes);
+    }
+
+    public String historyID() {
+        return historyID;
+    }
+
+    public long version() {
+        return version;
+    }
+
+    public List<DesiredNode> nodes() {
+        return nodes;
+    }
+
+    @Nullable
+    public DesiredNode find(String externalId) {
+        DesiredNode desiredNode = nodesByExternalId.get(externalId);
+        if (desiredNode != null) {
+            return desiredNode;
+        }
+
+        return nodesByExternalId.get(externalId);
+    }
+
+    public static class Builder {
+        private final Logger logger = LogManager.getLogger(Builder.class);
+
+        private final String historyId;
+        private final long version;
+        private final Map<String, DesiredNode> nodesByExternalId;
+        private final DesiredNodes originalDesiredNodes;
+        private boolean changed = false;
+
+        public Builder(DesiredNodes desiredNodes) {
+            this.historyId = desiredNodes.historyID;
+            this.version = desiredNodes.version;
+            this.nodesByExternalId = new HashMap<>(desiredNodes.nodesByExternalId);
+            this.originalDesiredNodes = desiredNodes;
+        }
+
+        public Builder markNodeAsMember(DiscoveryNode discoveryNode) {
+            DesiredNode desiredNode = nodesByExternalId.get(discoveryNode.getExternalId());
+            if (desiredNode == null || desiredNode.isMember()) {
+                return this;
+            }
+
+            if (discoveryNode.getRoles().equals(desiredNode.getRoles()) == false) {
+                logger.warn("Different desired and current node {} {}", desiredNode, discoveryNode);
+                return this;
+            }
+
+            changed = true;
+            nodesByExternalId.put(desiredNode.externalId(), desiredNode.asClusterMember());
+            return this;
+        }
+
+        public DesiredNodes build() {
+            if (changed) {
+                return new DesiredNodes(historyId, version, nodesByExternalId.values().stream().toList());
+            }
+
+            return originalDesiredNodes;
         }
     }
 }

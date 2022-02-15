@@ -18,6 +18,7 @@ import org.gradle.api.internal.artifacts.ArtifactAttributes
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 configurations {
   oldesFixture
@@ -34,6 +35,15 @@ jdks {
     version = '8u302+b08'
     platform = OS.current().name().toLowerCase()
     architecture = Architecture.current().name().toLowerCase()
+  }
+}
+
+restResources {
+  restApi {
+    include '_common', 'search'
+  }
+  restTests {
+    includeCore 'search/390_doc_values_search.yml'
   }
 }
 
@@ -91,14 +101,20 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       if (Architecture.current() == Architecture.AARCH64) {
         env 'ES_JAVA_OPTS', '-Xss512k'
       }
+      def dataPath = "${baseDir}/data"
       args 'oldes.OldElasticsearch',
         baseDir,
         "${ -> config.getSingleFile().toPath()}",
         false,
-        "path.repo: ${repoLocation}"
+        "path.repo: ${repoLocation}",
+        "path.data: ${dataPath}"
       if (version.onOrAfter('6.8.0') && Architecture.current() == Architecture.AARCH64) {
         // We need to explicitly disable ML when running old ES versions on ARM
         args 'xpack.ml.enabled: false'
+      }
+      doFirst {
+        delete(dataPath)
+        mkdir(dataPath)
       }
       maxWaitInSeconds 60
       waitCondition = { fixture, ant ->

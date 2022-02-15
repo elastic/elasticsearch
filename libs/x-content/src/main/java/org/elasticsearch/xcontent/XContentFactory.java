@@ -8,9 +8,6 @@
 
 package org.elasticsearch.xcontent;
 
-import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
-import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
@@ -142,22 +139,20 @@ public class XContentFactory {
             return null;
         }
         char first = content.charAt(0);
-        if (first == '{') {
+        if (JsonXContent.jsonXContent.detectContent(content)) {
             return XContentType.JSON;
         }
         // Should we throw a failure here? Smile idea is to use it in bytes....
-        if (length > 2
-            && first == SmileConstants.HEADER_BYTE_1
-            && content.charAt(1) == SmileConstants.HEADER_BYTE_2
-            && content.charAt(2) == SmileConstants.HEADER_BYTE_3) {
+        if (SmileXContent.smileXContent.detectContent(content)) {
             return XContentType.SMILE;
         }
-        if (length > 2 && first == '-' && content.charAt(1) == '-' && content.charAt(2) == '-') {
+        if (YamlXContent.yamlXContent.detectContent(content)) {
             return XContentType.YAML;
         }
 
         // CBOR is not supported
 
+        // fallback for JSON
         for (int i = 0; i < length; i++) {
             char c = content.charAt(i);
             if (c == '{') {
@@ -287,34 +282,20 @@ public class XContentFactory {
             return null;
         }
         byte first = bytes[offset];
-        if (first == '{') {
+        if (JsonXContent.jsonXContent.detectContent(bytes, offset, length)) {
             return XContentType.JSON;
         }
-        if (length > 2
-            && first == SmileConstants.HEADER_BYTE_1
-            && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2
-            && bytes[offset + 2] == SmileConstants.HEADER_BYTE_3) {
+        if (SmileXContent.smileXContent.detectContent(bytes, offset, length)) {
             return XContentType.SMILE;
         }
         if (length > 2 && first == '-' && bytes[offset + 1] == '-' && bytes[offset + 2] == '-') {
             return XContentType.YAML;
         }
-        // CBOR logic similar to CBORFactory#hasCBORFormat
-        if (first == CBORConstants.BYTE_OBJECT_INDEFINITE && length > 1) {
-            return XContentType.CBOR;
-        }
-        if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, first) && length > 2) {
-            // Actually, specific "self-describe tag" is a very good indicator
-            if (first == (byte) 0xD9 && bytes[offset + 1] == (byte) 0xD9 && bytes[offset + 2] == (byte) 0xF7) {
-                return XContentType.CBOR;
-            }
-        }
-        // for small objects, some encoders just encode as major type object, we can safely
-        // say its CBOR since it doesn't contradict SMILE or JSON, and its a last resort
-        if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, first)) {
+        if (CborXContent.cborXContent.detectContent(bytes, offset, length)) {
             return XContentType.CBOR;
         }
 
+        // fallback for JSON
         int jsonStart = 0;
         // JSON may be preceded by UTF-8 BOM
         if (length > 3 && first == (byte) 0xEF && bytes[offset + 1] == (byte) 0xBB && bytes[offset + 2] == (byte) 0xBF) {

@@ -38,6 +38,9 @@ setup:
 
 ---
 "Paging through results":
+  - skip:
+      version: "8.1.99 - "
+      reason: PIT cursors introduced in 8.2 no longer return empty last page
   - do:
       sql.query:
         format: json
@@ -72,6 +75,41 @@ setup:
   - is_false: columns
   - is_false: cursor
   - length: { rows: 0 }
+
+---
+"Paging through results with PIT cursor":
+  - skip:
+      version: " - 8.1.99"
+      reason: PIT cursors introduced in 8.2 no longer return empty last page
+  - do:
+      sql.query:
+        format: json
+        body:
+          query: "SELECT * FROM test ORDER BY int asc"
+          fetch_size: 2
+  - match: { columns.0.name: int }
+  - match: { columns.1.name: str }
+  - match: { rows.0.0: 1 }
+  - match: { rows.0.1: test1 }
+  - match: { rows.1.0: 2 }
+  - match: { rows.1.1: test2 }
+  - is_true: cursor
+  - set: { cursor: cursor }
+
+  - do:
+      sql.query:
+        format: json
+        body:
+          cursor: "$cursor"
+  - match: { rows.0.0: 3 }
+  - match: { rows.0.1: test3 }
+  - is_false: columns
+  - is_false: cursor
+
+  - do:
+      indices.stats: { index: 'test' }
+
+  - match: { indices.test.total.search.open_contexts: 0 }
 
 ---
 "Getting textual representation":

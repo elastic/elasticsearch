@@ -96,6 +96,7 @@
             "feature",
             "known-issue",
             "new-aggregation",
+            "non-issue",
             "regression",
             "security",
             "upgrade"

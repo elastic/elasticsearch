@@ -12,8 +12,8 @@ to match with the stored queries.
 [discrete]
 === Sample usage
 
-TIP: To provide a simple example, this documentation uses one index
-`my-index-000001` for both the percolate queries and documents. This setup can
+TIP: To provide a simple example, this documentation uses one index,
+`my-index-000001`, for both the percolate queries and documents. This setup can
 work well when there are just a few percolate queries registered. For heavier
 usage, we recommend you store queries and documents in separate indices. For
 more details, refer to <<how-it-works>>.

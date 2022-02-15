@@ -160,7 +160,7 @@ public final class ConfigurableClusterPrivileges {
         private final Predicate<TransportRequest> requestPredicate;
 
         public UpdateProfileDataPrivileges(Set<String> applicationNames) {
-            this.applicationNames = Set.copyOf(applicationNames);
+            this.applicationNames = Collections.unmodifiableSet(applicationNames);
             this.applicationPredicate = StringMatcher.of(applicationNames);
             this.requestPredicate = request -> {
                 if (request instanceof final UpdateProfileDataRequest updateProfileRequest) {

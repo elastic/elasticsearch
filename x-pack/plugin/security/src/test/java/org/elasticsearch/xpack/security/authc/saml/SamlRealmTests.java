@@ -115,12 +115,6 @@ public class SamlRealmTests extends SamlTestCase {
         threadContext = new ThreadContext(globalSettings);
     }
 
-    @BeforeClass
-    public static void muteOnBrokenJdk() {
-        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/75571",
-            "1.8.0_292".equals(System.getProperty("java.version")));
-    }
-
     public void testReadIdpMetadataFromFile() throws Exception {
         final Path path = getDataPath("idp1.xml");
         Tuple<RealmConfig, SSLService> config = buildConfig(path.toString());

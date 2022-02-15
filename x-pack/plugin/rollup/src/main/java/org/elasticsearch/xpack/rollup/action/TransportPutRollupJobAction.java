@@ -143,7 +143,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         // ensure we only filter for the allowed headers
         Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
             threadPool.getThreadContext(),
-            clusterService.state().nodes().getMinNodeVersion()
+            clusterService.state()
         );
         return new RollupJob(config, filteredHeaders);
     }

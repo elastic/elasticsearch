@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -334,7 +334,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
      * Applies the update to the given {@link DatafeedConfig}
      * @return a new {@link DatafeedConfig} that contains the update
      */
-    public DatafeedConfig apply(DatafeedConfig datafeedConfig, Map<String, String> headers, Version minNodeVersion) {
+    public DatafeedConfig apply(DatafeedConfig datafeedConfig, Map<String, String> headers, ClusterState clusterState) {
         if (id.equals(datafeedConfig.getId()) == false) {
             throw new IllegalArgumentException("Cannot apply update to datafeedConfig with different id");
         }
@@ -384,7 +384,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setRuntimeMappings(runtimeMappings);
         }
         if (headers.isEmpty() == false) {
-            builder.setHeaders(ClientHelper.getPersistableSafeSecurityHeadersForVersion(headers, minNodeVersion));
+            builder.setHeaders(ClientHelper.getPersistableSafeSecurityHeadersForVersion(headers, clusterState));
         }
         return builder.build();
     }

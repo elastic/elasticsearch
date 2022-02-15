@@ -91,10 +91,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
                 // Set the auth headers (preferring the secondary headers) to the caller's.
                 // Regardless if the config was previously stored or not.
                 DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder(request.getConfig()).setHeaders(
-                    ClientHelper.getPersistableSafeSecurityHeadersForVersion(
-                        threadPool.getThreadContext(),
-                        clusterService.state().nodes().getMinNodeVersion()
-                    )
+                    ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadPool.getThreadContext(), clusterService.state())
                 ).build();
                 preview(task, config, listener);
             });

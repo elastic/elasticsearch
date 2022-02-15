@@ -96,7 +96,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         // set headers to run transform as calling user
         Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
             threadPool.getThreadContext(),
-            clusterService.state().nodes().getMinNodeVersion()
+            clusterService.state()
         );
 
         TransformConfig config = request.getConfig().setHeaders(filteredHeaders).setCreateTime(Instant.now()).setVersion(Version.CURRENT);

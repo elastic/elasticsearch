@@ -97,7 +97,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
             threadPool.getThreadContext(),
-            clusterService.state().nodes().getMinNodeVersion()
+            clusterService.state()
         );
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {

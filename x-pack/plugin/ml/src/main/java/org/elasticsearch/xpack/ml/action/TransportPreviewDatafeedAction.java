@@ -116,10 +116,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         DatafeedConfig.Builder previewDatafeedBuilder = buildPreviewDatafeed(datafeedConfig);
         useSecondaryAuthIfAvailable(securityContext, () -> {
             previewDatafeedBuilder.setHeaders(
-                ClientHelper.getPersistableSafeSecurityHeadersForVersion(
-                    threadPool.getThreadContext(),
-                    clusterService.state().nodes().getMinNodeVersion()
-                )
+                ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadPool.getThreadContext(), clusterService.state())
             );
             // NB: this is using the client from the transport layer, NOT the internal client.
             // This is important because it means the datafeed search will fail if the user

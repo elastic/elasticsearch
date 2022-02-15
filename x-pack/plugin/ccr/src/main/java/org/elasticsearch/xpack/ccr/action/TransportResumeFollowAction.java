@@ -181,7 +181,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         final ResponseHandler handler = new ResponseHandler(numShards, listener);
         Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
             threadPool.getThreadContext(),
-            clusterService.state().nodes().getMinNodeVersion()
+            clusterService.state()
         );
 
         for (int shardId = 0; shardId < numShards; shardId++) {

@@ -82,7 +82,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         // same context, and therefore does not have access to the appropriate security headers.
         final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
             threadPool.getThreadContext(),
-            state.nodes().getMinNodeVersion()
+            state
         );
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
         clusterService.submitStateUpdateTask(

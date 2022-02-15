@@ -156,10 +156,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
              */
             watch.status()
                 .setHeaders(
-                    ClientHelper.getPersistableSafeSecurityHeadersForVersion(
-                        threadPool.getThreadContext(),
-                        clusterService.state().nodes().getMinNodeVersion()
-                    )
+                    ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadPool.getThreadContext(), clusterService.state())
                 );
 
             final String triggerType = watch.trigger().type();

@@ -121,7 +121,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         // set headers to run transform as calling user
         Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
             threadPool.getThreadContext(),
-            clusterService.state().nodes().getMinNodeVersion()
+            clusterService.state()
         );
 
         TransformConfigUpdate update = request.getUpdate();

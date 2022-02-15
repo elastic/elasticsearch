@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -394,11 +393,11 @@ public class CcrLicenseChecker {
         return securityContext.getUser();
     }
 
-    public static Client wrapClient(Client client, Map<String, String> headers, Version minNodeVersion) {
+    public static Client wrapClient(Client client, Map<String, String> headers, ClusterState clusterState) {
         if (headers.isEmpty()) {
             return client;
         } else {
-            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(headers, minNodeVersion);
+            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(headers, clusterState);
             if (filteredHeaders.isEmpty()) {
                 return client;
             }

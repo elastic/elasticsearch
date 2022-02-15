@@ -17,6 +17,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -382,19 +384,17 @@ public class ClientHelperTests extends ESTestCase {
     }
 
     public void testGetPersistableSafeSecurityHeadersForVersion() throws IOException {
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT));
         // No security header
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String nonSecurityHeaderKey = "not-a-security-header";
         if (randomBoolean()) {
             threadContext.putHeader(nonSecurityHeaderKey, randomAlphaOfLength(8));
         }
-        assertThat(
-            ClientHelper.getPersistableSafeSecurityHeadersForVersion(
-                threadContext,
-                VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT)
-            ),
-            anEmptyMap()
-        );
+        assertThat(ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext, clusterState), anEmptyMap());
 
         final boolean hasRunAsHeader = randomBoolean();
         if (hasRunAsHeader) {
@@ -417,11 +417,12 @@ public class ClientHelperTests extends ESTestCase {
         }
 
         // No rewriting for current version
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         final Map<String, String> headers1;
         if (randomBoolean()) {
-            headers1 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext, Version.CURRENT);
+            headers1 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext, clusterState);
         } else {
-            headers1 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext.getHeaders(), Version.CURRENT);
+            headers1 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext.getHeaders(), clusterState);
         }
         assertThat(headers1, not(hasKey(nonSecurityHeaderKey)));
         if (hasAuthHeader) {
@@ -441,11 +442,12 @@ public class ClientHelperTests extends ESTestCase {
 
         // Rewritten for older version
         final Version previousVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(previousVersion);
         final Map<String, String> headers2;
         if (randomBoolean()) {
-            headers2 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext, previousVersion);
+            headers2 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext, clusterState);
         } else {
-            headers2 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext.getHeaders(), previousVersion);
+            headers2 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext.getHeaders(), clusterState);
         }
         assertThat(headers2, not(hasKey(nonSecurityHeaderKey)));
         if (hasAuthHeader) {

@@ -200,7 +200,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         final Client clientWithHeaders = CcrLicenseChecker.wrapClient(
             this.client,
             threadPool.getThreadContext().getHeaders(),
-            clusterService.state().nodes().getMinNodeVersion()
+            clusterService.state()
         );
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 

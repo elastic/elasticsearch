@@ -109,7 +109,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
             // ensure we only filter for the allowed headers
             Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
                 threadPool.getThreadContext(),
-                clusterService.state().nodes().getMinNodeVersion()
+                clusterService.state()
             );
             watch.status().setHeaders(filteredHeaders);
 

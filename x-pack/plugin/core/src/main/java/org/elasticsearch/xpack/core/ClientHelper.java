@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
@@ -89,24 +90,28 @@ public final class ClientHelper {
      * and rewrite them using minNodeVersion so that they are safe to be persisted as index data
      * and loaded by all nodes in the cluster.
      */
-    public static Map<String, String> getPersistableSafeSecurityHeadersForVersion(ThreadContext threadContext, Version minNodeVersion) {
+    public static Map<String, String> getPersistableSafeSecurityHeadersForVersion(ThreadContext threadContext, ClusterState clusterState) {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(threadContext.getHeaders()),
             key -> new AuthenticationContextSerializer(key).readFromContext(threadContext),
-            minNodeVersion
+            clusterState.nodes().getMinNodeVersion()
         );
     }
 
     /**
-     * Similar to {@link #getPersistableSafeSecurityHeadersForVersion(ThreadContext, Version)}, but works on a Map of headers instead of
-     * ThreadContext.
+     * Similar to {@link #getPersistableSafeSecurityHeadersForVersion(ThreadContext, ClusterState)},
+     * but works on a Map of headers instead of ThreadContext.
      */
-    public static Map<String, String> getPersistableSafeSecurityHeadersForVersion(Map<String, String> headers, Version minNodeVersion) {
+    public static Map<String, String> getPersistableSafeSecurityHeadersForVersion(Map<String, String> headers, ClusterState clusterState) {
         final CheckedFunction<String, Authentication, IOException> authenticationReader = key -> {
             final String authHeader = headers.get(key);
             return authHeader == null ? null : AuthenticationContextSerializer.decode(authHeader);
         };
-        return maybeRewriteAuthenticationHeadersForVersion(filterSecurityHeaders(headers), authenticationReader, minNodeVersion);
+        return maybeRewriteAuthenticationHeadersForVersion(
+            filterSecurityHeaders(headers),
+            authenticationReader,
+            clusterState.nodes().getMinNodeVersion()
+        );
     }
 
     private static Map<String, String> maybeRewriteAuthenticationHeadersForVersion(

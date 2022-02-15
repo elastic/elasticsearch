@@ -110,7 +110,7 @@ public class AsyncTaskManagementService<
         public Task createTask(long id, String type, String actionName, TaskId parentTaskId, Map<String, String> headers) {
             Map<String, String> originHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
                 threadPool.getThreadContext(),
-                clusterService.state().nodes().getMinNodeVersion()
+                clusterService.state()
             );
             return operation.createTask(
                 request,

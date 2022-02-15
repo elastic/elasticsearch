@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -16,26 +14,21 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
-import org.elasticsearch.xpack.sql.execution.search.ScrollCursorTests;
+import org.elasticsearch.xpack.sql.execution.search.SearchHitCursorTests;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.CursorsTestUtil;
-import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class CursorTests extends ESTestCase {
@@ -44,24 +37,9 @@ public class CursorTests extends ESTestCase {
         Client clientMock = mock(Client.class);
         Cursor cursor = Cursor.EMPTY;
         PlainActionFuture<Boolean> future = newFuture();
-        cursor.clear(clientMock, future);
+        cursor.clear(clientMock, writableRegistry(), future);
         assertFalse(future.actionGet());
         verifyNoMoreInteractions(clientMock);
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testScrollCursorClearCursor() {
-        Client clientMock = mock(Client.class);
-        ActionListener<Boolean> listenerMock = mock(ActionListener.class);
-        String cursorString = randomAlphaOfLength(10);
-        Cursor cursor = new ScrollCursor(cursorString, Collections.emptyList(), new BitSet(0), randomInt());
-
-        cursor.clear(clientMock, listenerMock);
-
-        ArgumentCaptor<ClearScrollRequest> request = ArgumentCaptor.forClass(ClearScrollRequest.class);
-        verify(clientMock).clearScroll(request.capture(), any(ActionListener.class));
-        assertEquals(Collections.singletonList(cursorString), request.getValue().getScrollIds());
-        verifyNoMoreInteractions(listenerMock);
     }
 
     private static SqlQueryResponse createRandomSqlResponse() {
@@ -79,25 +57,25 @@ public class CursorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     static Cursor randomNonEmptyCursor() {
-        Supplier<Cursor> cursorSupplier = randomFrom(() -> ScrollCursorTests.randomScrollCursor(), () -> {
+        Supplier<Cursor> cursorSupplier = randomFrom(SearchHitCursorTests::randomSearchHitCursor, () -> {
             SqlQueryResponse response = createRandomSqlResponse();
             if (response.columns() != null && response.rows() != null) {
                 return new TextFormatterCursor(
-                    ScrollCursorTests.randomScrollCursor(),
+                    SearchHitCursorTests.randomSearchHitCursor(),
                     new BasicFormatter(response.columns(), response.rows(), BasicFormatter.FormatOption.CLI)
                 );
             } else {
-                return ScrollCursorTests.randomScrollCursor();
+                return SearchHitCursorTests.randomSearchHitCursor();
             }
         }, () -> {
             SqlQueryResponse response = createRandomSqlResponse();
             if (response.columns() != null && response.rows() != null) {
                 return new TextFormatterCursor(
-                    ScrollCursorTests.randomScrollCursor(),
+                    SearchHitCursorTests.randomSearchHitCursor(),
                     new BasicFormatter(response.columns(), response.rows(), BasicFormatter.FormatOption.TEXT)
                 );
             } else {
-                return ScrollCursorTests.randomScrollCursor();
+                return SearchHitCursorTests.randomSearchHitCursor();
             }
         });
         return cursorSupplier.get();

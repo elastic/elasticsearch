@@ -112,7 +112,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.local()) {
             new LocalMasterServiceTask(request.waitForEvents()) {
                 @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                protected void onPublicationComplete() {
                     final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
                     final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
                     request.timeout(newTimeout);

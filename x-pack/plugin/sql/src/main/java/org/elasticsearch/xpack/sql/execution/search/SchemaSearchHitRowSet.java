@@ -15,15 +15,15 @@ import java.util.BitSet;
 import java.util.List;
 
 /**
- * Initial results from a scroll search. Distinct from the following pages
+ * Initial results from a search hit search. Distinct from the following pages
  * because it has a {@link Schema} available. See {@link SearchHitRowSet}
  * for the next pages.
  */
 class SchemaSearchHitRowSet extends SearchHitRowSet implements SchemaRowSet {
     private final Schema schema;
 
-    SchemaSearchHitRowSet(Schema schema, List<HitExtractor> exts, BitSet mask, int limitHits, SearchResponse response) {
-        super(exts, mask, limitHits, response);
+    SchemaSearchHitRowSet(Schema schema, List<HitExtractor> exts, BitSet mask, int sizeRequested, int limitHits, SearchResponse response) {
+        super(exts, mask, sizeRequested, limitHits, response);
         this.schema = schema;
     }
 

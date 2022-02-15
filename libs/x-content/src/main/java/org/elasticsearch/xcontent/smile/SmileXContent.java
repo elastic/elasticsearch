@@ -11,6 +11,7 @@ package org.elasticsearch.xcontent.smile;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 
@@ -60,6 +61,22 @@ public class SmileXContent implements XContent {
     @Override
     public byte streamSeparator() {
         return (byte) 0xFF;
+    }
+
+    @Override
+    public boolean detectContent(byte[] bytes, int offset, int length) {
+        return length > 2
+            && bytes[offset] == SmileConstants.HEADER_BYTE_1
+            && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2
+            && bytes[offset + 2] == SmileConstants.HEADER_BYTE_3;
+    }
+
+    @Override
+    public boolean detectContent(CharSequence chars) {
+        return chars.length() > 2
+            && chars.charAt(0) == SmileConstants.HEADER_BYTE_1
+            && chars.charAt(1) == SmileConstants.HEADER_BYTE_2
+            && chars.charAt(2) == SmileConstants.HEADER_BYTE_3;
     }
 
     @Override

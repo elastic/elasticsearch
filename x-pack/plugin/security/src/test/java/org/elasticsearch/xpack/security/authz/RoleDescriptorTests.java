@@ -240,6 +240,8 @@ public class RoleDescriptorTests extends ESTestCase {
                   "manage": {
                     "applications": [ "kibana", "logstash" ]
                   }
+                },
+                "profile": {
                 }
               }
             }""";

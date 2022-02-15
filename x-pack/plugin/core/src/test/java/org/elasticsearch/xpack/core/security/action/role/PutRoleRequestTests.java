@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
 import java.io.IOException;
@@ -185,8 +186,32 @@ public class PutRoleRequestTests extends ESTestCase {
         request.addApplicationPrivileges(applicationPrivileges);
 
         if (randomBoolean()) {
-            final String[] appNames = randomArray(1, 4, String[]::new, stringWithInitialLowercase);
-            request.conditionalCluster(new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(appNames)));
+            if (randomBoolean()) {
+                request.conditionalCluster(new ConfigurableClusterPrivilege[0]);
+            } else {
+                request.conditionalCluster(
+                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    )
+                );
+            }
+        } else {
+            if (randomBoolean()) {
+                request.conditionalCluster(
+                    new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    )
+                );
+            } else {
+                request.conditionalCluster(
+                    new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    ),
+                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                        Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
+                    )
+                );
+            }
         }
 
         request.runAs(generateRandomStringArray(4, 3, false, true));

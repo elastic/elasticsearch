@@ -1455,7 +1455,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.setEntity(
             new StringEntity(
-                query("SELECT * FROM test").mode(randomMode()).indexIncludeFrozen(randomBoolean()).toString(),
+                query("SELECT * FROM " + indexPattern("test")).mode(randomMode()).indexIncludeFrozen(randomBoolean()).toString(),
                 ContentType.APPLICATION_JSON
             )
         );

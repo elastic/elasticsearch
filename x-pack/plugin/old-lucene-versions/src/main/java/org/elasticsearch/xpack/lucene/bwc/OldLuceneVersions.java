@@ -12,6 +12,8 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -35,6 +37,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -45,6 +48,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 
 import java.io.IOException;
@@ -56,7 +61,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class OldLuceneVersions extends Plugin implements IndexStorePlugin, ClusterPlugin, RepositoryPlugin {
+public class OldLuceneVersions extends Plugin implements IndexStorePlugin, ClusterPlugin, RepositoryPlugin, ActionPlugin {
 
     public static final LicensedFeature.Momentary ARCHIVE_FEATURE = LicensedFeature.momentary(
         null,
@@ -93,6 +98,14 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), ThreadPool.Names.GENERIC);
         }
         return List.of();
+    }
+
+    @Override
+    public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(
+            new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.ARCHIVE, ArchiveUsageTransportAction.class),
+            new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.ARCHIVE, ArchiveInfoTransportAction.class)
+        );
     }
 
     // overridable by tests

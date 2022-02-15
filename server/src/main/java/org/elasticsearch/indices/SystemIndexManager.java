@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -97,9 +98,19 @@ public class SystemIndexManager implements ClusterStateListener {
         }
 
         if (isUpgradeInProgress.compareAndSet(false, true)) {
-            final List<SystemIndexDescriptor> descriptors = getEligibleDescriptors(state.getMetadata()).stream()
-                .filter(descriptor -> getUpgradeStatus(state, descriptor) == UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
-                .collect(Collectors.toList());
+            final List<SystemIndexDescriptor> descriptors = new ArrayList<>();
+            for (SystemIndexDescriptor systemIndexDescriptor : getEligibleDescriptors(state.getMetadata())) {
+                UpgradeStatus upgradeStatus;
+                try {
+                    upgradeStatus = getUpgradeStatus(state, systemIndexDescriptor);
+                } catch (Exception e) {
+                    logger.warn("Failed to calculate upgrade status: {}" + e.getMessage(), e);
+                    continue;
+                }
+                if (upgradeStatus == UpgradeStatus.NEEDS_MAPPINGS_UPDATE) {
+                    descriptors.add(systemIndexDescriptor);
+                }
+            }
 
             if (descriptors.isEmpty() == false) {
                 // Use a GroupedActionListener so that we only release the lock once all upgrade attempts have succeeded or failed.
@@ -271,14 +282,20 @@ public class SystemIndexManager implements ClusterStateListener {
     /**
      * Fetches the mapping version from an index's mapping's `_meta` info.
      */
-    @SuppressWarnings("unchecked")
     private Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
         final String indexName = descriptor.getPrimaryIndex();
         try {
+            @SuppressWarnings("unchecked")
             Map<String, Object> meta = (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
             if (meta == null) {
-                logger.warn("Missing _meta field in mapping [{}] of index [{}]", mappingMetadata.type(), indexName);
-                throw new IllegalStateException("Cannot read version string in index " + indexName);
+                logger.warn(
+                    "Missing _meta field in mapping [{}] of index [{}], assuming mappings update required",
+                    mappingMetadata.type(),
+                    indexName
+                );
+                // This can happen with old system indices, such as .watches, which were created before we had the convention of
+                // storing a version under `_meta.` We should just replace the template to be sure.
+                return Version.V_EMPTY;
             }
 
             final Object rawVersion = meta.get(descriptor.getVersionMetaKey());
@@ -289,7 +306,7 @@ public class SystemIndexManager implements ClusterStateListener {
             }
             final String versionString = rawVersion != null ? rawVersion.toString() : null;
             if (versionString == null) {
-                logger.warn("No value found in mappings for [_meta.{}]", descriptor.getVersionMetaKey());
+                logger.warn("No value found in mappings for [_meta.{}], assuming mappings update required", descriptor.getVersionMetaKey());
                 // If we called `Version.fromString(null)`, it would return `Version.CURRENT` and we wouldn't update the mappings
                 return Version.V_EMPTY;
             }

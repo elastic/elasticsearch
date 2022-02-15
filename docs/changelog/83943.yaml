@@ -1,0 +1,11 @@
+pr: 83943
+summary: Deprecate `index_include_frozen` request parameter
+area: SQL
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate `index_include_frozen` request parameter
+  area: SQL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

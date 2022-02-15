@@ -59,8 +59,8 @@ public class TextFormatterCursor implements Cursor {
     }
 
     @Override
-    public void clear(Client client, ActionListener<Boolean> listener) {
-        delegate.clear(client, listener);
+    public void clear(Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener) {
+        delegate.clear(client, registry, listener);
     }
 
     @Override

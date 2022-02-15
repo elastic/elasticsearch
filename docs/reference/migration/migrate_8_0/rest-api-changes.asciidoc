@@ -679,7 +679,7 @@ The {ml} {ref}/ml-post-data.html[post data to jobs API] is deprecated starting i
 and will be removed in a future major version.
 
 *Impact* +
-Use {ref}/ml-apis.html#ml-api-datafeed-endpoint[{dfeeds}] instead.
+Use {ref}/ml-ad-apis.html#ml-api-datafeed-endpoint[{dfeeds}] instead.
 ====
 
 .The `job_id` property of the Update {dfeeds} API has been removed.

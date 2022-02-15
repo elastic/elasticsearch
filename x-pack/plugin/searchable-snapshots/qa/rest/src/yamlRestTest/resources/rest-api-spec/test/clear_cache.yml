@@ -14,15 +14,15 @@ setup:
         body:
           - index:
               _index: docs
-              _id:    1
+              _id:    "1"
           - field: doc
           - index:
               _index: docs
-              _id:    2
+              _id:    "2"
           - field: doc
           - index:
               _index: docs
-              _id:    3
+              _id:    "3"
           - field: other
 
   - do:

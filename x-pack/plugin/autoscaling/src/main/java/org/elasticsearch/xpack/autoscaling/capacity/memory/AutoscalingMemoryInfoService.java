@@ -85,7 +85,9 @@ public class AutoscalingMemoryInfoService {
 
     Set<DiscoveryNode> relevantNodes(ClusterState state) {
         final Set<Set<DiscoveryNodeRole>> roleSets = calculateAutoscalingRoleSets(state);
-        return state.nodes().stream().filter(n -> roleSets.contains(n.getRoles())).collect(Collectors.toSet());
+        return StreamSupport.stream(state.nodes().spliterator(), false)
+            .filter(n -> roleSets.contains(n.getRoles()))
+            .collect(Collectors.toSet());
     }
 
     private Set<DiscoveryNode> addMissingNodes(Set<DiscoveryNode> nodes) {

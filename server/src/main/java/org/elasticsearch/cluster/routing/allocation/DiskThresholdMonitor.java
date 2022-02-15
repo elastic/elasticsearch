@@ -47,6 +47,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Listens for a node to go over the high watermark and kicks off an empty
@@ -374,8 +375,7 @@ public class DiskThresholdMonitor {
         }
 
         // Generate a map of node name to ID so we can use it to look up node replacement targets
-        final Map<String, String> nodeNameToId = state.getRoutingNodes()
-            .stream()
+        final Map<String, String> nodeNameToId = StreamSupport.stream(state.getRoutingNodes().spliterator(), false)
             .collect(Collectors.toMap(rn -> rn.node().getName(), RoutingNode::nodeId, (s1, s2) -> s2));
 
         // Calculate both the source node id and the target node id of a "replace" type shutdown

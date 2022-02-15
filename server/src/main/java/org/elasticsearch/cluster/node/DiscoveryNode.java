@@ -327,8 +327,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
         return new DiscoveryNode(
             Node.NODE_NAME_SETTING.get(settings),
-            Node.NODE_EXTERNAL_ID_SETTING.get(settings),
             nodeId,
+            Node.NODE_EXTERNAL_ID_SETTING.get(settings),
             publishAddress,
             attributes,
             roles,

@@ -168,15 +168,16 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(
             r -> logger.debug("Stopped geoip downloader task"),
             e -> {
-            Throwable t = e;
-            if (e instanceof RemoteTransportException) {
-                t = e.getCause();
+                Throwable t = e;
+                if (e instanceof RemoteTransportException) {
+                    t = e.getCause();
+                }
+                if (t instanceof ResourceNotFoundException == false) {
+                    logger.error("failed to remove geoip downloader task", e);
+                    onFailure.run();
+                }
             }
-            if (t instanceof ResourceNotFoundException == false) {
-                logger.error("failed to remove geoip downloader task", e);
-                onFailure.run();
-            }
-        });
+        );
         persistentTasksService.sendRemoveRequest(
             GEOIP_DOWNLOADER,
             ActionListener.runAfter(

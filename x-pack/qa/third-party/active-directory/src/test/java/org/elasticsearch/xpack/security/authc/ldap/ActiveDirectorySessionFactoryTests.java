@@ -140,6 +140,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78624")
     public void testAdAuthAvengers() throws Exception {
         RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {

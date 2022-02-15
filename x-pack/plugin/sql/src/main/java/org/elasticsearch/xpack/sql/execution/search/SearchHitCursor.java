@@ -124,7 +124,7 @@ public class SearchHitCursor implements Cursor {
             log.trace("About to execute search hit query {}", StringUtils.toString(query));
         }
 
-        SearchRequest request = prepareRequest(query, includeFrozen);
+        SearchRequest request = prepareRequest(query, cfg.requestTimeout(), includeFrozen);
 
         client.search(
             request,

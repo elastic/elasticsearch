@@ -165,6 +165,46 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
                 jvmInference = new ByteSizeValue(in);
             }
 
+            public ByteSizeValue getMemTotal() {
+                return memTotal;
+            }
+
+            public ByteSizeValue getMemAdjustedTotal() {
+                return memAdjustedTotal;
+            }
+
+            public ByteSizeValue getMlMax() {
+                return mlMax;
+            }
+
+            public ByteSizeValue getMlNativeCodeOverhead() {
+                return mlNativeCodeOverhead;
+            }
+
+            public ByteSizeValue getMlAnomalyDetectors() {
+                return mlAnomalyDetectors;
+            }
+
+            public ByteSizeValue getMlDataFrameAnalytics() {
+                return mlDataFrameAnalytics;
+            }
+
+            public ByteSizeValue getMlNativeInference() {
+                return mlNativeInference;
+            }
+
+            public ByteSizeValue getJvmHeapMax() {
+                return jvmHeapMax;
+            }
+
+            public ByteSizeValue getJvmInferenceMax() {
+                return jvmInferenceMax;
+            }
+
+            public ByteSizeValue getJvmInference() {
+                return jvmInference;
+            }
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 DiscoveryNode node = getNode();
@@ -260,6 +300,11 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
                     && Objects.equals(jvmHeapMax, that.jvmHeapMax)
                     && Objects.equals(jvmInferenceMax, that.jvmInferenceMax)
                     && Objects.equals(jvmInference, that.jvmInference);
+            }
+
+            @Override
+            public String toString() {
+                return Strings.toString(this);
             }
         }
 

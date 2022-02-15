@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -50,8 +48,6 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
 public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryAction.Request, MlMemoryAction.Response> {
-
-    private static final Logger logger = LogManager.getLogger(TransportMlMemoryAction.class);
 
     private final Client client;
     private final MlMemoryTracker memoryTracker;

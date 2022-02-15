@@ -30,7 +30,10 @@
   - match: { nodes.$node_id.mem.ml.native_inference_in_bytes: 0 }
   - gt: { nodes.$node_id.jvm.heap_max_in_bytes: 0 }
   - gt: { nodes.$node_id.jvm.java_inference_max_in_bytes: 0 }
-  - match: { nodes.$node_id.jvm.java_inference_in_bytes: 0 }
+  # This next one has to be >= 0 rather than 0 because the cache is invalidated
+  # lazily after models are no longer in use, and previous tests could have
+  # caused a model to be cached
+  - gte: { nodes.$node_id.jvm.java_inference_in_bytes: 0 }
 
 ---
 "ML memory for ML nodes":
@@ -63,7 +66,10 @@
   - match: { nodes.$node_id.mem.ml.native_inference_in_bytes: 0 }
   - gt: { nodes.$node_id.jvm.heap_max_in_bytes: 0 }
   - gt: { nodes.$node_id.jvm.java_inference_max_in_bytes: 0 }
-  - match: { nodes.$node_id.jvm.java_inference_in_bytes: 0 }
+  # This next one has to be >= 0 rather than 0 because the cache is invalidated
+  # lazily after models are no longer in use, and previous tests could have
+  # caused a model to be cached
+  - gte: { nodes.$node_id.jvm.java_inference_in_bytes: 0 }
 
 ---
 "ML memory for specific node":
@@ -96,4 +102,7 @@
   - match: { nodes.$node_id.mem.ml.native_inference_in_bytes: 0 }
   - gt: { nodes.$node_id.jvm.heap_max_in_bytes: 0 }
   - gt: { nodes.$node_id.jvm.java_inference_max_in_bytes: 0 }
-  - match: { nodes.$node_id.jvm.java_inference_in_bytes: 0 }
+  # This next one has to be >= 0 rather than 0 because the cache is invalidated
+  # lazily after models are no longer in use, and previous tests could have
+  # caused a model to be cached
+  - gte: { nodes.$node_id.jvm.java_inference_in_bytes: 0 }

@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -97,13 +98,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
+    private final List<Consumer<IndexMetadata>> preRestoreChecks;
+
     public RepositoriesService(
         Settings settings,
         ClusterService clusterService,
         TransportService transportService,
         Map<String, Repository.Factory> typesRegistry,
         Map<String, Repository.Factory> internalTypesRegistry,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        List<Consumer<IndexMetadata>> preRestoreChecks
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
@@ -122,6 +126,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS.get(settings),
             threadPool::relativeTimeInMillis
         );
+        this.preRestoreChecks = preRestoreChecks;
     }
 
     /**
@@ -774,6 +779,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             "trying to modify or unregister repository that is currently used (" + reason + ')',
             "trying to modify or unregister repository [" + repository + "] that is currently used (" + reason + ')'
         );
+    }
+
+    public List<Consumer<IndexMetadata>> getPreRestoreChecks() {
+        return preRestoreChecks;
     }
 
     @Override

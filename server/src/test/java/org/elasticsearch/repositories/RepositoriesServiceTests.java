@@ -93,7 +93,8 @@ public class RepositoriesServiceTests extends ESTestCase {
             transportService,
             typesRegistry,
             typesRegistry,
-            threadPool
+            threadPool,
+            List.of()
         );
         repositoriesService.start();
     }

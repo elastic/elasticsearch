@@ -7,105 +7,150 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
-import java.util.ArrayList;
-import java.util.List;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
+import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 
-public class TokenizationResult {
+import java.io.IOException;
+import java.util.List;
+import java.util.OptionalInt;
+import java.util.stream.IntStream;
+
+public abstract class TokenizationResult {
+    public static final int SPECIAL_TOKEN_POSITION = -1;
 
     private final List<String> vocab;
-    private final List<Tokenization> tokenizations = new ArrayList<>();
-    private int maxLength;
+    private final List<Tokens> tokens;
+    private final int maxLength;
+    private final int padTokenId;
 
-    public TokenizationResult(List<String> vocab) {
+    protected TokenizationResult(List<String> vocab, List<Tokens> tokenizations, int padTokenId) {
         this.vocab = vocab;
-        this.maxLength = -1;
+        this.tokens = tokenizations;
+        this.padTokenId = padTokenId;
+        int max = 0;
+        for (Tokens tokenization : tokenizations) {
+            max = Math.max(tokenization.tokenIds.length, max);
+        }
+        this.maxLength = max;
     }
 
-    public boolean anyTruncated() {
-        return tokenizations.stream().anyMatch(Tokenization::isTruncated);
+    List<Tokens> getTokens() {
+        return tokens;
     }
 
     public String getFromVocab(int tokenId) {
         return vocab.get(tokenId);
     }
 
-    public List<Tokenization> getTokenizations() {
-        return tokenizations;
+    public Tokens getTokenization(int tokenizationIndex) {
+        return tokens.get(tokenizationIndex);
     }
 
-    public void addTokenization(
-        String input,
-        boolean isTruncated,
-        List<WordPieceTokenFilter.WordPieceToken> tokens,
-        int[] tokenIds,
-        int[] tokenMap
-    ) {
-        maxLength = Math.max(maxLength, tokenIds.length);
-        tokenizations.add(new Tokenization(input, tokens, isTruncated, tokenIds, tokenMap));
+    public boolean anyTruncated() {
+        return tokens.stream().anyMatch(Tokens::truncated);
     }
 
-    public void addTokenization(Tokenization tokenization) {
-        maxLength = Math.max(maxLength, tokenization.tokenIds.length);
-        tokenizations.add(tokenization);
+    public boolean isEmpty() {
+        return this.tokens.isEmpty() || this.tokens.stream().allMatch(t -> t.tokenIds.length == 0);
     }
 
-    public int getLongestSequenceLength() {
-        return maxLength;
+    public abstract NlpTask.Request buildRequest(String requestId, Tokenization.Truncate t) throws IOException;
+
+    protected void writePaddedTokens(String fieldName, XContentBuilder builder) throws IOException {
+        builder.startArray(fieldName);
+        for (var inputTokens : tokens) {
+            builder.startArray();
+
+            // Note, cannot write the array directly as the internal builder code writes start/end array values
+            for (int t : inputTokens.tokenIds) {
+                builder.value(t);
+            }
+            for (int i = inputTokens.tokenIds.length; i < maxLength; i++) {
+                builder.value(padTokenId);
+            }
+            builder.endArray();
+        }
+        builder.endArray();
     }
 
-    public static class Tokenization {
+    protected void writeAttentionMask(String fieldName, XContentBuilder builder) throws IOException {
+        builder.startArray(fieldName);
+        for (var inputTokens : tokens) {
+            builder.startArray();
+            // Note, cannot write the array directly as the internal builder code writes start/end array values
+            for (int ignored : inputTokens.tokenIds) {
+                builder.value(1);
+            }
+            for (int i = inputTokens.tokenIds.length; i < maxLength; i++) {
+                builder.value(padTokenId);
+            }
+            builder.endArray();
+        }
+        builder.endArray();
+    }
 
-        private final String input;
-        private final List<WordPieceTokenFilter.WordPieceToken> tokens;
-        private final int[] tokenIds;
-        private final int[] tokenMap;
-        private final boolean truncated;
+    protected void writeTokenTypeIds(String fieldName, XContentBuilder builder) throws IOException {
+        builder.startArray(fieldName);
+        for (int i = 0; i < tokens.size(); i++) {
+            builder.startArray();
+            for (int j = 0; j < maxLength; j++) {
+                builder.value(0);
+            }
+            builder.endArray();
+        }
+        builder.endArray();
+    }
 
-        public Tokenization(
-            String input,
-            List<WordPieceTokenFilter.WordPieceToken> tokens,
-            boolean truncated,
-            int[] tokenIds,
-            int[] tokenMap
-        ) {
+    protected void writePositionIds(String fieldName, XContentBuilder builder) throws IOException {
+        builder.startArray(fieldName);
+        for (int i = 0; i < tokens.size(); i++) {
+            builder.startArray();
+            for (int j = 0; j < maxLength; j++) {
+                builder.value(j);
+            }
+            builder.endArray();
+        }
+        builder.endArray();
+    }
+
+    public record Tokens(String input, List<? extends DelimitedToken> tokens, boolean truncated, int[] tokenIds, int[] tokenMap) {
+
+        public Tokens {
             assert tokenIds.length == tokenMap.length;
-            this.input = input;
-            this.tokens = tokens;
-            this.tokenIds = tokenIds;
-            this.tokenMap = tokenMap;
-            this.truncated = truncated;
         }
+
+        public OptionalInt getTokenIndex(int token) {
+            return IntStream.range(0, tokenIds.length).filter(tokenIndex -> token == tokenIds[tokenIndex]).findFirst();
+        }
+    }
+
+    interface TokensBuilder {
+        /**
+         * Adds tokens to the token builder
+         * @param tokenIds Token ids without special tokens added
+         * @param tokenMap Token map without considering special tokens
+         * @return The builder object
+         */
+        TokensBuilder addSequence(List<Integer> tokenIds, List<Integer> tokenMap);
 
         /**
-         * The integer values of the tokens}
-         *
-         * @return A list of token Ids
+         * Adds an encoded sequence pair to the token builder
+         * @param tokenId1s Sequence 1 ids
+         * @param tokenMap1 Sequence 1 token mappings
+         * @param tokenId2s Sequence 2 ids
+         * @param tokenMap2 Sequence 2 token map
+         * @return The builder object
          */
-        public int[] getTokenIds() {
-            return tokenIds;
-        }
+        TokensBuilder addSequencePair(List<Integer> tokenId1s, List<Integer> tokenMap1, List<Integer> tokenId2s, List<Integer> tokenMap2);
 
         /**
-         * Maps the token position to the position in the source text.
-         * Source words may be divided into more than one token so more
-         * than one token can map back to the source token
-         *
-         * @return Map of source token to
+         * Builds the token object
+         * @param input the original sequence input, may be a simple concatenation of a sequence pair
+         * @param truncated Was this truncated when tokenized
+         * @param allTokens All the tokens with their values and offsets
+         * @return A new Tokens object
          */
-        public int[] getTokenMap() {
-            return tokenMap;
-        }
-
-        public String getInput() {
-            return input;
-        }
-
-        public List<WordPieceTokenFilter.WordPieceToken> getTokens() {
-            return tokens;
-        }
-
-        public boolean isTruncated() {
-            return truncated;
-        }
+        Tokens build(String input, boolean truncated, List<? extends DelimitedToken> allTokens);
     }
 }

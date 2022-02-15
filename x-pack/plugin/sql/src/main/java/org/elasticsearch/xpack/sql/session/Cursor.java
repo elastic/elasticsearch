@@ -48,5 +48,5 @@ public interface Cursor extends NamedWriteable {
     /**
      *  Cleans the resources associated with the cursor
      */
-    void clear(Client client, ActionListener<Boolean> listener);
+    void clear(Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener);
 }

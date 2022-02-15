@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamOutput;
 import org.elasticsearch.xpack.sql.execution.search.CompositeAggCursor;
 import org.elasticsearch.xpack.sql.execution.search.PivotCursor;
-import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
+import org.elasticsearch.xpack.sql.execution.search.SearchHitCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlBucketExtractors;
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlHitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
@@ -46,7 +46,7 @@ public final class Cursors {
 
         // cursors
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, EmptyCursor.NAME, in -> Cursor.EMPTY));
-        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, ScrollCursor.NAME, ScrollCursor::new));
+        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, SearchHitCursor.NAME, SearchHitCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, CompositeAggCursor.NAME, CompositeAggCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, PivotCursor.NAME, PivotCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, TextFormatterCursor.NAME, TextFormatterCursor::new));

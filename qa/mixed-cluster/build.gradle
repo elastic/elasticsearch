@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
@@ -31,6 +33,8 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       numberOfNodes = 4
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
+      requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+      requiresFeature 'es.random_sampler_feature_flag_registered', Version.fromString("8.1.0")
     }
 
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
@@ -41,18 +45,10 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         // Getting the endpoints causes a wait for the cluster
         println "Test cluster endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
         println "Upgrading one node to create a mixed cluster"
-        if (BuildParams.isSnapshotBuild() == false) {
-          baseCluster.get().nodes."${baseName}-0".systemProperty 'es.index_mode_feature_flag_registered', 'true'
-          baseCluster.get().nodes."${baseName}-0".systemProperty 'es.random_sampler_feature_flag_registered', 'true'
-        }
         baseCluster.get().nextNodeToNextVersion()
         // Getting the endpoints causes a wait for the cluster
         println "Upgrade complete, endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
         println "Upgrading another node to create a mixed cluster"
-        if (BuildParams.isSnapshotBuild() == false) {
-          baseCluster.get().nodes."${baseName}-1".systemProperty 'es.index_mode_feature_flag_registered', 'true'
-          baseCluster.get().nodes."${baseName}-1".systemProperty 'es.random_sampler_feature_flag_registered', 'true'
-        }
         baseCluster.get().nextNodeToNextVersion()
         nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
         nonInputProperties.systemProperty('tests.clustername', baseName)

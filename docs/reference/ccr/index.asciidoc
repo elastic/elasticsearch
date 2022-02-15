@@ -49,7 +49,12 @@ All indices replicated by cross-cluster replication must also be compatible
 with the cluster's version. If you try to replicate an index created in an
 incompatible version, the replication attempt will fail.
 
+[%collapsible%open]
+[[ccr-index-compatibility]]
+.CCR index version compatibility matrix
+====
 include::../snapshot-restore/cluster-index-compat.asciidoc[]
+====
 
 [discrete]
 [[ccr-multi-cluster-architectures]]

@@ -3,6 +3,11 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="migration-api-feature-upgrade"]
+=== Feature upgrade APIs
+
+Refer to <<feature-migration-api,Feature migration APIs>>.
+
 // [START] Snapshot and restore
 
 [role="exclude",id="snapshot-lifecycle-management"]

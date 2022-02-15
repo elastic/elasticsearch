@@ -254,6 +254,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 expected.put("columns", singletonList(columnInfo(mode, "tz", "integer", JDBCType.INTEGER, 11)));
                 response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "", mode);
             } else {
+                assertNotNull(cursor);
                 response = runSql(
                     new StringEntity(cursor(cursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
                     StringUtils.EMPTY,
@@ -270,16 +271,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 );
             }
             expected.put("rows", values);
+            assertTrue(response.containsKey("cursor") == false || response.get("cursor") != null);
             cursor = (String) response.remove("cursor");
             assertResponse(expected, response);
-            assertNotNull(cursor);
         }
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("rows", emptyList());
-        assertResponse(
-            expected,
-            runSql(new StringEntity(cursor(cursor).mode(mode).toString(), ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode)
-        );
+
+        assertNull(cursor);
 
         deleteIndex("test_date_timezone");
     }
@@ -1182,7 +1179,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             .toString();
 
         String cursor = null;
-        for (int i = 0; i < size; i += 2) {
+        for (int i = 0; i <= size; i += 2) {
             Tuple<String, String> response;
             if (i == 0) {
                 response = runSqlAsText(StringUtils.EMPTY, new StringEntity(request, ContentType.APPLICATION_JSON), format);
@@ -1201,29 +1198,17 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                     expected.append("---------------+---------------+---------------\n");
                 }
             }
-            expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + i, i, i + 5));
-            expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + (i + 1), i + 1, i + 6));
+
             cursor = response.v2();
-            assertEquals(expected.toString(), response.v1());
-            assertNotNull(cursor);
+            if (i < 20) {
+                expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + i, i, i + 5));
+                expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + (i + 1), i + 1, i + 6));
+                assertEquals(expected.toString(), response.v1());
+                assertNotNull(cursor);
+            } else {
+                assertNull(cursor);
+            }
         }
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("rows", emptyList());
-
-        Tuple<String, String> response = runSqlAsText(
-            StringUtils.EMPTY,
-            new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON),
-            format
-        );
-        assertEquals(StringUtils.EMPTY, response.v1());
-        assertNull(response.v2());
-
-        Map<String, Object> closeResponse = runSql(
-            new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON),
-            "/close",
-            Mode.PLAIN.toString()
-        );
-        assertEquals(true, closeResponse.get("succeeded"));
 
         assertEquals(0, getNumberOfSearchContexts(provisioningClient(), "test"));
     }

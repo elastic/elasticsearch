@@ -12,10 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -40,6 +36,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
 
 /**
  * Cursor for composite aggregation (GROUP BY).
@@ -130,7 +129,7 @@ public class CompositeAggCursor implements Cursor {
             log.trace("About to execute composite query {} on {}", StringUtils.toString(nextQuery), indices);
         }
 
-        SearchRequest request = Querier.prepareRequest(nextQuery, cfg.requestTimeout(), includeFrozen, indices);
+        SearchRequest request = prepareRequest(nextQuery, cfg.requestTimeout(), includeFrozen, indices);
 
         client.search(request, new ActionListener.Delegating<>(listener) {
             @Override
@@ -167,7 +166,7 @@ public class CompositeAggCursor implements Cursor {
     ) {
 
         if (log.isTraceEnabled()) {
-            Querier.logSearchResponse(response, log);
+            logSearchResponse(response, log);
         }
         // there are some results
         if (response.getAggregations().asList().isEmpty() == false) {
@@ -237,29 +236,6 @@ public class CompositeAggCursor implements Cursor {
             comp.aggregateAfter(afterKey);
         } else {
             throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
-        }
-    }
-
-    /**
-     * Deserializes the search source from a byte array.
-     */
-    private static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
-        try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(source), registry)) {
-            return new SearchSourceBuilder(in);
-        }
-    }
-
-    /**
-     * Serializes the search source to a byte array.
-     */
-    private static byte[] serializeQuery(SearchSourceBuilder source) throws IOException {
-        if (source == null) {
-            return new byte[0];
-        }
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            source.writeTo(out);
-            return BytesReference.toBytes(out.bytes());
         }
     }
 

@@ -10,12 +10,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -23,6 +31,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -122,27 +131,64 @@ public class Querier {
         List<Tuple<Integer, Comparator>> sortingColumns = query.sortingColumns();
         listener = sortingColumns.isEmpty() ? listener : new LocalAggregationSorterListener(listener, sortingColumns, query.limit());
 
-        ActionListener<SearchResponse> l = null;
-        if (query.isAggsOnly()) {
+        if (cfg.task() != null && cfg.task().isCancelled()) {
+            listener.onFailure(new TaskCancelledException("cancelled"));
+        } else if (query.isAggsOnly()) {
+            ActionListener<SearchResponse> l;
             if (query.aggs().useImplicitGroupBy()) {
                 l = new ImplicitGroupActionListener(listener, client, cfg, output, query, search);
             } else {
                 l = new CompositeActionListener(listener, client, cfg, output, query, search);
             }
+            client.search(search, l);
         } else {
-            search.scroll(cfg.pageTimeout());
-            l = new ScrollActionListener(listener, client, cfg, output, query);
+            searchWithPointInTime(search, new SearchHitActionListener(listener, client, cfg, output, query, sourceBuilder));
         }
-
-        if (cfg.task() != null && cfg.task().isCancelled()) {
-            listener.onFailure(new TaskCancelledException("cancelled"));
-            return;
-        }
-        client.search(search, l);
     }
 
-    public static SearchRequest prepareRequest(SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, String... indices) {
-        source.timeout(timeout);
+    private void searchWithPointInTime(SearchRequest search, ActionListener<SearchResponse> listener) {
+        final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(search.indicesOptions())
+            .keepAlive(cfg.pageTimeout());
+
+        client.execute(OpenPointInTimeAction.INSTANCE, openPitRequest, wrap(openPointInTimeResponse -> {
+            String pitId = openPointInTimeResponse.getPointInTimeId();
+            search.indices(Strings.EMPTY_ARRAY);
+            search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
+            ActionListener<SearchResponse> closePitOnErrorListener = wrap(searchResponse -> {
+                try {
+                    listener.onResponse(searchResponse);
+                } catch (Exception e) {
+                    closePointInTimeAfterError(client, pitId, e, listener);
+                }
+            }, searchError -> closePointInTimeAfterError(client, pitId, searchError, listener));
+            client.search(search, closePitOnErrorListener);
+        }, listener::onFailure));
+    }
+
+    private static void closePointInTimeAfterError(Client client, String pointInTimeId, Exception e, ActionListener<?> listener) {
+        closePointInTime(client, pointInTimeId, wrap(r -> listener.onFailure(e), closeError -> {
+            e.addSuppressed(closeError);
+            listener.onFailure(e);
+        }));
+    }
+
+    public static void closePointInTime(Client client, String pointInTimeId, ActionListener<Boolean> listener) {
+        if (pointInTimeId != null) {
+            // request should not be made with the parent task assigned because the parent task might already be canceled
+            client = client instanceof ParentTaskAssigningClient wrapperClient ? wrapperClient.unwrap() : client;
+
+            client.execute(
+                ClosePointInTimeAction.INSTANCE,
+                new ClosePointInTimeRequest(pointInTimeId),
+                wrap(clearPointInTimeResponse -> listener.onResponse(clearPointInTimeResponse.isSucceeded()), listener::onFailure)
+            );
+        } else {
+            listener.onResponse(true);
+        }
+    }
+
+    public static SearchRequest prepareRequest(SearchSourceBuilder source, TimeValue timeOut, boolean includeFrozen, String... indices) {
+        source.timeout(timeOut);
 
         SearchRequest searchRequest = new SearchRequest(INTRODUCING_UNSIGNED_LONG);
         searchRequest.indices(indices);
@@ -179,6 +225,29 @@ public class Querier {
             response.getTook(),
             response.isTimedOut()
         );
+    }
+
+    /**
+     * Deserializes the search source from a byte array.
+     */
+    public static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
+        try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(source), registry)) {
+            return new SearchSourceBuilder(in);
+        }
+    }
+
+    /**
+     * Serializes the search source to a byte array.
+     */
+    public static byte[] serializeQuery(SearchSourceBuilder source) throws IOException {
+        if (source == null) {
+            return new byte[0];
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            source.writeTo(out);
+            return BytesReference.toBytes(out.bytes());
+        }
     }
 
     /**
@@ -504,24 +573,27 @@ public class Querier {
     }
 
     /**
-     * Dedicated listener for column retrieval/non-grouped queries (scrolls).
+     * Dedicated listener for column retrieval/non-grouped queries (search hits).
      */
-    static class ScrollActionListener extends BaseActionListener {
+    static class SearchHitActionListener extends BaseActionListener {
         private final QueryContainer query;
         private final BitSet mask;
         private final boolean multiValueFieldLeniency;
+        private final SearchSourceBuilder source;
 
-        ScrollActionListener(
+        SearchHitActionListener(
             ActionListener<Page> listener,
             Client client,
             SqlConfiguration cfg,
             List<Attribute> output,
-            QueryContainer query
+            QueryContainer query,
+            SearchSourceBuilder source
         ) {
             super(listener, client, cfg, output);
             this.query = query;
             this.mask = query.columnMask(output);
             this.multiValueFieldLeniency = cfg.multiValueFieldLeniency();
+            this.source = source;
         }
 
         @Override
@@ -534,12 +606,13 @@ public class Querier {
                 exts.add(createExtractor(ref.extraction()));
             }
 
-            ScrollCursor.handle(
+            SearchHitCursor.handle(
+                client,
                 response,
-                () -> new SchemaSearchHitRowSet(schema, exts, mask, query.limit(), response),
-                p -> listener.onResponse(p),
-                p -> clear(response.getScrollId(), wrap(success -> listener.onResponse(p), listener::onFailure)),
-                schema
+                source,
+                () -> new SchemaSearchHitRowSet(schema, exts, mask, source.size(), query.limit(), response),
+                listener,
+                query.shouldIncludeFrozen()
             );
         }
 
@@ -579,7 +652,7 @@ public class Querier {
 
     /**
      * Base listener class providing clean-up and exception handling.
-     * Handles both scroll queries (scan/scroll) and regular/composite-aggs queries.
+     * Handles both search hits and composite-aggs queries.
      */
     abstract static class BaseActionListener extends ActionListener.Delegating<SearchResponse, Page> {
 
@@ -595,52 +668,13 @@ public class Querier {
             this.schema = Rows.schema(output);
         }
 
-        // TODO: need to handle rejections plus check failures (shard size, etc...)
         @Override
         public void onResponse(final SearchResponse response) {
-            try {
-                ShardSearchFailure[] failure = response.getShardFailures();
-                if (CollectionUtils.isEmpty(failure) == false) {
-                    cleanup(response, new SqlIllegalArgumentException(failure[0].reason(), failure[0].getCause()));
-                } else {
-                    handleResponse(response, ActionListener.wrap(delegate::onResponse, e -> cleanup(response, e)));
-                }
-            } catch (Exception ex) {
-                cleanup(response, ex);
-            }
+            handleResponse(response, delegate);
         }
 
         protected abstract void handleResponse(SearchResponse response, ActionListener<Page> listener);
 
-        // clean-up the scroll in case of exception
-        protected final void cleanup(SearchResponse response, Exception ex) {
-            if (response != null && response.getScrollId() != null) {
-                client.prepareClearScroll()
-                    .addScrollId(response.getScrollId())
-                    // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
-                    .execute(ActionListener.wrap(r -> delegate.onFailure(ex), e -> {
-                        ex.addSuppressed(e);
-                        delegate.onFailure(ex);
-                    }));
-            } else {
-                delegate.onFailure(ex);
-            }
-        }
-
-        protected final void clear(String scrollId, ActionListener<Boolean> listener) {
-            if (scrollId != null) {
-                client.prepareClearScroll()
-                    .addScrollId(scrollId)
-                    .execute(
-                        ActionListener.wrap(
-                            clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
-                            listener::onFailure
-                        )
-                    );
-            } else {
-                listener.onResponse(false);
-            }
-        }
     }
 
     @SuppressWarnings("rawtypes")

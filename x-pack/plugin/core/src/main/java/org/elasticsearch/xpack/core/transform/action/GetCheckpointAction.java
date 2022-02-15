@@ -99,6 +99,12 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             this.indices = indices;
             return this;
         }
+
+        // this action does not allow remote indices, but they have to be resolved upfront, see {@link DefaultCheckpointProvider}
+        @Override
+        public boolean allowsRemoteIndices() {
+            return false;
+        }
     }
 
     public static class Response extends ActionResponse {

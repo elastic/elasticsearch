@@ -79,12 +79,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
     protected void resolveIndicesAndGetCheckpoint(Task task, Request request, ActionListener<Response> listener, final ClusterState state) {
         // note: when security is turned on, the indices are already resolved
         // TODO: do a quick check and only resolve if necessary??
-        String[] concreteIndices = this.indexNameExpressionResolver.concreteIndexNames(
-            state,
-            request.indicesOptions(),
-            true, // includeDataStreams
-            request.indices()
-        );
+        String[] concreteIndices = this.indexNameExpressionResolver.concreteIndexNames(state, request);
 
         Map<String, Set<ShardId>> nodesAndShards = resolveIndicesToPrimaryShards(state, concreteIndices);
 

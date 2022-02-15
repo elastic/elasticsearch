@@ -1,0 +1,5 @@
+pr: 83942
+summary: Combine date processor patterns into single parser
+area: Ingest
+type: enhancement
+issues: []

@@ -26,8 +26,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Client that executes actions on the local node.
@@ -65,6 +67,13 @@ public class NodeClient extends AbstractClient {
         this.localConnection = localConnection;
         this.remoteClusterService = remoteClusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
+    }
+
+    /**
+     * Return the names of all available actions registered with this client.
+     */
+    public List<String> getActionNames() {
+        return actions.keySet().stream().map(ActionType::name).collect(Collectors.toList());
     }
 
     @Override

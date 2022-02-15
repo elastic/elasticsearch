@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.security.operator.actions;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -17,12 +14,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -41,19 +33,7 @@ public class RestGetActionsAction extends BaseRestHandler {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final Map<ActionType, TransportAction> actions = AccessController.doPrivileged(
-            (PrivilegedAction<Map<ActionType, TransportAction>>) () -> {
-                try {
-                    final Field actionsField = client.getClass().getDeclaredField("actions");
-                    actionsField.setAccessible(true);
-                    return (Map<ActionType, TransportAction>) actionsField.get(client);
-                } catch (NoSuchFieldException | IllegalAccessException e) {
-                    throw new ElasticsearchException(e);
-                }
-            }
-        );
-
-        final List<String> actionNames = actions.keySet().stream().map(ActionType::name).collect(Collectors.toList());
+        final List<String> actionNames = client.getActionNames();
         return channel -> new RestToXContentListener<>(channel).onResponse(
             (builder, params) -> builder.startObject().field("actions", actionNames).endObject()
         );

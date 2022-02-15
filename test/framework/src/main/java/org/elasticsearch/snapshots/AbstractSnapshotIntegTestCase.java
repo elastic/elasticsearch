@@ -334,6 +334,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         createRepository(logger, repoName, type, randomRepositorySettings(), true);
     }
 
+    protected void deleteRepository(String repoName) {
+        assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+    }
+
     public static Settings.Builder randomRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());

@@ -56,8 +56,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    private final FieldCapabilitiesFetcher fieldCapabilitiesFetcher;
     private final Predicate<String> metadataFieldPred;
+    private final IndicesService indicesService;
     private final boolean ccsCheckCompatibility;
 
     @Inject
@@ -74,7 +74,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService);
+        this.indicesService = indicesService;
         final Set<String> metadataFields = indicesService.getAllMetadataFields();
         this.metadataFieldPred = metadataFields::contains;
         transportService.registerRequestHandler(
@@ -361,29 +361,25 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
+                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService);
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
                     for (ShardId shardId : shardIds) {
                         try {
-                            final FieldCapabilitiesIndexResponse response = fieldCapabilitiesFetcher.fetch(
+                            final FieldCapabilitiesIndexResponse response = fetcher.fetch(
                                 shardId,
                                 request.fields(),
                                 request.filters(),
                                 request.allowedTypes(),
                                 request.indexFilter(),
                                 request.nowInMillis(),
-                                request.runtimeFields(),
-                                indexMappingHashToResponses
+                                request.runtimeFields()
                             );
                             if (response.canMatch()) {
                                 unmatched.clear();
                                 failures.clear();
                                 allResponses.add(response);
-                                if (response.getIndexMappingHash() != null) {
-                                    indexMappingHashToResponses.putIfAbsent(response.getIndexMappingHash(), response.get());
-                                }
                                 break;
                             } else {
                                 unmatched.add(shardId);

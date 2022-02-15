@@ -86,6 +86,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         return plugins;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83953")
     public void testStartMigrationAndImmediatelyCheckStatus() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);

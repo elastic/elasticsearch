@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -133,6 +133,10 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         return meta;
     }
 
+    private Optional<Meta> getMetaObject() {
+        return Meta.fromMetaMap(meta);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         level.writeTo(out);
@@ -188,15 +192,15 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     }
 
     public static Map<String, Object> createMetaMapForRemovableSettings(List<String> removableSettings) {
-        return createMetaMapWithDesiredRemovableSettings(Collections.emptyMap(), removableSettings);
+        return Meta.fromRemovableSettings(removableSettings).toMetaMap();
     }
 
     /**
      * This method returns a DeprecationIssue that has in its meta object the intersection of all auto-removable settings that appear on
      * all of the DeprecationIssues that are passed in. This method assumes that all DeprecationIssues passed in are equal, except for the
      * auto-removable settings in the meta object.
-     * @param similarIssues
-     * @return
+     * @param similarIssues DeprecationIssues that are assumed to be identical except possibly removal actions.
+     * @return A DeprecationIssue containing only the removal actions that are in all similarIssues
      */
     public static DeprecationIssue getIntersectionOfRemovableSettings(List<DeprecationIssue> similarIssues) {
         if (similarIssues == null || similarIssues.isEmpty()) {
@@ -205,107 +209,30 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         if (similarIssues.size() == 1) {
             return similarIssues.get(0);
         }
-        Tuple<List<String>, Boolean> leastCommonRemovableSettingsDeleteSettingsTuple = getLeastCommonRemovableSettings(similarIssues);
-        List<String> leastCommonRemovableSettings = leastCommonRemovableSettingsDeleteSettingsTuple.v1();
-        boolean hasSettingsThatNeedToBeDeleted = leastCommonRemovableSettingsDeleteSettingsTuple.v2();
-        DeprecationIssue representativeIssue = similarIssues.get(0);
-        Map<String, Object> representativeMeta = representativeIssue.getMeta();
-        final Map<String, Object> newMeta = buildNewMetaMap(
-            representativeMeta,
-            leastCommonRemovableSettings,
-            hasSettingsThatNeedToBeDeleted
-        );
+        DeprecationIssue representativeIssue = similarIssues.stream().findAny().get();
+        Optional<Meta> metaIntersection = similarIssues.stream()
+            .map(DeprecationIssue::getMetaObject)
+            .reduce(
+                representativeIssue.getMetaObject(),
+                (intersectionSoFar, meta) -> intersectionSoFar.isPresent() && meta.isPresent()
+                    ? Optional.of(intersectionSoFar.get().getIntersection(meta.get()))
+                    : Optional.empty()
+            );
         return new DeprecationIssue(
             representativeIssue.level,
             representativeIssue.message,
             representativeIssue.url,
             representativeIssue.details,
             representativeIssue.resolveDuringRollingUpgrade,
-            newMeta
+            metaIntersection.map(Meta::toMetaMap).orElse(null)
         );
     }
 
     /*
-     * This method takes in a representative meta map from a DeprecationIssue, and strips out any settings that are not in the
-     * leastCommonRemovableSettings list -- that is, the settings that appeared in all of the DeprecationIssues's meta maps. The
-     * hasSettingsThatNeedToBeDeleted is an optimization -- if it is false there is no need to do as much work because we can just return a
-     * copy of the representative map.
-     */
-    private static Map<String, Object> buildNewMetaMap(
-        Map<String, Object> representativeMeta,
-        List<String> leastCommonRemovableSettings,
-        boolean hasSettingsThatNeedToBeDeleted
-    ) {
-        final Map<String, Object> newMeta;
-        if (representativeMeta != null) {
-            if (hasSettingsThatNeedToBeDeleted) {
-                newMeta = createMetaMapWithDesiredRemovableSettings(representativeMeta, leastCommonRemovableSettings);
-            } else {
-                newMeta = representativeMeta;
-            }
-        } else {
-            newMeta = null;
-        }
-        return newMeta;
-    }
-
-    /*
-     * This method returns a list of all of the Settings that appear in the meta map of all of the similarIssues. It also returns a boolean
-     * indicating whether it found any settings that were not in all similarIssues (indicating that the calling code will need to remove
-     * some from the meta map).
-     */
-    private static Tuple<List<String>, Boolean> getLeastCommonRemovableSettings(List<DeprecationIssue> similarIssues) {
-        boolean hasSettingsThatNeedToBeDeleted = false;
-        List<String> leastCommonRemovableSettings = null;
-        for (DeprecationIssue issue : similarIssues) {
-            List<String> removableSettings = issue.getRemovableSettings();
-            if (removableSettings == null) {
-                leastCommonRemovableSettings = null;
-                break;
-            }
-            if (leastCommonRemovableSettings == null) {
-                leastCommonRemovableSettings = new ArrayList<>(removableSettings);
-            } else {
-                List<String> newleastCommonRemovableSettings = leastCommonRemovableSettings.stream()
-                    .distinct()
-                    .filter(removableSettings::contains)
-                    .collect(Collectors.toList());
-                if (newleastCommonRemovableSettings.size() != leastCommonRemovableSettings.size()) {
-                    hasSettingsThatNeedToBeDeleted = true;
-                }
-                leastCommonRemovableSettings = newleastCommonRemovableSettings;
-            }
-        }
-        return Tuple.tuple(leastCommonRemovableSettings, hasSettingsThatNeedToBeDeleted);
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<String> getRemovableSettings() {
-        Map<String, Object> meta = getMeta();
-        if (meta == null) {
-            return null;
-        }
-        Object actionsObject = meta.get(ACTIONS_META_FIELD);
-        if (actionsObject == null) {
-            return null;
-        }
-        List<Map<String, Object>> actionsMapList = (List<Map<String, Object>>) actionsObject;
-        if (actionsMapList.isEmpty()) {
-            return null;
-        }
-        for (Map<String, Object> actionsMap : actionsMapList) {
-            if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
-                return (List<String>) actionsMap.get(OBJECTS_FIELD);
-            }
-        }
-        return null;
-    }
-
-    /*
-     * Returns a new meta map based on the one given, but with only the desiredRemovableSettings as removable settings. If the seedMeta does
-     * not contain anything, and the desiredRemovableSettings are "setting1" and "setting2", the output map will look like:
+     * This class a represents a DeprecationIssue's meta map. A meta map might look something like:
      * {
      *    "_meta":{
+     *       "foo": "bar",
      *       "actions":[
      *          {
      *             "action_type":"remove_settings",
@@ -318,60 +245,178 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
      *    }
      * }
      */
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> createMetaMapWithDesiredRemovableSettings(
-        Map<String, Object> seedMeta,
-        List<String> desiredRemovableSettings
-    ) {
-        Map<String, Object> newMeta = new HashMap<>(seedMeta);
-        final boolean foundActionToUpdate;
-        List<Map<String, Object>> actions = (List<Map<String, Object>>) newMeta.get(ACTIONS_META_FIELD);
-        final List<Map<String, Object>> clonedActions;
-        if (actions == null) {
-            clonedActions = new ArrayList<>();
-            foundActionToUpdate = false;
-        } else {
-            clonedActions = new ArrayList<>(actions); // So that we don't modify the input data
-            foundActionToUpdate = attemptToModifyExistingActions(clonedActions, desiredRemovableSettings);
+    private static final class Meta {
+        private final List<Action> actions;
+        private final Map<String, Object> nonActionMetadata;
+
+        Meta(List<Action> actions, Map<String, Object> nonActionMetadata) {
+            this.actions = actions;
+            this.nonActionMetadata = nonActionMetadata;
         }
-        if (foundActionToUpdate == false) { // Either there were no remove_settings, or no just no actions at all
-            createNewAction(clonedActions, desiredRemovableSettings);
+
+        public static Meta fromRemovableSettings(List<String> removableSettings) {
+            List<Action> actions;
+            if (removableSettings == null) {
+                actions = null;
+            } else {
+                actions = Collections.singletonList(new RemovalAction(removableSettings));
+            }
+            return new Meta(actions, Collections.emptyMap());
         }
-        newMeta.put(ACTIONS_META_FIELD, clonedActions);
-        return newMeta;
+
+        public Map<String, Object> toMetaMap() {
+            Map<String, Object> metaMap;
+            if (actions != null) {
+                metaMap = new HashMap<>(nonActionMetadata);
+                List<Map<String, Object>> actionsList = actions.stream().map(Action::toActionMap).collect(Collectors.toList());
+                if (actionsList.isEmpty() == false) {
+                    metaMap.put(ACTIONS_META_FIELD, actionsList);
+                }
+            } else {
+                metaMap = nonActionMetadata;
+            }
+            return metaMap;
+        }
+
+        /*
+         * This method gets the intersection of this Meta with another. It assumes that the Meta objects are identical, except possibly the
+         * contents of the removal actions. So the interection is a new Meta object with only the removal actions that appear in both.
+         */
+        public Meta getIntersection(Meta another) {
+            final List<Action> actionsIntersection;
+            if (actions != null && another.actions != null) {
+                List<Action> combinedActions = this.actions.stream()
+                    .filter(action -> action instanceof RemovalAction == false)
+                    .collect(Collectors.toList());
+                Optional<Action> thisRemovalAction = this.actions.stream().filter(action -> action instanceof RemovalAction).findFirst();
+                Optional<Action> otherRemovalAction = another.actions.stream()
+                    .filter(action -> action instanceof RemovalAction)
+                    .findFirst();
+                if (thisRemovalAction.isPresent() && otherRemovalAction.isPresent()) {
+                    Optional<List<String>> removableSettingsOptional = ((RemovalAction) thisRemovalAction.get()).getRemovableSettings();
+                    List<String> removableSettings = removableSettingsOptional.map(
+                        settings -> settings.stream()
+                            .distinct()
+                            .filter(
+                                setting -> ((RemovalAction) otherRemovalAction.get()).getRemovableSettings()
+                                    .map(list -> list.contains(setting))
+                                    .orElse(false)
+                            )
+                            .collect(Collectors.toList())
+                    ).orElse(Collections.emptyList());
+                    if (removableSettings.isEmpty() == false) {
+                        combinedActions.add(new RemovalAction(removableSettings));
+                    }
+                }
+                actionsIntersection = combinedActions;
+            } else {
+                actionsIntersection = null;
+            }
+            return new Meta(actionsIntersection, nonActionMetadata);
+        }
+
+        /*
+         * Returns an Optional Meta object from a DeprecationIssue's meta Map. If the meta Map is null then the Optional will not be
+         * present.
+         */
+        @SuppressWarnings("unchecked")
+        public static Optional<Meta> fromMetaMap(Map<String, Object> metaMap) {
+            if (metaMap == null) {
+                return Optional.empty();
+            }
+            List<Map<String, Object>> actionMaps = (List<Map<String, Object>>) metaMap.get(ACTIONS_META_FIELD);
+            List<Action> actions;
+            if (actionMaps == null) {
+                actions = null;
+            } else {
+                actions = new ArrayList<>();
+                for (Map<String, Object> actionMap : actionMaps) {
+                    final Action action;
+                    if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionMap.get(ACTION_TYPE))) {
+                        action = RemovalAction.fromActionMap(actionMap);
+                    } else {
+                        action = UnknownAction.fromActionMap(actionMap);
+                    }
+                    actions.add(action);
+                }
+            }
+            Map<String, Object> nonActionMap = metaMap.entrySet()
+                .stream()
+                .filter(entry -> entry.getKey().equals(ACTIONS_META_FIELD) == false)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            Meta meta = new Meta(actions, nonActionMap);
+            return Optional.of(meta);
+        }
     }
 
     /*
-     * This attempts to modify an existing set of actions with the desiredRemovableSettings. It returns true if it finds a "remove_settings"
-     * action and updates it.
+     * A DeprecationIssue's meta Map optionally has an array of actions. This class reprenents one of the items in that array.
      */
-    private static boolean attemptToModifyExistingActions(List<Map<String, Object>> actions, List<String> desiredRemovableSettings) {
-        boolean foundActionToUpdate = false;
-        for (int i = 0; i < actions.size(); i++) {
-            Map<String, Object> actionsMap = actions.get(i);
-            if (REMOVE_SETTINGS_ACTION_TYPE.equals(actionsMap.get(ACTION_TYPE))) {
-                foundActionToUpdate = true;
-                if (desiredRemovableSettings != null && desiredRemovableSettings.isEmpty() == false) {
-                    Map<String, Object> clonedActionsMap = new HashMap<>(actionsMap);
-                    clonedActionsMap.put(OBJECTS_FIELD, desiredRemovableSettings);
-                    actions.set(i, clonedActionsMap);
-                } else {
-                    // If the desired removable settings is null / empty, we don't even want to have the action
-                    actions.remove(i);
-                    i--;
-                }
+    private interface Action {
+        /*
+         * This method creates the Map that goes inside the actions list for this Action in a meta Map.
+         */
+        Map<String, Object> toActionMap();
+    }
+
+    /*
+     * This class a represents remove_settings action within the actions list in a meta Map.
+     */
+    private static final class RemovalAction implements Action {
+        private final List<String> removableSettings;
+
+        RemovalAction(List<String> removableSettings) {
+            this.removableSettings = removableSettings;
+        }
+
+        @SuppressWarnings("unchecked")
+        public static RemovalAction fromActionMap(Map<String, Object> actionMap) {
+            final List<String> removableSettings;
+            Object removableSettingsObject = actionMap.get(OBJECTS_FIELD);
+            if (removableSettingsObject == null) {
+                removableSettings = null;
+            } else {
+                removableSettings = (List<String>) removableSettingsObject;
             }
+            return new RemovalAction(removableSettings);
         }
-        return foundActionToUpdate;
+
+        public Optional<List<String>> getRemovableSettings() {
+            return removableSettings == null ? Optional.empty() : Optional.of(removableSettings);
+        }
+
+        @Override
+        public Map<String, Object> toActionMap() {
+            final Map<String, Object> actionMap;
+            if (removableSettings != null) {
+                actionMap = new HashMap<>();
+                actionMap.put(OBJECTS_FIELD, removableSettings);
+                actionMap.put(ACTION_TYPE, REMOVE_SETTINGS_ACTION_TYPE);
+            } else {
+                actionMap = null;
+            }
+            return actionMap;
+        }
     }
 
-    private static void createNewAction(List<Map<String, Object>> actions, List<String> desiredRemovableSettings) {
-        if (desiredRemovableSettings != null && desiredRemovableSettings.isEmpty() == false) {
-            Map<String, Object> actionsMap = new HashMap<>();
-            actionsMap.put(ACTION_TYPE, REMOVE_SETTINGS_ACTION_TYPE);
-            actionsMap.put(OBJECTS_FIELD, desiredRemovableSettings);
-            actions.add(actionsMap);
+    /*
+     * This represents an action within the actions list in a meta Map that is *not* a removal_action.
+     */
+    private static class UnknownAction implements Action {
+        private final Map<String, Object> actionMap;
+
+        private UnknownAction(Map<String, Object> actionMap) {
+            this.actionMap = actionMap;
+        }
+
+        public static Action fromActionMap(Map<String, Object> actionMap) {
+            return new UnknownAction(actionMap);
+        }
+
+        @Override
+        public Map<String, Object> toActionMap() {
+            return actionMap;
         }
     }
-
 }

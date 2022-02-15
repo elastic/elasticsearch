@@ -110,7 +110,9 @@ public class DeprecationIssueTests extends ESTestCase {
 
     private static Map<String, Object> getTestMetaMap(Map<String, Object> baseMap, String... settings) {
         Map<String, Object> metaMap = new HashMap<>();
-        Map<String, Object> settingsMetaMap = DeprecationIssue.createMetaMapForRemovableSettings(Arrays.asList(settings));
+        Map<String, Object> settingsMetaMap = DeprecationIssue.createMetaMapForRemovableSettings(
+            settings.length == 0 ? null : Arrays.asList(settings)
+        );
         metaMap.putAll(settingsMetaMap);
         metaMap.putAll(baseMap);
         return metaMap;

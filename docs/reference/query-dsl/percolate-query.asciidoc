@@ -10,7 +10,13 @@ contains the document that will be used as query
 to match with the stored queries.
 
 [discrete]
-=== Sample Usage
+=== Sample usage
+
+TIP: To provide a simple example, this documentation uses one index,
+`my-index-000001`, for both the percolate queries and documents. This setup can
+work well when there are just a few percolate queries registered. For heavier
+usage, we recommend you store queries and documents in separate indices. For
+more details, refer to <<how-it-works>>.
 
 Create an index with two fields:
 
@@ -117,10 +123,6 @@ The above request will yield the following response:
 <1> The query with id `1` matches our document.
 <2> The `_percolator_document_slot` field indicates which document has matched with this query.
     Useful when percolating multiple document simultaneously.
-
-TIP: To provide a simple example, this documentation uses one index `my-index-000001` for both the percolate queries and documents.
-This set-up can work well when there are just a few percolate queries registered. However, with heavier usage it is recommended
-to store queries and documents in separate indices. Please see <<how-it-works, How it Works Under the Hood>> for more details.
 
 [discrete]
 ==== Parameters

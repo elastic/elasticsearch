@@ -160,7 +160,10 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesReque
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
@@ -1610,6 +1613,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(superuserRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(true));
         assertThat(superuserRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(true));
         assertThat(superuserRole.cluster().check("internal:admin/foo", request, authentication), is(false));
+        assertThat(superuserRole.cluster().check(UpdateProfileDataAction.NAME, mock(UpdateProfileDataRequest.class), authentication),
+            is(true));
+        assertThat(superuserRole.cluster().check(GetProfileAction.NAME, mock(UpdateProfileDataRequest.class), authentication),
+            is(true));
+        assertThat(superuserRole.cluster().check(SearchProfilesAction.NAME, mock(SearchProfilesRequest.class), authentication),
+            is(true));
+        assertThat(superuserRole.cluster().check(ActivateProfileAction.NAME, mock(ActivateProfileRequest.class), authentication),
+            is(true));
 
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         final String internalSecurityIndex = randomFrom(

@@ -38,14 +38,12 @@ import java.util.stream.Stream;
 public interface MapReducer extends NamedWriteable, ToXContent {
 
     /**
-     * Returns the name of the writable aggregation object
+     * Returns the name of the writable aggregation object, this must match the name of the aggregation builder
      *
-     * There are 2 writable names involved:
-     *  - the writable name of the aggregation
-     *  - the writable name of the map-reducer
+     * The map reduce itself has a writable name, too. Don't mix them up.
+     * The usecase: different versions of a map-reducer in 1 aggregation
      *
-     * The usecase for this is not about using 1 map-reducer in 2 aggregations, which is possible, but
-     * versioning the map-reducer, so using different versions of a map-reducer in 1 aggregation.
+     * In theory you can also use 1 map-reducer in 2 different aggregations.
      */
     String getAggregationWritableName();
 
@@ -72,22 +70,22 @@ public interface MapReducer extends NamedWriteable, ToXContent {
      */
     default void combine(Stream<MapReducer> partitions) {}
 
-    /*
+    /**
      * Definition of code to execute before the mapper processes any input.
      */
     default void mapInit() {};
 
-    /*
+    /**
      * Definition of code to execute after the mapper processed all input.
      */
     default void mapFinalize() {};
 
-    /*
+    /**
      * Definition of code to execute before the reducer processes any input.
      */
     default void reduceInit() {};
 
-    /*
+    /**
      * Definition of code to execute after the reducer processed all input.
      */
     default void reduceFinalize() {};

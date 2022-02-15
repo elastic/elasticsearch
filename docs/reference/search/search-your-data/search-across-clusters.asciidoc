@@ -417,19 +417,20 @@ image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 [[ccs-supported-configurations]]
 === Supported {ccs} configurations
 
-Elastic only supports searches from a local cluster to a remote cluster running:
-
-* The previous minor version.
-* The same version.
-* A newer version. This version must also be compatible with the local cluster
-as outlined in the following matrix.
+Before 8.0, Elastic supports searches from a local cluster to a remote cluster in the following matrix.
 +
 [%collapsible]
 [[ccs-version-compatibility]]
-.Version compatibility matrix
+.CCS cluster version compatibility matrix
 ====
 include::{es-repo-dir}/modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
+
+From 8.0, Elastic only supports searches from a local cluster to a remote cluster running:
+
+* The previous minor version.
+* The same version.
+* A newer version.
 
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
 clusters must use the same {es} version.

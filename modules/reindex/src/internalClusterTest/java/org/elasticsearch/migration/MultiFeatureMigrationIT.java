@@ -80,6 +80,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
     private static final String VERSION_META_KEY = "version";
     static final int SECOND_FEATURE_IDX_FLAG_VALUE = 0;
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83953")
     public void testMultipleFeatureMigration() throws Exception {
         // All the indices from FeatureMigrationIT
         createSystemIndexForDescriptor(INTERNAL_MANAGED);

@@ -63,7 +63,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class LeaderCheckerTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83924")
     public void testFollowerBehaviour() {
         final DiscoveryNode leader1 = new DiscoveryNode("leader-1", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode leader2 = randomBoolean()

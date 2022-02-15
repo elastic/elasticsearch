@@ -74,6 +74,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         SearchTemplateRequest searchTemplateRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
+            searchTemplateRequest.setExplain(request.paramAsBoolean("explain", searchTemplateRequest.isExplain()));
         }
         searchTemplateRequest.setRequest(searchRequest);
 

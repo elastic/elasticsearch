@@ -25,6 +25,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
@@ -68,6 +69,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
      * constructor can write to it.
      */
     @InputFiles
+    @IgnoreEmptyDirectories
     @SkipWhenEmpty
     @PathSensitive(PathSensitivity.RELATIVE)
     public List<FileCollection> getJavaFiles() {

@@ -1,0 +1,31 @@
+{
+  "enrich.get_policy": {
+    "documentation": {
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-enrich-policy-api.html",
+      "description": "Gets information about an enrich policy."
+    },
+    "stability" : "stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_enrich/policy/{name}",
+          "methods": [ "GET" ],
+          "parts": {
+            "name": {
+              "type" : "list",
+              "description" : "A comma-separated list of enrich policy names"
+            }
+          }
+        },
+        {
+          "path": "/_enrich/policy",
+          "methods": [ "GET" ]
+        }
+      ]
+    }
+  }
+}

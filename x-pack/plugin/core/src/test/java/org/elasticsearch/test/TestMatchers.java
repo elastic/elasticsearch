@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test;
 
@@ -46,8 +47,7 @@ public class TestMatchers extends Matchers {
 
             @Override
             public boolean matches(Object actual) {
-                if (actual instanceof Throwable) {
-                    final Throwable throwable = (Throwable) actual;
+                if (actual instanceof final Throwable throwable) {
                     return messageMatcher.matches(throwable.getMessage());
                 } else {
                     return false;
@@ -57,8 +57,7 @@ public class TestMatchers extends Matchers {
             @Override
             public void describeMismatch(Object item, Description description) {
                 super.describeMismatch(item, description);
-                if (item instanceof Throwable) {
-                    Throwable e = (Throwable) item;
+                if (item instanceof Throwable e) {
                     final StackTraceElement at = e.getStackTrace()[0];
                     description.appendText(" at ").appendText(at.toString());
                 }
@@ -66,6 +65,7 @@ public class TestMatchers extends Matchers {
         };
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> Matcher<Predicate<T>> predicateMatches(T value) {
         return new CustomMatcher<Predicate<T>>("Matches " + value) {
             @Override

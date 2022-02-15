@@ -1,0 +1,180 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              int:
+                type : integer
+              double:
+                type : double
+              keyword:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"int":   1, "double":   1.0, "keyword": "foo"}'
+          - '{"index": {}}'
+          - '{"int":  51, "double":  51.0, "keyword": "foo"}'
+          - '{"index": {}}'
+          - '{"int": 101, "double": 101.0, "keyword": "foo"}'
+          - '{"index": {}}'
+          - '{"int": 151, "double": 151.0, "keyword": "foo"}'
+
+---
+basic:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int
+                values: [50, 99]
+            percentile_ranks_double:
+              percentile_ranks:
+                field: double
+                values: [50, 99]
+
+  - match: { hits.total.value: 4 }
+  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 37.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 61.5, error: 1} }
+  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 37.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_double.values.99\\.0: { value: 61.5, error: 1} }
+
+---
+filtered:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        body:
+          size: 0
+          query:
+            range:
+              int:
+                gte: 50
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int
+                values: [50]
+            percentile_ranks_double:
+              percentile_ranks:
+                field: double
+                values: [50]
+
+  - match: { hits.total.value: 3 }
+  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 16.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 16.0, error: 1} }
+
+---
+missing field with missing param:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            percentile_ranks_missing:
+              percentile_ranks:
+                field: missing
+                missing: 1.0
+                values: [50, 99]
+
+  - match: { hits.total.value: 4 }
+  - close_to: { aggregations.percentile_ranks_missing.values.50\\.0: { value: 100.0, error: 1} }
+  - close_to: { aggregations.percentile_ranks_missing.values.99\\.0: { value: 100.0, error: 1} }
+ 
+---
+missing field without missing param:
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            percentile_ranks_missing:
+              percentile_ranks:
+                field: missing
+                values: [50, 99]
+
+  - match: { hits.total.value: 4 }
+  - is_false: aggregations.percentile_ranks_missing.value
+
+---
+invalid params:
+  - do:
+      catch: bad_request
+      search:
+        body:
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int
+                values: []
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int
+                values: null
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int
+                values: ["foo"]
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          aggs:
+            percentile_ranks_string:
+              percentile_ranks:
+                field: string
+
+---
+non-keyed test:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            percentile_ranks_int:
+              percentile_ranks:
+                field: int
+                values: [50, 99]
+                keyed: false
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.percentile_ranks_int.values.0.key: 50}
+  - close_to: { aggregations.percentile_ranks_int.values.0.value: { value: 37.0, error: 1} }
+  - match: { aggregations.percentile_ranks_int.values.1.key: 99}
+  - close_to: { aggregations.percentile_ranks_int.values.1.value: { value: 61.5, error: 1} }
+

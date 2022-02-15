@@ -1,0 +1,19 @@
+# A basic role that is used to test security
+security_test_role:
+  cluster:
+    - monitor
+    - "cluster:admin/xpack/license/*"
+  indices:
+    - names: [ "index_allowed" ]
+      privileges: [ "read", "write", "create_index" ]
+
+# The admin role also has the manage_own_api_key privilege to ensure this lesser privilege will not
+# interfere with the behaviour of the greater manage_api_key privilege
+api_key_admin_role:
+  cluster:
+    - manage_own_api_key
+    - manage_api_key
+
+api_key_user_role:
+  cluster:
+    - manage_own_api_key

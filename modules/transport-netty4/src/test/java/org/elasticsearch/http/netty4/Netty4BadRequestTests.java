@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.util.ReferenceCounted;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -39,7 +29,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.SharedGroupFactory;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -89,15 +79,26 @@ public class Netty4BadRequestTests extends ESTestCase {
         };
 
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange()).build();
-        try (HttpServerTransport httpServerTransport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-            xContentRegistry(), dispatcher, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            new SharedGroupFactory(Settings.EMPTY))) {
+        try (
+            HttpServerTransport httpServerTransport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                new SharedGroupFactory(Settings.EMPTY)
+            )
+        ) {
             httpServerTransport.start();
             final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
-                final Collection<FullHttpResponse> responses =
-                        nettyHttpClient.get(transportAddress.address(), "/_cluster/settings?pretty=%");
+                final Collection<FullHttpResponse> responses = nettyHttpClient.get(
+                    transportAddress.address(),
+                    "/_cluster/settings?pretty=%"
+                );
                 try {
                     assertThat(responses, hasSize(1));
                     assertThat(responses.iterator().next().status().code(), equalTo(400));
@@ -107,7 +108,9 @@ public class Netty4BadRequestTests extends ESTestCase {
                     assertThat(
                         responseBodies.iterator().next(),
                         containsString(
-                            "\"reason\":\"java.lang.IllegalArgumentException: unterminated escape sequence at end of string: %\""));
+                            "\"reason\":\"java.lang.IllegalArgumentException: unterminated escape sequence at end of string: %\""
+                        )
+                    );
                 } finally {
                     responses.forEach(ReferenceCounted::release);
                 }

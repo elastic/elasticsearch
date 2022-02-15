@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -9,16 +10,16 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
@@ -63,8 +64,7 @@ public class UpdateModelSnapshotAction extends ActionType<UpdateModelSnapshotAct
         private String description;
         private Boolean retain;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -147,9 +147,9 @@ public class UpdateModelSnapshotAction extends ActionType<UpdateModelSnapshotAct
             }
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId)
-                    && Objects.equals(snapshotId, other.snapshotId)
-                    && Objects.equals(description, other.description)
-                    && Objects.equals(retain, other.retain);
+                && Objects.equals(snapshotId, other.snapshotId)
+                && Objects.equals(description, other.description)
+                && Objects.equals(retain, other.retain);
         }
     }
 

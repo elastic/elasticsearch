@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
@@ -10,17 +11,13 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.xpack.ql.TestUtils;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.URL;
-import java.net.URLConnection;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -35,6 +32,7 @@ import java.util.Properties;
 import java.util.TimeZone;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.TestUtils.pathAndName;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 
 /**
@@ -58,8 +56,8 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     @Before
     public void setupTestDataIfNeeded() throws Exception {
-        if (client().performRequest(new Request("HEAD", "/" + indexName())).getStatusLine().getStatusCode() == 404) {
-            loadDataset(client());
+        if (provisioningClient().performRequest(new Request("HEAD", "/" + indexName())).getStatusLine().getStatusCode() == 404) {
+            loadDataset(provisioningClient());
         }
     }
 
@@ -90,11 +88,15 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     public final void test() throws Throwable {
         try {
-            assumeFalse("Test marked as Ignored", testName.endsWith("-Ignore"));
+            assumeTrue("Test " + testName + " is not enabled", isEnabled());
             doTest();
         } catch (Exception e) {
             throw reworkException(e);
         }
+    }
+
+    public boolean isEnabled() {
+        return testName.endsWith("-Ignore") == false;
     }
 
     /**
@@ -119,7 +121,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     // TODO: use UTC for now until deciding on a strategy for handling date extraction
     @Override
     protected Properties connectionProperties() {
-        Properties connectionProperties = new Properties();
+        Properties connectionProperties = super.connectionProperties(); // sets up the credentials (if any)
         // H2 runs with test JVM's set (randomized) timezone, while the ES node with local test machine's. H2 will not take into account
         // TZ offsets for some time functions (YEAR/MONTH/HOUR) with timestamps, while ES will normalize the value to the given timezone.
         // So ES will need to be given the corresponding timezone (i.e. same as with H2's), in order to produce the same results.
@@ -174,20 +176,20 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     }
 
     private static List<Object[]> readURLSpec(URL source, Parser parser) throws Exception {
-        String fileName = JdbcTestUtils.pathAndName(source.getFile()).v2();
+        String fileName = pathAndName(source.getFile()).v2();
         String groupName = fileName.substring(0, fileName.lastIndexOf("."));
 
         Map<String, Integer> testNames = new LinkedHashMap<>();
         List<Object[]> testCases = new ArrayList<>();
 
         String testName = null;
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(readFromJarUrl(source), StandardCharsets.UTF_8))) {
+        try (BufferedReader reader = TestUtils.reader(source)) {
             String line;
             int lineNumber = 1;
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 // ignore comments
-                if (!line.isEmpty() && !line.startsWith("//")) {
+                if (line.isEmpty() == false && line.startsWith("//") == false) {
                     // parse test name
                     if (testName == null) {
                         if (testNames.keySet().contains(line)) {
@@ -226,13 +228,5 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     public interface Parser {
         Object parse(String line);
-    }
-
-    @SuppressForbidden(reason = "test reads from jar")
-    public static InputStream readFromJarUrl(URL source) throws IOException {
-        URLConnection con = source.openConnection();
-        // do not to cache files (to avoid keeping file handles around)
-        con.setUseCaches(false);
-        return con.getInputStream();
     }
 }

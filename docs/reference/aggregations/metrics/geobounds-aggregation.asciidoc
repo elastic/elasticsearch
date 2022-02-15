@@ -1,8 +1,10 @@
 [[search-aggregations-metrics-geobounds-aggregation]]
-=== Geo Bounds Aggregation
+=== Geo-bounds aggregation
+++++
+<titleabbrev>Geo-bounds</titleabbrev>
+++++
 
 A metric aggregation that computes the bounding box containing all geo values for a field.
-
 
 Example:
 
@@ -50,7 +52,7 @@ POST /museums/_search?size=0
 --------------------------------------------------
 
 <1> The `geo_bounds` aggregation specifies the field to use to obtain the bounds.
-<2> `wrap_longitude` is an optional parameter which specifies whether the bounding box should be allowed to overlap the international date line. The default value is `true`.
+<2> [[geo-bounds-wrap-longitude]] `wrap_longitude` is an optional parameter which specifies whether the bounding box should be allowed to overlap the international date line. The default value is `true`.
 
 The above aggregation demonstrates how one would compute the bounding box of the location field for all documents with a business type of shop.
 
@@ -80,9 +82,21 @@ The response for the above aggregation:
 
 [discrete]
 [role="xpack"]
+[[geobounds-aggregation-geo-shape]]
 ==== Geo Bounds Aggregation on `geo_shape` fields
 
 The Geo Bounds Aggregation is also supported on `geo_shape` fields.
+
+If <<geo-bounds-wrap-longitude,`wrap_longitude`>> is set to `true`
+(the default), the bounding box can overlap the international date line and
+return a bounds where the `top_left` longitude is larger than the `top_right`
+longitude.
+
+For example, the upper right longitude will typically be greater than the lower
+left longitude of a geographic bounding box. However, when the area
+crosses the 180° meridian, the value of the lower left longitude will be
+greater than the value of the upper right longitude. See
+http://docs.opengeospatial.org/is/12-063r5/12-063r5.html#30[Geographic bounding box] on the Open Geospatial Consortium website for more information.
 
 Example:
 

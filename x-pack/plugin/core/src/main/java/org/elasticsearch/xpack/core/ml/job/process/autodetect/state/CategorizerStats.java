@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -52,8 +53,11 @@ public class CategorizerStats implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Builder, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_FIELD.getPreferredName(),
-            ignoreUnknownFields, a -> new Builder((String) a[0]));
+        ConstructingObjectParser<Builder, Void> parser = new ConstructingObjectParser<>(
+            RESULT_TYPE_FIELD.getPreferredName(),
+            ignoreUnknownFields,
+            a -> new Builder((String) a[0])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         parser.declareString((modelSizeStat, s) -> {}, Result.RESULT_TYPE);
@@ -65,12 +69,24 @@ public class CategorizerStats implements ToXContentObject, Writeable {
         parser.declareLong(Builder::setRareCategoryCount, RARE_CATEGORY_COUNT_FIELD);
         parser.declareLong(Builder::setDeadCategoryCount, DEAD_CATEGORY_COUNT_FIELD);
         parser.declareLong(Builder::setFailedCategoryCount, FAILED_CATEGORY_COUNT_FIELD);
-        parser.declareField(Builder::setCategorizationStatus,
-            p -> CategorizationStatus.fromString(p.text()), CATEGORIZATION_STATUS_FIELD, ValueType.STRING);
-        parser.declareField(Builder::setLogTime,
-            p -> TimeUtils.parseTimeFieldToInstant(p, LOG_TIME_FIELD.getPreferredName()), LOG_TIME_FIELD, ValueType.VALUE);
-        parser.declareField(Builder::setTimestamp,
-            p -> TimeUtils.parseTimeFieldToInstant(p, TIMESTAMP_FIELD.getPreferredName()), TIMESTAMP_FIELD, ValueType.VALUE);
+        parser.declareField(
+            Builder::setCategorizationStatus,
+            p -> CategorizationStatus.fromString(p.text()),
+            CATEGORIZATION_STATUS_FIELD,
+            ValueType.STRING
+        );
+        parser.declareField(
+            Builder::setLogTime,
+            p -> TimeUtils.parseTimeFieldToInstant(p, LOG_TIME_FIELD.getPreferredName()),
+            LOG_TIME_FIELD,
+            ValueType.VALUE
+        );
+        parser.declareField(
+            Builder::setTimestamp,
+            p -> TimeUtils.parseTimeFieldToInstant(p, TIMESTAMP_FIELD.getPreferredName()),
+            TIMESTAMP_FIELD,
+            ValueType.VALUE
+        );
 
         return parser;
     }
@@ -88,10 +104,20 @@ public class CategorizerStats implements ToXContentObject, Writeable {
     private final Instant timestamp;
     private final Instant logTime;
 
-    private CategorizerStats(String jobId, @Nullable String partitionFieldName, @Nullable String partitionFieldValue,
-                             long categorizedDocCount, long totalCategoryCount, long frequentCategoryCount, long rareCategoryCount,
-                             long deadCategoryCount, long failedCategoryCount, CategorizationStatus categorizationStatus, Instant timestamp,
-                             Instant logTime) {
+    private CategorizerStats(
+        String jobId,
+        @Nullable String partitionFieldName,
+        @Nullable String partitionFieldValue,
+        long categorizedDocCount,
+        long totalCategoryCount,
+        long frequentCategoryCount,
+        long rareCategoryCount,
+        long deadCategoryCount,
+        long failedCategoryCount,
+        CategorizationStatus categorizationStatus,
+        Instant timestamp,
+        Instant logTime
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.partitionFieldName = partitionFieldName;
         this.partitionFieldValue = partitionFieldValue;
@@ -233,8 +259,20 @@ public class CategorizerStats implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, partitionFieldName, partitionFieldValue, categorizedDocCount, totalCategoryCount,
-            frequentCategoryCount, rareCategoryCount, deadCategoryCount, failedCategoryCount, categorizationStatus, timestamp, logTime);
+        return Objects.hash(
+            jobId,
+            partitionFieldName,
+            partitionFieldValue,
+            categorizedDocCount,
+            totalCategoryCount,
+            frequentCategoryCount,
+            rareCategoryCount,
+            deadCategoryCount,
+            failedCategoryCount,
+            categorizationStatus,
+            timestamp,
+            logTime
+        );
     }
 
     /**
@@ -341,8 +379,11 @@ public class CategorizerStats implements ToXContentObject, Writeable {
         }
 
         public Builder setCategorizationStatus(CategorizationStatus categorizationStatus) {
-            this.categorizationStatus = Objects.requireNonNull(categorizationStatus,
-                "[" + CATEGORIZATION_STATUS_FIELD.getPreferredName() + "] must not be null");;
+            this.categorizationStatus = Objects.requireNonNull(
+                categorizationStatus,
+                "[" + CATEGORIZATION_STATUS_FIELD.getPreferredName() + "] must not be null"
+            );
+            ;
             return this;
         }
 
@@ -357,9 +398,20 @@ public class CategorizerStats implements ToXContentObject, Writeable {
         }
 
         public CategorizerStats build() {
-            return new CategorizerStats(jobId, partitionFieldName, partitionFieldValue, categorizedDocCount, totalCategoryCount,
-                frequentCategoryCount, rareCategoryCount, deadCategoryCount, failedCategoryCount, categorizationStatus, timestamp,
-                logTime);
+            return new CategorizerStats(
+                jobId,
+                partitionFieldName,
+                partitionFieldValue,
+                categorizedDocCount,
+                totalCategoryCount,
+                frequentCategoryCount,
+                rareCategoryCount,
+                deadCategoryCount,
+                failedCategoryCount,
+                categorizationStatus,
+                timestamp,
+                logTime
+            );
         }
     }
 }

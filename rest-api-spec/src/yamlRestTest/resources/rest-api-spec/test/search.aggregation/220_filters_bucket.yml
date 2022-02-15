@@ -1,0 +1,506 @@
+setup:
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                int_field:
+                   type : integer
+                double_field:
+                   type : double
+                string_field:
+                   type: keyword
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _id:    "1"
+           - int_field: 1
+             double_field: 1.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    "2"
+           - int_field: 51
+             double_field: 51.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    "3"
+           - int_field: 101
+             double_field: 101.0
+             string_field: foo
+           - index:
+               _index: test_1
+               _id:    "4"
+           - int_field: 151
+             double_field: 151.0
+             string_field: foo
+
+---
+"Basic test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_filter:
+              filters:
+                filters:
+                  first_filter:
+                    match:
+                      int_field: 101
+                  second_filter:
+                    match:
+                      int_field: 151
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_filter.buckets.first_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.second_filter.doc_count: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_filter:
+              filters:
+                filters:
+                  first_filter:
+                    match:
+                      int_field: 101
+                  second_filter:
+                    match:
+                      int_field: 151
+              aggs:
+                the_avg:
+                  avg:
+                    field: int_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_filter.buckets.first_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.first_filter.the_avg.value: 101.0 }
+  - match: { aggregations.the_filter.buckets.second_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.second_filter.the_avg.value: 151.0 }
+
+---
+"Anonymous filters test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_filter:
+              filters:
+                filters:
+                  - match:
+                      int_field: 101
+                  - match:
+                      int_field: 151
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_filter.buckets.0.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.1.doc_count: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_filter:
+              filters:
+                filters:
+                  - match:
+                      int_field: 101
+                  - match:
+                      int_field: 151
+              aggs:
+                the_avg:
+                  avg:
+                    field: int_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_filter.buckets.0.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.0.the_avg.value: 101.0 }
+  - match: { aggregations.the_filter.buckets.1.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.1.the_avg.value: 151.0 }
+
+---
+"Only aggs test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            the_filter:
+              filters:
+                filters:
+                  first_filter:
+                    match:
+                      int_field: 101
+                  second_filter:
+                    match:
+                      int_field: 151
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 0 }
+  - match: { aggregations.the_filter.buckets.first_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.second_filter.doc_count: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_filter:
+              filters:
+                filters:
+                  first_filter:
+                    match:
+                      int_field: 101
+                  second_filter:
+                    match:
+                      int_field: 151
+              aggs:
+                the_avg:
+                  avg:
+                    field: int_field
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_filter.buckets.first_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.first_filter.the_avg.value: 101.0 }
+  - match: { aggregations.the_filter.buckets.second_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.second_filter.the_avg.value: 151.0 }
+
+---
+"Filtered test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            constant_score:
+              filter:
+                range:
+                  int_field:
+                    gte: 110
+          aggs:
+            the_filter:
+              filters:
+                filters:
+                  first_filter:
+                    match:
+                      int_field: 101
+                  second_filter:
+                    match:
+                      int_field: 151
+              aggs:
+                the_avg:
+                  avg:
+                    field: int_field
+
+  - match: { hits.total: 1 }
+  - length: { hits.hits: 1 }
+  - match: { aggregations.the_filter.buckets.first_filter.doc_count: 0 }
+  - is_false: aggregations.the_filter.buckets.first_filter.the_avg.value
+  - match: { aggregations.the_filter.buckets.second_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.second_filter.the_avg.value: 151.0 }
+
+
+---
+"Metadata test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_filter:
+              meta:
+                foo: bar
+              filters:
+                filters:
+                  first_filter:
+                    match:
+                      int_field: 101
+                  second_filter:
+                    match:
+                      int_field: 151
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_filter.buckets.first_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.buckets.second_filter.doc_count: 1 }
+  - match: { aggregations.the_filter.meta.foo: "bar" }
+
+---
+"Bad params":
+  - skip:
+      version: " - 7.1.99"
+      reason: "empty bodies throws exception starting in 7.2"
+  - do:
+      catch: /\[filters\] cannot be empty/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_filter:
+              filters: {}
+
+  - do:
+      catch: /\[filters\] cannot be empty/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_filter:
+              filters:
+                filters: []
+
+
+---
+"cache busting":
+  - skip:
+      version: " - 7.10.99"
+      reason:  cache fixed in 7.11.0
+      features: node_selector
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_1
+              _id:    "100"
+          - int_field: 1
+            double_field: 1.0
+            string_field: foo bar
+
+  - do:
+      node_selector:
+        version: current # the version of the node that parsed the request is part of the cache key.
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  foo:
+                    match:
+                      string_field: foo
+                  foo_bar:
+                    match:
+                      string_field: foo bar
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.f.buckets: 2 }
+  - match: { aggregations.f.buckets.foo.doc_count: 4 }
+  - match: { aggregations.f.buckets.foo_bar.doc_count: 1 }
+
+  # Modify the mapping configuration that generates queries. This should bust the cache.
+  - do:
+      indices.put_mapping:
+        index: test_1
+        body:
+          properties:
+            string_field:
+              type: keyword
+              split_queries_on_whitespace: true
+
+  # This should be entirely fresh because updating the mapping busted the cache.
+  - do:
+      node_selector:
+        version: current # the version of the node that parsed the request is part of the cache key.
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  foo:
+                    match:
+                      string_field: foo
+                  foo_bar:
+                    match:
+                      string_field: foo bar
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.f.buckets: 2 }
+  - match: { aggregations.f.buckets.foo.doc_count: 4 }
+  - match: { aggregations.f.buckets.foo_bar.doc_count: 4 }
+
+---
+nested:
+  - skip:
+      version: " - 7.10.99"
+      reason:  fixed in 7.11.0
+
+  # Tests that we don't accidentally match nested documents when the filter
+  # matches it.
+  - do:
+      indices.create:
+          index: test_nested
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                i:
+                  type: integer
+                nested:
+                  type: nested
+                  properties:
+                    j:
+                      type: integer
+
+  - do:
+       bulk:
+         refresh: true
+         index: test_nested
+         body:
+           - index: {}
+           - i: 1
+             nested:
+              - j: 2
+              - j: 3
+              - j: 4
+
+  - do:
+      search:
+        index: test_nested
+        body:
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  foo:
+                    match_all: {}
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.f.buckets: 1 }
+  - match: { aggregations.f.buckets.foo.doc_count: 1 }
+
+---
+"cache hits":
+  - skip:
+      features: node_selector
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                mentions:
+                  type: keyword
+                notifications:
+                  type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{"_id": "foo|bar|baz0"}}
+          {"notifications" : ["abc"]}
+          {"index":{"_id": "foo|bar|baz1"}}
+          {"mentions" : ["abc"]}
+
+  - do:
+      node_selector:
+        version: current # the version of the node that parsed the request is part of the cache key.
+      search:
+        rest_total_hits_as_int: true
+        size: 0
+        request_cache: true
+        index: test
+        body:
+          aggs:
+            itemsNotify:
+              filters:
+                filters:
+                  lookup:
+                    terms:
+                      mentions:
+                        index: test
+                        id: foo|bar|baz0
+                        path: notifications
+                  std:
+                    terms:
+                      mentions: ["abc"]
+              aggs:
+                mentions:
+                  terms:
+                    field: mentions
+
+  # validate result
+  - match: { hits.total: 2 }
+  - match: { aggregations.itemsNotify.buckets.lookup.doc_count: 1 }
+  - match: { aggregations.itemsNotify.buckets.std.doc_count: 1 }
+
+  # The first request will miss the cache
+  - do:
+      indices.stats: { index: test, metric: request_cache}
+  - match: { _shards.total: 1 }
+  - match: { indices.test.total.request_cache.hit_count: 0 }
+  - match: { indices.test.total.request_cache.miss_count: 1 }
+
+  - do:
+      node_selector:
+        version: current # the version of the node that parsed the request is part of the cache key.
+      search:
+        rest_total_hits_as_int: true
+        size: 0
+        request_cache: true
+        index: test
+        body:
+          aggs:
+            itemsNotify:
+              filters:
+                filters:
+                  lookup:
+                    terms:
+                      mentions:
+                        index: test
+                        id: foo|bar|baz0
+                        path: notifications
+                  std:
+                    terms:
+                      mentions: ["abc"]
+              aggs:
+                mentions:
+                  terms:
+                    field: mentions
+
+  # validate result
+  - match: { hits.total: 2 }
+  - match: { aggregations.itemsNotify.buckets.lookup.doc_count: 1 }
+  - match: { aggregations.itemsNotify.buckets.std.doc_count: 1 }
+
+  # The second result with hit the cache
+  - do:
+      indices.stats: { index: test, metric: request_cache}
+  - match: { _shards.total: 1 }
+  - match: { indices.test.total.request_cache.hit_count: 1 }
+  - match: { indices.test.total.request_cache.miss_count: 1 }

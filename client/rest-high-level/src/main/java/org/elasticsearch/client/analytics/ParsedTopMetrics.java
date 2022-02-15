@@ -1,37 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.analytics;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Results of the {@code top_metrics} aggregation.
@@ -68,11 +57,14 @@ public class ParsedTopMetrics extends ParsedAggregation {
     }
 
     public static final ConstructingObjectParser<ParsedTopMetrics, String> PARSER = new ConstructingObjectParser<>(
-            TopMetricsAggregationBuilder.NAME, true, (args, name) -> {
-                @SuppressWarnings("unchecked")
-                List<TopMetrics> topMetrics = (List<TopMetrics>) args[0];
-                return new ParsedTopMetrics(name, topMetrics);
-            });
+        TopMetricsAggregationBuilder.NAME,
+        true,
+        (args, name) -> {
+            @SuppressWarnings("unchecked")
+            List<TopMetrics> topMetrics = (List<TopMetrics>) args[0];
+            return new ParsedTopMetrics(name, topMetrics);
+        }
+    );
     static {
         PARSER.declareObjectArray(constructorArg(), (p, c) -> TopMetrics.PARSER.parse(p, null), TOP_FIELD);
         ParsedAggregation.declareAggregationFields(PARSER);
@@ -107,17 +99,24 @@ public class ParsedTopMetrics extends ParsedAggregation {
             return metrics;
         }
 
-        private static final ConstructingObjectParser<TopMetrics, Void> PARSER = new ConstructingObjectParser<>("top", true,
-                (args, name) -> {
-                    @SuppressWarnings("unchecked")
-                    List<Object> sort = (List<Object>) args[0];
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> metrics = (Map<String, Object>) args[1];
-                    return new TopMetrics(sort, metrics);
-                });
+        private static final ConstructingObjectParser<TopMetrics, Void> PARSER = new ConstructingObjectParser<>(
+            "top",
+            true,
+            (args, name) -> {
+                @SuppressWarnings("unchecked")
+                List<Object> sort = (List<Object>) args[0];
+                @SuppressWarnings("unchecked")
+                Map<String, Object> metrics = (Map<String, Object>) args[1];
+                return new TopMetrics(sort, metrics);
+            }
+        );
         static {
-            PARSER.declareFieldArray(constructorArg(), (p, c) -> XContentParserUtils.parseFieldsValue(p),
-                    SORT_FIELD, ObjectParser.ValueType.VALUE_ARRAY);
+            PARSER.declareFieldArray(
+                constructorArg(),
+                (p, c) -> XContentParserUtils.parseFieldsValue(p),
+                SORT_FIELD,
+                ObjectParser.ValueType.VALUE_ARRAY
+            );
             PARSER.declareObject(constructorArg(), (p, c) -> p.map(), METRICS_FIELD);
         }
 

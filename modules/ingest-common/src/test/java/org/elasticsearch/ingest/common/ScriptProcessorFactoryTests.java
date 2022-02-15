@@ -1,27 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -30,6 +18,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -39,16 +28,14 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ScriptProcessorFactoryTests extends ESTestCase {
 
     private ScriptProcessor.Factory factory;
-    private static final Map<String, String> INGEST_SCRIPT_PARAM_TO_TYPE = Map.of(
-            "id", "stored",
-            "source", "inline");
+    private static final Map<String, String> INGEST_SCRIPT_PARAM_TO_TYPE = Map.of("id", "stored", "source", "inline");
 
     @Before
     public void init() {
@@ -91,8 +78,10 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("source", "bar");
         configMap.put("lang", "mockscript");
 
-        XContentParseException exception = expectThrows(XContentParseException.class,
-            () -> factory.create(null, randomAlphaOfLength(10), null, configMap));
+        XContentParseException exception = expectThrows(
+            XContentParseException.class,
+            () -> factory.create(null, randomAlphaOfLength(10), null, configMap)
+        );
         assertThat(exception.getMessage(), containsString("[script] failed to parse field [source]"));
     }
 
@@ -100,8 +89,10 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("lang", "mockscript");
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> factory.create(null, randomAlphaOfLength(10), null, configMap));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.create(null, randomAlphaOfLength(10), null, configMap)
+        );
 
         assertThat(exception.getMessage(), is("must specify either [source] for an inline script or [id] for a stored script"));
     }
@@ -121,33 +112,41 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
     public void testFactoryInvalidateWithInvalidCompiledScript() throws Exception {
         String randomType = randomFrom("source", "id");
         ScriptService mockedScriptService = mock(ScriptService.class);
-        ScriptException thrownException = new ScriptException("compile-time exception", new RuntimeException(),
-            Collections.emptyList(), "script", "mockscript");
+        ScriptException thrownException = new ScriptException(
+            "compile-time exception",
+            new RuntimeException(),
+            Collections.emptyList(),
+            "script",
+            "mockscript"
+        );
         when(mockedScriptService.compile(any(), any())).thenThrow(thrownException);
         factory = new ScriptProcessor.Factory(mockedScriptService);
 
         Map<String, Object> configMap = new HashMap<>();
         configMap.put(randomType, "my_script");
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> factory.create(null, randomAlphaOfLength(10), null, configMap));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> factory.create(null, randomAlphaOfLength(10), null, configMap)
+        );
 
         assertThat(exception.getMessage(), is("compile-time exception"));
     }
 
     public void testInlineIsCompiled() throws Exception {
         String scriptName = "foo";
-        ScriptService scriptService = new ScriptService(Settings.builder().build(),
+        ScriptService scriptService = new ScriptService(
+            Settings.builder().build(),
             Collections.singletonMap(
-                Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(
-                    Script.DEFAULT_SCRIPT_LANG,
-                    Collections.singletonMap(scriptName, ctx -> {
-                        ctx.put("foo", "bar");
-                        return null;
-                    }),
-                    Collections.emptyMap()
-                )
-            ), new HashMap<>(ScriptModule.CORE_CONTEXTS));
+                Script.DEFAULT_SCRIPT_LANG,
+                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> {
+                    ctx.put("foo", "bar");
+                    return null;
+                }), Collections.emptyMap())
+            ),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L
+        );
         factory = new ScriptProcessor.Factory(scriptService);
 
         Map<String, Object> configMap = new HashMap<>();

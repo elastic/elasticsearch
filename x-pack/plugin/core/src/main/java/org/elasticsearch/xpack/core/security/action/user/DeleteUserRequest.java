@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
@@ -29,8 +30,7 @@ public class DeleteUserRequest extends ActionRequest implements UserRequest, Wri
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
-    public DeleteUserRequest() {
-    }
+    public DeleteUserRequest() {}
 
     public DeleteUserRequest(String username) {
         this.username = username;

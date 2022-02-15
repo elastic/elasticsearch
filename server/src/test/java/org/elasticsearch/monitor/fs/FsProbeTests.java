@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.test.ESTestCase;
@@ -71,6 +60,8 @@ public class FsProbeTests extends ESTestCase {
                     assertThat(deviceStats.previousWritesCompleted, equalTo(-1L));
                     assertThat(deviceStats.currentSectorsWritten, greaterThanOrEqualTo(0L));
                     assertThat(deviceStats.previousSectorsWritten, equalTo(-1L));
+                    assertThat(deviceStats.currentIOTime, greaterThanOrEqualTo(0L));
+                    assertThat(deviceStats.previousIOTime, equalTo(-1L));
                 }
             } else {
                 assertNull(stats.getIoStats());
@@ -95,31 +86,19 @@ public class FsProbeTests extends ESTestCase {
     }
 
     public void testFsInfoOverflow() throws Exception {
-        final FsInfo.Path pathStats =
-                new FsInfo.Path(
-                        "/foo/bar",
-                        null,
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong());
+        final FsInfo.Path pathStats = new FsInfo.Path(
+            "/foo/bar",
+            null,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
 
-        addUntilOverflow(
-                pathStats,
-                p -> p.total,
-                "total",
-                () -> new FsInfo.Path("/foo/baz", null, randomNonNegativeLong(), 0, 0));
+        addUntilOverflow(pathStats, p -> p.total, "total", () -> new FsInfo.Path("/foo/baz", null, randomNonNegativeLong(), 0, 0));
 
-        addUntilOverflow(
-                pathStats,
-                p -> p.free,
-                "free",
-                () -> new FsInfo.Path("/foo/baz", null, 0, randomNonNegativeLong(), 0));
+        addUntilOverflow(pathStats, p -> p.free, "free", () -> new FsInfo.Path("/foo/baz", null, 0, randomNonNegativeLong(), 0));
 
-        addUntilOverflow(
-                pathStats,
-                p -> p.available,
-                "available",
-                () -> new FsInfo.Path("/foo/baz", null, 0, 0, randomNonNegativeLong()));
+        addUntilOverflow(pathStats, p -> p.available, "available", () -> new FsInfo.Path("/foo/baz", null, 0, 0, randomNonNegativeLong()));
 
         // even after overflowing these should not be negative
         assertThat(pathStats.total, greaterThan(0L));
@@ -128,43 +107,49 @@ public class FsProbeTests extends ESTestCase {
     }
 
     private void addUntilOverflow(
-            final FsInfo.Path pathStats,
-            final Function<FsInfo.Path, Long> getter,
-            final String field,
-            final Supplier<FsInfo.Path> supplier) {
+        final FsInfo.Path pathStats,
+        final Function<FsInfo.Path, Long> getter,
+        final String field,
+        final Supplier<FsInfo.Path> supplier
+    ) {
         FsInfo.Path pathToAdd = supplier.get();
         while ((getter.apply(pathStats) + getter.apply(pathToAdd)) > 0) {
             // add a path to increase the total bytes until it overflows
             logger.info(
-                    "--> adding {} bytes to {}, {} will be: {}",
-                    getter.apply(pathToAdd),
-                    getter.apply(pathStats),
-                    field,
-                    getter.apply(pathStats) + getter.apply(pathToAdd));
+                "--> adding {} bytes to {}, {} will be: {}",
+                getter.apply(pathToAdd),
+                getter.apply(pathStats),
+                field,
+                getter.apply(pathStats) + getter.apply(pathToAdd)
+            );
             pathStats.add(pathToAdd);
             pathToAdd = supplier.get();
         }
         // this overflows
         logger.info(
-                "--> adding {} bytes to {}, {} will be: {}",
-                getter.apply(pathToAdd),
-                getter.apply(pathStats),
-                field,
-                getter.apply(pathStats) + getter.apply(pathToAdd));
+            "--> adding {} bytes to {}, {} will be: {}",
+            getter.apply(pathToAdd),
+            getter.apply(pathStats),
+            field,
+            getter.apply(pathStats) + getter.apply(pathToAdd)
+        );
         assertThat(getter.apply(pathStats) + getter.apply(pathToAdd), lessThan(0L));
         pathStats.add(pathToAdd);
     }
 
     public void testIoStats() {
         final AtomicReference<List<String>> diskStats = new AtomicReference<>();
-        diskStats.set(Arrays.asList(
+        diskStats.set(
+            Arrays.asList(
                 " 259       0 nvme0n1 336609 0 7923613 82813 10264051 0 182983933 52451441 0 2970886 52536260",
                 " 259       1 nvme0n1p1 602 0 9919 131 1 0 1 0 0 19 131",
                 " 259       2 nvme0n1p2 186 0 8626 18 24 0 60 20 0 34 38",
                 " 259       3 nvme0n1p3 335733 0 7901620 82658 9592875 0 182983872 50843431 0 1737726 50926087",
                 " 253       0 dm-0 287716 0 7184666 33457 8398869 0 118857776 18730966 0 1918440 18767169",
                 " 253       1 dm-1 112 0 4624 13 0 0 0 0 0 5 13",
-                " 253       2 dm-2 47802 0 710658 49312 1371977 0 64126096 33730596 0 1058193 33781827"));
+                " 253       2 dm-2 47802 0 710658 49312 1371977 0 64126096 33730596 0 1058193 33781827"
+            )
+        );
 
         final FsProbe probe = new FsProbe(null) {
             @Override
@@ -189,6 +174,8 @@ public class FsProbeTests extends ESTestCase {
         assertThat(first.devicesStats[0].previousWritesCompleted, equalTo(-1L));
         assertThat(first.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
         assertThat(first.devicesStats[0].previousSectorsWritten, equalTo(-1L));
+        assertThat(first.devicesStats[0].currentIOTime, equalTo(1918440L));
+        assertThat(first.devicesStats[0].previousIOTime, equalTo(-1L));
         assertThat(first.devicesStats[1].majorDeviceNumber, equalTo(253));
         assertThat(first.devicesStats[1].minorDeviceNumber, equalTo(2));
         assertThat(first.devicesStats[1].deviceName, equalTo("dm-2"));
@@ -200,15 +187,20 @@ public class FsProbeTests extends ESTestCase {
         assertThat(first.devicesStats[1].previousWritesCompleted, equalTo(-1L));
         assertThat(first.devicesStats[1].currentSectorsWritten, equalTo(64126096L));
         assertThat(first.devicesStats[1].previousSectorsWritten, equalTo(-1L));
+        assertThat(first.devicesStats[1].currentIOTime, equalTo(1058193L));
+        assertThat(first.devicesStats[1].previousIOTime, equalTo(-1L));
 
-        diskStats.set(Arrays.asList(
+        diskStats.set(
+            Arrays.asList(
                 " 259       0 nvme0n1 336870 0 7928397 82876 10264393 0 182986405 52451610 0 2971042 52536492",
                 " 259       1 nvme0n1p1 602 0 9919 131 1 0 1 0 0 19 131",
                 " 259       2 nvme0n1p2 186 0 8626 18 24 0 60 20 0 34 38",
                 " 259       3 nvme0n1p3 335994 0 7906404 82721 9593184 0 182986344 50843529 0 1737840 50926248",
                 " 253       0 dm-0 287734 0 7185242 33464 8398869 0 118857776 18730966 0 1918444 18767176",
                 " 253       1 dm-1 112 0 4624 13 0 0 0 0 0 5 13",
-                " 253       2 dm-2 48045 0 714866 49369 1372291 0 64128568 33730766 0 1058347 33782056"));
+                " 253       2 dm-2 48045 0 714866 49369 1372291 0 64128568 33730766 0 1058347 33782056"
+            )
+        );
 
         final FsInfo previous = new FsInfo(System.currentTimeMillis(), first, new FsInfo.Path[0]);
         final FsInfo.IoStats second = probe.ioStats(devicesNumbers, previous);
@@ -224,6 +216,8 @@ public class FsProbeTests extends ESTestCase {
         assertThat(second.devicesStats[0].previousWritesCompleted, equalTo(8398869L));
         assertThat(second.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
         assertThat(second.devicesStats[0].previousSectorsWritten, equalTo(118857776L));
+        assertThat(second.devicesStats[0].currentIOTime, equalTo(1918444L));
+        assertThat(second.devicesStats[0].previousIOTime, equalTo(1918440L));
         assertThat(second.devicesStats[1].majorDeviceNumber, equalTo(253));
         assertThat(second.devicesStats[1].minorDeviceNumber, equalTo(2));
         assertThat(second.devicesStats[1].deviceName, equalTo("dm-2"));
@@ -235,12 +229,15 @@ public class FsProbeTests extends ESTestCase {
         assertThat(second.devicesStats[1].previousWritesCompleted, equalTo(1371977L));
         assertThat(second.devicesStats[1].currentSectorsWritten, equalTo(64128568L));
         assertThat(second.devicesStats[1].previousSectorsWritten, equalTo(64126096L));
+        assertThat(second.devicesStats[1].currentIOTime, equalTo(1058347L));
+        assertThat(second.devicesStats[1].previousIOTime, equalTo(1058193L));
 
         assertThat(second.totalOperations, equalTo(575L));
         assertThat(second.totalReadOperations, equalTo(261L));
         assertThat(second.totalWriteOperations, equalTo(314L));
         assertThat(second.totalReadKilobytes, equalTo(2392L));
         assertThat(second.totalWriteKilobytes, equalTo(1236L));
+        assertThat(second.totalIOTimeInMillis, equalTo(158L));
     }
 
     public void testAdjustForHugeFilesystems() throws Exception {

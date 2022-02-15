@@ -52,16 +52,6 @@ reasonable recovery scenarios.
 [discrete]
 === History retention settings
 
-`index.soft_deletes.enabled`::
+include::{es-ref-dir}/index-modules.asciidoc[tag=ccr-index-soft-deletes-tag]
 
-  deprecated:[7.6.0, Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.]
-  Whether or not soft deletes are enabled on the index. Soft deletes can only be
-  configured at index creation and only on indices created on or after 6.5.0.
-  The default value is `true`.
-
-
-`index.soft_deletes.retention_lease.period`::
-
-  The maximum length of time to retain a shard history retention lease before
-  it expires and the history that it retains can be discarded. The default
-  value is `12h`.
+include::{es-ref-dir}/index-modules.asciidoc[tag=ccr-index-soft-deletes-retention-tag]

@@ -1,29 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.compress;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 public interface Compressor {
@@ -32,13 +20,21 @@ public interface Compressor {
 
     int headerLength();
 
-    StreamInput streamInput(StreamInput in) throws IOException;
+    /**
+     * Creates a new input stream that decompresses the contents read from the provided input stream.
+     * Closing the returned {@link InputStream} will close the provided stream input.
+     * Note: The returned stream may only be used on the thread that created it as it might use thread-local resources and must be safely
+     * closed after use
+     */
+    InputStream threadLocalInputStream(InputStream in) throws IOException;
 
     /**
-     * Creates a new stream output that compresses the contents and writes to the provided stream
-     * output. Closing the returned {@link StreamOutput} will close the provided stream output.
+     * Creates a new output stream that compresses the contents and writes to the provided output stream.
+     * Closing the returned {@link OutputStream} will close the provided output stream.
+     * Note: The returned stream may only be used on the thread that created it as it might use thread-local resources and must be safely
+     * closed after use
      */
-    StreamOutput streamOutput(OutputStream out) throws IOException;
+    OutputStream threadLocalOutputStream(OutputStream out) throws IOException;
 
     /**
      * Decompress bytes into a newly allocated buffer.

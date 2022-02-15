@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support;
@@ -25,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -58,11 +47,13 @@ public class ActiveShardsObserver {
      * @param onResult a function that is executed in response to the requisite shards becoming active or a timeout (whichever comes first)
      * @param onFailure a function that is executed in response to an error occurring during waiting for the active shards
      */
-    public void waitForActiveShards(final String[] indexNames,
-                                    final ActiveShardCount activeShardCount,
-                                    final TimeValue timeout,
-                                    final Consumer<Boolean> onResult,
-                                    final Consumer<Exception> onFailure) {
+    public void waitForActiveShards(
+        final String[] indexNames,
+        final ActiveShardCount activeShardCount,
+        final TimeValue timeout,
+        final Consumer<Boolean> onResult,
+        final Consumer<Exception> onFailure
+    ) {
 
         // wait for the configured number of active shards to be allocated before executing the result consumer
         if (activeShardCount == ActiveShardCount.NONE) {

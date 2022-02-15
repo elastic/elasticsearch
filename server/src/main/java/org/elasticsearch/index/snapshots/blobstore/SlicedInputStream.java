@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
@@ -27,21 +16,21 @@ import java.io.InputStream;
  *  A {@link SlicedInputStream} is a logical
  * concatenation one or more input streams. In contrast to the JDKs
  * {@link java.io.SequenceInputStream} this stream doesn't require the instantiation
- * of all logical sub-streams ahead of time. Instead, {@link #openSlice(long)} is called
+ * of all logical sub-streams ahead of time. Instead, {@link #openSlice(int)} is called
  * if a new slice is required. Each slice is closed once it's been fully consumed or if
  * close is called before.
  */
 public abstract class SlicedInputStream extends InputStream {
-    private long slice = 0;
+    private int slice = 0;
     private InputStream currentStream;
-    private final long numSlices;
+    private final int numSlices;
     private boolean initialized = false;
 
     /**
      * Creates a new SlicedInputStream
      * @param numSlices the number of slices to consume
      */
-    protected SlicedInputStream(final long numSlices) {
+    protected SlicedInputStream(final int numSlices) {
         this.numSlices = numSlices;
     }
 
@@ -60,7 +49,7 @@ public abstract class SlicedInputStream extends InputStream {
     /**
      * Called for each logical slice given a zero based slice ordinal.
      */
-    protected abstract InputStream openSlice(long slice) throws IOException;
+    protected abstract InputStream openSlice(int slice) throws IOException;
 
     private InputStream currentStream() throws IOException {
         if (currentStream == null) {

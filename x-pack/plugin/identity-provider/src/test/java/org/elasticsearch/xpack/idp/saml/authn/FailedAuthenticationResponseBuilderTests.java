@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.authn;
@@ -39,11 +40,9 @@ public class FailedAuthenticationResponseBuilderTests extends IdpSamlTestCase {
     public void testSimpleErrorResponseIsValid() throws Exception {
         final Clock clock = Clock.systemUTC();
         final FailedAuthenticationResponseMessageBuilder builder = new FailedAuthenticationResponseMessageBuilder(samlFactory, clock, idp);
-        final Response response = builder
-            .setAcsUrl("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs")
-            .setPrimaryStatusCode(StatusCode.REQUESTER)
-            .setInResponseTo(randomAlphaOfLength(12))
-            .build();
+        final Response response = builder.setAcsUrl(
+            "https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs"
+        ).setPrimaryStatusCode(StatusCode.REQUESTER).setInResponseTo(randomAlphaOfLength(12)).build();
         final String xml = super.toString(response);
         validator.validate(xml);
     }
@@ -51,8 +50,9 @@ public class FailedAuthenticationResponseBuilderTests extends IdpSamlTestCase {
     public void testErrorResponseWithCodeIsValid() throws Exception {
         final Clock clock = Clock.systemUTC();
         final FailedAuthenticationResponseMessageBuilder builder = new FailedAuthenticationResponseMessageBuilder(samlFactory, clock, idp);
-        final Response response = builder
-            .setAcsUrl("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs")
+        final Response response = builder.setAcsUrl(
+            "https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs"
+        )
             .setPrimaryStatusCode(StatusCode.REQUESTER)
             .setInResponseTo(randomAlphaOfLength(12))
             .setSecondaryStatusCode(StatusCode.INVALID_NAMEID_POLICY)

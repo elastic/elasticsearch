@@ -77,7 +77,7 @@ Scroll IDs to clear. To clear all scroll IDs, use `_all`.
 ==== {api-response-body-title}
 
 `succeeded`::
-(boolean)
+(Boolean)
 If `true`, the request succeeded. This does not indicate whether any scrolling
 search requests were cleared.
 

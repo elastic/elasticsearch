@@ -1,0 +1,176 @@
+setup:
+  - do:
+      indices.create:
+          index:  test_2
+
+  - do:
+      indices.create:
+          index:  test_1
+
+  - do:
+      index:
+          index:  test_1
+          id:     "1"
+          body:   { foo: bar }
+
+  - do:
+      index:
+        index:  test_1
+        id:     "3"
+        body:   { foo: baz }
+
+  - do:
+      index:
+        index:  test_1
+        id:     "2"
+        body:   { foo: bar }
+
+  - do:
+      index:
+        index:  test_1
+        id:     "4"
+        body:   { foo: bar }
+
+  - do:
+      index:
+        index:  test_2
+        id:     "42"
+        body:   { foo: bar }
+
+  - do:
+      index:
+        index:  test_2
+        id:     "24"
+        body:   { foo: baz }
+
+  - do:
+      index:
+        index:  test_2
+        id:     "36"
+        body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test_1, test_2]
+
+---
+"hits.total as an object":
+  - skip:
+      version: " - 7.99.99"
+      reason: hits.total is rendered as an object in 7.0.0
+
+  - do:
+      search:
+        index: _all
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total.value: 5}
+  - match: {hits.total.relation: eq}
+
+  - do:
+      search:
+        index: test_1
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total.value: 3}
+  - match: {hits.total.relation: eq}
+
+  - do:
+      search:
+        track_total_hits: false
+        index: _all
+        body:
+          query:
+            match:
+              foo: bar
+
+  - is_false: hits.total
+
+  - do:
+      search:
+        track_total_hits: 4
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total.value: 4}
+  - match: {hits.total.relation: gte}
+
+
+  - do:
+      search:
+        size: 0
+        track_total_hits: 4
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total.value: 4}
+  - match: {hits.total.relation: gte}
+
+  - do:
+      search:
+        size: 0
+        track_total_hits: 5
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total.value: 5}
+  - match: {hits.total.relation: eq}
+
+  - do:
+      catch: /\[rest_total_hits_as_int\] cannot be used if the tracking of total hits is not accurate, got 100/
+      search:
+        rest_total_hits_as_int: true
+        index: test_2
+        track_total_hits: 100
+        body:
+          query:
+            match:
+              foo: bar
+
+  - do:
+      catch: /\[track_total_hits\] parameter must be positive or equals to -1, got -2/
+      search:
+        rest_total_hits_as_int: true
+        index: test_2
+        track_total_hits: -2
+        body:
+          query:
+            match:
+              foo: bar
+
+---
+"track_total_hits with rest_total_hits_as_int":
+  - do:
+      search:
+        track_total_hits: false
+        rest_total_hits_as_int: true
+        index: _all
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total: -1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_2
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total: 2}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 apply plugin: 'elasticsearch.build'
@@ -24,18 +13,18 @@ archivesBaseName = 'elasticsearch-plugin-cli'
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
-  api "org.bouncycastle:bcpg-fips:1.0.3"
-  api "org.bouncycastle:bc-fips:1.0.1"
+  api "org.bouncycastle:bcpg-fips:1.0.4"
+  api "org.bouncycastle:bc-fips:1.0.2"
   testImplementation project(":test:framework")
-  testImplementation 'com.google.jimfs:jimfs:1.1'
-  testRuntimeOnly 'com.google.guava:guava:18.0'
+  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
+  testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
 }
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
 }
 
-test {
+tasks.named("test").configure {
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
 }
@@ -52,15 +41,19 @@ test {
  * sun.security.provider.SecureRandom
  *
  */
-thirdPartyAudit.ignoreViolations(
-  'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
-  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
-  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
-  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
-  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
-  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
-  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
-  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
-  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
-  'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+          'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
+  )
+}

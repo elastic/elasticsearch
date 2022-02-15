@@ -1,0 +1,161 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: http_logs
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              ip:
+                type: ip
+                script:
+                  source: |
+                    Matcher m = /([^ ]+) .+/.matcher(doc["message"].value);
+                    if (m.matches()) {
+                      emit(m.group(1));
+                    }
+              # Test fetching from _source
+              ip_from_source:
+                type: ip
+                script:
+                  source: |
+                    Matcher m = /([^ ]+) .+/.matcher(params._source.message);
+                    if (m.matches()) {
+                      emit(m.group(1));
+                    }
+              # Test emitting many values
+              ip_many:
+                type: ip
+                script:
+                  source: |
+                    String m = doc["message"].value;
+                    int end = m.indexOf(" ");
+                    end = m.lastIndexOf(".", end);
+                    String stem = m.substring(0, end + 1);
+                    for (int i = 0; i < 5; i++) {
+                      emit(stem + i);
+                    }
+              timestamp:
+                type: date
+              message:
+                type: keyword
+  - do:
+      bulk:
+        index: http_logs
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:30:17-05:00", "message" : "40.135.0.0 - - [1998-04-30T14:30:17-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:30:53-05:00", "message" : "232.0.0.0 - - [1998-04-30T14:30:53-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:12-05:00", "message" : "26.1.0.0 - - [1998-04-30T14:31:12-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:19-05:00", "message" : "247.37.0.0 - - [1998-04-30T14:31:19-05:00] \"GET /french/splash_inet.html HTTP/1.0\" 200 3781"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:22-05:00", "message" : "247.37.0.0 - - [1998-04-30T14:31:22-05:00] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:27-05:00", "message" : "252.0.0.0 - - [1998-04-30T14:31:27-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+
+
+---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: http_logs
+  - match: {http_logs.mappings.properties.ip.type: ip }
+  - match:
+      http_logs.mappings.properties.ip.script.source: |
+        Matcher m = /([^ ]+) .+/.matcher(doc["message"].value);
+        if (m.matches()) {
+          emit(m.group(1));
+        }
+  - match: {http_logs.mappings.properties.ip.script.lang: painless }
+
+---
+"fetch fields":
+  - do:
+      search:
+        index: http_logs
+        body:
+          sort: timestamp
+          fields: [ip, ip_from_source, ip_many]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.ip: ["40.135.0.0"] }
+  - match: {hits.hits.0.fields.ip_from_source: ["40.135.0.0"] }
+  - match:
+      hits.hits.0.fields.ip_many:
+        - 40.135.0.0
+        - 40.135.0.1
+        - 40.135.0.2
+        - 40.135.0.3
+        - 40.135.0.4
+
+---
+"docvalue_fields":
+  - do:
+      search:
+        index: http_logs
+        body:
+          sort: timestamp
+          docvalue_fields: [ip, ip_from_source, ip_many]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.ip: ["40.135.0.0"] }
+  - match: {hits.hits.0.fields.ip_from_source: ["40.135.0.0"] }
+  - match:
+      hits.hits.0.fields.ip_many:
+        - 40.135.0.0
+        - 40.135.0.1
+        - 40.135.0.2
+        - 40.135.0.3
+        - 40.135.0.4
+
+---
+"terms agg":
+  - do:
+      search:
+        index: http_logs
+        body:
+          aggs:
+            ip:
+              terms:
+                field: ip
+  - match: {hits.total.value: 6}
+  - match: {aggregations.ip.buckets.0.key: 247.37.0.0}
+  - match: {aggregations.ip.buckets.0.doc_count: 2}
+  - match: {aggregations.ip.buckets.1.key: 26.1.0.0}
+  - match: {aggregations.ip.buckets.1.doc_count: 1}
+
+---
+"use in scripts":
+  - do:
+      search:
+        index: http_logs
+        body:
+          aggs:
+            ip:
+              terms:
+                script:
+                  String v = doc['ip'].value;
+                  return v.substring(0, v.indexOf('.'));
+  - match: {hits.total.value: 6}
+  - match: {aggregations.ip.buckets.0.key: '247'}
+  - match: {aggregations.ip.buckets.0.doc_count: 2}
+  - match: {aggregations.ip.buckets.1.key: '232'}
+  - match: {aggregations.ip.buckets.1.doc_count: 1}
+
+---
+"term query":
+  - do:
+      search:
+        index: http_logs
+        body:
+          query:
+            term:
+              ip: 252.0.0.0
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.timestamp: "1998-04-30T14:31:27-05:00"}
+

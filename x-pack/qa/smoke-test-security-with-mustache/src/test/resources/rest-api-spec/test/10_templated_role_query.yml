@@ -110,7 +110,7 @@ setup:
   - do:
       index:
         index: foobar
-        id: 1
+        id: "1"
         body:  >
           {
             "username": "inline_template_user"
@@ -118,14 +118,15 @@ setup:
   - do:
       index:
         index: foobar
-        id: 2
+        id: "2"
         body:  >
           {
             "username": "stored_template_user"
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: foobar
 
 ---
 teardown:

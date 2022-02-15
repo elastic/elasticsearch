@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.get;
@@ -28,21 +17,24 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,11 +44,19 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
+// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
+@SuppressWarnings("unchecked")
 public class MultiGetRequest extends ActionRequest
-        implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, RealtimeRequest, ToXContentObject {
+    implements
+        Iterable<MultiGetRequest.Item>,
+        CompositeIndicesRequest,
+        RealtimeRequest,
+        ToXContentObject {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MultiGetRequest.class);
 
     private static final ParseField DOCS = new ParseField("docs");
     private static final ParseField INDEX = new ParseField("_index");
+    private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
     private static final ParseField VERSION = new ParseField("version");
@@ -107,7 +107,7 @@ public class MultiGetRequest extends ActionRequest
 
         @Override
         public String[] indices() {
-            return new String[]{index};
+            return new String[] { index };
         }
 
         @Override
@@ -196,7 +196,7 @@ public class MultiGetRequest extends ActionRequest
             builder.field(INDEX.getPreferredName(), index);
             builder.field(ID.getPreferredName(), id);
             builder.field(ROUTING.getPreferredName(), routing);
-            builder.field(STORED_FIELDS.getPreferredName(), storedFields);
+            builder.array(STORED_FIELDS.getPreferredName(), storedFields);
             builder.field(VERSION.getPreferredName(), version);
             builder.field(VERSION_TYPE.getPreferredName(), VersionType.toString(versionType));
             builder.field(SOURCE.getPreferredName(), fetchSourceContext);
@@ -207,17 +207,17 @@ public class MultiGetRequest extends ActionRequest
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Item)) return false;
+            if ((o instanceof Item) == false) return false;
 
             Item item = (Item) o;
 
             if (version != item.version) return false;
-            if (fetchSourceContext != null ? !fetchSourceContext.equals(item.fetchSourceContext) : item.fetchSourceContext != null)
+            if (fetchSourceContext != null ? fetchSourceContext.equals(item.fetchSourceContext) == false : item.fetchSourceContext != null)
                 return false;
-            if (!Arrays.equals(storedFields, item.storedFields)) return false;
-            if (!id.equals(item.id)) return false;
-            if (!index.equals(item.index)) return false;
-            if (routing != null ? !routing.equals(item.routing) : item.routing != null) return false;
+            if (Arrays.equals(storedFields, item.storedFields) == false) return false;
+            if (id.equals(item.id) == false) return false;
+            if (index.equals(item.index) == false) return false;
+            if (routing != null ? routing.equals(item.routing) == false : item.routing != null) return false;
             if (versionType != item.versionType) return false;
 
             return true;
@@ -322,17 +322,18 @@ public class MultiGetRequest extends ActionRequest
         return this;
     }
 
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String[] defaultFields,
-            @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, XContentParser parser,
-            boolean allowExplicitIndex) throws IOException {
+    public MultiGetRequest add(
+        @Nullable String defaultIndex,
+        @Nullable String[] defaultFields,
+        @Nullable FetchSourceContext defaultFetchSource,
+        @Nullable String defaultRouting,
+        XContentParser parser,
+        boolean allowExplicitIndex
+    ) throws IOException {
         Token token;
         String currentFieldName = null;
         if ((token = parser.nextToken()) != Token.START_OBJECT) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "unexpected token [%s], expected [%s]",
-                    token,
-                    Token.START_OBJECT);
+            final String message = String.format(Locale.ROOT, "unexpected token [%s], expected [%s]", token, Token.START_OBJECT);
             throw new ParsingException(parser.getTokenLocation(), message);
         }
         while ((token = parser.nextToken()) != Token.END_OBJECT) {
@@ -340,34 +341,41 @@ public class MultiGetRequest extends ActionRequest
                 currentFieldName = parser.currentName();
             } else if (token == Token.START_ARRAY) {
                 if ("docs".equals(currentFieldName)) {
-                    parseDocuments(parser, this.items, defaultIndex, defaultFields, defaultFetchSource, defaultRouting,
-                        allowExplicitIndex);
+                    parseDocuments(parser, this.items, defaultIndex, defaultFields, defaultFetchSource, defaultRouting, allowExplicitIndex);
                 } else if ("ids".equals(currentFieldName)) {
                     parseIds(parser, this.items, defaultIndex, defaultFields, defaultFetchSource, defaultRouting);
                 } else {
                     final String message = String.format(
-                            Locale.ROOT,
-                            "unknown key [%s] for a %s, expected [docs] or [ids]",
-                            currentFieldName,
-                            token);
+                        Locale.ROOT,
+                        "unknown key [%s] for a %s, expected [docs] or [ids]",
+                        currentFieldName,
+                        token
+                    );
                     throw new ParsingException(parser.getTokenLocation(), message);
                 }
             } else {
                 final String message = String.format(
-                        Locale.ROOT,
-                        "unexpected token [%s], expected [%s] or [%s]",
-                        token,
-                        Token.FIELD_NAME,
-                        Token.START_ARRAY);
+                    Locale.ROOT,
+                    "unexpected token [%s], expected [%s] or [%s]",
+                    token,
+                    Token.FIELD_NAME,
+                    Token.START_ARRAY
+                );
                 throw new ParsingException(parser.getTokenLocation(), message);
             }
         }
         return this;
     }
 
-    private static void parseDocuments(XContentParser parser, List<Item> items, @Nullable String defaultIndex,
-                                       @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource,
-                                       @Nullable String defaultRouting, boolean allowExplicitIndex) throws IOException {
+    private static void parseDocuments(
+        XContentParser parser,
+        List<Item> items,
+        @Nullable String defaultIndex,
+        @Nullable String[] defaultFields,
+        @Nullable FetchSourceContext defaultFetchSource,
+        @Nullable String defaultRouting,
+        boolean allowExplicitIndex
+    ) throws IOException {
         String currentFieldName = null;
         Token token;
         while ((token = parser.nextToken()) != Token.END_ARRAY) {
@@ -388,41 +396,57 @@ public class MultiGetRequest extends ActionRequest
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
-                        if (!allowExplicitIndex) {
+                        if (allowExplicitIndex == false) {
                             throw new IllegalArgumentException("explicit index in multi get is not allowed");
                         }
                         index = parser.text();
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         id = parser.text();
-                    } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
-                        routing = parser.text();
-                    } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "Unsupported field [fields] used, expected [stored_fields] instead");
-                    } else if (STORED_FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
-                        storedFields = new ArrayList<>();
-                        storedFields.add(parser.text());
-                    } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
-                        version = parser.longValue();
-                    } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        versionType = VersionType.fromString(parser.text());
-                    } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        if (parser.isBooleanValue()) {
-                            fetchSourceContext = new FetchSourceContext(parser.booleanValue(), fetchSourceContext.includes(),
-                                fetchSourceContext.excludes());
-                        } else if (token == Token.VALUE_STRING) {
-                            fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(),
-                                new String[]{parser.text()}, fetchSourceContext.excludes());
+                    } else if (parser.getRestApiVersion() == RestApiVersion.V_7
+                        && TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+                        } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
+                            routing = parser.text();
+                        } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "Unsupported field [fields] used, expected [stored_fields] instead"
+                            );
+                        } else if (STORED_FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
+                            storedFields = new ArrayList<>();
+                            storedFields.add(parser.text());
+                        } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
+                            version = parser.longValue();
+                        } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            versionType = VersionType.fromString(parser.text());
+                        } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            if (parser.isBooleanValue()) {
+                                fetchSourceContext = new FetchSourceContext(
+                                    parser.booleanValue(),
+                                    fetchSourceContext.includes(),
+                                    fetchSourceContext.excludes()
+                                );
+                            } else if (token == Token.VALUE_STRING) {
+                                fetchSourceContext = new FetchSourceContext(
+                                    fetchSourceContext.fetchSource(),
+                                    new String[] { parser.text() },
+                                    fetchSourceContext.excludes()
+                                );
+                            } else {
+                                throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
+                            }
                         } else {
-                            throw new ElasticsearchParseException("illegal type for _source: [{}]", token);
+                            throw new ElasticsearchParseException(
+                                "failed to parse multi get request. unknown field [{}]",
+                                currentFieldName
+                            );
                         }
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse multi get request. unknown field [{}]", currentFieldName);
-                    }
                 } else if (token == Token.START_ARRAY) {
                     if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "Unsupported field [fields] used, expected [stored_fields] instead");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Unsupported field [fields] used, expected [stored_fields] instead"
+                        );
                     } else if (STORED_FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         storedFields = new ArrayList<>();
                         while ((token = parser.nextToken()) != Token.END_ARRAY) {
@@ -433,8 +457,11 @@ public class MultiGetRequest extends ActionRequest
                         while ((token = parser.nextToken()) != Token.END_ARRAY) {
                             includes.add(parser.text());
                         }
-                        fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(), includes.toArray(Strings.EMPTY_ARRAY)
-                            , fetchSourceContext.excludes());
+                        fetchSourceContext = new FetchSourceContext(
+                            fetchSourceContext.fetchSource(),
+                            includes.toArray(Strings.EMPTY_ARRAY),
+                            fetchSourceContext.excludes()
+                        );
                     }
 
                 } else if (token == Token.START_OBJECT) {
@@ -462,9 +489,11 @@ public class MultiGetRequest extends ActionRequest
                             }
                         }
 
-                        fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(),
-                                includes == null ? Strings.EMPTY_ARRAY : includes.toArray(new String[includes.size()]),
-                                excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[excludes.size()]));
+                        fetchSourceContext = new FetchSourceContext(
+                            fetchSourceContext.fetchSource(),
+                            includes == null ? Strings.EMPTY_ARRAY : includes.toArray(new String[includes.size()]),
+                            excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[excludes.size()])
+                        );
                     }
                 }
             }
@@ -474,21 +503,34 @@ public class MultiGetRequest extends ActionRequest
             } else {
                 aFields = defaultFields;
             }
-            items.add(new Item(index, id).routing(routing).storedFields(aFields).version(version).versionType(versionType)
-                    .fetchSourceContext(fetchSourceContext == FetchSourceContext.FETCH_SOURCE ? defaultFetchSource : fetchSourceContext));
+            items.add(
+                new Item(index, id).routing(routing)
+                    .storedFields(aFields)
+                    .version(version)
+                    .versionType(versionType)
+                    .fetchSourceContext(fetchSourceContext == FetchSourceContext.FETCH_SOURCE ? defaultFetchSource : fetchSourceContext)
+            );
         }
     }
 
-    public static void parseIds(XContentParser parser, List<Item> items, @Nullable String defaultIndex,
-                                @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource,
-                                @Nullable String defaultRouting) throws IOException {
+    public static void parseIds(
+        XContentParser parser,
+        List<Item> items,
+        @Nullable String defaultIndex,
+        @Nullable String[] defaultFields,
+        @Nullable FetchSourceContext defaultFetchSource,
+        @Nullable String defaultRouting
+    ) throws IOException {
         Token token;
         while ((token = parser.nextToken()) != Token.END_ARRAY) {
-            if (!token.isValue()) {
+            if (token.isValue() == false) {
                 throw new IllegalArgumentException("ids array element should only contain ids");
             }
-            items.add(new Item(defaultIndex, parser.text()).storedFields(defaultFields).fetchSourceContext(defaultFetchSource)
-                .routing(defaultRouting));
+            items.add(
+                new Item(defaultIndex, parser.text()).storedFields(defaultFields)
+                    .fetchSourceContext(defaultFetchSource)
+                    .routing(defaultRouting)
+            );
         }
     }
 

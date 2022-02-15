@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -17,6 +18,8 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
@@ -24,7 +27,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
@@ -39,6 +42,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     protected ClockMock clock;
     protected DiscoveryNodes discoveryNodes;
     protected Environment environment;
+    protected ThreadPool threadPool;
     protected String licenseType;
 
     @Before
@@ -48,6 +52,12 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         discoveryNodes = mock(DiscoveryNodes.class);
         resourceWatcherService = mock(ResourceWatcherService.class);
         environment = mock(Environment.class);
+        threadPool = new TestThreadPool("license-test");
+    }
+
+    @After
+    public void shutdown() {
+        threadPool.shutdown();
     }
 
     protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings) {
@@ -59,7 +69,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         when(environment.configFile()).thenReturn(tempDir);
         licenseType = selfGeneratedType;
         settings = Settings.builder().put(settings).put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
-        licenseService = new LicenseService(settings, clusterService, clock, environment, resourceWatcherService, licenseState);
+        licenseService = new LicenseService(settings, threadPool, clusterService, clock, environment, resourceWatcherService, licenseState);
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);
@@ -68,7 +78,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         when(state.metadata()).thenReturn(metadata);
         final DiscoveryNode mockNode = getLocalNode();
         when(discoveryNodes.getMasterNode()).thenReturn(mockNode);
-        when(discoveryNodes.spliterator()).thenReturn(Arrays.asList(mockNode).spliterator());
+        when(discoveryNodes.stream()).thenAnswer(invocation -> Stream.of(mockNode));
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(false);
         when(discoveryNodes.getMinNodeVersion()).thenReturn(mockNode.getVersion());
         when(state.nodes()).thenReturn(discoveryNodes);
@@ -80,8 +90,13 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     }
 
     protected DiscoveryNode getLocalNode() {
-        return new DiscoveryNode("b", buildNewFakeTransportAddress(), singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true"),
-            emptySet(), Version.CURRENT);
+        return new DiscoveryNode(
+            "b",
+            buildNewFakeTransportAddress(),
+            singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true"),
+            emptySet(),
+            Version.CURRENT
+        );
     }
 
     @After

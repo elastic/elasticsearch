@@ -1,0 +1,120 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+import java.security.KeyPair
+import java.security.KeyPairGenerator
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+final Project fixture = project(':test:fixtures:gcs-fixture')
+
+dependencies {
+  testImplementation(testArtifact(project(xpackModule('snapshot-based-recoveries'))))
+}
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot'
+  }
+}
+
+boolean useFixture = false
+
+String gcsServiceAccount = System.getenv("google_storage_service_account")
+String gcsBucket = System.getenv("google_storage_bucket")
+String gcsBasePath = System.getenv("google_storage_base_path")
+
+File serviceAccountFile = null
+if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
+  serviceAccountFile = new File(project.buildDir, 'generated-resources/service_account_test.json')
+  gcsBucket = 'bucket'
+  gcsBasePath = 'integration_test'
+  useFixture = true
+} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+  throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
+} else {
+  serviceAccountFile = new File(gcsServiceAccount)
+}
+
+/** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
+tasks.register("createServiceAccountFile") {
+  doLast {
+    KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(2048)
+    KeyPair keyPair = keyPairGenerator.generateKeyPair()
+    String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
+
+    serviceAccountFile.parentFile.mkdirs()
+    serviceAccountFile.setText(
+      """
+      {
+        "type": "service_account",
+        "project_id": "integration_test",
+        "private_key_id": "${UUID.randomUUID().toString()}",
+
+        "private_key": "-----BEGIN PRIVATE KEY-----\\n${encodedKey}\\n-----END PRIVATE KEY-----\\n",
+        "client_email": "integration_test@appspot.gserviceaccount.com",
+        "client_id": "123456789101112130594"
+      }
+    """
+    )
+  }
+}
+
+def fixtureAddress = { f ->
+  assert useFixture: 'closure should not be used without a fixture'
+  int ephemeralPort = project(':test:fixtures:gcs-fixture').postProcessFixture.ext."test.fixtures.${f}.tcp.80"
+  assert ephemeralPort > 0
+  'http://127.0.0.1:' + ephemeralPort
+}
+
+Map<String, Object> expansions = [
+  'bucket'   : gcsBucket,
+  'base_path': gcsBasePath + "_integration_tests"
+]
+
+tasks.named("processTestResources").configure {
+  inputs.properties(expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
+}
+
+if (useFixture) {
+  apply plugin: 'elasticsearch.test.fixtures'
+  testFixtures.useFixture(fixture.path, 'gcs-fixture-snapshots-based-recoveries')
+}
+
+tasks.named("integTest").configure {
+  systemProperty 'test.gcs.bucket', gcsBucket
+  nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_snapshot_based_recoveries_tests" + BuildParams.testSeed
+
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+  }
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 3
+
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  keystore 'gcs.client.snapshot_based_recoveries.credentials_file', serviceAccountFile, IGNORE_VALUE
+  if (useFixture) {
+    /* Use a closure on the string to delay evaluation until tests are executed */
+    setting 'gcs.client.snapshot_based_recoveries.endpoint', { "${-> fixtureAddress('gcs-fixture-snapshots-based-recoveries')}" }, IGNORE_VALUE
+    setting 'gcs.client.snapshot_based_recoveries.token_uri', { "${-> fixtureAddress('gcs-fixture-snapshots-based-recoveries')}/o/oauth2/token" },
+      IGNORE_VALUE
+  } else {
+    println "Using an external service to test " + project.name
+  }
+
+  setting 'xpack.security.enabled', 'false'
+}
+
+tasks.register("gcsThirdPartyTest")  {
+  dependsOn "integTest"
+}

@@ -1,0 +1,78 @@
+---
+"Test get empty autoscaling capacity":
+  - do:
+      autoscaling.get_autoscaling_capacity: {}
+
+  - match: { "policies": {} }
+
+---
+"Test get fixed autoscaling capacity":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          # voting_only requires master to start so we are sure no nodes match
+          roles: ["voting_only"]
+          deciders:
+            fixed:
+              storage: 1337b
+              memory: 7331b
+              nodes: 10
+
+  - match: { "acknowledged": true }
+
+  - do:
+      autoscaling.get_autoscaling_capacity: {}
+
+  - match: { policies.my_autoscaling_policy.required_capacity.total.storage: 13370 }
+  - match: { policies.my_autoscaling_policy.required_capacity.total.memory: 73310 }
+  - match: { policies.my_autoscaling_policy.required_capacity.node.storage: 1337 }
+  - match: { policies.my_autoscaling_policy.required_capacity.node.memory: 7331 }
+  - match: { policies.my_autoscaling_policy.current_capacity.total.storage: 0 }
+  - match: { policies.my_autoscaling_policy.current_capacity.total.memory: 0 }
+  - match: { policies.my_autoscaling_policy.current_capacity.node.storage: 0 }
+  - match: { policies.my_autoscaling_policy.current_capacity.node.memory: 0 }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.total.storage: 13370 }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.total.memory: 73310 }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.storage: 1337 }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.memory: 7331 }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.reason_summary: "fixed storage [1.3kb] memory [7.1kb] nodes [10]" }
+  - length: { policies.my_autoscaling_policy.current_nodes: 0 }
+
+
+  # test cleanup
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: my_autoscaling_policy
+
+---
+"Test get single node capacity":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          # Notice that adding new default roles requires extending this list
+          roles: ["master",
+                  "data", "data_content", "data_hot", "data_warm", "data_cold", "data_frozen",
+                  "ingest", "ml", "transform", "remote_cluster_client"]
+
+  - match: { "acknowledged": true }
+
+  - do:
+      autoscaling.get_autoscaling_capacity: {}
+  - set: { policies.my_autoscaling_policy.current_capacity.node.storage: current_node_storage }
+  - set: { policies.my_autoscaling_policy.current_capacity.node.memory: current_node_memory }
+  - match: { policies.my_autoscaling_policy.current_capacity.total.storage: $current_node_storage }
+  - match: { policies.my_autoscaling_policy.current_capacity.total.memory: $current_node_memory }
+  # would be great to validate an actual size is returned as well as a required capacity but
+  # due to asynchronous fetch of ClusterInfo and MemoryInfo we need an assertBusy like
+  # mechanism to do so.
+  - gte: { policies.my_autoscaling_policy.current_capacity.node.storage: 0 }
+  - gte: { policies.my_autoscaling_policy.current_capacity.node.memory: 0 }
+  - length: { policies.my_autoscaling_policy.current_nodes: 1 }
+
+  # test cleanup
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: my_autoscaling_policy
+

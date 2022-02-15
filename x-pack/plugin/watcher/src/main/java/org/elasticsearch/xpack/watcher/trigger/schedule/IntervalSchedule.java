@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -65,7 +66,7 @@ public class IntervalSchedule implements Schedule {
 
         IntervalSchedule schedule = (IntervalSchedule) o;
 
-        if (!interval.equals(schedule.interval)) return false;
+        if (interval.equals(schedule.interval) == false) return false;
 
         return true;
     }
@@ -96,8 +97,12 @@ public class IntervalSchedule implements Schedule {
             } catch (Exception e) {
                 throw new ElasticsearchParseException("could not parse schedule: {}", e, e.getMessage());
             }
-            throw new ElasticsearchParseException("could not parse [{}] schedule. expected either a numeric value " +
-                    "(millis) or a string value representing time value (e.g. '5s'), but found [{}]", TYPE, token);
+            throw new ElasticsearchParseException(
+                "could not parse [{}] schedule. expected either a numeric value "
+                    + "(millis) or a string value representing time value (e.g. '5s'), but found [{}]",
+                TYPE,
+                token
+            );
         }
     }
 
@@ -136,8 +141,12 @@ public class IntervalSchedule implements Schedule {
                 try {
                     return Long.parseLong(num);
                 } catch (NumberFormatException nfe) {
-                    throw new ElasticsearchParseException("could not parse [{}] schedule. could not parse [{}] as a [{}] duration",
-                            TYPE, num, name().toLowerCase(Locale.ROOT));
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] schedule. could not parse [{}] as a [{}] duration",
+                        TYPE,
+                        num,
+                        name().toLowerCase(Locale.ROOT)
+                    );
                 }
             }
 

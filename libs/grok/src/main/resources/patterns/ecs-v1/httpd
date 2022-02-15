@@ -1,0 +1,17 @@
+HTTPDUSER %{EMAILADDRESS}|%{USER}
+HTTPDERROR_DATE %{DAY} %{MONTH} %{MONTHDAY} %{TIME} %{YEAR}
+
+# Log formats
+HTTPD_COMMONLOG %{IPORHOST:source.address} (?:-|%{HTTPDUSER:apache.access.user.identity}) (?:-|%{HTTPDUSER:user.name}) \[%{HTTPDATE:timestamp}\] "(?:%{WORD:http.request.method} %{NOTSPACE:url.original}(?: HTTP/%{NUMBER:http.version})?|%{DATA})" (?:-|%{INT:http.response.status_code:int}) (?:-|%{INT:http.response.body.bytes:long})
+# :long - %{INT:http.response.body.bytes:int}
+HTTPD_COMBINEDLOG %{HTTPD_COMMONLOG} "(?:-|%{DATA:http.request.referrer})" "(?:-|%{DATA:user_agent.original})"
+
+# Error logs
+HTTPD20_ERRORLOG \[%{HTTPDERROR_DATE:timestamp}\] \[%{LOGLEVEL:log.level}\] (?:\[client %{IPORHOST:source.address}\] )?%{GREEDYDATA:message}
+HTTPD24_ERRORLOG \[%{HTTPDERROR_DATE:timestamp}\] \[(?:%{WORD:apache.error.module})?:%{LOGLEVEL:log.level}\] \[pid %{POSINT:process.pid:long}(:tid %{INT:process.thread.id:int})?\](?: \(%{POSINT:apache.error.proxy.error.code?}\)%{DATA:apache.error.proxy.error.message}:)?(?: \[client %{IPORHOST:source.address}(?::%{POSINT:source.port:int})?\])?(?: %{DATA:error.code}:)? %{GREEDYDATA:message}
+# :long - %{INT:process.thread.id:int}
+HTTPD_ERRORLOG %{HTTPD20_ERRORLOG}|%{HTTPD24_ERRORLOG}
+
+# Deprecated
+COMMONAPACHELOG %{HTTPD_COMMONLOG}
+COMBINEDAPACHELOG %{HTTPD_COMBINEDLOG}

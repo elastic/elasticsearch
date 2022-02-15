@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml;
@@ -26,8 +27,11 @@ public class MlAutoUpdateService implements ClusterStateListener {
 
     public interface UpdateAction {
         boolean isMinNodeVersionSupported(Version minNodeVersion);
+
         boolean isAbleToRun(ClusterState latestState);
+
         String getName();
+
         void runUpdate();
     }
 
@@ -59,9 +63,7 @@ public class MlAutoUpdateService implements ClusterStateListener {
             .filter(action -> action.isAbleToRun(event.state()))
             .filter(action -> currentlyUpdating.add(action.getName()))
             .collect(Collectors.toList());
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
-            () -> toRun.forEach(this::runUpdate)
-        );
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> toRun.forEach(this::runUpdate));
     }
 
     private void runUpdate(UpdateAction action) {

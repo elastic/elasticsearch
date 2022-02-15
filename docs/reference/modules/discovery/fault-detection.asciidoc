@@ -25,3 +25,9 @@ writing a small file to disk and then deleting it again. If a node discovers
 its data path is unhealthy then it is removed from the cluster until the data
 path recovers. You can control this behavior with the
 <<modules-discovery-settings,`monitor.fs.health` settings>>.
+
+[[cluster-fault-detection-cluster-state-publishing]]
+The elected master node will also remove nodes from the cluster if nodes are unable
+to apply an updated cluster state within a reasonable time, which is by default
+120s after the cluster state update started. See
+<<cluster-state-publishing, cluster state publishing>> for a more detailed description.

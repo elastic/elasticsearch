@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.monitoring;
 
@@ -28,22 +29,18 @@ public enum MonitoredSystem {
     }
 
     public static MonitoredSystem fromSystem(String system) {
-        switch (system.toLowerCase(Locale.ROOT)) {
-            case "es":
-                return ES;
-            case "kibana":
-                return KIBANA;
-            case "logstash":
-                return LOGSTASH;
-            case "beats":
-                return BEATS;
-            default:
+        return switch (system.toLowerCase(Locale.ROOT)) {
+            case "es" -> ES;
+            case "kibana" -> KIBANA;
+            case "logstash" -> LOGSTASH;
+            case "beats" -> BEATS;
+            default ->
                 // Return an "unknown" monitored system
                 // that can easily be filtered out if
                 // a node receives documents for a new
                 // system it does not know yet
-                return UNKNOWN;
-        }
+                UNKNOWN;
+        };
     }
 
     /**

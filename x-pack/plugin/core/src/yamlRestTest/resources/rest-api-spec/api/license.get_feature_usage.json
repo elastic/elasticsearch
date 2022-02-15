@@ -1,6 +1,7 @@
 {
   "license.get_feature_usage":{
     "stability":"experimental",
+    "visibility":"public",
     "url":{
       "paths":[
         {

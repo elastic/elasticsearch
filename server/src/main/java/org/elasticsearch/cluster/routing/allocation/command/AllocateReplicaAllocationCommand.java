@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
@@ -26,12 +15,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -117,9 +106,11 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
             }
         }
         if (primaryShardRouting == null) {
-            return explainOrThrowRejectedCommand(explain, allocation,
-                "trying to allocate a replica shard [" + index + "][" + shardId +
-                    "], while corresponding primary shard is still unassigned");
+            return explainOrThrowRejectedCommand(
+                explain,
+                allocation,
+                "trying to allocate a replica shard [" + index + "][" + shardId + "], while corresponding primary shard is still unassigned"
+            );
         }
 
         List<ShardRouting> replicaShardRoutings = new ArrayList<>();
@@ -131,8 +122,11 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
 
         ShardRouting shardRouting;
         if (replicaShardRoutings.isEmpty()) {
-            return explainOrThrowRejectedCommand(explain, allocation,
-                "all copies of [" + index + "][" + shardId + "] are already assigned. Use the move allocation command instead");
+            return explainOrThrowRejectedCommand(
+                explain,
+                allocation,
+                "all copies of [" + index + "][" + shardId + "] are already assigned. Use the move allocation command instead"
+            );
         } else {
             shardRouting = replicaShardRoutings.get(0);
         }
@@ -143,8 +137,18 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
             if (explain) {
                 return new RerouteExplanation(this, decision);
             }
-            throw new IllegalArgumentException("[" + name() + "] allocation of [" + index + "][" + shardId + "] on node " + discoNode +
-                " is not allowed, reason: " + decision);
+            throw new IllegalArgumentException(
+                "["
+                    + name()
+                    + "] allocation of ["
+                    + index
+                    + "]["
+                    + shardId
+                    + "] on node "
+                    + discoNode
+                    + " is not allowed, reason: "
+                    + decision
+            );
         }
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting);

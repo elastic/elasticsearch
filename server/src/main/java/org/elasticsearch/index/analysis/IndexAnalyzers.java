@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.analysis;
 
@@ -44,12 +33,16 @@ public final class IndexAnalyzers implements Closeable {
     private final Map<String, NamedAnalyzer> normalizers;
     private final Map<String, NamedAnalyzer> whitespaceNormalizers;
 
-    public IndexAnalyzers(Map<String, NamedAnalyzer> analyzers, Map<String, NamedAnalyzer> normalizers,
-            Map<String, NamedAnalyzer> whitespaceNormalizers) {
+    public IndexAnalyzers(
+        Map<String, NamedAnalyzer> analyzers,
+        Map<String, NamedAnalyzer> normalizers,
+        Map<String, NamedAnalyzer> whitespaceNormalizers
+    ) {
         Objects.requireNonNull(analyzers.get(DEFAULT_ANALYZER_NAME), "the default analyzer must be set");
         if (analyzers.get(DEFAULT_ANALYZER_NAME).name().equals(DEFAULT_ANALYZER_NAME) == false) {
             throw new IllegalStateException(
-                    "default analyzer must have the name [default] but was: [" + analyzers.get(DEFAULT_ANALYZER_NAME).name() + "]");
+                "default analyzer must have the name [default] but was: [" + analyzers.get(DEFAULT_ANALYZER_NAME).name() + "]"
+            );
         }
         this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
@@ -107,9 +100,11 @@ public final class IndexAnalyzers implements Closeable {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(Stream.of(analyzers.values().stream(), normalizers.values().stream(), whitespaceNormalizers.values().stream())
-            .flatMap(s -> s)
-            .filter(a -> a.scope() == AnalyzerScope.INDEX)
-            .collect(Collectors.toList()));
+        IOUtils.close(
+            Stream.of(analyzers.values().stream(), normalizers.values().stream(), whitespaceNormalizers.values().stream())
+                .flatMap(s -> s)
+                .filter(a -> a.scope() == AnalyzerScope.INDEX)
+                .collect(Collectors.toList())
+        );
     }
 }

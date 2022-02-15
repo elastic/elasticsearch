@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.UUID;
 
@@ -14,7 +15,10 @@ abstract class ExpirationCallback {
 
     static final String EXPIRATION_JOB_PREFIX = ".license_expiration_job_";
 
-    public enum Orientation {PRE, POST}
+    public enum Orientation {
+        PRE,
+        POST
+    }
 
     /**
      * Callback that is triggered every <code>frequency</code> when
@@ -165,8 +169,13 @@ abstract class ExpirationCallback {
     public abstract void on(License license);
 
     public final String toString() {
-        return LoggerMessageFormat.format(null, "ExpirationCallback:(orientation [{}],  min [{}], max [{}], freq [{}])",
-                orientation.name(), TimeValue.timeValueMillis(min), TimeValue.timeValueMillis(max),
-                TimeValue.timeValueMillis(frequency));
+        return LoggerMessageFormat.format(
+            null,
+            "ExpirationCallback:(orientation [{}],  min [{}], max [{}], freq [{}])",
+            orientation.name(),
+            TimeValue.timeValueMillis(min),
+            TimeValue.timeValueMillis(max),
+            TimeValue.timeValueMillis(frequency)
+        );
     }
 }

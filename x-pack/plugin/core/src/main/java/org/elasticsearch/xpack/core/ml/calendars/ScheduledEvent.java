@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.calendars;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
@@ -22,7 +24,6 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -50,14 +51,18 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         ObjectParser<ScheduledEvent.Builder, Void> parser = new ObjectParser<>("scheduled_event", ignoreUnknownFields, Builder::new);
 
         parser.declareString(ScheduledEvent.Builder::description, DESCRIPTION);
-        parser.declareField(ScheduledEvent.Builder::startTime,
+        parser.declareField(
+            ScheduledEvent.Builder::startTime,
             p -> TimeUtils.parseTimeFieldToInstant(p, START_TIME.getPreferredName()),
             START_TIME,
-            ObjectParser.ValueType.VALUE);
-        parser.declareField(ScheduledEvent.Builder::endTime,
+            ObjectParser.ValueType.VALUE
+        );
+        parser.declareField(
+            ScheduledEvent.Builder::endTime,
             p -> TimeUtils.parseTimeFieldToInstant(p, END_TIME.getPreferredName()),
             END_TIME,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
         parser.declareString(ScheduledEvent.Builder::calendarId, Calendar.ID);
         parser.declareString((builder, s) -> {}, TYPE);
 
@@ -169,15 +174,15 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (!(obj instanceof ScheduledEvent)) {
+        if ((obj instanceof ScheduledEvent) == false) {
             return false;
         }
 
         ScheduledEvent other = (ScheduledEvent) obj;
         return description.equals(other.description)
-                && Objects.equals(startTime, other.startTime)
-                && Objects.equals(endTime, other.endTime)
-                && calendarId.equals(other.calendarId);
+            && Objects.equals(startTime, other.startTime)
+            && Objects.equals(endTime, other.endTime)
+            && calendarId.equals(other.calendarId);
     }
 
     @Override
@@ -224,27 +229,30 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         public ScheduledEvent build() {
             if (description == null) {
                 throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, DESCRIPTION.getPreferredName()));
+                    Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, DESCRIPTION.getPreferredName())
+                );
             }
 
             if (startTime == null) {
                 throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, START_TIME.getPreferredName()));
+                    Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, START_TIME.getPreferredName())
+                );
             }
 
             if (endTime == null) {
-                throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, END_TIME.getPreferredName()));
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, END_TIME.getPreferredName()));
             }
 
             if (calendarId == null) {
                 throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, Calendar.ID.getPreferredName()));
+                    Messages.getMessage(Messages.FIELD_CANNOT_BE_NULL, Calendar.ID.getPreferredName())
+                );
             }
 
             if (startTime.isBefore(endTime) == false) {
-                throw ExceptionsHelper.badRequestException("Event start time [" + startTime +
-                                "] must come before end time [" + endTime + "]");
+                throw ExceptionsHelper.badRequestException(
+                    "Event start time [" + startTime + "] must come before end time [" + endTime + "]"
+                );
             }
 
             ScheduledEvent event = new ScheduledEvent(description, startTime, endTime, calendarId, eventId);

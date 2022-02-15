@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.cli;
 
@@ -40,8 +41,8 @@ public class ConnectionBuilder {
      * @param binaryCommunication should the communication between the CLI and server be binary (CBOR)
      * @throws UserException if there is a problem with the information provided by the user
      */
-    public ConnectionConfiguration buildConnection(String connectionStringArg, String keystoreLocation,
-                                                   boolean binaryCommunication) throws UserException {
+    public ConnectionConfiguration buildConnection(String connectionStringArg, String keystoreLocation, boolean binaryCommunication)
+        throws UserException {
         final URI uri;
         final String connectionString;
         Properties properties = new Properties();
@@ -93,7 +94,7 @@ public class ConnectionBuilder {
             properties.setProperty(ConnectionConfiguration.AUTH_USER, user);
             properties.setProperty(ConnectionConfiguration.AUTH_PASS, password);
         }
-        
+
         properties.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(binaryCommunication));
 
         return newConnectionConfiguration(uri, connectionString, properties);
@@ -111,10 +112,10 @@ public class ConnectionBuilder {
     protected void checkIfExists(String name, Path p) throws UserException {
         if (false == Files.exists(p)) {
             throw new UserException(ExitCodes.USAGE, name + " [" + p + "] doesn't exist");
-         }
-         if (false == Files.isRegularFile(p)) {
-             throw new UserException(ExitCodes.USAGE, name + " [" + p + "] isn't a regular file");
-         }
+        }
+        if (false == Files.isRegularFile(p)) {
+            throw new UserException(ExitCodes.USAGE, name + " [" + p + "] isn't a regular file");
+        }
     }
 
 }

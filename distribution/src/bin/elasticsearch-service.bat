@@ -17,7 +17,7 @@ echo elasticsearch-service-x64.exe was not found...
 exit /B 1
 
 :okExe
-set ES_VERSION=${project.version}
+set ES_VERSION=@project.version@
 
 if "%SERVICE_LOG_DIR%" == "" set SERVICE_LOG_DIR=%ES_HOME%\logs
 
@@ -88,20 +88,20 @@ goto:eof
 
 :doInstall
 echo Installing service      :  "%SERVICE_ID%"
-echo Using JAVA_HOME (%ARCH%):  "%JAVA_HOME%"
+echo Using ES_JAVA_HOME (%ARCH%):  "%ES_JAVA_HOME%"
 
 rem Check JVM server dll first
-if exist "%JAVA_HOME%\jre\bin\server\jvm.dll" (
+if exist "%ES_JAVA_HOME%\jre\bin\server\jvm.dll" (
 	set JVM_DLL=\jre\bin\server\jvm.dll
 	goto foundJVM
 )
 
 rem Check 'server' JRE (JRE installed on Windows Server)
-if exist "%JAVA_HOME%\bin\server\jvm.dll" (
+if exist "%ES_JAVA_HOME%\bin\server\jvm.dll" (
 	set JVM_DLL=\bin\server\jvm.dll
 	goto foundJVM
 ) else (
-  	echo JAVA_HOME ("%JAVA_HOME%"^) points to an invalid Java installation (no jvm.dll found in "%JAVA_HOME%\jre\bin\server" or "%JAVA_HOME%\bin\server"^). Exiting...
+  	echo ES_JAVA_HOME ("%ES_JAVA_HOME%"^) points to an invalid Java installation (no jvm.dll found in "%ES_JAVA_HOME%\jre\bin\server" or "%ES_JAVA_HOME%\bin\server"^). Exiting...
   	goto:eof
 )
 
@@ -120,18 +120,22 @@ rem     jvm.options.d/*.options
 rem   - third, JVM options from ES_JAVA_OPTS are applied
 rem   - fourth, ergonomic JVM options are applied
 
-if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
-if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS:;;=;%
-
 @setlocal
-for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.JvmOptionsParser" "!ES_PATH_CONF!" ^|^| echo jvm_options_parser_failed`) do set ES_JAVA_OPTS=%%a
+for /F "usebackq delims=" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.JvmOptionsParser" "!ES_PATH_CONF!" "!ES_HOME!"/plugins ^|^| echo jvm_options_parser_failed`) do set ES_JAVA_OPTS=%%a
 @endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%ES_JAVA_OPTS%" & set ES_JAVA_OPTS=%ES_JAVA_OPTS%
 
 if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
   exit /b 1
 )
 
-if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
+rem The output of the JVM options parses is space-delimited. We need to
+rem convert to semicolon-delimited and avoid doubled semicolons.
+@setlocal
+if not "%ES_JAVA_OPTS%" == "" (
+  set ES_JAVA_OPTS=!ES_JAVA_OPTS: =;!
+  set ES_JAVA_OPTS=!ES_JAVA_OPTS:;;=;!
+)
+@endlocal & set ES_JAVA_OPTS=%ES_JAVA_OPTS%
 
 if "%ES_JAVA_OPTS:~-1%"==";" set ES_JAVA_OPTS=%ES_JAVA_OPTS:~0,-1%
 
@@ -203,7 +207,7 @@ if not "%SERVICE_USERNAME%" == "" (
 		set SERVICE_PARAMS=%SERVICE_PARAMS% --ServiceUser "%SERVICE_USERNAME%" --ServicePassword "%SERVICE_PASSWORD%"
 	)
 )
-"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main ++StartParams --quiet --StopClass org.elasticsearch.bootstrap.Elasticsearch --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %OTHER_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%JAVA_HOME%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS% ++Environment HOSTNAME="%%COMPUTERNAME%%"
+"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main ++StartParams --quiet --StopClass org.elasticsearch.bootstrap.Elasticsearch --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %OTHER_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%ES_JAVA_HOME%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS% ++Environment HOSTNAME="%%COMPUTERNAME%%"
 
 if not errorlevel 1 goto installed
 echo Failed installing '%SERVICE_ID%' service
@@ -215,7 +219,7 @@ echo The service '%SERVICE_ID%' has been installed.
 goto:eof
 
 :err
-echo JAVA_HOME environment variable must be set!
+echo ES_JAVA_HOME environment variable must be set!
 pause
 goto:eof
 

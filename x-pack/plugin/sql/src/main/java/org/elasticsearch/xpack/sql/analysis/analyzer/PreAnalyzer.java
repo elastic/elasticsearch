@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
@@ -39,12 +40,12 @@ public class PreAnalyzer {
 
     private PreAnalysis doPreAnalyze(LogicalPlan plan) {
         List<TableInfo> indices = new ArrayList<>();
-        
-        plan.forEachUp(p -> indices.add(new TableInfo(p.table(), p.frozen())), UnresolvedRelation.class);
-        
+
+        plan.forEachUp(UnresolvedRelation.class, p -> indices.add(new TableInfo(p.table(), p.frozen())));
+
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
-        
+
         return new PreAnalysis(indices);
     }
 }

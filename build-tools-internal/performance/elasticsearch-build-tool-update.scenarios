@@ -1,0 +1,102 @@
+# Can specify scenarios to use when none are specified on the command line
+default-scenarios = ["buildConfiguration_master", "buildConfiguration_branch", "single_project_master", "single_project_branch", "precommit_master", "precommit_branch"]
+
+buildConfiguration_branch {
+    title = "configuration phase (@testGitCommit@)"
+    tasks = ["help"]
+    gradle-args = ["--no-scan", "--no-build-cache"]
+    run-using = cli // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    warm-ups = 5
+    iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
+    git-checkout = {
+        build = "@testGitCommit@"
+    }
+}
+
+buildConfiguration_master {
+    title = "configuration phase (master)"
+    tasks = ["help"]
+    gradle-args = ["--no-scan", "--no-build-cache"]
+    run-using = cli // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    warm-ups = 5
+    iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
+    git-checkout = {
+        build = "master"
+    }
+}
+
+precommit_branch {
+    title = "precommit (@testGitCommit@)"
+    cleanup-tasks = ["clean"]
+    tasks = ["precommit"]
+    gradle-args = ["--no-scan", "--no-build-cache"]
+    run-using = cli // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    warm-ups = 5
+    iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
+    git-checkout = {
+        build = "@testGitCommit@"
+    }
+}
+
+precommit_master {
+    title = "precommit (master)"
+    cleanup-tasks = ["clean"]
+    tasks = ["precommit"]
+    gradle-args = ["--no-scan", "--no-build-cache"]
+    run-using = cli // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    warm-ups = 5
+    iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
+    git-checkout = {
+        build = "master"
+    }
+}
+
+single_project_branch {
+    title = "single project (@testGitCommit@)"
+    tasks = [":server:precommit"]
+    gradle-args = ["--no-scan"]
+    apply-abi-change-to = "server/src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java"
+    run-using = cli // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    warm-ups = 5
+    iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
+    git-checkout = {
+        build = "@testGitCommit@"
+    }
+}
+
+single_project_master {
+    title = "single project (master)"
+    tasks = [":server:precommit"]
+    gradle-args = ["--no-scan"]
+    apply-abi-change-to = "server/src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java"
+    run-using = cli // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    warm-ups = 5
+    iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
+    git-checkout = {
+        build = "master"
+    }
+}

@@ -20,9 +20,11 @@ sudo bin/elasticsearch-plugin install {plugin_name}
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/{plugin_name}/{plugin_name}-{version}.zip.
-
+You can download this plugin for <<plugin-management-custom-url,offline
+install>> from {plugin_url}/{plugin_name}/{plugin_name}-{version}.zip. To verify
+the `.zip` file, use the
+{plugin_url}/{plugin_name}/{plugin_name}-{version}.zip.sha512[SHA hash] or
+{plugin_url}/{plugin_name}/{plugin_name}-{version}.zip.asc[ASC key].
 endif::[]
 
 [discrete]

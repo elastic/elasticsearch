@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -25,7 +14,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -38,10 +26,11 @@ import java.util.stream.StreamSupport;
 /**
  * A listener that allows to track progress of the {@link SearchAction}.
  */
-abstract class SearchProgressListener {
+public abstract class SearchProgressListener {
     private static final Logger logger = LogManager.getLogger(SearchProgressListener.class);
 
-    public static final SearchProgressListener NOOP = new SearchProgressListener() {};
+    public static final SearchProgressListener NOOP = new SearchProgressListener() {
+    };
 
     private List<SearchShard> shards;
 
@@ -77,11 +66,10 @@ abstract class SearchProgressListener {
      *
      * @param shards The list of shards that are part of this reduce.
      * @param totalHits The total number of hits in this reduce.
-     * @param aggs The partial result for aggregations stored in serialized form.
+     * @param aggs The partial result for aggregations.
      * @param reducePhase The version number for this reduce.
      */
-    protected void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
-            DelayableWriteable.Serialized<InternalAggregations> aggs, int reducePhase) {}
+    protected void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
 
     /**
      * Executed once when the final reduce is created.
@@ -122,8 +110,10 @@ abstract class SearchProgressListener {
         try {
             onQueryResult(shardIndex);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result",
-                shards.get(shardIndex)), e);
+            logger.warn(
+                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result", shards.get(shardIndex)),
+                e
+            );
         }
     }
 
@@ -131,13 +121,14 @@ abstract class SearchProgressListener {
         try {
             onQueryFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on query failure",
-                shards.get(shardIndex)), e);
+            logger.warn(
+                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on query failure", shards.get(shardIndex)),
+                e
+            );
         }
     }
 
-    final void notifyPartialReduce(List<SearchShard> shards, TotalHits totalHits,
-                DelayableWriteable.Serialized<InternalAggregations> aggs, int reducePhase) {
+    final void notifyPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
         try {
             onPartialReduce(shards, totalHits, aggs, reducePhase);
         } catch (Exception e) {
@@ -157,8 +148,10 @@ abstract class SearchProgressListener {
         try {
             onFetchResult(shardIndex);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch result",
-                shards.get(shardIndex)), e);
+            logger.warn(
+                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch result", shards.get(shardIndex)),
+                e
+            );
         }
     }
 
@@ -166,8 +159,10 @@ abstract class SearchProgressListener {
         try {
             onFetchFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch failure",
-                shards.get(shardIndex)), e);
+            logger.warn(
+                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch failure", shards.get(shardIndex)),
+                e
+            );
         }
     }
 

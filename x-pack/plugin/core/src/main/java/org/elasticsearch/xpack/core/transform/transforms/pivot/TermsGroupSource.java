@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -49,10 +50,5 @@ public class TermsGroupSource extends SingleGroupSource {
 
     public static TermsGroupSource fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
-    }
-
-    @Override
-    public boolean supportsIncrementalBucketUpdate() {
-        return true;
     }
 }

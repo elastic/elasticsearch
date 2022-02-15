@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.plan.logical;
 
@@ -27,13 +28,10 @@ public abstract class UnaryPlan extends LogicalPlan {
 
     @Override
     public final UnaryPlan replaceChildren(List<LogicalPlan> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return replaceChild(newChildren.get(0));
     }
 
-    protected abstract UnaryPlan replaceChild(LogicalPlan newChild);
+    public abstract UnaryPlan replaceChild(LogicalPlan newChild);
 
     public LogicalPlan child() {
         return child;

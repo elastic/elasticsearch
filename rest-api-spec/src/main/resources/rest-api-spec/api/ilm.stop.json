@@ -1,0 +1,24 @@
+{
+  "ilm.stop":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-stop.html",
+      "description":"Halts all lifecycle management operations and stops the index lifecycle management (ILM) plugin"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ilm/stop",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

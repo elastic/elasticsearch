@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.util.Objects;
 
@@ -40,11 +41,13 @@ public class FlushJobParams {
      */
     private final boolean waitForNormalization;
 
-    private FlushJobParams(boolean calcInterim,
-                           TimeRange timeRange,
-                           Long advanceTimeSeconds,
-                           Long skipTimeSeconds,
-                           boolean waitForNormalization) {
+    private FlushJobParams(
+        boolean calcInterim,
+        TimeRange timeRange,
+        Long advanceTimeSeconds,
+        Long skipTimeSeconds,
+        boolean waitForNormalization
+    ) {
         this.calcInterim = calcInterim;
         this.timeRange = Objects.requireNonNull(timeRange);
         this.advanceTimeSeconds = advanceTimeSeconds;
@@ -73,14 +76,14 @@ public class FlushJobParams {
     }
 
     public long getAdvanceTime() {
-        if (!shouldAdvanceTime()) {
+        if (shouldAdvanceTime() == false) {
             throw new IllegalStateException();
         }
         return advanceTimeSeconds;
     }
 
     public long getSkipTime() {
-        if (!shouldSkipTime()) {
+        if (shouldSkipTime() == false) {
             throw new IllegalStateException();
         }
         return skipTimeSeconds;
@@ -99,10 +102,10 @@ public class FlushJobParams {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FlushJobParams that = (FlushJobParams) o;
-        return calcInterim == that.calcInterim &&
-                Objects.equals(timeRange, that.timeRange) &&
-                Objects.equals(advanceTimeSeconds, that.advanceTimeSeconds) &&
-                Objects.equals(skipTimeSeconds, that.skipTimeSeconds);
+        return calcInterim == that.calcInterim
+            && Objects.equals(timeRange, that.timeRange)
+            && Objects.equals(advanceTimeSeconds, that.advanceTimeSeconds)
+            && Objects.equals(skipTimeSeconds, that.skipTimeSeconds);
     }
 
     @Override
@@ -147,17 +150,18 @@ public class FlushJobParams {
             Long advanceTimeSeconds = parseTimeParam("advance_time", advanceTime);
             Long skipTimeSeconds = parseTimeParam("skip_time", skipTime);
             if (skipTimeSeconds != null && advanceTimeSeconds != null && advanceTimeSeconds <= skipTimeSeconds) {
-                throw ExceptionsHelper.badRequestException("advance_time [" + advanceTime + "] must be later than skip_time ["
-                        + skipTime + "]");
+                throw ExceptionsHelper.badRequestException(
+                    "advance_time [" + advanceTime + "] must be later than skip_time [" + skipTime + "]"
+                );
             }
             return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds, waitForNormalization);
         }
 
         private void checkValidFlushArgumentsCombination() {
-            if (!calcInterim) {
+            if (calcInterim == false) {
                 checkFlushParamIsEmpty(TimeRange.START_PARAM, timeRange.getStart());
                 checkFlushParamIsEmpty(TimeRange.END_PARAM, timeRange.getEnd());
-            } else if (!isValidTimeRange(timeRange)) {
+            } else if (isValidTimeRange(timeRange) == false) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_FLUSH_PARAMS_MISSING, "start");
                 throw new IllegalArgumentException(msg);
             }
@@ -186,14 +190,14 @@ public class FlushJobParams {
         }
 
         private void checkFlushParamIsEmpty(String paramName, String paramValue) {
-            if (!paramValue.isEmpty()) {
+            if (paramValue.isEmpty() == false) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_FLUSH_PARAMS_UNEXPECTED, paramName);
                 throw new IllegalArgumentException(msg);
             }
         }
 
         private boolean isValidTimeRange(TimeRange timeRange) {
-            return !timeRange.getStart().isEmpty() || (timeRange.getStart().isEmpty() && timeRange.getEnd().isEmpty());
+            return timeRange.getStart().isEmpty() == false || (timeRange.getStart().isEmpty() && timeRange.getEnd().isEmpty());
         }
     }
 }

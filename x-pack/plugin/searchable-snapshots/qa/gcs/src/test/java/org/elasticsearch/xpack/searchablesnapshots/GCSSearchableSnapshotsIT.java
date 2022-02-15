@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots;
@@ -14,12 +15,12 @@ import static org.hamcrest.Matchers.not;
 public class GCSSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
 
     @Override
-    protected String repositoryType() {
+    protected String writeRepositoryType() {
         return "gcs";
     }
 
     @Override
-    protected Settings repositorySettings() {
+    protected Settings writeRepositorySettings() {
         final String bucket = System.getProperty("test.gcs.bucket");
         assertThat(bucket, not(blankOrNullString()));
 

@@ -1,0 +1,330 @@
+setup:
+  - skip:
+      features: headers
+      version: " - 7.8.99"
+      reason: "wildcard fields were added from 7.9"
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              my_wildcard:
+                 type: wildcard
+              null_wildcard:
+                 type: wildcard
+                 null_value: BLANK
+  - do:
+      index:
+        index: test-index
+        id: "1"
+        body:
+          my_wildcard: hello world
+          null_wildcard: null
+  - do:
+      index:
+        index: test-index
+        id: "2"
+        body:
+          my_wildcard: goodbye world
+  - do:
+      index:
+        index: test-index
+        id: "3"
+        body:
+          my_wildcard: cAsE iNsEnSiTiVe World
+          null_wildcard: HAS_VALUE
+
+  - do:
+      indices.refresh: {}
+
+---
+"Short prefix query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "hel*" }
+
+
+  - match: {hits.total.value: 1}
+
+---
+"Long prefix query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "hello wor*" }
+
+
+  - match: {hits.total.value: 1}
+
+---
+"Short unrooted query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "*ello*" }
+
+
+  - match: {hits.total.value: 1}
+
+---
+"Long unrooted query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "*ello worl*" }
+
+
+  - match: {hits.total.value: 1}
+
+---
+"Case sensitive query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "*Worl*" }
+
+
+  - match: {hits.total.value: 1}
+
+---
+"Case insensitive query":
+  - skip:
+      features: headers
+      version: " - 7.9.99"
+      reason: "Case insensitive flag added in 7.10"
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            regexp:
+              my_wildcard: {value: ".*Worl.*", case_insensitive: true}
+
+
+  - match: {hits.total.value: 3}
+
+---
+"null query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              null_wildcard: {value: "*BLANK*" }
+
+
+  - match: {hits.total.value: 1}
+
+---
+"Short suffix query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "*ld" }
+
+
+  - match: {hits.total.value: 3}
+
+---
+"Long suffix query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "*ello world" }
+
+
+  - match: {hits.total.value: 1}
+
+---
+"No wildcard wildcard query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "hello world" }
+
+
+  - match: {hits.total.value: 1}
+
+---
+"Query_string prefix query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            query_string:
+              query: "hello*"
+              default_field: "my_wildcard"
+
+
+  - match: {hits.total.value: 1}
+---
+"Query_string wildcard query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            query_string:
+              query: "*orld"
+              default_field: "my_wildcard"
+
+
+  - match: {hits.total.value: 3}
+---
+"Query_string regex query":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            query_string:
+              query: "/hello.*/"
+              default_field: "my_wildcard"
+
+
+  - match: {hits.total.value: 1}
+
+---
+"Term query on wildcard field":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            term:
+              my_wildcard: "hello world"
+
+
+  - match: {hits.total.value: 1}
+
+---
+"Terms query on wildcard field":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            terms:
+              my_wildcard: ["hello world", "does not exist"]
+
+
+  - match: {hits.total.value: 1}
+
+---
+"Prefix query on wildcard field":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            prefix:
+              my_wildcard:
+                value: "hell"
+
+
+  - match: {hits.total.value: 1}
+
+---
+"Sequence fail":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "*world*hello*" }
+
+
+  - match: {hits.total.value: 0}
+
+---
+"Aggs work":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "*world*" }
+          aggs:
+            top_vals:
+              terms: {field: "my_wildcard" }
+
+
+  - match: {hits.total.value: 2}
+  - length: { aggregations.top_vals.buckets: 2 }
+
+---
+"Scripted Aggs work":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "*goodbye*" }
+          aggs:
+            top_vals:
+              terms: {script: "doc['my_wildcard']" }
+
+
+  - match: {hits.total.value: 1}
+  - length: { aggregations.top_vals.buckets: 1 }
+  - match: { aggregations.top_vals.buckets.0.key: "goodbye world" }
+---
+"Sort works":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          sort: [ { "my_wildcard": "desc" } ]
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          sort: [ { "my_wildcard": "asc" } ]
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "1" }
+

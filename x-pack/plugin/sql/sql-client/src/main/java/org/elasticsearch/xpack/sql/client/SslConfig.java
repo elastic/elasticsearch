@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
 
@@ -53,9 +54,18 @@ public class SslConfig {
     public static final String SSL_TRUSTSTORE_TYPE = "ssl.truststore.type";
     private static final String SSL_TRUSTSTORE_TYPE_DEFAULT = "JKS";
 
-    static final Set<String> OPTION_NAMES = new LinkedHashSet<>(Arrays.asList(SSL, SSL_PROTOCOL,
-            SSL_KEYSTORE_LOCATION, SSL_KEYSTORE_PASS, SSL_KEYSTORE_TYPE,
-            SSL_TRUSTSTORE_LOCATION, SSL_TRUSTSTORE_PASS, SSL_TRUSTSTORE_TYPE));
+    static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
+        Arrays.asList(
+            SSL,
+            SSL_PROTOCOL,
+            SSL_KEYSTORE_LOCATION,
+            SSL_KEYSTORE_PASS,
+            SSL_KEYSTORE_TYPE,
+            SSL_TRUSTSTORE_LOCATION,
+            SSL_TRUSTSTORE_PASS,
+            SSL_TRUSTSTORE_TYPE
+        )
+    );
 
     private final boolean enabled;
     private final String protocol, keystoreLocation, keystorePass, keystoreType;
@@ -67,11 +77,11 @@ public class SslConfig {
         boolean isSchemaPresent = baseURI.getScheme() != null;
         boolean isSSLPropertyPresent = settings.getProperty(SSL) != null;
         boolean isHttpsScheme = "https".equals(baseURI.getScheme());
-        
-        if (!isSSLPropertyPresent && !isSchemaPresent) {
+
+        if (isSSLPropertyPresent == false && isSchemaPresent == false) {
             enabled = StringUtils.parseBoolean(SSL_DEFAULT);
         } else {
-            if (isSSLPropertyPresent && isHttpsScheme && !StringUtils.parseBoolean(settings.getProperty(SSL))) {
+            if (isSSLPropertyPresent && isHttpsScheme && StringUtils.parseBoolean(settings.getProperty(SSL)) == false) {
                 throw new ClientException("Cannot enable SSL: HTTPS protocol being used in the URL and SSL disabled in properties");
             }
             enabled = isHttpsScheme || StringUtils.parseBoolean(settings.getProperty(SSL, SSL_DEFAULT));
@@ -109,7 +119,7 @@ public class SslConfig {
     }
 
     private KeyManager[] loadKeyManagers() throws GeneralSecurityException, IOException {
-        if (!StringUtils.hasText(keystoreLocation)) {
+        if (StringUtils.hasText(keystoreLocation) == false) {
             return null;
         }
 
@@ -120,14 +130,14 @@ public class SslConfig {
         return kmFactory.getKeyManagers();
     }
 
-
     private KeyStore loadKeyStore(String source, char[] pass, String keyStoreType) throws GeneralSecurityException, IOException {
         KeyStore keyStore = KeyStore.getInstance(keyStoreType);
         Path path = Paths.get(source);
 
-        if (!Files.exists(path)) {
-           throw new ClientException(
-                    "Expected to find keystore file at [" + source + "] but was unable to. Make sure you have specified a valid URI.");
+        if (Files.exists(path) == false) {
+            throw new ClientException(
+                "Expected to find keystore file at [" + source + "] but was unable to. Make sure you have specified a valid URI."
+            );
         }
 
         try (InputStream in = Files.newInputStream(Paths.get(source), StandardOpenOption.READ)) {
@@ -165,13 +175,13 @@ public class SslConfig {
 
         SslConfig other = (SslConfig) obj;
         return Objects.equals(enabled, other.enabled)
-                && Objects.equals(protocol, other.protocol)
-                && Objects.equals(keystoreLocation, other.keystoreLocation)
-                && Objects.equals(keystorePass, other.keystorePass)
-                && Objects.equals(keystoreType, other.keystoreType)
-                && Objects.equals(truststoreLocation, other.truststoreLocation)
-                && Objects.equals(truststorePass, other.truststorePass)
-                && Objects.equals(truststoreType, other.truststoreType);
+            && Objects.equals(protocol, other.protocol)
+            && Objects.equals(keystoreLocation, other.keystoreLocation)
+            && Objects.equals(keystorePass, other.keystorePass)
+            && Objects.equals(keystoreType, other.keystoreType)
+            && Objects.equals(truststoreLocation, other.truststoreLocation)
+            && Objects.equals(truststorePass, other.truststorePass)
+            && Objects.equals(truststoreType, other.truststoreType);
     }
 
     @Override

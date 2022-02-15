@@ -3,22 +3,22 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      2
+        id:      "2"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      3
+        id:      "3"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      4
+        id:      "4"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -54,25 +54,27 @@
 
 ---
 "Multiple slices with wait_for_completion=false":
+  - skip:
+      features: warnings
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      2
+        id:      "2"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      3
+        id:      "3"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      4
+        id:      "4"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -143,8 +145,13 @@
 
   # Only the "parent" reindex task wrote its status to the tasks index though
   - do:
-      indices.refresh: {}
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
+      indices.refresh:
+        expand_wildcards: "open,hidden"
   - do:
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       search:
         rest_total_hits_as_int: true
         index: .tasks
@@ -152,35 +159,37 @@
 
 ---
 "Multiple slices with rethrottle":
+  - skip:
+      features: warnings
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      2
+        id:      "2"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      3
+        id:      "3"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      4
+        id:      "4"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      5
+        id:      "5"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      6
+        id:      "6"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -246,8 +255,13 @@
 
   # Only the "parent" reindex task wrote its status to the tasks index though
   - do:
-      indices.refresh: {}
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
+      indices.refresh:
+        expand_wildcards: "open,hidden"
   - do:
+      warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
       search:
         rest_total_hits_as_int: true
         index: .tasks
@@ -266,22 +280,22 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      2
+        id:      "2"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      3
+        id:      "3"
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        id:      4
+        id:      "4"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}

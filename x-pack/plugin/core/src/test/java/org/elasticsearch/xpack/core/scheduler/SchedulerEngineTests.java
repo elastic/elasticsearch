@@ -1,31 +1,38 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.collect.Tuple;
+import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.ActiveSchedule;
+import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Job;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.argThat;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -68,7 +75,7 @@ public class SchedulerEngineTests extends ESTestCase {
                         // this happens after the listener has been notified, threw an exception, and then mock logged the exception
                         latch.countDown();
                         return null;
-                    }).when(mockLogger).warn(argThat(any(ParameterizedMessage.class)), argThat(any(RuntimeException.class)));
+                    }).when(mockLogger).warn(any(ParameterizedMessage.class), any(RuntimeException.class));
                 }
                 listeners.add(Tuple.tuple(listener, trigger));
             }
@@ -78,16 +85,14 @@ public class SchedulerEngineTests extends ESTestCase {
             listeners.stream().map(Tuple::v1).forEach(engine::register);
 
             final AtomicBoolean scheduled = new AtomicBoolean();
-            engine.add(new SchedulerEngine.Job(
-                    getTestName(),
-                    (startTime, now) -> {
-                        // only allow one triggering of the listeners
-                        if (scheduled.compareAndSet(false, true)) {
-                            return 0;
-                        } else {
-                            return -1;
-                        }
-                    }));
+            engine.add(new SchedulerEngine.Job(getTestName(), (startTime, now) -> {
+                // only allow one triggering of the listeners
+                if (scheduled.compareAndSet(false, true)) {
+                    return 0;
+                } else {
+                    return -1;
+                }
+            }));
 
             latch.await();
 
@@ -96,6 +101,9 @@ public class SchedulerEngineTests extends ESTestCase {
             if (numberOfFailingListeners > 0) {
                 assertFailedListenerLogMessage(mockLogger, numberOfFailingListeners);
             }
+            // Verify the debug logging:
+            verifyDebugLogging(mockLogger);
+
             verifyNoMoreInteractions(mockLogger);
         } finally {
             engine.stop();
@@ -126,25 +134,82 @@ public class SchedulerEngineTests extends ESTestCase {
 
             // latch for each invocation of nextScheduledTimeAfter, once for each scheduled run, and then a final time when we disable
             final CountDownLatch latch = new CountDownLatch(1 + numberOfSchedules);
-            engine.add(new SchedulerEngine.Job(
-                    getTestName(),
-                    (startTime, now) -> {
-                        if (latch.getCount() >= 2) {
-                            latch.countDown();
-                            return 0;
-                        } else if (latch.getCount() == 1) {
-                            latch.countDown();
-                            return -1;
-                        } else {
-                            throw new AssertionError("nextScheduledTimeAfter invoked more than the expected number of times");
-                        }
-                    }));
+            engine.add(new SchedulerEngine.Job(getTestName(), (startTime, now) -> {
+                if (latch.getCount() >= 2) {
+                    latch.countDown();
+                    return 0;
+                } else if (latch.getCount() == 1) {
+                    latch.countDown();
+                    return -1;
+                } else {
+                    throw new AssertionError("nextScheduledTimeAfter invoked more than the expected number of times");
+                }
+            }));
 
             listenersLatch.await();
             assertTrue(listeners.stream().map(Tuple::v2).allMatch(count -> count.get() == numberOfSchedules));
             latch.await();
             assertFailedListenerLogMessage(mockLogger, numberOfSchedules * numberOfListeners);
+            // Verify the debug logging:
+            verifyDebugLogging(mockLogger);
+
             verifyNoMoreInteractions(mockLogger);
+        } finally {
+            engine.stop();
+        }
+    }
+
+    public void testCancellingDuringRunPreventsRescheduling() throws Exception {
+        final CountDownLatch jobRunningLatch = new CountDownLatch(1);
+        final CountDownLatch listenerLatch = new CountDownLatch(1);
+        final AtomicInteger calledCount = new AtomicInteger(0);
+        final SchedulerEngine engine = new SchedulerEngine(Settings.EMPTY, Clock.systemUTC());
+        final String jobId = randomAlphaOfLength(4);
+        try {
+            engine.register(event -> {
+                assertThat(event.getJobName(), is(jobId));
+                calledCount.incrementAndGet();
+                jobRunningLatch.countDown();
+                try {
+                    listenerLatch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            engine.add(new Job(jobId, ((startTime, now) -> 0)));
+
+            jobRunningLatch.await();
+            final int called = calledCount.get();
+            assertEquals(1, called);
+            engine.remove(jobId);
+            listenerLatch.countDown();
+
+            assertBusy(() -> assertEquals(called, calledCount.get()), 5, TimeUnit.MILLISECONDS);
+        } finally {
+            engine.stop();
+        }
+    }
+
+    public void testNextScheduledTimeAfterCurrentScheduledTime() throws Exception {
+        final Clock clock = Clock.fixed(Clock.systemUTC().instant(), ZoneId.of("UTC"));
+        final long oneHourMillis = TimeUnit.HOURS.toMillis(1L);
+        final String jobId = randomAlphaOfLength(4);
+        final SchedulerEngine engine = new SchedulerEngine(Settings.EMPTY, clock);
+        try {
+            engine.add(new Job(jobId, ((startTime, now) -> now + oneHourMillis)));
+
+            ActiveSchedule activeSchedule = engine.getSchedule(jobId);
+            assertNotNull(activeSchedule);
+            assertEquals(clock.millis() + oneHourMillis, activeSchedule.getScheduledTime());
+
+            assertEquals(
+                clock.millis() + oneHourMillis + oneHourMillis,
+                activeSchedule.computeNextScheduledTime(clock.millis() - randomIntBetween(1, 999))
+            );
+            assertEquals(
+                clock.millis() + oneHourMillis + oneHourMillis,
+                activeSchedule.computeNextScheduledTime(clock.millis() + TimeUnit.SECONDS.toMillis(10L))
+            );
         } finally {
             engine.stop();
         }
@@ -163,6 +228,10 @@ public class SchedulerEngineTests extends ESTestCase {
             assertThat(throwable, instanceOf(RuntimeException.class));
             assertThat(throwable.getMessage(), equalTo(getTestName()));
         }
+    }
+
+    private static void verifyDebugLogging(Logger mockLogger) {
+        verify(mockLogger, atLeastOnce()).debug(any(MessageSupplier.class));
     }
 
 }

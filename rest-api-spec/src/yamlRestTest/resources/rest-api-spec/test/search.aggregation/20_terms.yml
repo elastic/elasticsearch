@@ -1,0 +1,1510 @@
+setup:
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                str:
+                   type: keyword
+                ip:
+                   type: ip
+                boolean:
+                   type: boolean
+                integer:
+                  type: long
+                double:
+                  type: double
+                number:
+                  type: long
+                date:
+                  type: date
+
+  - do:
+      indices.create:
+          index: test_2
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                number:
+                  type: double
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+"Basic test":
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: { "str" : "abc" }
+
+  - do:
+      index:
+        index: test_1
+        id: "2"
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        index: test_1
+        id: "3"
+        body: { "str": "bcd" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.str_terms.buckets: 2 }
+
+  - match: { aggregations.str_terms.buckets.0.key: "abc" }
+
+  - is_false: aggregations.str_terms.buckets.0.key_as_string
+
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.str_terms.buckets.1.key: "bcd" }
+
+  - is_false: aggregations.str_terms.buckets.1.key_as_string
+
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+
+---
+"IP test":
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: { "ip": "::1" }
+
+  - do:
+      index:
+        index: test_1
+        id: "2"
+        body: { "ip": "127.0.0.1" }
+
+  - do:
+      index:
+        index: test_1
+        id: "3"
+        body: { "ip": "::1" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.ip_terms.buckets: 2 }
+
+  - match: { aggregations.ip_terms.buckets.0.key: "::1" }
+
+  - is_false: aggregations.ip_terms.buckets.0.key_as_string
+
+  - match: { aggregations.ip_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.ip_terms.buckets.1.key: "127.0.0.1" }
+
+  - is_false: aggregations.ip_terms.buckets.1.key_as_string
+
+  - match: { aggregations.ip_terms.buckets.1.doc_count: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "include" : [ "127.0.0.1" ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.ip_terms.buckets: 1 }
+
+  - match: { aggregations.ip_terms.buckets.0.key: "127.0.0.1" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" : [ "127.0.0.1" ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.ip_terms.buckets: 1 }
+
+  - match: { aggregations.ip_terms.buckets.0.key: "::1" }
+
+  - do:
+      catch: request
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
+
+
+
+---
+"Boolean test":
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: { "boolean": true }
+
+  - do:
+      index:
+        index: test_1
+        id: "2"
+        body: { "boolean": false }
+
+  - do:
+      index:
+        index: test_1
+        id: "3"
+        body: { "boolean": true }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "boolean_terms" : { "terms" : { "field" : "boolean" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.boolean_terms.buckets: 2 }
+
+  - match: { aggregations.boolean_terms.buckets.0.key: 1 }
+
+  - match: { aggregations.boolean_terms.buckets.0.key_as_string: "true" }
+
+  - match: { aggregations.boolean_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.boolean_terms.buckets.1.key: 0 }
+
+  - match: { aggregations.boolean_terms.buckets.1.key_as_string: "false" }
+
+  - match: { aggregations.boolean_terms.buckets.1.doc_count: 1 }
+
+---
+"Integer test":
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: { "integer": 1234 }
+
+  - do:
+      index:
+        index: test_1
+        id: "2"
+        body: { "integer": 5678 }
+
+  - do:
+      index:
+        index: test_1
+        id: "3"
+        body: { "integer": 1234 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "integer_terms" : { "terms" : { "field" : "integer" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.integer_terms.buckets: 2 }
+
+  - match: { aggregations.integer_terms.buckets.0.key: 1234 }
+
+  - is_false: aggregations.integer_terms.buckets.0.key_as_string
+
+  - match: { aggregations.integer_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.integer_terms.buckets.1.key: 5678 }
+
+  - is_false: aggregations.integer_terms.buckets.1.key_as_string
+
+  - match: { aggregations.integer_terms.buckets.1.doc_count: 1 }
+
+---
+"Double test":
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: { "double": 1234.5 }
+
+  - do:
+      index:
+        index: test_1
+        id: "2"
+        body: { "double": 5678.5 }
+
+  - do:
+      index:
+        index: test_1
+        id: "3"
+        body: { "double": 1234.5 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "double_terms" : { "terms" : { "field" : "double" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.double_terms.buckets: 2 }
+
+  - match: { aggregations.double_terms.buckets.0.key: 1234.5 }
+
+  - is_false: aggregations.double_terms.buckets.0.key_as_string
+
+  - match: { aggregations.double_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.double_terms.buckets.1.key: 5678.5 }
+
+  - is_false: aggregations.double_terms.buckets.1.key_as_string
+
+  - match: { aggregations.double_terms.buckets.1.doc_count: 1 }
+
+---
+"Date test":
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: { "date": "2016-05-03" }
+
+  - do:
+      index:
+        index: test_1
+        id: "2"
+        body: { "date": "2014-09-01" }
+
+  - do:
+      index:
+        index: test_1
+        id: "3"
+        body: { "date": "2016-05-03" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.date_terms.buckets: 2 }
+
+  - match: { aggregations.date_terms.buckets.0.key: 1462233600000 }
+
+  - match: { aggregations.date_terms.buckets.0.key_as_string: "2016-05-03T00:00:00.000Z" }
+
+  - match: { aggregations.date_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.date_terms.buckets.1.key: 1409529600000 }
+
+  - match: { aggregations.date_terms.buckets.1.key_as_string: "2014-09-01T00:00:00.000Z" }
+
+  - match: { aggregations.date_terms.buckets.1.doc_count: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date", "include" : [ "2016-05-03" ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.date_terms.buckets: 1 }
+
+  - match: { aggregations.date_terms.buckets.0.key_as_string: "2016-05-03T00:00:00.000Z" }
+
+  - match: { aggregations.date_terms.buckets.0.doc_count: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date", "exclude" : [ "2016-05-03" ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.date_terms.buckets: 1 }
+
+  - match: { aggregations.date_terms.buckets.0.key_as_string: "2014-09-01T00:00:00.000Z" }
+
+  - match: { aggregations.date_terms.buckets.0.doc_count: 1 }
+
+---
+"Partitioned string test":
+
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: { "str" : "abc" }
+
+  - do:
+      index:
+        index: test_1
+        id: "2"
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        index: test_1
+        id: "3"
+        body: { "str": "bcd" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition": 0, "num_partitions": 2 } } } } }
+
+  - match: { hits.total : 3 }
+
+  - length: { aggregations.str_terms.buckets: 1 }
+
+  - match: { aggregations.str_terms.buckets.0.key: "bcd" }
+
+  - is_false: aggregations.str_terms.buckets.0.key_as_string
+
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition": 1, "num_partitions": 2 } } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.str_terms.buckets: 1 }
+
+  - match: { aggregations.str_terms.buckets.0.key: "abc" }
+
+  - is_false: aggregations.str_terms.buckets.0.key_as_string
+
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+
+---
+"Partitioned integer test":
+
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: { "integer": 1234 }
+
+  - do:
+      index:
+        index: test_1
+        id: "2"
+        body: { "integer": 5678 }
+
+  - do:
+      index:
+        index: test_1
+        id: "3"
+        body: { "integer": 1234 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition": 0, "num_partitions": 2 } } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.str_terms.buckets: 1 }
+
+  - match: { aggregations.str_terms.buckets.0.key: 5678 }
+
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition": 1, "num_partitions": 2 } } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.str_terms.buckets: 1 }
+
+  - match: { aggregations.str_terms.buckets.0.key: 1234 }
+
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+
+---
+"Unmapped strings":
+
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "string_terms" : { "terms" : { "field" : "unmapped_string", "value_type" : "string", "missing": "abc" } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.string_terms.buckets: 1 }
+
+  - match: { aggregations.string_terms.buckets.0.key: "abc" }
+
+  - match: { aggregations.string_terms.buckets.0.doc_count: 1 }
+
+---
+"Unmapped booleans":
+
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "boolean_terms" : { "terms" : { "field" : "unmapped_boolean", "value_type" : "boolean", "missing": true } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.boolean_terms.buckets: 1 }
+
+  - match: { aggregations.boolean_terms.buckets.0.key: 1 }
+
+  - match: { aggregations.boolean_terms.buckets.0.key_as_string: "true" }
+
+  - match: { aggregations.boolean_terms.buckets.0.doc_count: 1 }
+
+---
+"Unmapped dates":
+
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "unmapped_date", "value_type" : "date", "missing": "2016-05-11" } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.date_terms.buckets: 1 }
+
+  - match: { aggregations.date_terms.buckets.0.key: 1462924800000 }
+
+  - match: { aggregations.date_terms.buckets.0.key_as_string: "2016-05-11T00:00:00.000Z" }
+
+  - match: { aggregations.date_terms.buckets.0.doc_count: 1 }
+
+---
+"Unmapped longs":
+
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "long_terms" : { "terms" : { "field" : "unmapped_long", "value_type" : "long", "missing": 3 } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.long_terms.buckets: 1 }
+
+  - match: { aggregations.long_terms.buckets.0.key: 3 }
+
+  - match: { aggregations.long_terms.buckets.0.doc_count: 1 }
+
+---
+"Unmapped doubles":
+
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "double_terms" : { "terms" : { "field" : "unmapped_double", "value_type" : "double", "missing": 3.5 } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.double_terms.buckets: 1 }
+
+  - match: { aggregations.double_terms.buckets.0.key: 3.5 }
+
+  - match: { aggregations.double_terms.buckets.0.doc_count: 1 }
+
+---
+"Mixing longs and doubles":
+
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: {"number": 100}
+
+  - do:
+      index:
+        index: test_1
+        id: "2"
+        body: {"number": 10}
+
+  - do:
+      index:
+        index: test_2
+        id: "3"
+        body: {"number": 100.0}
+
+  - do:
+      index:
+        index: test_2
+        id: "1"
+        body: {"number": 10.0}
+
+  - do:
+      index:
+        index: test_2
+        id: "2"
+        body: {"number": 14.6}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "number_terms" : { "terms" : { "field" : "number" } } } }
+
+  - match: { hits.total: 5 }
+
+  - length: { aggregations.number_terms.buckets: 3 }
+
+  - match: { aggregations.number_terms.buckets.0.key: 10.0 }
+
+  - match: { aggregations.number_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.number_terms.buckets.1.key: 100.0 }
+
+  - match: { aggregations.number_terms.buckets.1.doc_count: 2 }
+
+  - match: { aggregations.number_terms.buckets.2.key: 14.6 }
+
+  - match: { aggregations.number_terms.buckets.2.doc_count: 1 }
+
+---
+"Global ordinals are not loaded with the map execution hint":
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: "1"
+        routing: "1"
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: "2"
+        routing: "1"
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: "3"
+        routing: "1"
+        body: { "str": "bcd" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_1
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "map" } } } }
+
+  - match: { hits.total.value: 3}
+  - length: { aggregations.str_terms.buckets: 2 }
+
+  - do:
+      indices.stats:
+        index: test_1
+        metric: fielddata
+        fielddata_fields: str
+
+  - match: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
+
+---
+"Global ordinals are loaded with the global_ordinals execution hint":
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: "1"
+        routing: "1"
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: "2"
+        routing: "1"
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: "3"
+        routing: "1"
+        body: { "str": "bcd" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_1
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "global_ordinals" } } } }
+
+  - match: { hits.total.value: 3}
+  - length: { aggregations.str_terms.buckets: 2 }
+
+  - do:
+      indices.stats:
+        index: test_1
+        metric: fielddata
+        fielddata_fields: str
+
+  - gt: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
+
+---
+"No field or script":
+  - skip:
+      version: " - 7.7.99"
+      reason:  "Exception was a deep, server exception before 7.8"
+  - do:
+      catch: /Required one of fields \[field, script\], but none were specified/
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body: { "size" : 0, "aggs" : { "no_field_terms" : { "terms" : { "size": 1 } } } }
+
+---
+"string profiler via global ordinals filters implementation":
+  - skip:
+      version: " - 7.99.99"
+      reason: profile info changed in 8.0.0 to be backported to 7.14.0
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "boolean": true, "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "boolean": true, "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "boolean": true, "str": "cow", "number": 1 }
+          { "index": {} }
+          { "boolean": true, "str": "pig", "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                collect_mode: breadth_first
+                execution_hint: global_ordinals
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 1 }
+  - match: { aggregations.str_terms.buckets.2.key: pig }
+  - match: { aggregations.str_terms.buckets.2.max_number.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: StringTermsAggregatorFromFilters }
+  - match: { profile.shards.0.aggregations.0.description: str_terms }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.delegate: FilterByFilterAggregator }
+  - match: { profile.shards.0.aggregations.0.debug.delegate_debug.filters.0.query: "str:cow" }
+  - match: { profile.shards.0.aggregations.0.debug.delegate_debug.filters.1.query: "str:pig" }
+  - match: { profile.shards.0.aggregations.0.debug.delegate_debug.filters.2.query: "str:sheep" }
+  - match: { profile.shards.0.aggregations.0.children.0.type: MaxAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.description: max_number }
+  - match: { profile.shards.0.aggregations.0.children.0.breakdown.collect_count: 4 }
+
+---
+"string profiler via global ordinals native implementation":
+  - skip:
+      version: " - 7.8.99"
+      reason: debug information added in 7.9.0
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "boolean": true, "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "boolean": true, "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "boolean": true, "str": "cow", "number": 1 }
+          { "index": {} }
+          { "boolean": true, "str": "pig", "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            bool:    # add a dummy agg "on top" of the child agg just to force it out of filter-by-filter mode
+              terms:
+                field: boolean
+              aggs:
+                str_terms:
+                  terms:
+                    field: str
+                    collect_mode: breadth_first
+                    execution_hint: global_ordinals
+                  aggs:
+                    max_number:
+                      max:
+                        field: number
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.1.key: cow }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.1.max_number.value: 1 }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.2.key: pig }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.2.max_number.value: 1 }
+  - match: { profile.shards.0.aggregations.0.children.0.type: GlobalOrdinalsStringTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.description: str_terms }
+  - match: { profile.shards.0.aggregations.0.children.0.breakdown.collect_count: 4 }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.deferred_aggregators: [ max_number ] }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.collection_strategy: remap using many bucket ords }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.result_strategy: terms }
+  - gt:    { profile.shards.0.aggregations.0.children.0.debug.segments_with_single_valued_ords: 0 }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.segments_with_multi_valued_ords: 0 }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.has_filter: false }
+  - match: { profile.shards.0.aggregations.0.children.0.children.0.type: MaxAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.children.0.description: max_number }
+
+  - do:
+      indices.create:
+          index: test_3
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                str:
+                   type: keyword
+  - do:
+      bulk:
+        index: test_3
+        refresh: true
+        body: |
+          { "index": {} }
+          { "boolean": true, "str": ["pig", "sheep"], "number": 100 }
+
+  - do:
+      search:
+        index: test_3
+        body:
+          profile: true
+          size: 0
+          aggs:
+            bool:    # add a dummy agg "on top" of the child agg just to force it out of filter-by-filter mode
+              terms:
+                field: boolean
+              aggs:
+                str_terms:
+                  terms:
+                    field: str
+                    collect_mode: breadth_first
+                    execution_hint: global_ordinals
+                  aggs:
+                    max_number:
+                      max:
+                        field: number
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.0.key: pig }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.0.max_number.value: 100 }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.1.key: sheep }
+  - match: { aggregations.bool.buckets.0.str_terms.buckets.1.max_number.value: 100 }
+  - match: { profile.shards.0.aggregations.0.children.0.type: GlobalOrdinalsStringTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.description: str_terms }
+  - match: { profile.shards.0.aggregations.0.children.0.breakdown.collect_count: 1 }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.deferred_aggregators: [ max_number ] }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.collection_strategy: remap using many bucket ords }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.result_strategy: terms }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.segments_with_single_valued_ords: 0 }
+  - gt:    { profile.shards.0.aggregations.0.children.0.debug.segments_with_multi_valued_ords: 0 }
+  - match: { profile.shards.0.aggregations.0.children.0.debug.has_filter: false }
+  - match: { profile.shards.0.aggregations.0.children.0.children.0.type: MaxAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.children.0.description: max_number }
+
+
+---
+"string profiler via map":
+  - skip:
+      version: " - 7.8.99"
+      reason: debug information added in 7.9.0
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "str": "cow", "number": 1 }
+          { "index": {} }
+          { "str": "pig", "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                collect_mode: breadth_first
+                execution_hint: map
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 1 }
+  - match: { aggregations.str_terms.buckets.2.key: pig }
+  - match: { aggregations.str_terms.buckets.2.max_number.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: MapStringTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.description: str_terms }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
+  - match: { profile.shards.0.aggregations.0.debug.deferred_aggregators: [ max_number ] }
+  - match: { profile.shards.0.aggregations.0.debug.result_strategy: terms }
+  - match: { profile.shards.0.aggregations.0.children.0.type: MaxAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.description: max_number }
+
+---
+"numeric profiler":
+  - skip:
+      version: " - 7.8.99"
+      reason: debug information added in 7.9.0
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "number": 1 }
+          { "index": {} }
+          { "number": 3 }
+          { "index": {} }
+          { "number": 1 }
+          { "index": {} }
+          { "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            n_terms:
+              terms:
+                field: number
+  - match: { aggregations.n_terms.buckets.0.key: 1 }
+  - match: { aggregations.n_terms.buckets.1.key: 3 }
+  - match: { profile.shards.0.aggregations.0.type: NumericTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.description: n_terms }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
+  - match: { profile.shards.0.aggregations.0.debug.result_strategy: long_terms }
+  - match: { profile.shards.0.aggregations.0.debug.total_buckets: 2 }
+
+---
+"min_doc_count":
+  - skip:
+      version: " - 7.9.2"
+      reason: broken in 7.9.1, was fixed in 7.9.2
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "str": "cow", "number": 1 }
+          { "index": {} }
+          { "str": "pig", "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            simple_query_string:
+              fields: [str]
+              query: sheep cow
+              minimum_should_match: 1
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                min_doc_count: 2
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - length: { aggregations.str_terms.buckets: 1 }
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            simple_query_string:
+              fields: [str]
+              query: sheep cow
+              minimum_should_match: 1
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                min_doc_count: 1
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - length: { aggregations.str_terms.buckets: 2 }
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            simple_query_string:
+              fields: [str]
+              query: sheep cow
+              minimum_should_match: 1
+          aggs:
+            str_terms:
+              terms:
+                field: str
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - length: { aggregations.str_terms.buckets: 2 }
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            simple_query_string:
+              fields: [str]
+              query: sheep cow
+              minimum_should_match: 1
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                min_doc_count: 0
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - length: { aggregations.str_terms.buckets: 3 }
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 1.0 }
+  - match: { aggregations.str_terms.buckets.2.key: pig }
+  - match: { aggregations.str_terms.buckets.2.doc_count: 0 }
+  - match: { aggregations.str_terms.buckets.2.max_number.value: null }
+
+---
+"order by sub agg":
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "str": "cow", "number": 7 }
+          { "index": {} }
+          { "str": "pig", "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                size: 1
+                shard_size: 1
+                field: str
+                order:
+                  - max_number: desc
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - length: { aggregations.str_terms.buckets: 1 }
+  - match: { aggregations.str_terms.buckets.0.key: cow }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 7.0 }
+
+---
+"order by sub agg containing nested":
+  - skip:
+        version: " - 7.11.2"
+        reason: "It was fixed in 7.11.2"
+  - do:
+      indices.put_mapping:
+          index: test_1
+          body:
+            properties:
+              nested:
+                type: nested
+                properties:
+                  tag:
+                    type: keyword
+                  number:
+                    type: long
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep", "nested": [{"tag": "danger", "number": 1}, {"tag": "fluffiness", "number": 10}] }
+          { "index": {} }
+          { "str": "cow", "nested": [{"tag": "danger", "number": 3}, {"tag": "fluffiness", "number": 1}] }
+          { "index": {} }
+          { "str": "pig", "nested": [{"tag": "danger", "number": 100}, {"tag": "fluffiness", "number": 1}] }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                size: 1
+                shard_size: 1
+                field: str
+                order:
+                  - "nested>max_number": desc
+              aggs:
+                nested:
+                  nested:
+                    path: nested
+                  aggs:
+                    max_number:
+                      max:
+                        field: nested.number
+  - length: { aggregations.str_terms.buckets: 1 }
+  - match: { aggregations.str_terms.buckets.0.key: pig }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.0.nested.max_number.value: 100.0 }
+
+---
+"order by sub agg containing filter":
+  - do:
+      indices.put_mapping:
+          index: test_1
+          body:
+            properties:
+              nested:
+                type: nested
+                properties:
+                  tag:
+                    type: keyword
+                  number:
+                    type: long
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "str": "cow", "number": 7 }
+          { "index": {} }
+          { "str": "pig", "number": 100 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                size: 1
+                shard_size: 1
+                field: str
+                order:
+                  - "filter>max_number": desc
+              aggs:
+                filter:
+                  filter:
+                    range:
+                      number:
+                        lt: 10
+                  aggs:
+                    max_number:
+                      max:
+                        field: number
+  - length: { aggregations.str_terms.buckets: 1 }
+  - match: { aggregations.str_terms.buckets.0.key: cow }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.0.filter.max_number.value: 7.0 }
+
+---
+precise size:
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "a" }
+          { "index": {} }
+          { "str": "b" }
+          { "index": {} }
+          { "str": "c" }
+          { "index": {} }
+          { "str": "b" }
+          { "index": {} }
+          { "str": "c" }
+          { "index": {} }
+          { "str": "c" }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            terms:
+              str:
+                - b
+                - c
+          aggs:
+            str_terms:
+              terms:
+                size: 2
+                field: str
+                order:
+                  - _key : asc
+  - length: { aggregations.str_terms.buckets: 2 }
+  - match: { aggregations.str_terms.buckets.0.key: b }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.1.key: c }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 3 }
+
+---
+huge size:
+  - skip:
+        version: " - 7.14.0"
+        reason: "Fixed in 7.14.1"
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "a" }
+          { "index": {} }
+          { "str": "b" }
+          { "index": {} }
+          { "str": "c" }
+          { "index": {} }
+          { "str": "b" }
+          { "index": {} }
+          { "str": "c" }
+          { "index": {} }
+          { "str": "c" }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                size: 2147483647
+                field: str
+                order:
+                  - _key : asc
+  - length: { aggregations.str_terms.buckets: 3 }
+  - match: { aggregations.str_terms.buckets.0.key: a }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.key: b }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.2.key: c }
+  - match: { aggregations.str_terms.buckets.2.doc_count: 3 }
+
+---
+Value type mismatch fails shard:
+  - skip:
+        version: " - 8.0.99"
+        reason: "Fixed in 8.1"
+
+  - do:
+      indices.create:
+          index: valuetype_test_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: keyword
+  - do:
+      indices.create:
+          index: valuetype_test_2
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: ip
+
+  - do:
+      bulk:
+        index: valuetype_test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "ip": "192.168.7.1" }
+          { "index": {} }
+          { "ip": "192.168.7.2" }
+          { "index": {} }
+          { "ip": "192.168.7.3" }
+
+  - do:
+      bulk:
+        index: valuetype_test_2
+        refresh: true
+        body: |
+          { "index": {} }
+          { "ip": "127.0.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.2" }
+          { "index": {} }
+          { "ip": "192.168.0.3" }
+  - do:
+      search:
+        index: valuetype_test_1,valuetype_test_2
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: ip
+                value_type: ip
+
+  - match: { _shards.failed: 1 }
+  - length: { aggregations.str_terms.buckets: 4 }
+  - match: { aggregations.str_terms.buckets.0.key: "127.0.0.1" }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.key: "192.168.0.1" }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.2.key: "192.168.0.2" }
+  - match: { aggregations.str_terms.buckets.2.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.3.key: "192.168.0.3" }
+  - match: { aggregations.str_terms.buckets.3.doc_count: 1 }
+
+---
+Value type mismatch fails shard with no docs:
+  - skip:
+        version: " - 8.0.99"
+        reason: "Fixed in 8.1"
+
+  - do:
+      indices.create:
+          index: valuetype_test_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: keyword
+  - do:
+      indices.create:
+          index: valuetype_test_2
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: ip
+
+  - do:
+      bulk:
+        index: valuetype_test_2
+        refresh: true
+        body: |
+          { "index": {} }
+          { "ip": "127.0.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.2" }
+          { "index": {} }
+          { "ip": "192.168.0.3" }
+  - do:
+      search:
+        index: valuetype_test_1,valuetype_test_2
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: ip
+                value_type: ip
+
+  - match: { _shards.failed: 1 }
+  - length: { aggregations.str_terms.buckets: 4 }
+  - match: { aggregations.str_terms.buckets.0.key: "127.0.0.1" }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.key: "192.168.0.1" }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.2.key: "192.168.0.2" }
+  - match: { aggregations.str_terms.buckets.2.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.3.key: "192.168.0.3" }
+  - match: { aggregations.str_terms.buckets.3.doc_count: 1 }

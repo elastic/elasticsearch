@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.stats;
@@ -24,13 +13,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 public class IndexingPressureStats implements Writeable, ToXContentFragment {
-
 
     private final long totalCombinedCoordinatingAndPrimaryBytes;
     private final long totalCoordinatingBytes;
@@ -45,6 +33,14 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long primaryRejections;
     private final long replicaRejections;
     private final long memoryLimit;
+
+    // These fields will be used for additional back-pressure and metrics in the future
+    private final long totalCoordinatingOps;
+    private final long totalPrimaryOps;
+    private final long totalReplicaOps;
+    private final long currentCoordinatingOps;
+    private final long currentPrimaryOps;
+    private final long currentReplicaOps;
 
     public IndexingPressureStats(StreamInput in) throws IOException {
         totalCombinedCoordinatingAndPrimaryBytes = in.readVLong();
@@ -66,12 +62,36 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         } else {
             memoryLimit = -1L;
         }
+
+        // These are not currently propagated across the network yet
+        this.totalCoordinatingOps = 0;
+        this.totalPrimaryOps = 0;
+        this.totalReplicaOps = 0;
+        this.currentCoordinatingOps = 0;
+        this.currentPrimaryOps = 0;
+        this.currentReplicaOps = 0;
     }
 
-    public IndexingPressureStats(long totalCombinedCoordinatingAndPrimaryBytes, long totalCoordinatingBytes, long totalPrimaryBytes,
-                                 long totalReplicaBytes, long currentCombinedCoordinatingAndPrimaryBytes, long currentCoordinatingBytes,
-                                 long currentPrimaryBytes, long currentReplicaBytes, long coordinatingRejections, long primaryRejections,
-                                 long replicaRejections, long memoryLimit) {
+    public IndexingPressureStats(
+        long totalCombinedCoordinatingAndPrimaryBytes,
+        long totalCoordinatingBytes,
+        long totalPrimaryBytes,
+        long totalReplicaBytes,
+        long currentCombinedCoordinatingAndPrimaryBytes,
+        long currentCoordinatingBytes,
+        long currentPrimaryBytes,
+        long currentReplicaBytes,
+        long coordinatingRejections,
+        long primaryRejections,
+        long replicaRejections,
+        long memoryLimit,
+        long totalCoordinatingOps,
+        long totalPrimaryOps,
+        long totalReplicaOps,
+        long currentCoordinatingOps,
+        long currentPrimaryOps,
+        long currentReplicaOps
+    ) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
         this.totalPrimaryBytes = totalPrimaryBytes;
@@ -84,6 +104,13 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.primaryRejections = primaryRejections;
         this.replicaRejections = replicaRejections;
         this.memoryLimit = memoryLimit;
+
+        this.totalCoordinatingOps = totalCoordinatingOps;
+        this.totalPrimaryOps = totalPrimaryOps;
+        this.totalReplicaOps = totalReplicaOps;
+        this.currentCoordinatingOps = currentCoordinatingOps;
+        this.currentPrimaryOps = currentPrimaryOps;
+        this.currentReplicaOps = currentReplicaOps;
     }
 
     @Override
@@ -151,6 +178,34 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         return replicaRejections;
     }
 
+    public long getTotalCoordinatingOps() {
+        return totalCoordinatingOps;
+    }
+
+    public long getTotalPrimaryOps() {
+        return totalPrimaryOps;
+    }
+
+    public long getTotalReplicaOps() {
+        return totalReplicaOps;
+    }
+
+    public long getCurrentCoordinatingOps() {
+        return currentCoordinatingOps;
+    }
+
+    public long getCurrentPrimaryOps() {
+        return currentPrimaryOps;
+    }
+
+    public long getCurrentReplicaOps() {
+        return currentReplicaOps;
+    }
+
+    public long getMemoryLimit() {
+        return memoryLimit;
+    }
+
     private static final String COMBINED = "combined_coordinating_and_primary";
     private static final String COMBINED_IN_BYTES = "combined_coordinating_and_primary_in_bytes";
     private static final String COORDINATING = "coordinating";
@@ -193,4 +248,3 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         return builder.endObject();
     }
 }
-

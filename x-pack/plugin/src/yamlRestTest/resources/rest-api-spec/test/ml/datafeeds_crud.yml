@@ -1,0 +1,517 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: datafeeds-crud-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count"}],
+                "summary_count_field_name": "doc_count"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: datafeeds-crud-2
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+---
+"Test get all datafeeds and stats given no datafeed exists":
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: "_all"
+  - match: { count: 0 }
+  - match: { datafeeds: [] }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: "_all"
+  - match: { count: 0 }
+  - match: { datafeeds: [] }
+
+---
+"Test get datafeed with expression that does not match and allow_no_match":
+  - skip:
+      features:
+        - "warnings"
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: "missing-*"
+        allow_no_match: true
+  - match: { count: 0 }
+  - match: { datafeeds: [] }
+
+---
+"Test get datafeed with expression that does not match and not allow_no_match":
+  - skip:
+      features:
+        - "warnings"
+
+  - do:
+      catch: missing
+      ml.get_datafeeds:
+        datafeed_id: "missing-*"
+        allow_no_match: false
+
+---
+"Test put datafeed referring to missing job_id":
+  - do:
+      catch: /resource_not_found_exception/
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"a-missing-job",
+            "indexes":["index-foo"]
+          }
+
+---
+"Test put datafeed with security headers in the body":
+  - do:
+      catch: /unknown field \[headers\]/
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indices":["index-foo"],
+            "headers":{ "a_security_header" : "secret" }
+          }
+
+---
+"Test put datafeed referring to existing job_id":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"]
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+  - match: { job_id: "datafeeds-crud-1" }
+  - match: { indices: ["index-foo"] }
+  - match: { scroll_size: 1000 }
+  - is_true: query.match_all
+  - match: { chunking_config: { mode: "auto" }}
+
+---
+"Test put datafeed whose id is already taken":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"]
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+
+  - do:
+      catch: /resource_already_exists_exception/
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-2",
+            "indexes":["index-foo"]
+          }
+
+---
+"Test put datafeed with job_id that is already used by another datafeed":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"]
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+
+  - do:
+      catch: /A datafeed \[test-datafeed-1\] already exists for job \[datafeeds-crud-1\]/
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-2
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"]
+          }
+
+---
+"Test put datafeed with invalid query":
+  - do:
+      catch: /failed\sto\sparse\sfield\s\[query\]/
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"],
+            "query":{"match_all_misspelled":{}}
+          }
+
+---
+"Test update datafeed":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"],
+            "scroll_size": 2000,
+            "frequency": "1m",
+            "query_delay": "30s",
+            "max_empty_searches": 42
+          }
+  - match: { max_empty_searches: 42 }
+
+  - do:
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "indexes":["index-*"],
+            "scroll_size": 10000,
+            "frequency": "2m",
+            "query_delay": "0s",
+            "max_empty_searches": -1
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+  - match: { job_id: "datafeeds-crud-1" }
+  - match: { indices: ["index-*"] }
+  - match: { scroll_size: 10000 }
+  - match: { frequency: "2m" }
+  - match: { query_delay: "0s" }
+  - is_false: max_empty_searches
+
+---
+"Test update datafeed to point to different job":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"],
+            "scroll_size": 2000
+          }
+  - match: { job_id: "datafeeds-crud-1" }
+
+  - do:
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id": "datafeeds-crud-1"
+          }
+  - match: { job_id: "datafeeds-crud-1" }
+
+  - do:
+      catch: /Datafeed's job_id cannot be changed/
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id": "datafeeds-crud-2"
+          }
+
+---
+"Test update datafeed with missing id":
+
+  - do:
+      catch: /resource_not_found_exception/
+      ml.update_datafeed:
+        datafeed_id: a-missing-datafeed
+        body:  >
+          {}
+
+---
+"Test update datafeed to point to missing job":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"],
+            "scroll_size": 2000
+          }
+
+  - do:
+      catch: /Datafeed's job_id cannot be changed/
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id": "update-datafeed-missing-job"
+          }
+
+---
+"Test update datafeed to point to job already attached to another datafeed":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"]
+          }
+
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-2
+        body:  >
+          {
+            "job_id":"datafeeds-crud-2",
+            "indexes":["index-foo"]
+          }
+
+  - do:
+      catch: /Datafeed's job_id cannot be changed/
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id": "datafeeds-crud-2"
+          }
+
+---
+"Test delete datafeed with missing id":
+  - do:
+      catch: /resource_not_found_exception/
+      ml.delete_datafeed:
+        datafeed_id: a-missing-datafeed
+
+---
+"Test put datafeed with chunking_config":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indices":["index-foo"],
+            "chunking_config": {"mode":"manual","time_span": "1h"}
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+  - match: { chunking_config.mode: "manual" }
+  - match: { chunking_config.time_span: "1h" }
+
+---
+"Test put datafeed with aggregations":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-aggs-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indices":["index-foo"],
+            "aggs": {
+              "histogram_buckets":{
+                "date_histogram": {
+                  "field": "@timestamp",
+                  "fixed_interval": "5m",
+                  "time_zone": "UTC",
+                  "min_doc_count": 0
+                },
+                "aggs": {
+                  "@timestamp": {
+                     "max": {
+                        "field": "@timestamp"
+                     }
+                  },
+                  "bytes_in_avg": {
+                    "avg": {
+                       "field": "system.network.in.bytes"
+                    }
+                  },
+                  "bytes_in_derivative": {
+                    "derivative": {
+                      "buckets_path": "bytes_in_avg"
+                    }
+                  },
+                  "non_negative_bytes": {
+                    "bucket_script": {
+                      "buckets_path": {
+                        "bytes": "bytes_in_derivative"
+                      },
+                      "script": "params.bytes > 0 ? params.bytes : null"
+                    }
+                  }
+                }
+              }
+            },
+            "max_empty_searches": -1
+          }
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-datafeed-aggs-1
+  - match: { datafeeds.0.datafeed_id: "test-datafeed-aggs-1" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.date_histogram.field: "@timestamp" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggs.@timestamp.max.field: "@timestamp" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggs.bytes_in_avg.avg.field: "system.network.in.bytes" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggs.non_negative_bytes.bucket_script.buckets_path.bytes: "bytes_in_derivative" }
+  - is_false: max_empty_searches
+
+---
+"Test delete datafeed":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"]
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: test-datafeed-1
+  - match: { acknowledged: true }
+
+---
+"Test force delete datafeed":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"]
+          }
+  - match: { datafeed_id: "test-datafeed-1" }
+
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: test-datafeed-1
+        force: true
+  - match: { acknowledged: true }
+---
+"Test put and update datafeed with indices options":
+  - skip:
+      features: warnings
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-indices-options-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"],
+            "indices_options": {
+               "expand_wildcards": ["closed", "open"],
+               "ignore_throttled": false
+            }
+          }
+  - match: { datafeed_id: "test-datafeed-indices-options-1" }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-datafeed-indices-options-1
+
+  - match: { datafeeds.0.indices_options.ignore_throttled: false }
+  - length: { datafeeds.0.indices_options.expand_wildcards: 2 }
+  - match: { datafeeds.0.indices_options.expand_wildcards.0: open }
+  - match: { datafeeds.0.indices_options.expand_wildcards.1: closed }
+
+  - do:
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-indices-options-1
+        body: >
+          {
+             "indices_options": {
+                "ignore_throttled": true
+             }
+          }
+  - match: { datafeed_id: "test-datafeed-indices-options-1" }
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-datafeed-indices-options-1
+
+  - match: { datafeeds.0.indices_options.ignore_throttled: true }
+---
+"Test put and update datafeed with indices options in params":
+  - skip:
+      features: warnings
+  - do:
+      warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
+      ml.put_datafeed:
+        datafeed_id: test-datafeed-indices-options-params-1
+        ignore_throttled: false
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"]
+          }
+  - match: { datafeed_id: "test-datafeed-indices-options-params-1" }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-datafeed-indices-options-params-1
+
+  - match: { datafeeds.0.indices_options.ignore_throttled: false }
+
+
+  - do:
+      warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-indices-options-params-1
+        ignore_throttled: false
+        allow_no_indices: false
+        body: >
+          {
+          }
+  - match: { datafeed_id: "test-datafeed-indices-options-params-1" }
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-datafeed-indices-options-params-1
+
+  - match: { datafeeds.0.indices_options.ignore_throttled: false }
+  - match: { datafeeds.0.indices_options.allow_no_indices: false }
+---
+"Test get datafeed for export":
+  - do:
+      ml.put_datafeed:
+        datafeed_id: test-for-export
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indexes":["index-foo"]
+          }
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: test-for-export
+        exclude_generated: true
+  - match: { datafeeds.0.indices.0: "index-foo"}
+  - is_false: datafeeds.0.create_time
+  - is_false: datafeeds.0.query_delay
+  - is_false: datafeeds.0.chunking_config

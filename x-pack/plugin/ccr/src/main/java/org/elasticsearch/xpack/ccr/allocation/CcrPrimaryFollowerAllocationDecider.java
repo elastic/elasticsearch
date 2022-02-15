@@ -1,26 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
- */
-
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.allocation;
@@ -54,14 +36,25 @@ public final class CcrPrimaryFollowerAllocationDecider extends AllocationDecider
         }
         final RecoverySource recoverySource = shardRouting.recoverySource();
         if (recoverySource == null || recoverySource.getType() != RecoverySource.Type.SNAPSHOT) {
-            return allocation.decision(Decision.YES, NAME,
-                "shard is a primary follower but was bootstrapped already; hence is not under the purview of this decider");
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "shard is a primary follower but was bootstrapped already; hence is not under the purview of this decider"
+            );
         }
         if (node.node().isRemoteClusterClient() == false) {
-            return allocation.decision(Decision.NO, NAME, "shard is a primary follower and being bootstrapped, but node does not have the "
-                + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "shard is a primary follower and being bootstrapped, but node does not have the "
+                    + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
+                    + " role"
+            );
         }
-        return allocation.decision(Decision.YES, NAME,
-            "shard is a primary follower and node has the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
+        return allocation.decision(
+            Decision.YES,
+            NAME,
+            "shard is a primary follower and node has the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
+        );
     }
 }

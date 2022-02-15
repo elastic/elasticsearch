@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -58,7 +47,7 @@ public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
      */
     static List<RatedSearchHit> joinHitsWithRatings(SearchHit[] hits, List<RatedDocument> ratedDocs) {
         Map<DocumentKey, RatedDocument> ratedDocumentMap = ratedDocs.stream()
-                .collect(Collectors.toMap(RatedDocument::getKey, item -> item));
+            .collect(Collectors.toMap(RatedDocument::getKey, item -> item));
         List<RatedSearchHit> ratedSearchHits = new ArrayList<>(hits.length);
         for (SearchHit hit : hits) {
             DocumentKey key = new DocumentKey(hit.getIndex(), hit.getId());
@@ -76,8 +65,10 @@ public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
      * Filter {@link RatedSearchHit}s that do not have a rating.
      */
     static List<DocumentKey> filterUnratedDocuments(List<RatedSearchHit> ratedHits) {
-        return ratedHits.stream().filter(hit -> hit.getRating().isPresent() == false)
-                .map(hit -> new DocumentKey(hit.getSearchHit().getIndex(), hit.getSearchHit().getId())).collect(Collectors.toList());
+        return ratedHits.stream()
+            .filter(hit -> hit.getRating().isPresent() == false)
+            .map(hit -> new DocumentKey(hit.getSearchHit().getIndex(), hit.getSearchHit().getId()))
+            .collect(Collectors.toList());
     }
 
     /**

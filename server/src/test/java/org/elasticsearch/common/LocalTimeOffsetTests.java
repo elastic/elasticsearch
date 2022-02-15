@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
@@ -22,6 +11,7 @@ package org.elasticsearch.common;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
 import org.elasticsearch.common.LocalTimeOffset.Overlap;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -51,20 +41,22 @@ public class LocalTimeOffsetTests extends ESTestCase {
     }
 
     public void testUtc() {
-        assertFixOffset(ZoneId.of("UTC"), 0);
+        assertFixedOffset(ZoneId.of("UTC"), 0);
     }
 
     public void testFixedOffset() {
         ZoneOffset zone = ZoneOffset.ofTotalSeconds(between((int) -TimeUnit.HOURS.toSeconds(18), (int) TimeUnit.HOURS.toSeconds(18)));
-        assertFixOffset(zone, zone.getTotalSeconds() * 1000);
+        assertFixedOffset(zone, zone.getTotalSeconds() * 1000);
     }
 
-    private void assertFixOffset(ZoneId zone, long offsetMillis) {
+    private void assertFixedOffset(ZoneId zone, long offsetMillis) {
         LocalTimeOffset fixed = LocalTimeOffset.fixedOffset(zone);
         assertThat(fixed, notNullValue());
 
         LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(zone, Long.MIN_VALUE, Long.MAX_VALUE);
         assertThat(lookup.size(), equalTo(1));
+        assertThat(lookup.anyMoveBackToPreviousDay(), equalTo(false));
+
         long min = randomLong();
         long max = randomValueOtherThan(min, ESTestCase::randomLong);
         if (min > max) {
@@ -72,8 +64,10 @@ public class LocalTimeOffsetTests extends ESTestCase {
             min = max;
             max = s;
         }
+
         LocalTimeOffset fixedInRange = lookup.fixedInRange(min, max);
         assertThat(fixedInRange, notNullValue());
+        assertThat(fixedInRange.anyMoveBackToPreviousDay(), equalTo(false));
 
         assertRoundingAtOffset(randomBoolean() ? fixed : fixedInRange, randomLong(), offsetMillis);
     }
@@ -109,8 +103,16 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertTransitions(zone, min, max, time("2020-06-01", zone), min + hours(1), 3, hours(-5), hours(-4));
     }
 
-    private void assertTransitions(ZoneId zone, long min, long max, long between, long sameOffsetAsMin,
-            int size, long minMaxOffset, long betweenOffset) {
+    private void assertTransitions(
+        ZoneId zone,
+        long min,
+        long max,
+        long between,
+        long sameOffsetAsMin,
+        int size,
+        long minMaxOffset,
+        long betweenOffset
+    ) {
         LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(zone, min, max);
         assertThat(lookup.size(), equalTo(size));
         assertRoundingAtOffset(lookup.lookup(min), min, minMaxOffset);
@@ -118,6 +120,7 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertRoundingAtOffset(lookup.lookup(max), max, minMaxOffset);
         assertThat(lookup.fixedInRange(min, max), nullValue());
         assertThat(lookup.fixedInRange(min, sameOffsetAsMin), sameInstance(lookup.lookup(min)));
+        assertThat(lookup.anyMoveBackToPreviousDay(), equalTo(false)); // None of the examples we use this method with move back
     }
 
     // Some sanity checks for when you pas a single time. We don't expect to do this much but it shouldn't be totally borked.
@@ -202,12 +205,16 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(firstMidnightOffset.localToUtcInThisOffset(localFirstMidnight), equalTo(firstMidnight));
         assertThat(secondMidnightOffset.localToUtcInThisOffset(localFirstMidnight), equalTo(secondMidnight));
         assertThat(secondMidnightOffset.localToUtcInThisOffset(localOverlapEnds), equalTo(overlapEnds));
-        assertThat(secondMidnightOffset.localToUtcInThisOffset(localOverlappingTime),
-                equalTo(firstMidnightOffset.localToUtcInThisOffset(localOverlappingTime) + overlapMillis));
+        assertThat(
+            secondMidnightOffset.localToUtcInThisOffset(localOverlappingTime),
+            equalTo(firstMidnightOffset.localToUtcInThisOffset(localOverlappingTime) + overlapMillis)
+        );
 
         long beforeOverlapValue = randomLong();
-        assertThat(secondMidnightOffset.localToUtc(localFirstMidnight - 1, useValueForBeforeOverlap(beforeOverlapValue)),
-                equalTo(beforeOverlapValue));
+        assertThat(
+            secondMidnightOffset.localToUtc(localFirstMidnight - 1, useValueForBeforeOverlap(beforeOverlapValue)),
+            equalTo(beforeOverlapValue)
+        );
         long overlapValue = randomLong();
         assertThat(secondMidnightOffset.localToUtc(localFirstMidnight, useValueForOverlap(overlapValue)), equalTo(overlapValue));
         assertThat(secondMidnightOffset.localToUtc(localOverlapEnds, unusedStrategy()), equalTo(overlapEnds));
@@ -241,6 +248,27 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertThat(gapOffset.localToUtc(localSkippedTime, useValueForGap(gapValue)), equalTo(gapValue));
     }
 
+    public void testKnownMovesBackToPreviousDay() {
+        assertKnownMovesBacktoPreviousDay("America/Goose_Bay", "2010-11-07T03:01:00");
+        assertKnownMovesBacktoPreviousDay("America/Moncton", "2006-10-29T03:01:00");
+        assertKnownMovesBacktoPreviousDay("America/Moncton", "2005-10-29T03:01:00");
+        assertKnownMovesBacktoPreviousDay("America/St_Johns", "2010-11-07T02:31:00");
+        assertKnownMovesBacktoPreviousDay("Canada/Newfoundland", "2010-11-07T02:31:00");
+        if (JavaVersion.current().compareTo(JavaVersion.parse("11")) > 0) {
+            // Added in java 12
+            assertKnownMovesBacktoPreviousDay("Pacific/Guam", "1969-01-25T13:01:00");
+            assertKnownMovesBacktoPreviousDay("Pacific/Saipan", "1969-01-25T13:01:00");
+        }
+    }
+
+    private void assertKnownMovesBacktoPreviousDay(String zone, String time) {
+        long utc = utcTime(time);
+        assertTrue(
+            zone + " just after " + time + " should move back",
+            LocalTimeOffset.lookup(ZoneId.of(zone), utc, utc + 1).anyMoveBackToPreviousDay()
+        );
+    }
+
     private static long utcTime(String time) {
         return DateFormatter.forPattern("date_optional_time").parseMillis(time);
     }
@@ -254,7 +282,7 @@ public class LocalTimeOffsetTests extends ESTestCase {
      */
     private static ZoneOffsetTransition lastTransitionIn(ZoneId zone) {
         List<ZoneOffsetTransition> transitions = zone.getRules().getTransitions();
-        return transitions.get(transitions.size() -1);
+        return transitions.get(transitions.size() - 1);
     }
 
     private static LocalTimeOffset.Strategy unusedStrategy() {
@@ -365,7 +393,6 @@ public class LocalTimeOffsetTests extends ESTestCase {
             }
         };
     }
-
 
     private static LocalTimeOffset.Strategy useValueForBeforeOverlap(long beforeOverlapValue) {
         return new LocalTimeOffset.Strategy() {

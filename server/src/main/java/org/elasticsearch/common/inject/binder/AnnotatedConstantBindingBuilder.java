@@ -28,8 +28,7 @@ public interface AnnotatedConstantBindingBuilder {
     /**
      * See the EDSL examples at {@link org.elasticsearch.common.inject.Binder}.
      */
-    ConstantBindingBuilder annotatedWith(
-            Class<? extends Annotation> annotationType);
+    ConstantBindingBuilder annotatedWith(Class<? extends Annotation> annotationType);
 
     /**
      * See the EDSL examples at {@link org.elasticsearch.common.inject.Binder}.

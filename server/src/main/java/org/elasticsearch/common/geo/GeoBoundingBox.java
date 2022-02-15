@@ -1,36 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -40,8 +29,7 @@ import java.util.Objects;
  * A class representing a Geo-Bounding-Box for use by Geo queries and aggregations
  * that deal with extents/rectangles representing rectangular areas of interest.
  */
-public class GeoBoundingBox implements ToXContentObject, Writeable {
-    private static final WellKnownText WKT_PARSER = new WellKnownText(true, new StandardValidator(true));
+public class GeoBoundingBox implements ToXContentFragment, Writeable {
     static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
     static final ParseField TOP_FIELD = new ParseField("top");
@@ -69,8 +57,10 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
     }
 
     public boolean isUnbounded() {
-        return Double.isNaN(topLeft.lon()) || Double.isNaN(topLeft.lat())
-            || Double.isNaN(bottomRight.lon()) || Double.isNaN(bottomRight.lat());
+        return Double.isNaN(topLeft.lon())
+            || Double.isNaN(topLeft.lat())
+            || Double.isNaN(bottomRight.lon())
+            || Double.isNaN(bottomRight.lat());
     }
 
     public GeoPoint topLeft() {
@@ -99,7 +89,7 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(BOUNDS_FIELD.getPreferredName());
+        builder.startObject();
         toXContentFragment(builder, true);
         builder.endObject();
         return builder;
@@ -156,8 +146,7 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GeoBoundingBox that = (GeoBoundingBox) o;
-        return topLeft.equals(that.topLeft) &&
-            bottomRight.equals(that.bottomRight);
+        return topLeft.equals(that.topLeft) && bottomRight.equals(that.bottomRight);
     }
 
     @Override
@@ -194,13 +183,14 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
                 token = parser.nextToken();
                 if (WKT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
-                        Geometry geometry = WKT_PARSER.fromWKT(parser.text());
+                        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, parser.text());
                         if (ShapeType.ENVELOPE.equals(geometry.type()) == false) {
-                            throw new ElasticsearchParseException("failed to parse WKT bounding box. ["
-                                + geometry.type() + "] found. expected [" + ShapeType.ENVELOPE + "]");
+                            throw new ElasticsearchParseException(
+                                "failed to parse WKT bounding box. [" + geometry.type() + "] found. expected [" + ShapeType.ENVELOPE + "]"
+                            );
                         }
                         envelope = (Rectangle) geometry;
-                    } catch (ParseException|IllegalArgumentException e) {
+                    } catch (ParseException | IllegalArgumentException e) {
                         throw new ElasticsearchParseException("failed to parse WKT bounding box", e);
                     }
                 } else if (TOP_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -237,10 +227,13 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
             }
         }
         if (envelope != null) {
-            if (Double.isNaN(top) == false || Double.isNaN(bottom) == false || Double.isNaN(left) == false ||
-                Double.isNaN(right) == false) {
-                throw new ElasticsearchParseException("failed to parse bounding box. Conflicting definition found "
-                    + "using well-known text and explicit corners.");
+            if (Double.isNaN(top) == false
+                || Double.isNaN(bottom) == false
+                || Double.isNaN(left) == false
+                || Double.isNaN(right) == false) {
+                throw new ElasticsearchParseException(
+                    "failed to parse bounding box. Conflicting definition found " + "using well-known text and explicit corners."
+                );
             }
             GeoPoint topLeft = new GeoPoint(envelope.getMaxLat(), envelope.getMinLon());
             GeoPoint bottomRight = new GeoPoint(envelope.getMinLat(), envelope.getMaxLon());

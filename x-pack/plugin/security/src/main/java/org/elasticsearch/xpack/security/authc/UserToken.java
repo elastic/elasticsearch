@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc;
 
@@ -11,8 +12,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
@@ -86,7 +87,7 @@ public final class UserToken implements Writeable, ToXContentObject {
     }
 
     /**
-     * Get the authentication
+     * Get the authentication (will not be null)
      */
     Authentication getAuthentication() {
         return authentication;
@@ -148,6 +149,7 @@ public final class UserToken implements Writeable, ToXContentObject {
         if (versionId == null) {
             throw new IllegalStateException("user token source document does not have the \"version\" field");
         }
+        @SuppressWarnings("unchecked")
         final Map<String, Object> metadata = (Map<String, Object>) source.get("metadata");
         final String authString = (String) source.get("authentication");
         if (authString == null) {

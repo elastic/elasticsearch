@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -16,10 +17,11 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
@@ -30,7 +32,7 @@ import java.util.Map;
 import java.util.Spliterator;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep> {
 
@@ -45,10 +47,12 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
     private IndexMetadata makeMeta(Index index) {
         return IndexMetadata.builder(index.getName())
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            )
             .build();
     }
 
@@ -59,17 +63,10 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         int maxNumSegments = instance.getMaxNumSegments();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                maxNumSegments += 1;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> maxNumSegments += 1;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new SegmentCountStep(key, nextKey, null, maxNumSegments);
@@ -85,10 +82,10 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         IndicesSegmentResponse indicesSegmentResponse = Mockito.mock(IndicesSegmentResponse.class);
         IndexSegments indexSegments = Mockito.mock(IndexSegments.class);
-        IndexShardSegments indexShardSegments = Mockito.mock(IndexShardSegments.class);
-        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
         ShardSegments shardSegmentsOne = Mockito.mock(ShardSegments.class);
         ShardSegments[] shardSegmentsArray = new ShardSegments[] { shardSegmentsOne };
+        IndexShardSegments indexShardSegments = new IndexShardSegments(ShardId.fromString("[idx][123]"), shardSegmentsArray);
+        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
         Spliterator<IndexShardSegments> iss = indexShards.values().spliterator();
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < maxNumSegments - randomIntBetween(0, 3); i++) {
@@ -97,7 +94,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(indicesSegmentResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Collections.singletonMap(index.getName(), indexSegments));
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
-        Mockito.when(indexShardSegments.getShards()).thenReturn(shardSegmentsArray);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
 
         Step.StepKey stepKey = randomStepKey();
@@ -138,10 +134,10 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         IndicesSegmentResponse indicesSegmentResponse = Mockito.mock(IndicesSegmentResponse.class);
         IndexSegments indexSegments = Mockito.mock(IndexSegments.class);
-        IndexShardSegments indexShardSegments = Mockito.mock(IndexShardSegments.class);
-        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
         ShardSegments shardSegmentsOne = Mockito.mock(ShardSegments.class);
         ShardSegments[] shardSegmentsArray = new ShardSegments[] { shardSegmentsOne };
+        IndexShardSegments indexShardSegments = new IndexShardSegments(ShardId.fromString("[idx][123]"), shardSegmentsArray);
+        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
         Spliterator<IndexShardSegments> iss = indexShards.values().spliterator();
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < maxNumSegments + randomIntBetween(1, 3); i++) {
@@ -150,7 +146,6 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(indicesSegmentResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Collections.singletonMap(index.getName(), indexSegments));
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
-        Mockito.when(indexShardSegments.getShards()).thenReturn(shardSegmentsArray);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
 
         Step.StepKey stepKey = randomStepKey();
@@ -191,10 +186,10 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         IndicesSegmentResponse indicesSegmentResponse = Mockito.mock(IndicesSegmentResponse.class);
         IndexSegments indexSegments = Mockito.mock(IndexSegments.class);
-        IndexShardSegments indexShardSegments = Mockito.mock(IndexShardSegments.class);
-        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
         ShardSegments shardSegmentsOne = Mockito.mock(ShardSegments.class);
         ShardSegments[] shardSegmentsArray = new ShardSegments[] { shardSegmentsOne };
+        IndexShardSegments indexShardSegments = new IndexShardSegments(ShardId.fromString("[idx][123]"), shardSegmentsArray);
+        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
         Spliterator<IndexShardSegments> iss = indexShards.values().spliterator();
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < maxNumSegments + randomIntBetween(1, 3); i++) {
@@ -203,10 +198,11 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(indicesSegmentResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Collections.singletonMap(index.getName(), null));
         Mockito.when(indicesSegmentResponse.getShardFailures())
-            .thenReturn(new DefaultShardOperationFailedException[]{new DefaultShardOperationFailedException(index.getName(),
-                0, new IllegalArgumentException("fake"))});
+            .thenReturn(
+                new DefaultShardOperationFailedException[] {
+                    new DefaultShardOperationFailedException(index.getName(), 0, new IllegalArgumentException("fake")) }
+            );
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
-        Mockito.when(indexShardSegments.getShards()).thenReturn(shardSegmentsArray);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
 
         Step.StepKey stepKey = randomStepKey();

@@ -1,0 +1,15 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+branch-consistency
+    display-name: "elastic / elasticsearch # %BRANCH% - branch consistency"
+    description: Testing of the Elasticsearch master branch version consistency.
+    triggers:
+      - timed: "H 7 * * *"
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          $WORKSPACE/.ci/scripts/run-gradle.sh branchConsistency

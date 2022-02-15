@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -21,8 +21,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ public class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleVal
     public HistoBackedAvgAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
@@ -53,10 +53,9 @@ public class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleVal
         this.valuesSource = valuesSourceConfig.hasValues() ? (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource() : null;
         this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
-            final BigArrays bigArrays = context.bigArrays();
-            counts = bigArrays.newLongArray(1, true);
-            sums = bigArrays.newDoubleArray(1, true);
-            compensations = bigArrays.newDoubleArray(1, true);
+            counts = bigArrays().newLongArray(1, true);
+            sums = bigArrays().newDoubleArray(1, true);
+            compensations = bigArrays().newDoubleArray(1, true);
         }
     }
 
@@ -66,21 +65,19 @@ public class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleVal
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final HistogramValues values = valuesSource.getHistogramValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                counts = bigArrays.grow(counts, bucket + 1);
-                sums = bigArrays.grow(sums, bucket + 1);
-                compensations = bigArrays.grow(compensations, bucket + 1);
+                counts = bigArrays().grow(counts, bucket + 1);
+                sums = bigArrays().grow(sums, bucket + 1);
+                compensations = bigArrays().grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final HistogramValue sketch = values.histogram();

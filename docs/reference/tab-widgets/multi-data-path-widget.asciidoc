@@ -1,0 +1,39 @@
+++++
+<div class="tabs" data-tab-group="os">
+  <div role="tablist" aria-label="multi-data-path">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="unix-tab-multi-data-path"
+            id="unix-multi-data-path">
+      Unix-like systems
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="win-tab-multi-data-path"
+            id="win-multi-data-path">
+      Windows
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="unix-tab-multi-data-path"
+       aria-labelledby="unix-multi-data-path">
+++++
+
+include::multi-data-path.asciidoc[tag=unix]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="win-tab-multi-data-path"
+       aria-labelledby="win-multi-data-path"
+       hidden="">
+++++
+
+include::multi-data-path.asciidoc[tag=win]
+
+++++
+  </div>
+</div>
+++++

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
@@ -10,13 +11,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,7 +37,8 @@ public class QueryProvider implements Writeable, ToXContentObject {
         return new QueryProvider(
             Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap()),
             QueryBuilders.matchAllQuery(),
-            null);
+            null
+        );
     }
 
     public static QueryProvider fromXContent(XContentParser parser, boolean lenient, String failureMessage) throws IOException {
@@ -45,9 +47,9 @@ public class QueryProvider implements Writeable, ToXContentObject {
         Exception exception = null;
         try {
             parsedQuery = XContentObjectTransformer.queryBuilderTransformer(parser.getXContentRegistry()).fromMap(query);
-        } catch(Exception ex) {
+        } catch (Exception ex) {
             if (ex.getCause() instanceof IllegalArgumentException) {
-                ex = (Exception)ex.getCause();
+                ex = (Exception) ex.getCause();
             }
             exception = ex;
             if (lenient) {
@@ -60,12 +62,13 @@ public class QueryProvider implements Writeable, ToXContentObject {
     }
 
     public static QueryProvider fromParsedQuery(QueryBuilder parsedQuery) throws IOException {
-        return parsedQuery == null ?
-            null :
-            new QueryProvider(
+        return parsedQuery == null
+            ? null
+            : new QueryProvider(
                 XContentObjectTransformer.queryBuilderTransformer(NamedXContentRegistry.EMPTY).toMap(parsedQuery),
                 parsedQuery,
-                null);
+                null
+            );
     }
 
     public static QueryProvider fromStream(StreamInput in) throws IOException {
@@ -129,4 +132,3 @@ public class QueryProvider implements Writeable, ToXContentObject {
         return builder;
     }
 }
-

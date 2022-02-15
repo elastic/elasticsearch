@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.attachment;
@@ -22,6 +11,7 @@ package org.elasticsearch.ingest.attachment;
 import org.apache.tika.exception.ZeroByteFileException;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
@@ -55,10 +45,22 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final Set<Property> properties;
     private final int indexedChars;
     private final boolean ignoreMissing;
+    private final boolean removeBinary;
     private final String indexedCharsField;
+    private final String resourceName;
 
-    AttachmentProcessor(String tag, String description, String field, String targetField, Set<Property> properties,
-                        int indexedChars, boolean ignoreMissing, String indexedCharsField) {
+    AttachmentProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        Set<Property> properties,
+        int indexedChars,
+        boolean ignoreMissing,
+        String indexedCharsField,
+        String resourceName,
+        boolean removeBinary
+    ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -66,10 +68,17 @@ public final class AttachmentProcessor extends AbstractProcessor {
         this.indexedChars = indexedChars;
         this.ignoreMissing = ignoreMissing;
         this.indexedCharsField = indexedCharsField;
+        this.resourceName = resourceName;
+        this.removeBinary = removeBinary;
     }
 
     boolean isIgnoreMissing() {
         return ignoreMissing;
+    }
+
+    // For tests only
+    boolean isRemoveBinary() {
+        return removeBinary;
     }
 
     @Override
@@ -77,28 +86,34 @@ public final class AttachmentProcessor extends AbstractProcessor {
         Map<String, Object> additionalFields = new HashMap<>();
 
         byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
-
+        String resourceNameInput = null;
+        if (resourceName != null) {
+            resourceNameInput = ingestDocument.getFieldValue(resourceName, String.class, true);
+        }
         if (input == null && ignoreMissing) {
             return ingestDocument;
         } else if (input == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
         }
 
-        Integer indexedChars = this.indexedChars;
+        Integer indexedCharsValue = this.indexedChars;
 
         if (indexedCharsField != null) {
             // If the user provided the number of characters to be extracted as part of the document, we use it
-            indexedChars = ingestDocument.getFieldValue(indexedCharsField, Integer.class, true);
-            if (indexedChars == null) {
+            indexedCharsValue = ingestDocument.getFieldValue(indexedCharsField, Integer.class, true);
+            if (indexedCharsValue == null) {
                 // If the field does not exist we fall back to the global limit
-                indexedChars = this.indexedChars;
+                indexedCharsValue = this.indexedChars;
             }
         }
 
         Metadata metadata = new Metadata();
+        if (resourceNameInput != null) {
+            metadata.set(Metadata.RESOURCE_NAME_KEY, resourceNameInput);
+        }
         String parsedContent = "";
         try {
-            parsedContent = TikaImpl.parse(input, metadata, indexedChars);
+            parsedContent = TikaImpl.parse(input, metadata, indexedCharsValue);
         } catch (ZeroByteFileException e) {
             // tika 1.17 throws an exception when the InputStream has 0 bytes.
             // previously, it did not mind. This is here to preserve that behavior.
@@ -118,40 +133,11 @@ public final class AttachmentProcessor extends AbstractProcessor {
             additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
         }
 
-        if (properties.contains(Property.DATE)) {
-            String createdDate = metadata.get(TikaCoreProperties.CREATED);
-            if (createdDate != null) {
-                additionalFields.put(Property.DATE.toLowerCase(), createdDate);
-            }
-        }
-
-        if (properties.contains(Property.TITLE)) {
-            String title = metadata.get(TikaCoreProperties.TITLE);
-            if (Strings.hasLength(title)) {
-                additionalFields.put(Property.TITLE.toLowerCase(), title);
-            }
-        }
-
-        if (properties.contains(Property.AUTHOR)) {
-            String author = metadata.get("Author");
-            if (Strings.hasLength(author)) {
-                additionalFields.put(Property.AUTHOR.toLowerCase(), author);
-            }
-        }
-
-        if (properties.contains(Property.KEYWORDS)) {
-            String keywords = metadata.get("Keywords");
-            if (Strings.hasLength(keywords)) {
-                additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
-            }
-        }
-
-        if (properties.contains(Property.CONTENT_TYPE)) {
-            String contentType = metadata.get(Metadata.CONTENT_TYPE);
-            if (Strings.hasLength(contentType)) {
-                additionalFields.put(Property.CONTENT_TYPE.toLowerCase(), contentType);
-            }
-        }
+        addAdditionalField(additionalFields, Property.DATE, metadata.get(TikaCoreProperties.CREATED));
+        addAdditionalField(additionalFields, Property.TITLE, metadata.get(TikaCoreProperties.TITLE));
+        addAdditionalField(additionalFields, Property.AUTHOR, metadata.get("Author"));
+        addAdditionalField(additionalFields, Property.KEYWORDS, metadata.get("Keywords"));
+        addAdditionalField(additionalFields, Property.CONTENT_TYPE, metadata.get(Metadata.CONTENT_TYPE));
 
         if (properties.contains(Property.CONTENT_LENGTH)) {
             String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
@@ -164,8 +150,48 @@ public final class AttachmentProcessor extends AbstractProcessor {
             additionalFields.put(Property.CONTENT_LENGTH.toLowerCase(), length);
         }
 
+        addAdditionalField(additionalFields, Property.AUTHOR, metadata.get(TikaCoreProperties.CREATOR));
+        addAdditionalField(additionalFields, Property.KEYWORDS, metadata.get(Office.KEYWORDS));
+
+        addAdditionalField(additionalFields, Property.MODIFIED, metadata.get(TikaCoreProperties.MODIFIED));
+        addAdditionalField(additionalFields, Property.FORMAT, metadata.get(TikaCoreProperties.FORMAT));
+        addAdditionalField(additionalFields, Property.IDENTIFIER, metadata.get(TikaCoreProperties.IDENTIFIER));
+        addAdditionalField(additionalFields, Property.CONTRIBUTOR, metadata.get(TikaCoreProperties.CONTRIBUTOR));
+        addAdditionalField(additionalFields, Property.COVERAGE, metadata.get(TikaCoreProperties.COVERAGE));
+        addAdditionalField(additionalFields, Property.MODIFIER, metadata.get(TikaCoreProperties.MODIFIER));
+        addAdditionalField(additionalFields, Property.CREATOR_TOOL, metadata.get(TikaCoreProperties.CREATOR_TOOL));
+        addAdditionalField(additionalFields, Property.PUBLISHER, metadata.get(TikaCoreProperties.PUBLISHER));
+        addAdditionalField(additionalFields, Property.RELATION, metadata.get(TikaCoreProperties.RELATION));
+        addAdditionalField(additionalFields, Property.RIGHTS, metadata.get(TikaCoreProperties.RIGHTS));
+        addAdditionalField(additionalFields, Property.SOURCE, metadata.get(TikaCoreProperties.SOURCE));
+        addAdditionalField(additionalFields, Property.TYPE, metadata.get(TikaCoreProperties.TYPE));
+        addAdditionalField(additionalFields, Property.DESCRIPTION, metadata.get(TikaCoreProperties.DESCRIPTION));
+        addAdditionalField(additionalFields, Property.PRINT_DATE, metadata.get(TikaCoreProperties.PRINT_DATE));
+        addAdditionalField(additionalFields, Property.METADATA_DATE, metadata.get(TikaCoreProperties.METADATA_DATE));
+        addAdditionalField(additionalFields, Property.LATITUDE, metadata.get(TikaCoreProperties.LATITUDE));
+        addAdditionalField(additionalFields, Property.LONGITUDE, metadata.get(TikaCoreProperties.LONGITUDE));
+        addAdditionalField(additionalFields, Property.ALTITUDE, metadata.get(TikaCoreProperties.ALTITUDE));
+        addAdditionalField(additionalFields, Property.RATING, metadata.get(TikaCoreProperties.RATING));
+        addAdditionalField(additionalFields, Property.COMMENTS, metadata.get(TikaCoreProperties.COMMENTS));
+
         ingestDocument.setFieldValue(targetField, additionalFields);
+
+        if (removeBinary) {
+            ingestDocument.removeField(field);
+        }
         return ingestDocument;
+    }
+
+    /**
+     * Add an additional field if not null or empty
+     * @param additionalFields  additional fields
+     * @param property          property to add
+     * @param value             value to add
+     */
+    private <T> void addAdditionalField(Map<String, Object> additionalFields, Property property, String value) {
+        if (properties.contains(property) && Strings.hasLength(value)) {
+            additionalFields.put(property.toLowerCase(), value);
+        }
     }
 
     @Override
@@ -194,14 +220,20 @@ public final class AttachmentProcessor extends AbstractProcessor {
         static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
 
         @Override
-        public AttachmentProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                          String description, Map<String, Object> config) throws Exception {
+        public AttachmentProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
+            String resourceName = readOptionalStringProperty(TYPE, processorTag, config, "resource_name");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
+            boolean removeBinary = readBooleanProperty(TYPE, processorTag, config, "remove_binary", false);
 
             final Set<Property> properties;
             if (propertyNames != null) {
@@ -210,16 +242,30 @@ public final class AttachmentProcessor extends AbstractProcessor {
                     try {
                         properties.add(Property.parse(fieldName));
                     } catch (Exception e) {
-                        throw newConfigurationException(TYPE, processorTag, "properties", "illegal field option [" +
-                            fieldName + "]. valid values are " + Arrays.toString(Property.values()));
+                        throw newConfigurationException(
+                            TYPE,
+                            processorTag,
+                            "properties",
+                            "illegal field option [" + fieldName + "]. valid values are " + Arrays.toString(Property.values())
+                        );
                     }
                 }
             } else {
                 properties = DEFAULT_PROPERTIES;
             }
 
-            return new AttachmentProcessor(processorTag, description, field, targetField, properties, indexedChars, ignoreMissing,
-                indexedCharsField);
+            return new AttachmentProcessor(
+                processorTag,
+                description,
+                field,
+                targetField,
+                properties,
+                indexedChars,
+                ignoreMissing,
+                indexedCharsField,
+                resourceName,
+                removeBinary
+            );
         }
     }
 
@@ -232,7 +278,27 @@ public final class AttachmentProcessor extends AbstractProcessor {
         DATE,
         CONTENT_TYPE,
         CONTENT_LENGTH,
-        LANGUAGE;
+        LANGUAGE,
+        MODIFIED,
+        FORMAT,
+        IDENTIFIER,
+        CONTRIBUTOR,
+        COVERAGE,
+        MODIFIER,
+        CREATOR_TOOL,
+        PUBLISHER,
+        RELATION,
+        RIGHTS,
+        SOURCE,
+        TYPE,
+        DESCRIPTION,
+        PRINT_DATE,
+        METADATA_DATE,
+        LATITUDE,
+        LONGITUDE,
+        ALTITUDE,
+        RATING,
+        COMMENTS;
 
         public static Property parse(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));

@@ -1,11 +1,11 @@
 [[binary]]
-=== Binary data type
+=== Binary field type
 ++++
 <titleabbrev>Binary</titleabbrev>
 ++++
 
 The `binary` type accepts a binary value as a
-https://en.wikipedia.org/wiki/Base64[Base64] encoded string. The field is not
+{wikipedia}/Base64[Base64] encoded string. The field is not
 stored by default and is not searchable:
 
 [source,console]

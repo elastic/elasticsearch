@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -68,7 +69,7 @@ public class EsDriver implements Driver {
         if (url == null) {
             throw new JdbcSQLException("Non-null url required");
         }
-        if (!acceptsURL(url)) {
+        if (acceptsURL(url) == false) {
             return null;
         }
 
@@ -88,7 +89,7 @@ public class EsDriver implements Driver {
 
     @Override
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-        if (!acceptsURL(url)) {
+        if (acceptsURL(url) == false) {
             return new DriverPropertyInfo[0];
         }
         return JdbcConfiguration.create(url, info, DriverManager.getLoginTimeout()).driverPropertyInfo();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.literal.interval;
@@ -50,14 +51,18 @@ public class IntervalYearMonth extends Interval<Period> {
 
     @Override
     public IntervalYearMonth add(Interval<Period> interval) {
-        return new IntervalYearMonth(interval().plus(interval.interval()).normalized(),
-                Intervals.compatibleInterval(dataType(), interval.dataType()));
+        return new IntervalYearMonth(
+            interval().plus(interval.interval()).normalized(),
+            Intervals.compatibleInterval(dataType(), interval.dataType())
+        );
     }
 
     @Override
     public IntervalYearMonth sub(Interval<Period> interval) {
-        return new IntervalYearMonth(interval().minus(interval.interval()).normalized(),
-                Intervals.compatibleInterval(dataType(), interval.dataType()));
+        return new IntervalYearMonth(
+            interval().minus(interval.interval()).normalized(),
+            Intervals.compatibleInterval(dataType(), interval.dataType())
+        );
     }
 
     @Override

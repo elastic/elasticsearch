@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-bucket-sort-aggregation]]
-=== Bucket Sort Aggregation
+=== Bucket sort aggregation
+++++
+<titleabbrev>Bucket sort</titleabbrev>
+++++
 
 A parent pipeline aggregation which sorts the buckets of its parent multi-bucket aggregation.
 Zero or more sort fields may be specified together with the corresponding sort order.
@@ -108,7 +111,7 @@ And the following may be the response:
                "doc_count": 2,
                "total_sales": {
                    "value": 375.0
-               },
+               }
             },
             {
                "key_as_string": "2015/02/01 00:00:00",
@@ -116,7 +119,7 @@ And the following may be the response:
                "doc_count": 2,
                "total_sales": {
                    "value": 60.0
-               },
+               }
             }
          ]
       }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.privilege;
 
@@ -28,8 +29,11 @@ public class TransportDeletePrivilegesAction extends HandledTransportAction<Dele
     private final NativePrivilegeStore privilegeStore;
 
     @Inject
-    public TransportDeletePrivilegesAction(ActionFilters actionFilters, NativePrivilegeStore privilegeStore,
-                                           TransportService transportService) {
+    public TransportDeletePrivilegesAction(
+        ActionFilters actionFilters,
+        NativePrivilegeStore privilegeStore,
+        TransportService transportService
+    ) {
         super(DeletePrivilegesAction.NAME, transportService, actionFilters, DeletePrivilegesRequest::new);
         this.privilegeStore = privilegeStore;
     }
@@ -41,10 +45,16 @@ public class TransportDeletePrivilegesAction extends HandledTransportAction<Dele
             return;
         }
         final Set<String> names = Sets.newHashSet(request.privileges());
-        this.privilegeStore.deletePrivileges(request.application(), names, request.getRefreshPolicy(), ActionListener.wrap(
+        this.privilegeStore.deletePrivileges(
+            request.application(),
+            names,
+            request.getRefreshPolicy(),
+            ActionListener.wrap(
                 privileges -> listener.onResponse(
-                        new DeletePrivilegesResponse(privileges.getOrDefault(request.application(), Collections.emptyList()))
-                ), listener::onFailure
-        ));
+                    new DeletePrivilegesResponse(privileges.getOrDefault(request.application(), Collections.emptyList()))
+                ),
+                listener::onFailure
+            )
+        );
     }
 }

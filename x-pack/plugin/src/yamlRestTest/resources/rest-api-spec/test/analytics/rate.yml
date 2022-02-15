@@ -1,0 +1,77 @@
+---
+setup:
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"timestamp": "2020-02-03T10:00:00Z", "val": 3}'
+          - '{"index": {}}'
+          - '{"timestamp": "2020-02-04T10:00:00Z", "val": 4}'
+          - '{"index": {}}'
+          - '{"timestamp": "2020-02-11T10:00:00Z", "val": 6}'
+          - '{"index": {}}'
+          - '{"timestamp": "2020-02-12T10:00:00Z", "val": 8}'
+---
+"value rate":
+  - do:
+      search:
+        size: 0
+        index: "test"
+        body:
+          aggs:
+            by_date:
+              date_histogram:
+                field: timestamp
+                calendar_interval: week
+              aggs:
+                rate:
+                  rate:
+                    field: val
+                    unit: day
+
+  - length: { aggregations.by_date.buckets: 2 }
+  - match: { aggregations.by_date.buckets.0.rate.value: 1.0 }
+  - match: { aggregations.by_date.buckets.1.rate.value: 2.0 }
+
+
+---
+"rate with doc_count":
+  - skip:
+      version: " - 7.15.99"
+      reason: bug fixed in 7.16.0
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"timestamp": "2021-09-14T22:33:37.477Z", "_doc_count": 10}'
+          - '{"index": {}}'
+          - '{"timestamp": "2021-09-14T22:35:37.477Z", "_doc_count": 5}'
+          - '{"index": {}}'
+          - '{"timestamp": "2021-09-14T22:35:38.477Z", "_doc_count": 1}'
+          - '{"index": {}}'
+          - '{"timestamp": "2021-09-14T22:36:08.477Z"}'
+  - do:
+      search:
+        size: 0
+        index: "test2"
+        body:
+          aggs:
+            by_date:
+              date_histogram:
+                field: timestamp
+                fixed_interval: 60s
+              aggs:
+                rate:
+                  rate:
+                    unit: minute
+
+  - length: { aggregations.by_date.buckets: 4 }
+  - match: { aggregations.by_date.buckets.0.rate.value: 10.0 }
+  - match: { aggregations.by_date.buckets.1.rate.value: 0.0 }
+  - match: { aggregations.by_date.buckets.2.rate.value: 6.0 }
+  - match: { aggregations.by_date.buckets.3.rate.value: 1.0 }
+

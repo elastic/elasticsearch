@@ -73,8 +73,7 @@ interface State {
         }
 
         @Override
-        public MatcherAndConverter getConverter(String stringValue, TypeLiteral<?> type, Errors errors,
-                                                Object source) {
+        public MatcherAndConverter getConverter(String stringValue, TypeLiteral<?> type, Errors errors, Object source) {
             throw new UnsupportedOperationException();
         }
 
@@ -94,8 +93,7 @@ interface State {
         }
 
         @Override
-        public void blacklist(Key<?> key) {
-        }
+        public void blacklist(Key<?> key) {}
 
         @Override
         public boolean isBlacklisted(Key<?> key) {
@@ -103,12 +101,10 @@ interface State {
         }
 
         @Override
-        public void clearBlacklisted() {
-        }
+        public void clearBlacklisted() {}
 
         @Override
-        public void makeAllBindingsToEagerSingletons(Injector injector) {
-        }
+        public void makeAllBindingsToEagerSingletons(Injector injector) {}
 
         @Override
         public Object lock() {
@@ -142,8 +138,7 @@ interface State {
     /**
      * Returns the matching converter for {@code type}, or null if none match.
      */
-    MatcherAndConverter getConverter(
-            String stringValue, TypeLiteral<?> type, Errors errors, Object source);
+    MatcherAndConverter getConverter(String stringValue, TypeLiteral<?> type, Errors errors, Object source);
 
     /**
      * Returns all converters at this level only.

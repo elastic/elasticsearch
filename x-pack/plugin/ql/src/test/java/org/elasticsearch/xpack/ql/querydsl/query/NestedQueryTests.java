@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
-import org.elasticsearch.xpack.ql.querydsl.query.NestedQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -44,7 +42,7 @@ public class NestedQueryTests extends ESTestCase {
 
     private static Map<String, Map.Entry<Boolean, String>> randomFields() {
         int size = between(0, 5);
-        Map<String, Map.Entry<Boolean, String>> fields = new HashMap<>(size);
+        Map<String, Map.Entry<Boolean, String>> fields = Maps.newMapWithExpectedSize(size);
         while (fields.size() < size) {
             fields.put(randomAlphaOfLength(5), new SimpleImmutableEntry<>(randomBoolean(), null));
         }
@@ -64,7 +62,8 @@ public class NestedQueryTests extends ESTestCase {
             q -> new NestedQuery(SourceTests.mutate(q.source()), q.path(), q.fields(), q.child()),
             q -> new NestedQuery(q.source(), randomValueOtherThan(q.path(), () -> randomAlphaOfLength(5)), q.fields(), q.child()),
             q -> new NestedQuery(q.source(), q.path(), randomValueOtherThan(q.fields(), NestedQueryTests::randomFields), q.child()),
-            q -> new NestedQuery(q.source(), q.path(), q.fields(), randomValueOtherThan(q.child(), () -> randomQuery(5))));
+            q -> new NestedQuery(q.source(), q.path(), q.fields(), randomValueOtherThan(q.child(), () -> randomQuery(5)))
+        );
         return randomFrom(options).apply(query);
     }
 
@@ -133,9 +132,12 @@ public class NestedQueryTests extends ESTestCase {
     }
 
     public void testToString() {
-        NestedQuery q = new NestedQuery(new Source(1, 1, StringUtils.EMPTY), "a.b",
-                singletonMap("f", new SimpleImmutableEntry<>(true, null)),
-                new MatchAll(new Source(1, 1, StringUtils.EMPTY)));
+        NestedQuery q = new NestedQuery(
+            new Source(1, 1, StringUtils.EMPTY),
+            "a.b",
+            singletonMap("f", new SimpleImmutableEntry<>(true, null)),
+            new MatchAll(new Source(1, 1, StringUtils.EMPTY))
+        );
         assertEquals("NestedQuery@1:2[a.b.{f=true=null}[MatchAll@1:2[]]]", q.toString());
     }
 }

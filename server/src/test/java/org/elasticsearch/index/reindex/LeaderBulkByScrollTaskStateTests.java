@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -30,7 +19,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -82,8 +71,22 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             int thisNoops = thisTotal - thisCreated - thisUpdated - thisDeleted;
             int thisVersionConflicts = between(0, 1000);
             int thisBatches = between(1, 100);
-            BulkByScrollTask.Status sliceStatus = new BulkByScrollTask.Status(slice, thisTotal, thisUpdated, thisCreated, thisDeleted,
-                    thisBatches, thisVersionConflicts, thisNoops, 0, 0, timeValueMillis(0), 0, null, timeValueMillis(0));
+            BulkByScrollTask.Status sliceStatus = new BulkByScrollTask.Status(
+                slice,
+                thisTotal,
+                thisUpdated,
+                thisCreated,
+                thisDeleted,
+                thisBatches,
+                thisVersionConflicts,
+                thisNoops,
+                0,
+                0,
+                timeValueMillis(0),
+                0,
+                null,
+                timeValueMillis(0)
+            );
             total += thisTotal;
             created += thisCreated;
             updated += thisUpdated;
@@ -95,8 +98,11 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
 
             @SuppressWarnings("unchecked")
             ActionListener<BulkByScrollResponse> listener = slice < slices - 1 ? neverCalled() : mock(ActionListener.class);
-            taskState.onSliceResponse(listener, slice,
-                    new BulkByScrollResponse(timeValueMillis(10), sliceStatus, emptyList(), emptyList(), false));
+            taskState.onSliceResponse(
+                listener,
+                slice,
+                new BulkByScrollResponse(timeValueMillis(10), sliceStatus, emptyList(), emptyList(), false)
+            );
 
             status = task.getStatus();
             assertEquals(total, status.getTotal());
@@ -136,7 +142,6 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             }
         };
     }
-
 
     private <T> T captureResponse(Class<T> responseClass, ActionListener<T> listener) {
         ArgumentCaptor<Exception> failure = ArgumentCaptor.forClass(Exception.class);

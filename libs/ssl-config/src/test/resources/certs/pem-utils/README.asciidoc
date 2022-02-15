@@ -101,12 +101,34 @@ openssl pkcs12 -in ec.p12 -nodes -nocerts | openssl pkcs8 -topk8 -nocrypt -outfo
 ----
 
 
-
 Create `PKCS#8` encrypted key from the encrypted `PKCS#1` encoded `testnode.pem`
+The `-v1 PBE-MD5-DES` parameter forces pbeWithMD5AndDES-CBC as the encryption scheme (which is also the default, but that could change with diffent OpenSSL versions)
+See: http://oid-info.com/get/1.2.840.113549.1.5.3
+See: https://datatracker.ietf.org/doc/html/rfc8018#appendix-A.3
 [source,shell]
 -----
-openssl pkcs8 -topk8 -inform PEM -outform PEM -in testnode.pem -out key_pkcs8_encrypted.pem
+openssl pkcs8 -topk8 -v1 PBE-MD5-DES -inform PEM -outform PEM -in testnode.pem -passin "pass:testnode" -out key_pkcs8_encrypted_pbes1_des.pem -passout "pass:testnode"
 -----
+
+Create `PKCS#8` `PBES2` `AES` encrypted key from the encrypted `PKCS#1` encoded `testnode.pem`
+The `-v2 aes256` parameter forces PBES2 with AES256
+See: http://oid-info.com/get/1.2.840.113549.1.5.13
+See: https://datatracker.ietf.org/doc/html/rfc8018#appendix-A.4
+[source,shell]
+-----
+openssl pkcs8 -topk8 -v2 aes256 -inform PEM -outform PEM -in testnode.pem -passin "pass:testnode" -out key_pkcs8_encrypted_pbes2_aes.pem -passout "pass:testnode"
+-----
+
+Create `PKCS#8` `PBES2` `DES` encrypted key from the encrypted `PKCS#1` encoded `testnode.pem`
+The `-v2 des` parameter forces PBES2 with DES
+See: http://oid-info.com/get/1.2.840.113549.1.5.13
+See: https://datatracker.ietf.org/doc/html/rfc8018#appendix-A.4
+[source,shell]
+-----
+openssl pkcs8 -topk8 -v2 des -inform PEM -outform PEM -in testnode.pem -passin "pass:testnode" -out key_pkcs8_encrypted_pbes2_des.pem -passout "pass:testnode"
+-----
+
+
 [source,shell]
 -----
 ssh-keygen -t ed25519 -f key_unsupported.pem

@@ -75,7 +75,7 @@ to allow delegation. See <<pki-realm-for-proxied-clients>>.
 you're following through with the next steps, you might wish to hold the
 restart for last.
 
-. <<configuring-tls,Enable SSL/TLS>>.
+. <<encrypt-internode-communication,Enable SSL/TLS>>.
 
 . Enable client authentication on the desired network layers (transport or http).
 +
@@ -103,14 +103,14 @@ In particular this means:
   or by setting `verification_mode` to `none`.
 * The _protocols_ supported by the interface must be compatible with those
   used by the client.
-  
+
 For an explanation of these settings, see <<ssl-tls-settings>>.
 
 The relevant network interface (transport or http) must be configured to trust
 any certificate that is to be used within the PKI realm. However, it is possible
 to configure the PKI realm to trust only a _subset_ of the certificates accepted
-by the network interface. This is useful when the SSL/TLS layer trusts clients 
-with certificates that are signed by a different CA than the one that signs your 
+by the network interface. This is useful when the SSL/TLS layer trusts clients
+with certificates that are signed by a different CA than the one that signs your
 users' certificates.
 
 To configure the PKI realm with its own truststore, specify the
@@ -131,7 +131,7 @@ xpack:
 ------------------------------------------------------------
 
 If the truststore is password protected, the password should be configured by
-adding the appropriate `secure_password` setting to the {es} keystore.  For
+adding the appropriate `secure_password` setting to the {es} keystore. For
 example, the following command adds the password for the example realm above:
 
 [source, shell]
@@ -213,7 +213,7 @@ alternative to role mapping.
 By default, the PKI realm relies on the node's network interface to perform the
 SSL/TLS handshake and extract the client certificate. This behaviour requires
 that clients connect directly to {es} so that their SSL connection is terminated
-by the {es} node.  If SSL/TLS authentication is to be performed by {kib}, the
+by the {es} node. If SSL/TLS authentication is to be performed by {kib}, the
 PKI realm must be configured to permit delegation.
 
 Specifically, when clients presenting X.509 certificates connect to {kib},
@@ -224,7 +224,7 @@ the PKI realms that have been configured for delegation.
 To permit authentication delegation for a specific {es} PKI realm, start by
 configuring the realm for the usual case, as detailed in the
 <<pki-realm-for-direct-clients>> section. In this scenario, when you enable TLS,
-it is mandatory that you <<tls-http,encrypt HTTP client communications>>.
+it is mandatory that you <<encrypt-http-communication,encrypt HTTP client communications>>.
 
 You must also explicitly configure a `truststore` (or, equivalently
 `certificate_authorities`) even though it is the same trust configuration that
@@ -248,7 +248,7 @@ xpack:
 ------------------------------------------------------------
 
 After you restart {es}, this realm can validate delegated PKI authentication.
-You must then 
+You must then
 {kibana-ref}/kibana-authentication.html#pki-authentication[configure {kib} to allow PKI certificate authentication].
 
 A PKI realm with `delegation.enabled` still works unchanged for clients

@@ -1,27 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /*
  * Base class for a single source for group_by
@@ -45,18 +48,13 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         }
 
         public static Type fromId(byte id) {
-            switch (id) {
-                case 0:
-                    return TERMS;
-                case 1:
-                    return HISTOGRAM;
-                case 2:
-                    return DATE_HISTOGRAM;
-                case 3:
-                    return GEOTILE_GRID;
-                default:
-                    throw new IllegalArgumentException("unknown type");
-            }
+            return switch (id) {
+                case 0 -> TERMS;
+                case 1 -> HISTOGRAM;
+                case 2 -> DATE_HISTOGRAM;
+                case 3 -> GEOTILE_GRID;
+                default -> throw new IllegalArgumentException("unknown type");
+            };
         }
 
         public String value() {
@@ -76,6 +74,10 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         parser.declareString(optionalConstructorArg(), FIELD);
         parser.declareObject(optionalConstructorArg(), (p, c) -> ScriptConfig.fromXContent(p, lenient), SCRIPT);
         parser.declareBoolean(optionalConstructorArg(), MISSING_BUCKET);
+        if (lenient == false) {
+            // either a script or a field must be declared, or both
+            parser.declareRequiredFieldSet(FIELD.getPreferredName(), SCRIPT.getPreferredName());
+        }
     }
 
     public SingleGroupSource(final String field, final ScriptConfig scriptConfig, final boolean missingBucket) {
@@ -96,6 +98,17 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         } else {
             missingBucket = false;
         }
+    }
+
+    ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        // either a script or a field must be declared
+        if (field == null && scriptConfig == null) {
+            validationException = addValidationError(
+                "Required one of fields [field, script], but none were specified.",
+                validationException
+            );
+        }
+        return validationException;
     }
 
     @Override
@@ -130,8 +143,6 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     }
 
     public abstract Type getType();
-
-    public abstract boolean supportsIncrementalBucketUpdate();
 
     public String getField() {
         return field;
@@ -180,13 +191,4 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         return null;
     }
 
-    /**
-     * This will transform a composite aggregation bucket key into the desired format for indexing.
-     *
-     * @param key The bucket key for this group source
-     * @return the transformed bucket key for indexing
-     */
-    public Object transformBucketKey(Object key) {
-        return key;
-    }
 }

@@ -1,0 +1,144 @@
+---
+setup:
+  - skip:
+      version: " - 7.12.99"
+      reason: segment files stats enhanced in 7.13.0
+
+  - do:
+      indices.create:
+        index: docs
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: docs
+              _id:    "1"
+          - field: foo
+          - index:
+              _index: docs
+              _id:    "2"
+          - field: bar
+          - index:
+              _index: docs
+              _id:    "3"
+          - field: baz
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.delete:
+        index: docs
+
+---
+"Tests Indices Stats API for snapshot backed indices":
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        body:
+          index: docs
+          renamed_index: cold-docs
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: docs
+          renamed_index: frozen-docs
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      indices.stats:
+        index: "*-docs"
+        metric: [ segments ]
+        include_segment_file_sizes: true
+
+  - is_true: _all.total.segments.file_sizes
+  - is_true: _all.total.segments.file_sizes.si
+  - gt: { _all.total.segments.file_sizes.si.count: 0 }
+  - gt: { _all.total.segments.file_sizes.si.size_in_bytes: 0 }
+  - gt: { _all.total.segments.file_sizes.si.min_size_in_bytes: 0 }
+  - gt: { _all.total.segments.file_sizes.si.max_size_in_bytes: 0 }
+  - gt: { _all.total.segments.file_sizes.si.average_size_in_bytes: 0 }
+
+  - is_true: indices.cold-docs.primaries.segments.file_sizes
+  - is_true: indices.cold-docs.primaries.segments.file_sizes.si
+  - gt: { indices.cold-docs.primaries.segments.file_sizes.si.count: 0 }
+  - gt: { indices.cold-docs.primaries.segments.file_sizes.si.size_in_bytes: 0 }
+  - gt: { indices.cold-docs.primaries.segments.file_sizes.si.min_size_in_bytes: 0 }
+  - gt: { indices.cold-docs.primaries.segments.file_sizes.si.max_size_in_bytes: 0 }
+  - gt: { indices.cold-docs.primaries.segments.file_sizes.si.average_size_in_bytes: 0 }
+  - match: { indices.cold-docs.primaries.segments.file_sizes.si.description: "Segment Info" }
+
+  - is_true: indices.frozen-docs.primaries.segments.file_sizes
+  - is_false: indices.frozen-docs.primaries.segments.file_sizes.si
+
+  - do:
+      indices.stats:
+        index: "*-docs"
+        metric: [ segments ]
+        include_segment_file_sizes: true
+        include_unloaded_segments: true
+
+  - is_true: _all.total.segments.file_sizes
+  - is_true: _all.total.segments.file_sizes.si
+  - gt: { _all.total.segments.file_sizes.si.count: 0 }
+  - gt: { _all.total.segments.file_sizes.si.size_in_bytes: 0 }
+  - gt: { _all.total.segments.file_sizes.si.min_size_in_bytes: 0 }
+  - gt: { _all.total.segments.file_sizes.si.max_size_in_bytes: 0 }
+  - gt: { _all.total.segments.file_sizes.si.average_size_in_bytes: 0 }
+
+  - is_true: indices.cold-docs.primaries.segments.file_sizes
+  - is_true: indices.cold-docs.primaries.segments.file_sizes.si
+  - gt: { indices.cold-docs.primaries.segments.file_sizes.si.count: 0 }
+  - gt: { indices.cold-docs.primaries.segments.file_sizes.si.size_in_bytes: 0 }
+  - gt: { indices.cold-docs.primaries.segments.file_sizes.si.min_size_in_bytes: 0 }
+  - gt: { indices.cold-docs.primaries.segments.file_sizes.si.max_size_in_bytes: 0 }
+  - gt: { indices.cold-docs.primaries.segments.file_sizes.si.average_size_in_bytes: 0 }
+  - match: { indices.cold-docs.primaries.segments.file_sizes.si.description: "Segment Info" }
+
+  - is_true: indices.frozen-docs.primaries.segments.file_sizes
+  - is_true: indices.frozen-docs.primaries.segments.file_sizes.si
+  - gt: { indices.frozen-docs.primaries.segments.file_sizes.si.count: 0 }
+  - gt: { indices.frozen-docs.primaries.segments.file_sizes.si.size_in_bytes: 0 }
+  - gt: { indices.frozen-docs.primaries.segments.file_sizes.si.min_size_in_bytes: 0 }
+  - gt: { indices.frozen-docs.primaries.segments.file_sizes.si.max_size_in_bytes: 0 }
+  - gt: { indices.frozen-docs.primaries.segments.file_sizes.si.average_size_in_bytes: 0 }
+  - match: { indices.frozen-docs.primaries.segments.file_sizes.si.description: "Segment Info" }

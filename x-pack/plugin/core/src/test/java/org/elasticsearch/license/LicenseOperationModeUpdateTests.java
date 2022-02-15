@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -13,12 +14,12 @@ import org.junit.Before;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class LicenseOperationModeUpdateTests extends ESTestCase {
 
@@ -52,20 +53,20 @@ public class LicenseOperationModeUpdateTests extends ESTestCase {
         assertThat(license.operationMode(), equalTo(License.OperationMode.resolve(type)));
         OperationModeFileWatcherTests.writeMode("gold", licenseModeFile);
         license.setOperationModeFileWatcher(operationModeFileWatcher);
-        verifyZeroInteractions(resourceWatcherService);
+        verifyNoMoreInteractions(resourceWatcherService);
         assertThat(license.operationMode(), equalTo(License.OperationMode.resolve(type)));
     }
 
     public void testCloudInternalLicenseOperationModeUpdate() throws Exception {
         License license = License.builder()
-                .uid("id")
-                .expiryDate(0)
-                .issueDate(0)
-                .issuedTo("elasticsearch")
-                .issuer("issuer")
-                .type("cloud_internal")
-                .maxNodes(1)
-                .build();
+            .uid("id")
+            .expiryDate(0)
+            .issueDate(0)
+            .issuedTo("elasticsearch")
+            .issuer("issuer")
+            .type("cloud_internal")
+            .maxNodes(1)
+            .build();
 
         assertThat(license.operationMode(), equalTo(License.OperationMode.PLATINUM));
         OperationModeFileWatcherTests.writeMode("gold", licenseModeFile);

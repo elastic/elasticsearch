@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.collect;
@@ -28,13 +17,18 @@ import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.predicates.IntObjectPredicate;
 import com.carrotsearch.hppc.predicates.IntPredicate;
 import com.carrotsearch.hppc.procedures.IntObjectProcedure;
 
+import java.util.AbstractSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Consumer;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -45,6 +39,11 @@ import java.util.Map;
 public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCursor<VType>> {
 
     private final IntObjectHashMap<VType> map;
+
+    /**
+     * Holds cached entrySet().
+     */
+    private Set<Map.Entry<Integer, VType>> entrySet;
 
     private ImmutableOpenIntMap(IntObjectHashMap<VType> map) {
         this.map = map;
@@ -149,23 +148,108 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
      * Returns a direct iterator over the keys.
      */
     public Iterator<VType> valuesIt() {
-        final Iterator<ObjectCursor<VType>> iterator = map.values().iterator();
-        return new Iterator<VType>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
+        return ImmutableOpenMap.iterator(map.values());
+    }
 
-            @Override
-            public VType next() {
-                return iterator.next().value;
-            }
+    public Set<Map.Entry<Integer, VType>> entrySet() {
+        Set<Map.Entry<Integer, VType>> es;
+        return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;
+    }
 
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
+    private final class ImmutableEntry implements Map.Entry<Integer, VType> {
+        private final int key;
+        private final VType value;
+
+        ImmutableEntry(int key, VType value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        @Override
+        public Integer getKey() {
+            return key;
+        }
+
+        @Override
+        public VType getValue() {
+            return value;
+        }
+
+        @Override
+        public VType setValue(VType value) {
+            throw new UnsupportedOperationException("collection is immutable");
+        }
+    }
+
+    private final class ConversionIterator implements Iterator<Map.Entry<Integer, VType>> {
+
+        private final Iterator<IntObjectCursor<VType>> original;
+
+        ConversionIterator() {
+            this.original = map.iterator();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return original.hasNext();
+        }
+
+        @Override
+        public Map.Entry<Integer, VType> next() {
+            final IntObjectCursor<VType> obj = original.next();
+            if (obj == null) {
+                return null;
             }
-        };
+            return new ImmutableEntry(obj.key, obj.value);
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException("removal is unsupported");
+        }
+    }
+
+    private final class EntrySet extends AbstractSet<Map.Entry<Integer, VType>> {
+        public int size() {
+            return map.size();
+        }
+
+        public void clear() {
+            throw new UnsupportedOperationException("removal is unsupported");
+        }
+
+        public Iterator<Map.Entry<Integer, VType>> iterator() {
+            return new ConversionIterator();
+        }
+
+        @SuppressWarnings("unchecked")
+        public boolean contains(Object o) {
+            if (o instanceof Map.Entry<?, ?> == false) {
+                return false;
+            }
+            Map.Entry<Integer, ?> e = (Map.Entry<Integer, ?>) o;
+            int key = e.getKey();
+            if (map.containsKey(key) == false) {
+                return false;
+            }
+            Object val = map.get(key);
+            return Objects.equals(val, e.getValue());
+        }
+
+        public boolean remove(Object o) {
+            throw new UnsupportedOperationException("removal is not supported");
+        }
+
+        public Spliterator<Map.Entry<Integer, VType>> spliterator() {
+            return Spliterators.spliteratorUnknownSize(iterator(), 0);
+        }
+
+        public void forEach(Consumer<? super Map.Entry<Integer, VType>> action) {
+            map.forEach((Consumer<? super IntObjectCursor<VType>>) cursor -> {
+                ImmutableEntry entry = new ImmutableEntry(cursor.key, cursor.value);
+                action.accept(entry);
+            });
+        }
     }
 
     @Override
@@ -181,7 +265,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
 
         ImmutableOpenIntMap that = (ImmutableOpenIntMap) o;
 
-        if (!map.equals(that.map)) return false;
+        if (map.equals(that.map) == false) return false;
 
         return true;
     }
@@ -191,7 +275,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         return map.hashCode();
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private static final ImmutableOpenIntMap EMPTY = new ImmutableOpenIntMap(new IntObjectHashMap());
 
     @SuppressWarnings("unchecked")
@@ -234,7 +318,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         public ImmutableOpenIntMap<VType> build() {
             IntObjectHashMap<VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
-            return new ImmutableOpenIntMap<>(map);
+            return map.isEmpty() ? of() : new ImmutableOpenIntMap<>(map);
         }
 
         /**

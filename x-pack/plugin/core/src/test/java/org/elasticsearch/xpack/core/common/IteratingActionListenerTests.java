@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common;
 
@@ -98,13 +99,14 @@ public class IteratingActionListenerTests extends ESTestCase {
     }
 
     public void testIterationEmptyList() {
-        IteratingActionListener<Object, Object> listener = new IteratingActionListener<>(ActionListener.wrap(Assert::assertNull,
-                (e) -> {
-                    logger.error("unexpected exception", e);
-                    fail("exception should not have been thrown");
-                }), (listValue, iteratingListener) -> {
-                    fail("consumer should not have been called!!!");
-                }, Collections.emptyList(), new ThreadContext(Settings.EMPTY));
+        IteratingActionListener<Object, Object> listener = new IteratingActionListener<>(ActionListener.wrap(Assert::assertNull, (e) -> {
+            logger.error("unexpected exception", e);
+            fail("exception should not have been thrown");
+        }),
+            (listValue, iteratingListener) -> { fail("consumer should not have been called!!!"); },
+            Collections.emptyList(),
+            new ThreadContext(Settings.EMPTY)
+        );
         listener.run();
     }
 
@@ -127,12 +129,15 @@ public class IteratingActionListenerTests extends ESTestCase {
         };
 
         final AtomicBoolean onFailureCalled = new AtomicBoolean(false);
-        IteratingActionListener<Object, Object> iteratingListener = new IteratingActionListener<>(ActionListener.wrap((object) -> {
-            fail("onResponse should not have been called, but was called with: " + object);
-        }, (e) -> {
-            assertEquals("expected exception", e.getMessage());
-            assertTrue(onFailureCalled.compareAndSet(false, true));
-        }), consumer, items, new ThreadContext(Settings.EMPTY));
+        IteratingActionListener<Object, Object> iteratingListener = new IteratingActionListener<>(
+            ActionListener.wrap((object) -> { fail("onResponse should not have been called, but was called with: " + object); }, (e) -> {
+                assertEquals("expected exception", e.getMessage());
+                assertTrue(onFailureCalled.compareAndSet(false, true));
+            }),
+            consumer,
+            items,
+            new ThreadContext(Settings.EMPTY)
+        );
         iteratingListener.run();
 
         // we never really went async, its all chained together so verify this for sanity

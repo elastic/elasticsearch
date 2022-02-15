@@ -1,0 +1,141 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "transform-password",
+              "roles" : [ "x_cluster_role" ]
+            }
+  - do:
+      security.put_role:
+        name: "x_cluster_role"
+        body:  >
+            {
+              "cluster": [],
+              "indices": [
+                {
+                  "names": ["remote_test_index*"],
+                  "privileges": ["read", "view_index_metadata"]
+                }
+              ]
+            }
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+
+---
+"Index data on the remote cluster":
+  - do:
+      indices.create:
+        index: remote_test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+              number_of_replicas: 0
+          aliases:
+            test_alias: {}
+          mappings:
+            properties:
+              time:
+                type: date
+              user:
+                type: keyword
+              stars:
+                type: integer
+              coolness:
+                type: integer
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "remote_test_index"}}'
+            - '{"user": "a", "stars": 1, "date" : "2018-10-29T12:12:12.123456789Z"}'
+            - '{"index": {"_index": "remote_test_index"}}'
+            - '{"user": "a", "stars": 4, "date" : "2018-10-29T12:14:12.123456789Z"}'
+            - '{"index": {"_index": "remote_test_index"}}'
+            - '{"user": "a", "stars": 5, "date" : "2018-10-29T12:16:12.123456789Z"}'
+            - '{"index": {"_index": "remote_test_index"}}'
+            - '{"user": "b", "stars": 2, "date" : "2018-10-29T12:17:12.123456789Z"}'
+            - '{"index": {"_index": "remote_test_index"}}'
+            - '{"user": "b", "stars": 3, "date" : "2018-10-29T12:22:12.123456789Z"}'
+            - '{"index": {"_index": "remote_test_index"}}'
+            - '{"user": "a", "stars": 5, "date" : "2018-10-29T12:23:12.123456789Z"}'
+            - '{"index": {"_index": "remote_test_index"}}'
+            - '{"user": "b", "stars": 1, "date" : "2018-10-29T12:32:12.123456789Z"}'
+            - '{"index": {"_index": "remote_test_index"}}'
+            - '{"user": "a", "stars": 3, "date" : "2018-10-29T12:34:12.123456789Z"}'
+            - '{"index": {"_index": "remote_test_index"}}'
+            - '{"user": "c", "stars": 4, "date" : "2018-10-29T12:35:12.123456789Z"}'
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: remote_test_index
+        body:
+          aggs:
+            user:
+              terms:
+                field: user
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 9 }
+  - length: { aggregations.user.buckets: 3 }
+  - match: { aggregations.user.buckets.0.key: "a" }
+  - match: { aggregations.user.buckets.0.doc_count: 5 }
+
+  - do:
+      indices.create:
+        index: remote_test_index_2
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+              number_of_replicas: 0
+          aliases:
+            test_alias: {}
+          mappings:
+            properties:
+              time:
+                type: date
+              user:
+                type: keyword
+              stars:
+                type: integer
+              coolness:
+                type: integer
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "remote_test_index_2"}}'
+            - '{"user": "e", "stars": 3, "date" : "2018-10-29T12:12:12.123456789Z"}'
+            - '{"index": {"_index": "remote_test_index_2"}}'
+            - '{"user": "d", "stars": 4, "date" : "2018-10-29T12:14:12.123456789Z"}'
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: remote_test_index_2
+        body:
+          aggs:
+            user:
+              terms:
+                field: user
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.user.buckets: 2 }
+  - match: { aggregations.user.buckets.0.key: "d" }
+  - match: { aggregations.user.buckets.0.doc_count: 1 }

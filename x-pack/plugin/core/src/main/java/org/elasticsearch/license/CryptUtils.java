@@ -1,10 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -14,28 +28,26 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.KeyFactory;
-import java.security.MessageDigest;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.SecureRandom;
-import java.security.NoSuchAlgorithmException;
-import java.security.InvalidKeyException;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
 
 public class CryptUtils {
     // SALT must be at least 128bits for FIPS 140-2 compliance
     private static final byte[] SALT = {
-            (byte) 0x74, (byte) 0x68, (byte) 0x69, (byte) 0x73,
-            (byte) 0x69, (byte) 0x73, (byte) 0x74, (byte) 0x68,
-            (byte) 0x65, (byte) 0x73, (byte) 0x61, (byte) 0x6C,
-            (byte) 0x74, (byte) 0x77, (byte) 0x65, (byte) 0x75
-    };
+        (byte) 0x74,
+        (byte) 0x68,
+        (byte) 0x69,
+        (byte) 0x73,
+        (byte) 0x69,
+        (byte) 0x73,
+        (byte) 0x74,
+        (byte) 0x68,
+        (byte) 0x65,
+        (byte) 0x73,
+        (byte) 0x61,
+        (byte) 0x6C,
+        (byte) 0x74,
+        (byte) 0x77,
+        (byte) 0x65,
+        (byte) 0x75 };
     private static final String KEY_ALGORITHM = "RSA";
     private static final char[] DEFAULT_PASS_PHRASE = "elasticsearch-license".toCharArray();
     private static final String KDF_ALGORITHM = "PBKDF2WithHmacSHA512";
@@ -160,21 +172,16 @@ public class CryptUtils {
     }
 
     private static SecretKey getV3Key() throws NoSuchAlgorithmException, InvalidKeySpecException {
-        final byte[] salt = {
-                (byte) 0xA9, (byte) 0xA2, (byte) 0xB5, (byte) 0xDE,
-                (byte) 0x2A, (byte) 0x8A, (byte) 0x9A, (byte) 0xE6
-        };
+        final byte[] salt = { (byte) 0xA9, (byte) 0xA2, (byte) 0xB5, (byte) 0xDE, (byte) 0x2A, (byte) 0x8A, (byte) 0x9A, (byte) 0xE6 };
         final byte[] passBytes = "elasticsearch-license".getBytes(StandardCharsets.UTF_8);
         final byte[] digest = MessageDigest.getInstance("SHA-512").digest(passBytes);
         final char[] hashedPassphrase = Base64.getEncoder().encodeToString(digest).toCharArray();
         PBEKeySpec keySpec = new PBEKeySpec(hashedPassphrase, salt, 1024, 128);
-        byte[] shortKey = SecretKeyFactory.getInstance("PBEWithSHA1AndDESede").
-                generateSecret(keySpec).getEncoded();
+        byte[] shortKey = SecretKeyFactory.getInstance("PBEWithSHA1AndDESede").generateSecret(keySpec).getEncoded();
         byte[] intermediaryKey = new byte[16];
         for (int i = 0, j = 0; i < 16; i++) {
             intermediaryKey[i] = shortKey[j];
-            if (++j == shortKey.length)
-                j = 0;
+            if (++j == shortKey.length) j = 0;
         }
         return new SecretKeySpec(intermediaryKey, "AES");
     }
@@ -183,8 +190,7 @@ public class CryptUtils {
         try {
             PBEKeySpec keySpec = new PBEKeySpec(passPhrase, SALT, KDF_ITERATION_COUNT, ENCRYPTION_KEY_LENGTH);
 
-            SecretKey secretKey = SecretKeyFactory.getInstance(KDF_ALGORITHM).
-                    generateSecret(keySpec);
+            SecretKey secretKey = SecretKeyFactory.getInstance(KDF_ALGORITHM).generateSecret(keySpec);
             return new SecretKeySpec(secretKey.getEncoded(), CIPHER_ALGORITHM);
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             throw new IllegalStateException(e);

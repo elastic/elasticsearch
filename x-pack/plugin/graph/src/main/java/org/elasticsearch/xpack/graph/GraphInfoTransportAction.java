@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.graph;
 
@@ -21,8 +22,12 @@ public class GraphInfoTransportAction extends XPackInfoFeatureTransportAction {
     private final XPackLicenseState licenseState;
 
     @Inject
-    public GraphInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                    Settings settings, XPackLicenseState licenseState) {
+    public GraphInfoTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
         super(XPackInfoFeatureAction.GRAPH.name(), transportService, actionFilters);
         this.enabled = XPackSettings.GRAPH_ENABLED.get(settings);
         this.licenseState = licenseState;
@@ -35,7 +40,7 @@ public class GraphInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.GRAPH);
+        return licenseState != null && Graph.GRAPH_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

@@ -1,0 +1,111 @@
+setup:
+
+  - do:
+      indices.create:
+          index: testidx
+          body:
+            mappings:
+              properties:
+                text:
+                  type :         "text"
+                  term_vector :  "with_positions_offsets"
+  - do:
+      index:
+        index: testidx
+        id:    testing_document
+        body:  {"text" : "The quick brown fox is brown."}
+
+  - do:
+      indices.refresh: {}
+
+---
+"Basic tests for multi termvector get":
+
+  - do:
+        mtermvectors:
+          "term_statistics" : true
+          "body" :
+            "docs":
+              -
+                  "_index" : "testidx"
+                  "_id" : "testing_document"
+
+  - match: {docs.0.term_vectors.text.terms.brown.term_freq: 2}
+  - match: {docs.0.term_vectors.text.terms.brown.ttf: 2}
+
+  - do:
+        mtermvectors:
+          "term_statistics" : true
+          "index" : "testidx"
+          "body" :
+            "docs":
+              -
+                  "_id" : "testing_document"
+
+  - match: {docs.0.term_vectors.text.terms.brown.term_freq: 2}
+  - match: {docs.0.term_vectors.text.terms.brown.ttf: 2}
+
+  - do:
+        mtermvectors:
+          "term_statistics" : true
+          "index" : "testidx"
+          "ids" : ["testing_document"]
+
+  - match: {docs.0.term_vectors.text.terms.brown.term_freq: 2}
+  - match: {docs.0.term_vectors.text.terms.brown.ttf: 2}
+
+---
+"Tests index not found error in item":
+
+  - do:
+        mtermvectors:
+          "term_statistics" : true
+          "body" :
+            "docs":
+              -
+                 "_id" : "testing_document"
+                 "_index" : "testidx"
+              -
+                 "_id" : "testing_document"
+                 "_index" : "wrong_idx"
+
+  - match: {docs.0.term_vectors.text.terms.brown.term_freq: 2}
+  - match: {docs.0.term_vectors.text.terms.brown.ttf: 2}
+  - match: {docs.1.error.type: "index_not_found_exception"}
+  - match: {docs.1.error.reason: "no such index [wrong_idx]"}
+
+---
+"Tests catching other exceptions per item":
+
+  - do:
+      indices.create:
+          index: testidx2
+
+  - do:
+      indices.put_alias:
+        index: testidx
+        name: test_alias
+
+  - do:
+      indices.put_alias:
+        index: testidx2
+        name: test_alias
+
+  - do:
+        mtermvectors:
+          "term_statistics" : true
+          "body" :
+            "docs":
+              -
+                 "_id" : "testing_document"
+                 "_index" : "testidx"
+              -
+                 "_id" : "testing_document"
+                 "_index" : "test_alias"
+
+  - match: {docs.0.term_vectors.text.terms.brown.term_freq: 2}
+  - match: {docs.0.term_vectors.text.terms.brown.ttf: 2}
+  - match: {docs.1.error.type: "illegal_argument_exception"}
+  - match: {docs.1.error.reason: "/Alias.\\[test_alias\\].has.more.than.one.index.associated.with.it.\\[\\[testidx2?,.testidx2?\\]\\].*/"}
+
+

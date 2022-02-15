@@ -5,6 +5,10 @@
       "description":"Changes the number of requests per second for a particular Delete By Query operation."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

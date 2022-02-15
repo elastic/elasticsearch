@@ -1,0 +1,30 @@
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+dependencies {
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(xpackProject('plugin')))
+}
+
+// bring in text structure rest test suite
+restResources {
+  restApi {
+    // needed for template installation, etc.
+    include '_common', 'indices', 'text_structure'
+  }
+  restTests {
+    includeXpack 'text_structure'
+  }
+}
+
+tasks.named("yamlRestTest").configure {
+}
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  rolesFile file('roles.yml')
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
+  user username: "text_structure_user", password: "x-pack-test-password", role: "minimal,monitor_text_structure"
+  user username: "no_text_structure", password: "x-pack-test-password", role: "minimal"
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+}

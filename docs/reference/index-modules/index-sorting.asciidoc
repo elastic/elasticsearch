@@ -104,7 +104,7 @@ before activating this feature.
 [[early-terminate]]
 === Early termination of search request
 
-By default in Elasticsearch a search request must visit every document that match a query to
+By default in Elasticsearch a search request must visit every document that matches a query to
 retrieve the top documents sorted by a specified sort.
 Though when the index sort and the search sort are the same it is possible to limit
 the number of documents that should be visited per segment to retrieve the N top ranked documents globally.

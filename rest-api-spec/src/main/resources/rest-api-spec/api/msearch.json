@@ -5,6 +5,11 @@
       "description":"Allows to execute several search operations in one request."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/x-ndjson"]
+    },
     "url":{
       "paths":[
         {
@@ -34,9 +39,7 @@
         "type":"enum",
         "options":[
           "query_then_fetch",
-          "query_and_fetch",
-          "dfs_query_then_fetch",
-          "dfs_query_and_fetch"
+          "dfs_query_then_fetch"
         ],
         "description":"Search operation type"
       },

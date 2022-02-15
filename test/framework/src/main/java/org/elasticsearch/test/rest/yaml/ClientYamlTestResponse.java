@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml;
 
@@ -25,11 +14,11 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -53,10 +42,11 @@ public class ClientYamlTestResponse {
         this.response = response;
         if (response.getEntity() != null) {
             String contentType = response.getHeader("Content-Type");
-            this.bodyContentType = XContentType.fromMediaTypeOrFormat(contentType);
+
+            this.bodyContentType = getContentTypeIgnoreExceptions(contentType);
             try {
                 byte[] bytes = EntityUtils.toByteArray(response.getEntity());
-                //skip parsing if we got text back (e.g. if we called _cat apis)
+                // skip parsing if we got text back (e.g. if we called _cat apis)
                 if (bodyContentType != null) {
                     this.parsedResponse = ObjectPath.createFromXContent(bodyContentType.xContent(), new BytesArray(bytes));
                 }
@@ -68,6 +58,20 @@ public class ClientYamlTestResponse {
         } else {
             this.body = null;
             this.bodyContentType = null;
+        }
+    }
+
+    /**
+     * A content type returned on a response can be a media type defined outside XContentType (for instance plain/text, plain/csv etc).
+     * This means that the response cannot be parsed.DefaultHttpHeaders
+     * Also in testing there is no access to media types defined outside of XContentType.
+     * Therefore a null has to be returned if a response content-type has a mediatype not defined in XContentType.
+     */
+    private XContentType getContentTypeIgnoreExceptions(String contentType) {
+        try {
+            return XContentType.fromMediaType(contentType);
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 
@@ -100,7 +104,7 @@ public class ClientYamlTestResponse {
         if (parsedResponse != null) {
             return parsedResponse.evaluate("");
         }
-        //we only get here if there is no response body or the body is text
+        // we only get here if there is no response body or the body is text
         assert bodyContentType == null;
         return getBodyAsString();
     }
@@ -110,14 +114,18 @@ public class ClientYamlTestResponse {
      */
     public String getBodyAsString() {
         if (bodyAsString == null && body != null) {
-            //content-type null means that text was returned
-            if (bodyContentType == null || bodyContentType == XContentType.JSON || bodyContentType == XContentType.YAML) {
+            // content-type null means that text was returned
+            if (bodyContentType == null
+                || bodyContentType.canonical() == XContentType.JSON
+                || bodyContentType.canonical() == XContentType.YAML) {
                 bodyAsString = new String(body, StandardCharsets.UTF_8);
             } else {
-                //if the body is in a binary format and gets requested as a string (e.g. to log a test failure), we convert it to json
+                // if the body is in a binary format and gets requested as a string (e.g. to log a test failure), we convert it to json
                 try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
-                    try (XContentParser parser = bodyContentType.xContent()
-                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body)) {
+                    try (
+                        XContentParser parser = bodyContentType.xContent()
+                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body)
+                    ) {
                         jsonBuilder.copyCurrentStructure(parser);
                     }
                     bodyAsString = Strings.toString(jsonBuilder);
@@ -149,9 +157,9 @@ public class ClientYamlTestResponse {
         }
 
         if (parsedResponse == null) {
-            //special case: api that don't support body (e.g. exists) return true if 200, false if 404, even if no body
-            //is_true: '' means the response had no body but the client returned true (caused by 200)
-            //is_false: '' means the response had no body but the client returned false (caused by 404)
+            // special case: api that don't support body (e.g. exists) return true if 200, false if 404, even if no body
+            // is_true: '' means the response had no body but the client returned true (caused by 200)
+            // is_false: '' means the response had no body but the client returned false (caused by 404)
             if ("".equals(path) && HttpHead.METHOD_NAME.equals(response.getRequestLine().getMethod())) {
                 return isError() == false;
             }

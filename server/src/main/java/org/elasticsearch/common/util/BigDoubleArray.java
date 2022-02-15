@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
@@ -22,9 +11,12 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
+import static org.elasticsearch.common.util.PageCacheRecycler.DOUBLE_PAGE_SIZE;
 
 /**
  * Double array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
@@ -34,15 +26,17 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     private static final BigDoubleArray ESTIMATOR = new BigDoubleArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private long[][] pages;
+    static final VarHandle VH_PLATFORM_NATIVE_DOUBLE = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
+
+    private byte[][] pages;
 
     /** Constructor. */
     BigDoubleArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(LONG_PAGE_SIZE, bigArrays, clearOnResize);
+        super(DOUBLE_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
-        pages = new long[numPages(size)][];
+        pages = new byte[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newLongPage(i);
+            pages[i] = newBytePage(i);
         }
     }
 
@@ -50,16 +44,16 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     public double get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return Double.longBitsToDouble(pages[pageIndex][indexInPage]);
+        return (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], indexInPage << 3);
     }
 
     @Override
     public double set(long index, double value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final long[] page = pages[pageIndex];
-        final double ret = Double.longBitsToDouble(page[indexInPage]);
-        page[indexInPage] = Double.doubleToRawLongBits(value);
+        final byte[] page = pages[pageIndex];
+        final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(page, indexInPage << 3);
+        VH_PLATFORM_NATIVE_DOUBLE.set(page, indexInPage << 3, value);
         return ret;
     }
 
@@ -67,8 +61,10 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     public double increment(long index, double inc) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final long[] page = pages[pageIndex];
-        return page[indexInPage] = Double.doubleToRawLongBits(Double.longBitsToDouble(page[indexInPage]) + inc);
+        final byte[] page = pages[pageIndex];
+        final double newVal = (double) VH_PLATFORM_NATIVE_DOUBLE.get(page, indexInPage << 3) + inc;
+        VH_PLATFORM_NATIVE_DOUBLE.set(page, indexInPage << 3, newVal);
+        return newVal;
     }
 
     @Override
@@ -84,7 +80,7 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newLongPage(i);
+            pages[i] = newBytePage(i);
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
@@ -98,17 +94,23 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
         if (fromIndex > toIndex) {
             throw new IllegalArgumentException();
         }
-        final long longBits = Double.doubleToRawLongBits(value);
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, longBits);
+            fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
         } else {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, longBits);
+            fill(pages[fromPage], indexInPage(fromIndex), pageSize(), value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                Arrays.fill(pages[i], longBits);
+                fill(pages[i], 0, pageSize(), value);
             }
-            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, longBits);
+            fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+        }
+    }
+
+    public static void fill(byte[] page, int from, int to, double value) {
+        if (from < to) {
+            VH_PLATFORM_NATIVE_DOUBLE.set(page, from << 3, value);
+            fillBySelfCopy(page, from << 3, to << 3, Double.BYTES);
         }
     }
 
@@ -117,4 +119,8 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
         return ESTIMATOR.ramBytesEstimated(size);
     }
 
+    @Override
+    public void set(long index, byte[] buf, int offset, int len) {
+        set(index, buf, offset, len, pages, 3);
+    }
 }

@@ -1,0 +1,383 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "mixed_role"
+        body:  >
+            {
+              "indices": [
+                { "names": ["can_read_1", "can_read_2" ], "privileges": ["read"] },
+                { "names": ["can_write_1", "can_write_2", "can_write_3" ], "privileges": ["read", "write"] }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "mixed_role" ],
+            "full_name" : "user with mixed privileges to multiple indices"
+          }
+
+  - do:
+      indices.create:
+        index: read_index
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+  - do:
+      indices.create:
+        index: write_index_1
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+  - do:
+      indices.create:
+        index: write_index_2
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+  - do:
+      indices.put_alias:
+        index: read_index
+        name: can_read_1
+
+  - do:
+      indices.put_alias:
+        index: read_index
+        name: can_read_2
+
+  - do:
+      indices.put_alias:
+        index: write_index_1
+        name: can_write_1
+
+  - do:
+      indices.put_alias:
+        index: write_index_1
+        name: can_write_2
+
+  - do:
+      indices.put_alias:
+        index: write_index_2
+        name: can_write_3
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "mixed_role"
+        ignore: 404
+
+  - do:
+      indices.delete_alias:
+        index: "read_index"
+        name: [ "can_read_1", "can_read_2" ]
+        ignore: 404
+
+  - do:
+      indices.delete_alias:
+        index: "write_index_1"
+        name: [ "can_write_1", "can_write_2" ]
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: [ "write_index_1", "read_index" ]
+        ignore: 404
+
+---
+"Test indexing documents into an alias, when permitted":
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      create:
+        id: "1"
+        index: can_write_1
+        body: >
+          {
+            "name" : "doc1"
+          }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      create:
+        id: "2"
+        index: can_write_2
+        body: >
+          {
+            "name" : "doc2"
+          }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "can_write_1", "_id": "3"}}'
+            - '{"name": "doc3"}'
+            - '{"index": {"_index": "can_write_1", "_id": "4"}}'
+            - '{"name": "doc4"}'
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "can_write_1", "_id": "5"}}'
+            - '{"name": "doc5"}'
+            - '{"index": {"_index": "can_write_2", "_id": "6"}}'
+            - '{"name": "doc6"}'
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "can_write_1", "_id": "7"}}'
+            - '{"name": "doc7"}'
+            - '{"index": {"_index": "can_write_2", "_id": "8"}}'
+            - '{"name": "doc8"}'
+            - '{"index": {"_index": "can_write_3", "_id": "9"}}'
+            - '{"name": "doc9"}'
+
+  - do: # superuser
+      search:
+        rest_total_hits_as_int: true
+        index: write_index_1
+  - match: { hits.total: 8 }
+
+  - do: # superuser
+      search:
+        rest_total_hits_as_int: true
+        index: write_index_2
+  - match: { hits.total: 1 }
+
+---
+"Test indexing documents into an alias, when forbidden":
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      create:
+        refresh: true
+        id: "7"
+        index: can_read_1
+        body: >
+          {
+            "name" : "doc7"
+          }
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      create:
+        refresh: true
+        id: "8"
+        index: can_read_2
+        body: >
+          {
+            "name" : "doc8"
+          }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "can_read_1", "_id": "9"}}'
+            - '{"name": "doc9"}'
+            - '{"index": {"_index": "can_read_1", "_id": "10"}}'
+            - '{"name": "doc10"}'
+  - match: { errors: true }
+  - match: { items.0.index.status: 403 }
+  - match: { items.0.index.error.type: "security_exception" }
+  - match: { items.1.index.status: 403 }
+  - match: { items.1.index.error.type: "security_exception" }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "can_read_1", "_id": "11"}}'
+            - '{"name": "doc11"}'
+            - '{"index": {"_index": "can_read_2", "_id": "12"}}'
+            - '{"name": "doc12"}'
+  - match: { errors: true }
+  - match: { items.0.index.status: 403 }
+  - match: { items.0.index.error.type: "security_exception" }
+  - match: { items.1.index.status: 403 }
+  - match: { items.1.index.error.type: "security_exception" }
+
+  - do: # superuser
+      search:
+        rest_total_hits_as_int: true
+        index: read_index
+  - match: { hits.total: 0 }
+
+---
+"Test bulk indexing into an alias when only some are allowed":
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "can_read_1", "_id": "13"}}'
+            - '{"name": "doc13"}'
+            - '{"index": {"_index": "can_write_1", "_id": "14"}}'
+            - '{"name": "doc14"}'
+  - match: { errors: true }
+  - match: { items.0.index.status: 403 }
+  - match: { items.0.index.error.type: "security_exception" }
+  - match: { items.1.index.status: 201 }
+
+  - do: # superuser
+      search:
+        rest_total_hits_as_int: true
+        index: write_index_1
+        body: { "query": { "term": { "_id": "14" } } }
+  - match: { hits.total: 1 }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "can_read_1", "_id": "15"}}'
+            - '{"name": "doc15"}'
+            - '{"index": {"_index": "can_write_1", "_id": "16"}}'
+            - '{"name": "doc16"}'
+            - '{"index": {"_index": "can_read_2", "_id": "17"}}'
+            - '{"name": "doc17"}'
+            - '{"index": {"_index": "can_write_2", "_id": "18"}}'
+            - '{"name": "doc18"}'
+            - '{"index": {"_index": "can_write_3", "_id": "19"}}'
+            - '{"name": "doc19"}'
+  - match: { errors: true }
+  - match: { items.0.index.status: 403 }
+  - match: { items.0.index.error.type: "security_exception" }
+  - match: { items.1.index.status: 201 }
+  - match: { items.2.index.status: 403 }
+  - match: { items.2.index.error.type: "security_exception" }
+  - match: { items.3.index.status: 201 }
+  - match: { items.4.index.status: 201 }
+
+  - do: # superuser
+      search:
+        rest_total_hits_as_int: true
+        index: write_index_1
+        body: { "query": { "terms": { "_id":  [ "16", "18" ] } } }
+  - match: { hits.total: 2 }
+  - do: # superuser
+      search:
+        rest_total_hits_as_int: true
+        index: write_index_2
+        body: { "query": { "terms": { "_id":  [ "19" ] } } }
+  - match: { hits.total: 1 }
+
+---
+"Test bulk indexing into an alias when resolved to write index":
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: write_index_2
+                alias: can_write_2
+                is_write_index: true
+            - add:
+                index: write_index_2
+                alias: can_read_2
+                is_write_index: true
+            - add:
+                index: write_index_1
+                alias: can_write_3
+                is_write_index: true
+            - add:
+                index: write_index_2
+                alias: can_write_3
+                is_write_index: false
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "can_read_1", "_id": "20"}}'
+            - '{"name": "doc20"}'
+            - '{"index": {"_index": "can_write_1", "_id": "21"}}'
+            - '{"name": "doc21"}'
+            - '{"index": {"_index": "can_read_2", "_id": "22"}}'
+            - '{"name": "doc22"}'
+            - '{"index": {"_index": "can_write_2", "_id": "23"}}'
+            - '{"name": "doc23"}'
+            - '{"index": {"_index": "can_write_3", "_id": "24"}}'
+            - '{"name": "doc24"}'
+            - '{"update": {"_index": "can_write_3", "_id": "24"}}'
+            - '{"doc": { "name": "doc_24"}}'
+            - '{"delete": {"_index": "can_write_3", "_id": "24"}}'
+  - match: { errors: true }
+  - match: { items.0.index.status: 403 }
+  - match: { items.0.index.error.type: "security_exception" }
+  - match: { items.1.index.status: 201 }
+  - match: { items.2.index.status: 403 }
+  - match: { items.2.index.error.type: "security_exception" }
+  - match: { items.3.index.status: 403 }
+  - match: { items.3.index.error.type: "security_exception" }
+  - match: { items.4.index.status: 201 }
+  - match: { items.5.update.status: 200 }
+  - match: { items.6.delete.status: 200 }
+
+  - do: # superuser
+      search:
+        rest_total_hits_as_int: true
+        index: write_index_1
+        body: { "query": { "terms": { "_id":  [ "21" ] } } }
+  - match: { hits.total: 1 }
+
+  - do:
+      indices.delete_alias:
+        index: "write_index_2"
+        name: [ "can_write_2", "can_read_2" ]
+        ignore: 404
+
+  - do:
+      indices.delete_alias:
+        index: "write_index_1"
+        name: [ "can_write_3" ]
+        ignore: 404

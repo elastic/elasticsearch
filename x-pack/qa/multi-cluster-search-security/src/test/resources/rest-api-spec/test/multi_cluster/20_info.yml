@@ -11,7 +11,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "x_cluster_role" ]
             }
   - do:
@@ -35,7 +35,7 @@ teardown:
 "Fetch remote cluster info for existing cluster":
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       cluster.remote_info: {}
   - match: { my_remote_cluster.connected: true }
   - match: { my_remote_cluster.num_nodes_connected: 1}
@@ -43,7 +43,7 @@ teardown:
   - match: { my_remote_cluster.initial_connect_timeout: "30s" }
 
 ---
-"Add transient remote cluster based on the preset cluster and check remote info":
+"Add persistent remote cluster based on the preset cluster and check remote info":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -54,10 +54,10 @@ teardown:
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {transient: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
+  - match: {persistent: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
 
   # we do another search here since this will enforce the connection to be established
   # otherwise the cluster might not have been connected yet.
@@ -67,7 +67,7 @@ teardown:
         index: test_remote_cluster:test_index
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       cluster.remote_info: {}
   - match: { test_remote_cluster.connected: true }
   - match: { my_remote_cluster.connected: true }

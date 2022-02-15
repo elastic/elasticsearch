@@ -1,14 +1,15 @@
-[[cluster.name]]
-=== `cluster.name`
+[[cluster-name]]
+[discrete]
+==== Cluster name setting
 
 A node can only join a cluster when it shares its `cluster.name` with all the
 other nodes in the cluster. The default name is `elasticsearch`, but you should
-change it to an appropriate name which describes the purpose of the cluster.
+change it to an appropriate name that describes the purpose of the cluster.
 
 [source,yaml]
 --------------------------------------------------
 cluster.name: logging-prod
 --------------------------------------------------
 
-Make sure that you don't reuse the same cluster names in different environments,
-otherwise you might end up with nodes joining the wrong cluster.
+IMPORTANT: Do not reuse the same cluster names in different environments.
+Otherwise, nodes might join the wrong cluster.

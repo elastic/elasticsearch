@@ -1,0 +1,47 @@
+import org.elasticsearch.gradle.internal.JavaClassPublicifier;
+
+apply plugin: 'elasticsearch.java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+configurations {
+  originalJar {
+    transitive = false
+  }
+}
+
+dependencies {
+  originalJar "com.azure:azure-storage-blob:${project.parent.versions.azure}"
+  implementation "com.azure:azure-storage-blob:${project.parent.versions.azure}"
+}
+
+// We have to rewrite the service classes to make them public to avoid
+// granting the permission "java.lang.reflect.ReflectPermission" "newProxyInPackage"
+// to this plugin.
+//
+// There are plans to make those public in the azure sdk side, but in the meanwhile
+// we just do this workaround
+// https://github.com/Azure/azure-sdk-for-java/issues/12829#issuecomment-736755543
+List<String> classesToRewrite = ['com/azure/storage/blob/implementation/AppendBlobsImpl$AppendBlobsService.class',
+                                 'com/azure/storage/blob/implementation/BlobsImpl$BlobsService.class',
+                                 'com/azure/storage/blob/implementation/BlockBlobsImpl$BlockBlobsService.class',
+                                 'com/azure/storage/blob/implementation/ContainersImpl$ContainersService.class',
+                                 'com/azure/storage/blob/implementation/DirectorysImpl$DirectorysService.class',
+                                 'com/azure/storage/blob/implementation/PageBlobsImpl$PageBlobsService.class',
+                                 'com/azure/storage/blob/implementation/ServicesImpl$ServicesService.class']
+
+tasks.register('extractClientClasses', Copy).configure {
+  from({ zipTree(configurations.originalJar.singleFile) }) {
+    include "com/azure/storage/blob/implementation/**"
+  }
+  into project.file('build/original')
+}
+
+def modifiedOutput = project.layout.buildDirectory.dir('modified')
+def makePublic = tasks.register('makeClientClassesPublic', JavaClassPublicifier) {
+  dependsOn 'extractClientClasses'
+  classFiles = classesToRewrite
+  inputDir = project.layout.buildDirectory.dir('original')
+  outputDir = modifiedOutput
+}
+
+sourceSets.main.output.dir(modifiedOutput, builtBy: makePublic)

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.loggerusage;
@@ -26,6 +15,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
@@ -53,8 +43,11 @@ public class ESLoggerUsageTests extends ESTestCase {
                     logger.info("Checking logger usage for method {}", method.getName());
                     InputStream classInputStream = getClass().getResourceAsStream(getClass().getSimpleName() + ".class");
                     List<WrongLoggerUsage> errors = new ArrayList<>();
-                    ESLoggerUsageChecker.check(errors::add, classInputStream,
-                        m -> m.equals(method.getName()) || m.startsWith("lambda$" + method.getName()));
+                    ESLoggerUsageChecker.check(
+                        errors::add,
+                        classInputStream,
+                        m -> m.equals(method.getName()) || m.startsWith("lambda$" + method.getName())
+                    );
                     if (method.getName().startsWith("checkFail")) {
                         assertFalse("Expected " + method.getName() + " to have wrong Logger usage", errors.isEmpty());
                     } else {
@@ -78,8 +71,10 @@ public class ESLoggerUsageTests extends ESTestCase {
                     assertEquals(String.class, method.getParameterTypes()[markerOffset]);
                     assertThat(method.getParameterTypes()[markerOffset + 1], is(oneOf(Object[].class, Supplier[].class)));
                 } else {
-                    assertThat(method.getParameterTypes()[markerOffset], is(oneOf(Message.class, MessageSupplier.class,
-                        CharSequence.class, Object.class, String.class, Supplier.class)));
+                    assertThat(
+                        method.getParameterTypes()[markerOffset],
+                        is(oneOf(Message.class, MessageSupplier.class, CharSequence.class, Object.class, String.class, Supplier.class))
+                    );
 
                     if (paramLength == 2) {
                         assertThat(method.getParameterTypes()[markerOffset + 1], is(oneOf(Throwable.class, Object.class)));
@@ -121,17 +116,14 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkArgumentsProvidedInConstructor() {
-        logger.debug(new ESLogMessage("message {}", "some-arg")
-            .field("x-opaque-id", "some-value"));
+        logger.debug(new ESLogMessage("message {}", "some-arg").field("x-opaque-id", "some-value"));
     }
 
     public void checkWithUsage() {
-        logger.debug(new ESLogMessage("message {}")
-            .argAndField("x-opaque-id", "some-value")
-            .field("field", "value")
-            .with("field2", "value2"));
+        logger.debug(
+            new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value").field("field", "value").with("field2", "value2")
+        );
     }
-
 
     public void checkFailArraySizeForSubclasses(Object... arr) {
         logger.debug(new ESLogMessage("message {}", arr));
@@ -142,12 +134,11 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkFailForTooManyArgumentsWithChain() {
-        logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value")
-                                                   .argAndField("too-many-arg", "xxx"));
+        logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value").argAndField("too-many-arg", "xxx"));
     }
 
     public void checkFailArraySize(String... arr) {
-        logger.debug(new ParameterizedMessage("text {}", (Object[])arr));
+        logger.debug(new ParameterizedMessage("text {}", (Object[]) arr));
     }
 
     public void checkNumberOfArguments1() {
@@ -263,7 +254,7 @@ public class ESLoggerUsageTests extends ESTestCase {
 
     public void checkDeprecationLogger() {
         DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ESLoggerUsageTests.class);
-        deprecationLogger.deprecate("key","message {}", 123);
+        deprecationLogger.warn(DeprecationCategory.OTHER, "key", "message {}", 123);
     }
 
 }

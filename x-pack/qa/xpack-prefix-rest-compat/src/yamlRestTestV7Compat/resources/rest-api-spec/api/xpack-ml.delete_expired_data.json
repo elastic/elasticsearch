@@ -1,0 +1,58 @@
+{
+  "xpack-ml.delete_expired_data":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html",
+      "description":"Deletes expired and unused machine learning data."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/ml/_delete_expired_data/{job_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job(s) to perform expired data hygiene for"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        },
+        {
+          "path":"/_xpack/ml/_delete_expired_data",
+          "methods":[
+            "DELETE"
+          ],
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{
+      "requests_per_second":{
+        "type":"number",
+        "required":false,
+        "description":"The desired requests per second for the deletion processes."
+      },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"How long can the underlying delete processes run until they are canceled"
+      }
+    },
+    "body":{
+      "description":"deleting expired data parameters"
+    }
+  }
+}

@@ -34,14 +34,12 @@ import java.util.Objects;
 public abstract class AbstractBindingBuilder<T> {
 
     public static final String IMPLEMENTATION_ALREADY_SET = "Implementation is set more than once.";
-    public static final String SINGLE_INSTANCE_AND_SCOPE
-            = "Setting the scope is not permitted when binding to a single instance.";
+    public static final String SINGLE_INSTANCE_AND_SCOPE = "Setting the scope is not permitted when binding to a single instance.";
     public static final String SCOPE_ALREADY_SET = "Scope is set more than once.";
     public static final String BINDING_TO_NULL = "Binding to null instances is not allowed. "
-            + "Use toProvider(Providers.of(null)) if this is your intended behaviour.";
+        + "Use toProvider(Providers.of(null)) if this is your intended behaviour.";
     public static final String CONSTANT_VALUE_ALREADY_SET = "Constant value is set more than once.";
-    public static final String ANNOTATION_ALREADY_SPECIFIED
-            = "More than one annotation is specified for this binding.";
+    public static final String ANNOTATION_ALREADY_SPECIFIED = "More than one annotation is specified for this binding.";
 
     protected static final Key<?> NULL_KEY = Key.get(Void.class);
 
@@ -74,8 +72,7 @@ public abstract class AbstractBindingBuilder<T> {
     protected BindingImpl<T> annotatedWithInternal(Class<? extends Annotation> annotationType) {
         Objects.requireNonNull(annotationType, "annotationType");
         checkNotAnnotated();
-        return setBinding(binding.withKey(
-                Key.get(this.binding.getKey().getTypeLiteral(), annotationType)));
+        return setBinding(binding.withKey(Key.get(this.binding.getKey().getTypeLiteral(), annotationType)));
     }
 
     /**
@@ -84,8 +81,7 @@ public abstract class AbstractBindingBuilder<T> {
     protected BindingImpl<T> annotatedWithInternal(Annotation annotation) {
         Objects.requireNonNull(annotation, "annotation");
         checkNotAnnotated();
-        return setBinding(binding.withKey(
-                Key.get(this.binding.getKey().getTypeLiteral(), annotation)));
+        return setBinding(binding.withKey(Key.get(this.binding.getKey().getTypeLiteral(), annotation)));
     }
 
     public void in(final Class<? extends Annotation> scopeAnnotation) {
@@ -106,11 +102,11 @@ public abstract class AbstractBindingBuilder<T> {
     }
 
     protected boolean keyTypeIsSet() {
-        return !Void.class.equals(binding.getKey().getTypeLiteral().getType());
+        return Void.class.equals(binding.getKey().getTypeLiteral().getType()) == false;
     }
 
     protected void checkNotTargetted() {
-        if (!(binding instanceof UntargettedBindingImpl)) {
+        if ((binding instanceof UntargettedBindingImpl) == false) {
             binder.addError(IMPLEMENTATION_ALREADY_SET);
         }
     }

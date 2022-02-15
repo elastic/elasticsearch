@@ -1,0 +1,76 @@
+---
+"Test info":
+  - do:
+      cluster.state: {}
+
+  - set: {master_node: master}
+
+  - do:
+      nodes.info: {}
+
+  - set: {nodes.$master.transport_address: local_ip}
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.remote.local.seeds: $local_ip
+        flat_settings: true
+
+  - match: {persistent: {cluster.remote.local.seeds: $local_ip}}
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+              soft_deletes:
+                enabled: true
+
+  - do:
+      ccr.follow:
+        index: bar
+        wait_for_active_shards: 1
+        body:
+          remote_cluster: local
+          leader_index: foo
+  - is_true: follow_index_created
+  - is_true: follow_index_shards_acked
+  - is_true: index_following_started
+
+  - do:
+      ccr.follow_info:
+        index: bar
+  - length: {follower_indices: 1}
+  - match: {follower_indices.0.follower_index: "bar"}
+  - match: {follower_indices.0.remote_cluster: "local"}
+  - match: {follower_indices.0.leader_index: "foo"}
+  - match: {follower_indices.0.status: "active"}
+  - match: {follower_indices.0.parameters.max_read_request_operation_count: 5120}
+  - match: {follower_indices.0.parameters.max_read_request_size: "32mb"}
+  - match: {follower_indices.0.parameters.max_outstanding_read_requests: 12}
+  - match: {follower_indices.0.parameters.max_write_request_operation_count: 5120}
+  - match: {follower_indices.0.parameters.max_write_request_size: "9223372036854775807b"}
+  - match: {follower_indices.0.parameters.max_outstanding_write_requests: 9}
+  - match: {follower_indices.0.parameters.max_write_buffer_count: 2147483647,}
+  - match: {follower_indices.0.parameters.max_write_buffer_size: "512mb"}
+  - match: {follower_indices.0.parameters.max_retry_delay: "500ms"}
+  - match: {follower_indices.0.parameters.read_poll_timeout: "1m"}
+
+  - do:
+      ccr.pause_follow:
+        index: bar
+  - is_true: acknowledged
+
+  - do:
+      ccr.follow_info:
+        index: bar
+  - length: {follower_indices: 1}
+  - match: {follower_indices.0.follower_index: "bar"}
+  - match: {follower_indices.0.remote_cluster: "local"}
+  - match: {follower_indices.0.leader_index: "foo"}
+  - match: {follower_indices.0.status: "paused"}
+  - is_false: follower_indices.0.parameters

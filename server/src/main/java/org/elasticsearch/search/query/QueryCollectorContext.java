@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.query;
@@ -44,8 +33,7 @@ import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEAR
 abstract class QueryCollectorContext {
     private static final Collector EMPTY_COLLECTOR = new SimpleCollector() {
         @Override
-        public void collect(int doc) {
-        }
+        public void collect(int doc) {}
 
         @Override
         public ScoreMode scoreMode() {
@@ -123,7 +111,7 @@ abstract class QueryCollectorContext {
     static QueryCollectorContext createFilteredCollectorContext(IndexSearcher searcher, Query query) {
         return new QueryCollectorContext(REASON_SEARCH_POST_FILTER) {
             @Override
-            Collector create(Collector in ) throws IOException {
+            Collector create(Collector in) throws IOException {
                 final Weight filterWeight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 return new FilteredCollector(in, filterWeight);
             }
@@ -137,7 +125,7 @@ abstract class QueryCollectorContext {
         return new QueryCollectorContext(REASON_SEARCH_MULTI) {
             @Override
             Collector create(Collector in) {
-                List<Collector> subCollectors = new ArrayList<> ();
+                List<Collector> subCollectors = new ArrayList<>();
                 subCollectors.add(in);
                 subCollectors.addAll(subs);
                 return MultiCollector.wrap(subCollectors);
@@ -145,7 +133,7 @@ abstract class QueryCollectorContext {
 
             @Override
             protected InternalProfileCollector createWithProfiler(InternalProfileCollector in) {
-                final List<InternalProfileCollector> subCollectors = new ArrayList<> ();
+                final List<InternalProfileCollector> subCollectors = new ArrayList<>();
                 subCollectors.add(in);
                 if (subs.stream().anyMatch((col) -> col instanceof InternalProfileCollector == false)) {
                     throw new IllegalArgumentException("non-profiling collector");
@@ -174,7 +162,7 @@ abstract class QueryCollectorContext {
             Collector create(Collector in) {
                 assert collector == null;
 
-                List<Collector> subCollectors = new ArrayList<> ();
+                List<Collector> subCollectors = new ArrayList<>();
                 subCollectors.add(new EarlyTerminatingCollector(EMPTY_COLLECTOR, numHits, true));
                 subCollectors.add(in);
                 this.collector = MultiCollector.wrap(subCollectors);

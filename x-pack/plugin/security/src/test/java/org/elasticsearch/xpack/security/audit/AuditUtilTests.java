@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.audit;
 
@@ -22,7 +23,7 @@ import static org.hamcrest.Matchers.hasItems;
 public class AuditUtilTests extends ESTestCase {
 
     public void testIndicesRequest() {
-        assertNull(AuditUtil.indices(new MockIndicesRequest(null, (String[])null)));
+        assertNull(AuditUtil.indices(new MockIndicesRequest(null, (String[]) null)));
         final int numberOfIndices = randomIntBetween(1, 100);
         List<String> expectedIndices = new ArrayList<>();
         final boolean includeDuplicates = randomBoolean();
@@ -34,8 +35,9 @@ public class AuditUtilTests extends ESTestCase {
             }
         }
         final Set<String> uniqueExpectedIndices = new HashSet<>(expectedIndices);
-        final Set<String> result = AuditUtil.indices(new MockIndicesRequest(null,
-                expectedIndices.toArray(new String[expectedIndices.size()])));
+        final Set<String> result = AuditUtil.indices(
+            new MockIndicesRequest(null, expectedIndices.toArray(new String[expectedIndices.size()]))
+        );
         assertNotNull(result);
         assertEquals(uniqueExpectedIndices.size(), result.size());
         assertThat(result, hasItems(uniqueExpectedIndices.toArray(Strings.EMPTY_ARRAY)));

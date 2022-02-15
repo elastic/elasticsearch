@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -6,14 +6,14 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  extraConfigFile 'roles.yml', file('roles.yml')
+  rolesFile file('roles.yml')
   user username: "test-user", password: "x-pack-test-password", role: "test"
   user username: "super-user", password: "x-pack-super-password"
 }

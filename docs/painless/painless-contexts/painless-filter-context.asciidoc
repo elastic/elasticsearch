@@ -30,16 +30,16 @@ The standard <<painless-api-reference-shared, Painless API>> is available.
 To run this example, first follow the steps in
 <<painless-context-examples, context examples>>.
 
-This script finds all unsold documents that cost less than $18.
+This script finds all unsold documents that cost less than $25.
 
 [source,Painless]
 ----
-doc['sold'].value == false && doc['cost'].value < 18
+doc['sold'].value == false && doc['cost'].value < 25
 ----
 
-Defining cost as a script parameter enables the cost to be configured
+Defining `cost` as a script parameter enables the cost to be configured
 in the script query request. For example, the following request finds
-all available theatre seats for evening performances that are under $18.
+all available theatre seats for evening performances that are under $25.
 
 [source,console]
 ----
@@ -52,7 +52,7 @@ GET seats/_search
           "script": {
             "source": "doc['sold'].value == false && doc['cost'].value < params.cost",
             "params": {
-              "cost": 18
+              "cost": 25
             }
           }
         }
@@ -61,4 +61,4 @@ GET seats/_search
   }
 }
 ----
-// TEST[skip: requires setup from other pages]
+// TEST[setup:seats]

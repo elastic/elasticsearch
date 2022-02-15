@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ccr.action;
@@ -10,11 +11,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -48,9 +49,7 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
             PARSER.declareString((parameters, value) -> parameters[3] = value, LEADER_REMOTE_CLUSTER);
         }
 
-        public static ForgetFollowerAction.Request fromXContent(
-                final XContentParser parser,
-                final String leaderIndex) throws IOException {
+        public static ForgetFollowerAction.Request fromXContent(final XContentParser parser, final String leaderIndex) throws IOException {
             final String[] parameters = PARSER.parse(parser, null);
             return new Request(parameters[0], parameters[1], parameters[2], parameters[3], leaderIndex);
         }
@@ -129,12 +128,13 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
          * @param leaderIndex         the name of the leader index
          */
         public Request(
-                final String followerCluster,
-                final String followerIndex,
-                final String followerIndexUUID,
-                final String leaderRemoteCluster,
-                final String leaderIndex) {
-            super(new String[]{leaderIndex});
+            final String followerCluster,
+            final String followerIndex,
+            final String followerIndexUUID,
+            final String leaderRemoteCluster,
+            final String leaderIndex
+        ) {
+            super(new String[] { leaderIndex });
             this.followerCluster = Objects.requireNonNull(followerCluster);
             this.leaderIndex = Objects.requireNonNull(leaderIndex);
             this.leaderRemoteCluster = Objects.requireNonNull(leaderRemoteCluster);

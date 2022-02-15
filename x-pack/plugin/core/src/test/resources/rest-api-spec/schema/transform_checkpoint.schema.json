@@ -1,0 +1,45 @@
+{
+  "definitions": {},
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/elastic/elasticsearch/master/x-pack/plugin/core/src/test/resources/rest-api-spec/schema/transform_checkpoint.schema.json",
+  "description": "schema definition for a transform checkpoint",
+  "additionalProperties": false,
+  "title": "Root",
+  "type": "object",
+  "required": [
+    "id",
+    "checkpoint",
+    "doc_type",
+    "indices",
+    "timestamp_millis"
+  ],
+  "properties": {
+    "id": {
+      "$id": "#root/id",
+      "title": "the transform id",
+      "type": "string",
+      "description": "The transform id"
+    },
+    "checkpoint": {
+      "$id": "#root/checkpoint",
+      "type": "integer"
+    },
+    "doc_type": {
+      "$id": "#root/doc_type",
+      "type": "string"
+    },
+    "indices": {
+      "$id": "#root/indices",
+      "title": "node_failures",
+      "type": "object"
+    },
+    "timestamp_millis": {
+      "$id": "#root/timestamp_millis",
+      "type": "integer"
+    },
+    "time_upper_bound_millis": {
+      "$id": "#root/time_upper_bound_millis",
+      "type": "integer"
+    }
+  }
+}

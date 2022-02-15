@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.inference.modelsize;
@@ -24,7 +25,7 @@ final class SizeEstimatorHelper {
 
     static long sizeOfString(int stringLength) {
         // Technically, each value counted in a String.length is 2 bytes. But, this is how `RamUsageEstimator` calculates it
-        return alignObjectSize(STRING_SIZE + (long)NUM_BYTES_ARRAY_HEADER + (long)(Character.BYTES) * stringLength);
+        return alignObjectSize(STRING_SIZE + (long) NUM_BYTES_ARRAY_HEADER + (long) (Character.BYTES) * stringLength);
     }
 
     static long sizeOfStringCollection(int[] stringSizes) {

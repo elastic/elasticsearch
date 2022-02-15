@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.Date;
@@ -44,15 +45,21 @@ public class Influencer implements ToXContentObject, Writeable {
 
     // Influencers contain data fields, thus we always parse them leniently
     public static final ConstructingObjectParser<Influencer, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
-            RESULT_TYPE_FIELD.getPreferredName(), true,
-            a -> new Influencer((String) a[0], (String) a[1], (String) a[2], (Date) a[3], (long) a[4]));
+        RESULT_TYPE_FIELD.getPreferredName(),
+        true,
+        a -> new Influencer((String) a[0], (String) a[1], (String) a[2], (Date) a[3], (long) a[4])
+    );
 
     static {
         LENIENT_PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         LENIENT_PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);
         LENIENT_PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_VALUE);
-        LENIENT_PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()), Result.TIMESTAMP, ValueType.VALUE);
+        LENIENT_PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+            Result.TIMESTAMP,
+            ValueType.VALUE
+        );
         LENIENT_PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         LENIENT_PARSER.declareString((influencer, s) -> {}, Result.RESULT_TYPE);
         LENIENT_PARSER.declareDouble(Influencer::setProbability, PROBABILITY);
@@ -134,8 +141,15 @@ public class Influencer implements ToXContentObject, Writeable {
     }
 
     public String getId() {
-        return jobId + "_influencer_" + timestamp.getTime() + "_" + bucketSpan + "_" +
-                influenceField + "_" + MachineLearningField.valuesToId(influenceValue);
+        return jobId
+            + "_influencer_"
+            + timestamp.getTime()
+            + "_"
+            + bucketSpan
+            + "_"
+            + influenceField
+            + "_"
+            + MachineLearningField.valuesToId(influenceValue);
     }
 
     public double getProbability() {
@@ -184,8 +198,17 @@ public class Influencer implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, influenceField, influenceValue, initialInfluencerScore,
-                influencerScore, probability, isInterim, bucketSpan);
+        return Objects.hash(
+            jobId,
+            timestamp,
+            influenceField,
+            influenceValue,
+            initialInfluencerScore,
+            influencerScore,
+            probability,
+            isInterim,
+            bucketSpan
+        );
     }
 
     @Override
@@ -203,11 +226,14 @@ public class Influencer implements ToXContentObject, Writeable {
         }
 
         Influencer other = (Influencer) obj;
-        return Objects.equals(jobId, other.jobId) && Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(influenceField, other.influenceField)
-                && Objects.equals(influenceValue, other.influenceValue)
-                && Double.compare(initialInfluencerScore, other.initialInfluencerScore) == 0
-                && Double.compare(influencerScore, other.influencerScore) == 0 && Double.compare(probability, other.probability) == 0
-                && (isInterim == other.isInterim) && (bucketSpan == other.bucketSpan);
+        return Objects.equals(jobId, other.jobId)
+            && Objects.equals(timestamp, other.timestamp)
+            && Objects.equals(influenceField, other.influenceField)
+            && Objects.equals(influenceValue, other.influenceValue)
+            && Double.compare(initialInfluencerScore, other.initialInfluencerScore) == 0
+            && Double.compare(influencerScore, other.influencerScore) == 0
+            && Double.compare(probability, other.probability) == 0
+            && (isInterim == other.isInterim)
+            && (bucketSpan == other.bucketSpan);
     }
 }

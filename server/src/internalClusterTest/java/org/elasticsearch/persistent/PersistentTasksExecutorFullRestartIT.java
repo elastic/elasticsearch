@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.persistent;
 
@@ -64,15 +53,19 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
             assertThat(futures.get(i).get().getId(), equalTo(taskIds[i]));
         }
 
-        PersistentTasksCustomMetadata tasksInProgress = internalCluster().clusterService().state().getMetadata()
-                .custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasksInProgress = internalCluster().clusterService()
+            .state()
+            .getMetadata()
+            .custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(tasksInProgress.tasks().size(), equalTo(numberOfTasks));
 
         // Make sure that at least one of the tasks is running
         assertBusy(() -> {
             // Wait for the task to start
-            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                    .getTasks().size(), greaterThan(0));
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                greaterThan(0)
+            );
         });
 
         // Restart cluster
@@ -90,19 +83,28 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         logger.info("Waiting for {} tasks to start", numberOfTasks);
         assertBusy(() -> {
             // Wait for all tasks to start
-            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                            .getTasks().size(), equalTo(numberOfTasks));
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                equalTo(numberOfTasks)
+            );
         });
 
         logger.info("Complete all tasks");
         // Complete the running task and make sure it finishes properly
-        assertThat(new TestPersistentTasksPlugin.TestTasksRequestBuilder(client()).setOperation("finish").get().getTasks().size(),
-                equalTo(numberOfTasks));
+        assertThat(
+            new TestPersistentTasksPlugin.TestTasksRequestBuilder(client()).setOperation("finish").get().getTasks().size(),
+            equalTo(numberOfTasks)
+        );
 
         assertBusy(() -> {
             // Make sure the task is removed from the cluster state
-            assertThat(((PersistentTasksCustomMetadata) internalCluster().clusterService().state().getMetadata()
-                    .custom(PersistentTasksCustomMetadata.TYPE)).tasks(), empty());
+            assertThat(
+                ((PersistentTasksCustomMetadata) internalCluster().clusterService()
+                    .state()
+                    .getMetadata()
+                    .custom(PersistentTasksCustomMetadata.TYPE)).tasks(),
+                empty()
+            );
         });
 
     }

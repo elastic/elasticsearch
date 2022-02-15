@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.test.eql;
@@ -18,12 +19,7 @@ public class EqlSpec {
     private String[] tags;
     private String query;
     private long[] expectedEventIds;
-
-    // flag to dictate which modes are supported for the test
-    // null -> apply the test to both modes (case sensitive and case insensitive)
-    // TRUE -> case sensitive
-    // FALSE -> case insensitive
-    private Boolean caseSensitive = null;
+    private String[] joinKeys;
 
     public String name() {
         return name;
@@ -73,25 +69,12 @@ public class EqlSpec {
         this.expectedEventIds = expectedEventIds;
     }
 
-    public void caseSensitive(Boolean caseSensitive) {
-        this.caseSensitive = caseSensitive;
+    public String[] joinKeys() {
+        return joinKeys;
     }
 
-    public Boolean caseSensitive() {
-        return this.caseSensitive;
-    }
-
-    public EqlSpec withSensitivity(boolean caseSensitive) {
-        EqlSpec spec = new EqlSpec();
-        spec.name = name;
-        spec.description = description;
-        spec.note = note;
-        spec.tags = tags;
-        spec.query = query;
-        spec.expectedEventIds = expectedEventIds;
-
-        spec.caseSensitive = caseSensitive;
-        return spec;
+    public void joinKeys(String[] joinKeys) {
+        this.joinKeys = joinKeys;
     }
 
     @Override
@@ -102,16 +85,16 @@ public class EqlSpec {
         str = appendWithComma(str, "description", description);
         str = appendWithComma(str, "note", note);
 
-        if (caseSensitive != null) {
-            str = appendWithComma(str, "case_sensitive", Boolean.toString(caseSensitive));
-        }
-
         if (tags != null) {
             str = appendWithComma(str, "tags", Arrays.toString(tags));
         }
 
         if (expectedEventIds != null) {
             str = appendWithComma(str, "expected_event_ids", Arrays.toString(expectedEventIds));
+        }
+
+        if (joinKeys != null) {
+            str = appendWithComma(str, "join_keys", Arrays.toString(joinKeys));
         }
         return str;
     }
@@ -128,18 +111,17 @@ public class EqlSpec {
 
         EqlSpec that = (EqlSpec) other;
 
-        return Objects.equals(this.query(), that.query())
-                && Objects.equals(this.caseSensitive, that.caseSensitive);
+        return Objects.equals(this.query(), that.query());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.query, this.caseSensitive);
+        return Objects.hash(this.query);
     }
 
     private static String appendWithComma(String str, String name, String append) {
-        if (!Strings.isNullOrEmpty(append)) {
-            if (!Strings.isNullOrEmpty(str)) {
+        if (Strings.isNullOrEmpty(append) == false) {
+            if (Strings.isNullOrEmpty(str) == false) {
                 str += ", ";
             }
             str += name + ": " + append;

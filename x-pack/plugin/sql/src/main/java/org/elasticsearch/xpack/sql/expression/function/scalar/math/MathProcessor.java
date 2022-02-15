@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
@@ -14,13 +15,14 @@ import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Random;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class MathProcessor implements Processor {
-    
+
     public enum MathOperation {
         ABS((Object l) -> {
             if (l instanceof Double) {
@@ -28,6 +30,9 @@ public class MathProcessor implements Processor {
             }
             if (l instanceof Float) {
                 return Math.abs(((Float) l).floatValue());
+            }
+            if (l instanceof BigInteger) {
+                return ((BigInteger) l).abs();
             }
 
             // fallback to integer
@@ -72,31 +77,19 @@ public class MathProcessor implements Processor {
         LOG10(Math::log10),
         PI(() -> Math.PI),
         RADIANS(Math::toRadians),
-        RANDOM((Object l) -> l != null ?
-                new Random(((Number) l).longValue()).nextDouble() :
-                Randomness.get().nextDouble(), true),
+        RANDOM((Object l) -> l != null ? new Random(((Number) l).longValue()).nextDouble() : Randomness.get().nextDouble(), true),
         SIGN((Object l) -> {
             if (l instanceof Double) {
-                return Math.signum((Double) l);
+                return (int) Math.signum((Double) l);
             }
             if (l instanceof Float) {
-                return Math.signum((Float) l);
+                return (int) Math.signum((Float) l);
+            }
+            if (l instanceof BigInteger) {
+                return ((BigInteger) l).signum();
             }
 
-            long lo = Long.signum(((Number) l).longValue());
-
-            if (l instanceof Integer) {
-                return DataTypeConverter.safeToInt(lo);
-            }
-            if (l instanceof Short) {
-                return DataTypeConverter.safeToShort(lo);
-            }
-            if (l instanceof Byte) {
-                return DataTypeConverter.safeToByte(lo);
-            }
-
-            //fallback to generic double
-            return lo;
+            return Long.signum(((Number) l).longValue());
         }),
         SIN(Math::sin),
         SINH(Math::sinh),
@@ -134,7 +127,7 @@ public class MathProcessor implements Processor {
             return apply.apply(l);
         }
     }
-    
+
     public static final String NAME = "m";
 
     private final MathOperation processor;
@@ -159,7 +152,7 @@ public class MathProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        if (input != null && !(input instanceof Number)) {
+        if (input != null && (input instanceof Number) == false) {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", input);
         }
 

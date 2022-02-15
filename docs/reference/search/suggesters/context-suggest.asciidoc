@@ -355,7 +355,7 @@ maximum score produced by any matching contexts.
 
 In addition to accepting context values, a context query can be composed of
 multiple context clauses. The following parameters are supported for a
-`category` context clause:
+`geo` context clause:
 
 [horizontal]
 `context`::

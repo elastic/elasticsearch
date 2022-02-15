@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
@@ -19,11 +20,10 @@ import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,6 +41,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -51,7 +53,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private final AsyncExecutionId searchId;
     private final Client client;
     private final ThreadPool threadPool;
-    private final Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier;
+    private final Supplier<AggregationReduceContext> aggReduceContextSupplier;
     private final Listener progressListener;
 
     private final Map<String, String> originHeaders;
@@ -78,26 +80,30 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * @param taskHeaders The filtered request headers for the task.
      * @param searchId The {@link AsyncExecutionId} of the task.
      * @param threadPool The threadPool to schedule runnable.
-     * @param aggReduceContextSupplier A supplier to create final reduce contexts.
+     * @param aggReduceContextSupplierFactory A factory that creates as supplier to create final reduce contexts, we need a factory in
+     *                                        order to inject the task itself to the reduce context.
      */
-    AsyncSearchTask(long id,
-                    String type,
-                    String action,
-                    TaskId parentTaskId,
-                    TimeValue keepAlive,
-                    Map<String, String> originHeaders,
-                    Map<String, String> taskHeaders,
-                    AsyncExecutionId searchId,
-                    Client client,
-                    ThreadPool threadPool,
-                    Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
-        super(id, type, action, "async_search", parentTaskId, taskHeaders);
+    AsyncSearchTask(
+        long id,
+        String type,
+        String action,
+        TaskId parentTaskId,
+        Supplier<String> descriptionSupplier,
+        TimeValue keepAlive,
+        Map<String, String> originHeaders,
+        Map<String, String> taskHeaders,
+        AsyncExecutionId searchId,
+        Client client,
+        ThreadPool threadPool,
+        Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory
+    ) {
+        super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.originHeaders = originHeaders;
         this.searchId = searchId;
         this.client = client;
         this.threadPool = threadPool;
-        this.aggReduceContextSupplier = aggReduceContextSupplier;
+        this.aggReduceContextSupplier = aggReduceContextSupplierFactory.apply(this::isCancelled);
         this.progressListener = new Listener();
         setProgressListener(progressListener);
     }
@@ -126,8 +132,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * Update the expiration time of the (partial) response.
      */
     @Override
-    public void setExpirationTime(long expirationTimeMillis) {
-        this.expirationTimeMillis = expirationTimeMillis;
+    public void setExpirationTime(long expirationTime) {
+        this.expirationTimeMillis = expirationTime;
     }
 
     @Override
@@ -140,7 +146,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      */
     public void cancelTask(Runnable runnable, String reason) {
         if (isCancelled() == false && isCancelling.compareAndSet(false, true)) {
-            CancelTasksRequest req = new CancelTasksRequest().setTaskId(searchId.getTaskId()).setReason(reason);
+            CancelTasksRequest req = new CancelTasksRequest().setTargetTaskId(searchId.getTaskId()).setReason(reason);
             client.admin().cluster().cancelTasks(req, new ActionListener<>() {
                 @Override
                 public void onResponse(CancelTasksResponse cancelTasksResponse) {
@@ -156,7 +162,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             });
         } else {
             runnable.run();
-       }
+        }
     }
 
     @Override
@@ -224,29 +230,24 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                 long id = completionId++;
                 final Cancellable cancellable;
                 try {
-                     cancellable = threadPool.schedule(
-                         () -> {
-                            if (hasRun.compareAndSet(false, true)) {
-                                // timeout occurred before completion
-                                removeCompletionListener(id);
-                                listener.onResponse(getResponseWithHeaders());
-                            }
-                        },
-                        waitForCompletion,
-                        "generic");
-                } catch(Exception exc) {
+                    cancellable = threadPool.schedule(() -> {
+                        if (hasRun.compareAndSet(false, true)) {
+                            // timeout occurred before completion
+                            removeCompletionListener(id);
+                            listener.onResponse(getResponseWithHeaders());
+                        }
+                    }, waitForCompletion, "generic");
+                } catch (Exception exc) {
                     listener.onFailure(exc);
                     return;
                 }
-                completionListeners.put(
-                    id,
-                    resp -> {
-                        if (hasRun.compareAndSet(false, true)) {
-                            // completion occurred before timeout
-                            cancellable.cancel();
-                            listener.onResponse(resp);
-                        }
-                    });
+                completionListeners.put(id, resp -> {
+                    if (hasRun.compareAndSet(false, true)) {
+                        // completion occurred before timeout
+                        cancellable.cancel();
+                        listener.onResponse(resp);
+                    }
+                });
             }
         }
         if (executeImmediately) {
@@ -330,12 +331,15 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         AsyncSearchResponse asyncSearchResponse;
         try {
             asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
-        } catch(Exception e) {
-            ElasticsearchException exception = new ElasticsearchStatusException("Async search: error while reducing partial results",
-                ExceptionsHelper.status(e), e);
+        } catch (Exception e) {
+            ElasticsearchException exception = new ElasticsearchStatusException(
+                "Async search: error while reducing partial results",
+                ExceptionsHelper.status(e),
+                e
+            );
             asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, exception);
-       }
-       return asyncSearchResponse;
+        }
+        return asyncSearchResponse;
     }
 
     // checks if the search task should be cancelled
@@ -345,6 +349,19 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             // we cancel expired search task even if they are still running
             cancelTask(() -> {}, "async search has expired");
         }
+    }
+
+    /**
+     * Returns the status from {@link AsyncSearchTask}
+     */
+    public static AsyncStatusResponse getStatusResponse(AsyncSearchTask asyncTask) {
+        MutableSearchResponse mutableSearchResponse = asyncTask.searchResponse.get();
+        assert mutableSearchResponse != null;
+        return mutableSearchResponse.toStatusResponse(
+            asyncTask.searchId.getEncoded(),
+            asyncTask.getStartTime(),
+            asyncTask.expirationTimeMillis
+        );
     }
 
     class Listener extends SearchProgressActionListener {
@@ -362,31 +379,39 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         protected void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.get().addShardFailure(shardIndex,
-                // the nodeId is null if all replicas of this shard failed
-                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
+            searchResponse.get()
+                .addQueryFailure(
+                    shardIndex,
+                    // the nodeId is null if all replicas of this shard failed
+                    new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null)
+                );
         }
 
         @Override
         protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+            // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.get().addShardFailure(shardIndex,
-                // the nodeId is null if all replicas of this shard failed
-                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
+            // ignore fetch failures: they make the shards count confusing if we count them as shard failures because the query
+            // phase ran fine and we don't want to end up with e.g. total: 5 successful: 5 failed: 5.
+            // Given that partial results include only aggs they are not affected by fetch failures. Async search receives the fetch
+            // failures either as an exception (when all shards failed during fetch, in which case async search will return the error
+            // as well as the response obtained after the final reduction) or as part of the final response (if only some shards failed,
+            // in which case the final response already includes results as well as shard fetch failures)
         }
 
         @Override
         protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
             // best effort to cancel expired tasks
             checkCancellation();
-            searchResponse.compareAndSet(null,
-                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext()));
+            searchResponse.compareAndSet(
+                null,
+                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())
+            );
             executeInitListeners();
         }
 
         @Override
-        public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits,
-                DelayableWriteable.Serialized<InternalAggregations> aggregations, int reducePhase) {
+        public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
             // The way that the MutableSearchResponse will build the aggs.
@@ -396,16 +421,14 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                 reducedAggs = () -> null;
             } else {
                 /*
-                 * Keep a reference to the serialized form of the partially
-                 * reduced aggs and reduce it on the fly when someone asks
+                 * Keep a reference to the partially reduced aggs and reduce it on the fly when someone asks
                  * for it. It's important that we wait until someone needs
                  * the result so we don't perform the final reduce only to
                  * throw it away. And it is important that we keep the reference
-                 * to the serialized aggregations because SearchPhaseController
+                 * to the aggregations because SearchPhaseController
                  * *already* has that reference so we're not creating more garbage.
                  */
-                reducedAggs = () ->
-                    InternalAggregations.topLevelReduce(singletonList(aggregations.expand()), aggReduceContextSupplier.get());
+                reducedAggs = () -> InternalAggregations.topLevelReduce(singletonList(aggregations), aggReduceContextSupplier.get());
             }
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
         }
@@ -427,8 +450,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         public void onFailure(Exception exc) {
             // if the failure occurred before calling onListShards
             searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
-            searchResponse.get().updateWithFailure(new ElasticsearchStatusException("error while executing search",
-                ExceptionsHelper.status(exc), exc));
+            searchResponse.get()
+                .updateWithFailure(new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc));
             executeInitListeners();
             executeCompletionListeners();
         }

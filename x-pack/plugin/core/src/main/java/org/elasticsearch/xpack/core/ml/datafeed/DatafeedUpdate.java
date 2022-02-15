@@ -384,7 +384,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setRuntimeMappings(runtimeMappings);
         }
         if (headers.isEmpty() == false) {
-            builder.setHeaders(ClientHelper.getPersistableSafeSecurityHeadersForVersion(headers, clusterState));
+            builder.setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterState));
         }
         return builder.build();
     }

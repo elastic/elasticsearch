@@ -155,9 +155,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
              * as the user who stored the watch, but it needs to run as the user who executes this request.
              */
             watch.status()
-                .setHeaders(
-                    ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadPool.getThreadContext(), clusterService.state())
-                );
+                .setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state()));
 
             final String triggerType = watch.trigger().type();
             final TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());

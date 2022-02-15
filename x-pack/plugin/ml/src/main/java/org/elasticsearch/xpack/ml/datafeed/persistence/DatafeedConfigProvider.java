@@ -111,7 +111,7 @@ public class DatafeedConfigProvider {
         if (headers.isEmpty() == false) {
             // Filter any values in headers that aren't security fields
             config = new DatafeedConfig.Builder(config).setHeaders(
-                ClientHelper.getPersistableSafeSecurityHeadersForVersion(headers, clusterService.state())
+                ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterService.state())
             ).build();
         }
 

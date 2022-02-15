@@ -394,7 +394,7 @@ public class ClientHelperTests extends ESTestCase {
         if (randomBoolean()) {
             threadContext.putHeader(nonSecurityHeaderKey, randomAlphaOfLength(8));
         }
-        assertThat(ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext, clusterState), anEmptyMap());
+        assertThat(ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState), anEmptyMap());
 
         final boolean hasRunAsHeader = randomBoolean();
         if (hasRunAsHeader) {
@@ -420,9 +420,9 @@ public class ClientHelperTests extends ESTestCase {
         when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         final Map<String, String> headers1;
         if (randomBoolean()) {
-            headers1 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext, clusterState);
+            headers1 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
         } else {
-            headers1 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext.getHeaders(), clusterState);
+            headers1 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext.getHeaders(), clusterState);
         }
         assertThat(headers1, not(hasKey(nonSecurityHeaderKey)));
         if (hasAuthHeader) {
@@ -445,9 +445,9 @@ public class ClientHelperTests extends ESTestCase {
         when(discoveryNodes.getMinNodeVersion()).thenReturn(previousVersion);
         final Map<String, String> headers2;
         if (randomBoolean()) {
-            headers2 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext, clusterState);
+            headers2 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
         } else {
-            headers2 = ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadContext.getHeaders(), clusterState);
+            headers2 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext.getHeaders(), clusterState);
         }
         assertThat(headers2, not(hasKey(nonSecurityHeaderKey)));
         if (hasAuthHeader) {

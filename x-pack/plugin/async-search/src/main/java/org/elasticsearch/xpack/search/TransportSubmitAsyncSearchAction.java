@@ -146,7 +146,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
     private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, Task submitTask, TimeValue keepAlive) {
         String docID = UUIDs.randomBase64UUID();
-        Map<String, String> originHeaders = ClientHelper.getPersistableSafeSecurityHeadersForVersion(
+        Map<String, String> originHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
             nodeClient.threadPool().getThreadContext(),
             clusterService.state()
         );

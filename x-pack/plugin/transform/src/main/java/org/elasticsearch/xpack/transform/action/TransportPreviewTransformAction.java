@@ -267,7 +267,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             mappings.set(deducedMappings);
             function.preview(
                 client,
-                ClientHelper.getPersistableSafeSecurityHeadersForVersion(threadPool.getThreadContext(), clusterService.state()),
+                ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state()),
                 source,
                 deducedMappings,
                 NUMBER_OF_PREVIEW_BUCKETS,

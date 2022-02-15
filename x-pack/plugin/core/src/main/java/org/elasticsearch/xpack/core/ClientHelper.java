@@ -90,7 +90,7 @@ public final class ClientHelper {
      * and rewrite them using minNodeVersion so that they are safe to be persisted as index data
      * and loaded by all nodes in the cluster.
      */
-    public static Map<String, String> getPersistableSafeSecurityHeadersForVersion(ThreadContext threadContext, ClusterState clusterState) {
+    public static Map<String, String> getPersistableSafeSecurityHeaders(ThreadContext threadContext, ClusterState clusterState) {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(threadContext.getHeaders()),
             key -> new AuthenticationContextSerializer(key).readFromContext(threadContext),
@@ -99,10 +99,10 @@ public final class ClientHelper {
     }
 
     /**
-     * Similar to {@link #getPersistableSafeSecurityHeadersForVersion(ThreadContext, ClusterState)},
+     * Similar to {@link #getPersistableSafeSecurityHeaders(ThreadContext, ClusterState)},
      * but works on a Map of headers instead of ThreadContext.
      */
-    public static Map<String, String> getPersistableSafeSecurityHeadersForVersion(Map<String, String> headers, ClusterState clusterState) {
+    public static Map<String, String> getPersistableSafeSecurityHeaders(Map<String, String> headers, ClusterState clusterState) {
         final CheckedFunction<String, Authentication, IOException> authenticationReader = key -> {
             final String authHeader = headers.get(key);
             return authHeader == null ? null : AuthenticationContextSerializer.decode(authHeader);
@@ -121,7 +121,7 @@ public final class ClientHelper {
     ) {
         Map<String, String> newHeaders = null;
 
-        final String authHeader = getSingleRewrittenAuthenticationHeader(
+        final String authHeader = maybeRewriteSingleAuthenticationHeaderForVersion(
             authenticationReader,
             AuthenticationField.AUTHENTICATION_KEY,
             minNodeVersion
@@ -131,7 +131,7 @@ public final class ClientHelper {
             newHeaders.put(AuthenticationField.AUTHENTICATION_KEY, authHeader);
         }
 
-        final String secondaryHeader = getSingleRewrittenAuthenticationHeader(
+        final String secondaryHeader = maybeRewriteSingleAuthenticationHeaderForVersion(
             authenticationReader,
             SecondaryAuthentication.THREAD_CTX_KEY,
             minNodeVersion
@@ -152,7 +152,7 @@ public final class ClientHelper {
         }
     }
 
-    private static String getSingleRewrittenAuthenticationHeader(
+    private static String maybeRewriteSingleAuthenticationHeaderForVersion(
         CheckedFunction<String, Authentication, IOException> authenticationReader,
         String authenticationHeaderKey,
         Version minNodeVersion

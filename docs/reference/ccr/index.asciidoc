@@ -24,9 +24,10 @@ leader indices, and the other cluster contains only follower indices.
 follower indices.
 
 The versions for the cluster, and any replicated indices must be compatible.
+
 [discrete]
 [[ccr-cluster-compatibility]]
-=== Cluster version compatibility
+=== {ccr-init} cluster version compatibility
 
 In a uni-directional configuration, the cluster containing follower indices
 must be running **the same or newer** version of {es} as the remote cluster.
@@ -34,7 +35,7 @@ If newer, the versions must also be compatible as outlined in the following matr
 
 [%collapsible%open]
 [[ccr-version-compatibility]]
-.CCR uni-directional cluster version compatibility matrix
+.{ccr-init} uni-directional cluster version compatibility matrix
 ====
 include::../modules/ccr-uni-directional-compatibility.asciidoc[tag=ccr-uni-directional-version-compatibility-matrix]
 ====

@@ -8,5 +8,14 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 
-public interface FormatterState extends NamedWriteable {}
+import java.util.List;
+
+public interface FormatterState extends NamedWriteable {
+
+    static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(new NamedWriteableRegistry.Entry(FormatterState.class, BasicFormatter.NAME, BasicFormatter::new));
+    }
+
+}

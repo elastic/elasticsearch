@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.SqlBucketExtractor
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlHitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.literal.Literals;
-import org.elasticsearch.xpack.sql.plugin.BasicFormatter;
 import org.elasticsearch.xpack.sql.plugin.FormatterState;
 
 import java.io.IOException;
@@ -61,7 +60,7 @@ public final class Cursors {
         // and custom types
         entries.addAll(Literals.getNamedWriteables());
 
-        entries.addAll(formatterStateWriteables());
+        entries.addAll(FormatterState.getNamedWriteables());
 
         return entries;
     }
@@ -78,7 +77,7 @@ public final class Cursors {
             return StringUtils.EMPTY;
         }
         try (SqlStreamOutput output = SqlStreamOutput.create(version, zoneId)) {
-            output.writeEnum(CursorType.NO_STATE);
+            output.writeOptionalNamedWriteable(null);
             output.writeNamedWriteable(info);
             output.close();
             // return the string only after closing the resource
@@ -93,8 +92,7 @@ public final class Cursors {
             return cursor;
         } else {
             try (SqlStreamOutput output = SqlStreamOutput.create(VERSION, ZoneOffset.UTC)) {
-                output.writeEnum(CursorType.WITH_STATE);
-                output.writeNamedWriteable(state);
+                output.writeOptionalNamedWriteable(state);
                 output.writeString(cursor);
                 output.close();
                 // return the string only after closing the resource
@@ -105,21 +103,14 @@ public final class Cursors {
         }
     }
 
-    private static List<NamedWriteableRegistry.Entry> formatterStateWriteables() {
-        return List.of(new NamedWriteableRegistry.Entry(FormatterState.class, BasicFormatter.NAME, BasicFormatter::new));
-    }
-
-    private static final NamedWriteableRegistry FORMATTER_STATE_REGISTRY = new NamedWriteableRegistry(formatterStateWriteables());
+    private static final NamedWriteableRegistry FORMATTER_STATE_REGISTRY = new NamedWriteableRegistry(FormatterState.getNamedWriteables());
 
     public static FormatterState decodeState(String base64) {
         if (base64.isEmpty()) {
             return null;
         }
         try (SqlStreamInput in = SqlStreamInput.fromString(base64, FORMATTER_STATE_REGISTRY, VERSION)) {
-            return switch (in.readEnum(CursorType.class)) {
-                case WITH_STATE -> in.readNamedWriteable(FormatterState.class);
-                case NO_STATE -> null;
-            };
+            return in.readOptionalNamedWriteable(FormatterState.class);
         } catch (IOException ex) {
             throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
         }
@@ -133,24 +124,15 @@ public final class Cursors {
             return new Tuple<>(Cursor.EMPTY, null);
         }
         try (SqlStreamInput in = SqlStreamInput.fromString(base64, writeableRegistry, VERSION)) {
-            return switch (in.readEnum(CursorType.class)) {
-                case WITH_STATE -> {
-                    in.readNamedWriteable(FormatterState.class); // discard state
-                    yield decodeFromStringWithZone(in.readString(), writeableRegistry);
-                }
-                case NO_STATE -> {
-                    Cursor cursor = in.readNamedWriteable(Cursor.class);
-                    yield new Tuple<>(cursor, in.zoneId());
-                }
-            };
+            if (in.readOptionalNamedWriteable(FormatterState.class) == null) {
+                Cursor cursor = in.readNamedWriteable(Cursor.class);
+                return new Tuple<>(cursor, in.zoneId());
+            } else {
+                return decodeFromStringWithZone(in.readString(), writeableRegistry);
+            }
         } catch (IOException ex) {
             throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
         }
-    }
-
-    private enum CursorType {
-        WITH_STATE(),
-        NO_STATE()
     }
 
 }

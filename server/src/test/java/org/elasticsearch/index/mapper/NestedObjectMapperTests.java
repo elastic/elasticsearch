@@ -1414,7 +1414,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                             b.startObject("properties");
                             {
                                 b.startObject("foo")
-                                    .field("type", randomFrom(List.of("keyword", "ip", "long", "double", "unsigned_long")))
+                                    .field("type", randomFrom(List.of("keyword", "ip", "long", "short", "integer", "byte", "unsigned_long")))
                                     .field("time_series_dimension", true)
                                     .endObject();
                             }

@@ -118,8 +118,6 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
               "cluster": [ "monitor", "manage_ml", "manage_watcher" ],
               "global": [
                 {
-                  "application": {
-                  },
                   "profile": {
                     "update": {
                       "applications": [ "app*" ]
@@ -131,8 +129,6 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                     "manage": {
                       "applications": [ "app01", "app02" ]
                     }
-                  },
-                  "profile": {
                   }
                 }
               ],

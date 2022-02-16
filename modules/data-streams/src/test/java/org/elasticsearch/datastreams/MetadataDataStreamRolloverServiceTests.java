@@ -175,10 +175,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             indexSettings.put("index.mode", dsIndexMode.getName());
         }
         builder.put(
-            IndexMetadata.builder(dataStream.getWriteIndex().getName())
-                .settings(indexSettings)
-                .numberOfShards(1)
-                .numberOfReplicas(0)
+            IndexMetadata.builder(dataStream.getWriteIndex().getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0)
         );
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();

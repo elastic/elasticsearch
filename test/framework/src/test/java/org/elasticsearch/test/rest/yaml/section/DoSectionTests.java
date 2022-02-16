@@ -605,6 +605,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 doSection.getApiCallSection().getNodeSelector()
             )
         ).thenReturn(mockResponse);
+        when(mockResponse.getHeaders("X-elastic-product")).thenReturn(List.of("Elasticsearch"));
         doSection.execute(context);
         verify(context).callApi(
             "indices.get_field_mapping",

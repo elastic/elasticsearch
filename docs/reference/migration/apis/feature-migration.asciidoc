@@ -1,35 +1,47 @@
 [role="xpack"]
-[[migration-api-feature-upgrade]]
-=== Feature Upgrade APIs
+[[feature-migration-api]]
+=== Feature migration APIs
 ++++
-<titleabbrev>Feature upgrade APIs</titleabbrev>
+<titleabbrev>Feature migration</titleabbrev>
 ++++
 
-IMPORTANT: Use this API to check for system features that need to be upgraded before
-a major version upgrade. You should run it on the last minor version of the
-major version you are upgrading from.
+include::{es-repo-dir}/migration/apis/shared-migration-apis-tip.asciidoc[]
 
-The feature upgrade APIs are to be used to retrieve information about system features
-that have to be upgraded before a cluster can be migrated to the next major version number,
-and to trigger an automated system upgrade that might potentially involve downtime for
-{es} system features.
+Version upgrades sometimes require changes to how features store configuration
+information and data in system indices. The feature migration APIs enable you to
+see what features require changes, initiate the automatic migration process, and
+check migration status.
 
-[[feature-upgrade-api-request]]
+Some functionality might be temporarily unavailable during the migration
+process.
+
+[[feature-migration-api-request]]
 ==== {api-request-title}
 
 `GET /migration/system_features`
 
-[[feature-upgrade-api-prereqs]]
+`POST /migration/system_features`
+
+[[feature-migration-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
-[[feature-upgrade-api-example]]
+[[feature-migration-api-desc]]
+==== {api-description-title}
+
+Submit a GET request to the `_migration/system_features` endpoint to see what
+features need to be migrated and the status of any migrations that are in
+progress.
+
+Submit a POST request to the endpoint to start the migration process.
+
+[[feature-migration-api-example]]
 ==== {api-examples-title}
 
-To see the list of system features needing upgrades, submit a GET request to the
-`_migration/system_features` endpoint:
+When you submit a GET request to the `_migration/system_features` endpoint, the
+response indicates the status of any features that need to be migrated.
 
 [source,console]
 --------------------------------------------------
@@ -120,10 +132,10 @@ Example response:
 --------------------------------------------------
 // TESTRESPONSE[s/"minimum_index_version" : "8.0.0"/"minimum_index_version" : $body.$_path/]
 
-This response tells us that Elasticsearch security needs its internal
-indices upgraded before we can upgrade the cluster to 8.0.
 
-To perform the required upgrade, submit a POST request to the same endpoint.
+When you submit a POST request to the `_migration/system_features` endpoint to
+start the migration process, the response indicates what features will be
+migrated.
 
 [source,console]
 --------------------------------------------------
@@ -138,13 +150,13 @@ Example response:
   "accepted" : true,
   "features" : [
     {
-      "feature_name" : "security"
+      "feature_name" : "security" <1>
     }
   ]
 }
 --------------------------------------------------
 // TESTRESPONSE[skip: can't actually upgrade system indices in these tests]
 
-This tells us that the security index is being upgraded. To check the
-overall status of the upgrade, call the endpoint with GET.
+<1> {es} security will be migrated before the cluster is upgraded.
 
+Subsequent GET requests will return the status of the migration process.

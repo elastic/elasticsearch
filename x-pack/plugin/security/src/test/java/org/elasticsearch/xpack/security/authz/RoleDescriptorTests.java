@@ -550,7 +550,7 @@ public class RoleDescriptorTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(profileNamesString.toString(), applicationNamesString.toString());
+            }""".formatted(profileNamesString, applicationNamesString);
         RoleDescriptor role3 = RoleDescriptor.parse(roleName, new BytesArray(json), false, XContentType.JSON);
         assertThat(role3, is(role1));
         json = """
@@ -567,7 +567,7 @@ public class RoleDescriptorTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(applicationNamesString.toString(), profileNamesString.toString());
+            }""".formatted(applicationNamesString, profileNamesString);
         RoleDescriptor role4 = RoleDescriptor.parse(roleName, new BytesArray(json), false, XContentType.JSON);
         assertThat(role4, is(role1));
     }
@@ -666,43 +666,32 @@ public class RoleDescriptorTests extends ESTestCase {
             }
             applicationPrivileges[i] = builder.build();
         }
-        final ConfigurableClusterPrivilege[] configurableClusterPrivileges;
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                configurableClusterPrivileges = new ConfigurableClusterPrivilege[0];
-            } else {
-                configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
-                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
-                        Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                    ) };
-            }
-        } else {
-            if (randomBoolean()) {
-                configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
-                    new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
-                        Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                    ) };
-            } else {
-                if (randomBoolean()) {
-                    configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
-                        new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
-                            Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                        ),
-                        new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
-                            Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                        ) };
-                } else {
-                    configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
-                        new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
-                            Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                        ),
-                        new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
-                            Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
-                        ) };
-
-                }
-            }
-        }
+        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = switch (randomIntBetween(0, 4)) {
+            case 0 -> new ConfigurableClusterPrivilege[0];
+            case 1 -> new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ) };
+            case 2 -> new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ) };
+            case 3 -> new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ),
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ) };
+            case 4 -> new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ),
+                new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ) };
+            default -> throw new IllegalStateException("Unexpected value");
+        };
         final Map<String, Object> metadata = new HashMap<>();
         while (randomBoolean()) {
             String key = randomAlphaOfLengthBetween(4, 12);

@@ -184,25 +184,25 @@ public class PutRoleRequestTests extends ESTestCase {
                 .build();
         }
         request.addApplicationPrivileges(applicationPrivileges);
-
-        if (randomBoolean()) {
-            if (randomBoolean()) {
+        switch (randomIntBetween(0, 3)) {
+            case 0:
                 request.conditionalCluster(new ConfigurableClusterPrivilege[0]);
-            } else {
+                break;
+            case 1:
                 request.conditionalCluster(
                     new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
                         Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
                     )
                 );
-            }
-        } else {
-            if (randomBoolean()) {
+                break;
+            case 2:
                 request.conditionalCluster(
                     new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
                         Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
                     )
                 );
-            } else {
+                break;
+            case 3:
                 request.conditionalCluster(
                     new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
                         Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
@@ -211,7 +211,7 @@ public class PutRoleRequestTests extends ESTestCase {
                         Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
                     )
                 );
-            }
+                break;
         }
 
         request.runAs(generateRandomStringArray(4, 3, false, true));

@@ -94,7 +94,7 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
         final String prefix = randomAlphaOfLengthBetween(0, 3);
         final String name = randomAlphaOfLengthBetween(0, 5);
         String other = randomAlphaOfLengthBetween(0, 7);
-        if (prefix.isEmpty() || other.startsWith(prefix) || other.equals(name)) {
+        if (other.startsWith(prefix) || other.equals(name)) {
             other = null;
         }
         final ConfigurableClusterPrivileges.UpdateProfileDataPrivileges updateProfileDataPrivilege =

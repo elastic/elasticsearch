@@ -447,8 +447,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 ),
                 new NamedWriteableRegistry.Entry(
                     ConfigurableClusterPrivilege.class,
-                    ConfigurableClusterPrivileges.UpdateProfileDataPrivileges.WRITEABLE_NAME,
-                    ConfigurableClusterPrivileges.UpdateProfileDataPrivileges::createFrom
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
                 ),
                 // security : role-mappings
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),

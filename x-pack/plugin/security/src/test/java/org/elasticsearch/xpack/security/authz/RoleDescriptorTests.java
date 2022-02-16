@@ -90,7 +90,7 @@ public class RoleDescriptorTests extends ESTestCase {
             ApplicationResourcePrivileges.builder().application("my_app").privileges("read", "write").resources("*").build() };
 
         final ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
-            new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("app*"))),
+            new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("app*"))),
             new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))) };
 
         RoleDescriptor descriptor = new RoleDescriptor(
@@ -108,7 +108,7 @@ public class RoleDescriptorTests extends ESTestCase {
             descriptor.toString(),
             is(
                 "Role[name=test, cluster=[all,none]"
-                    + ", global=[{APPLICATION:manage:applications=app01,app02},{PROFILE:update:applications=app*}]"
+                    + ", global=[{APPLICATION:manage:applications=app01,app02},{PROFILE:write:applications=app*}]"
                     + ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], privileges=[read]"
                     + ", field_security=[grant=[body,title], except=null], query={\"match_all\": {}}],]"
                     + ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]"
@@ -279,7 +279,7 @@ public class RoleDescriptorTests extends ESTestCase {
               "cluster": [ "manage" ],
               "global": {
                 "profile": {
-                  "update": {
+                  "write": {
                     "applications": [ "", "kibana-*" ]
                   }
                 },
@@ -307,9 +307,9 @@ public class RoleDescriptorTests extends ESTestCase {
         );
         conditionalPrivilege = rd.getConditionalClusterPrivileges()[1];
         assertThat(conditionalPrivilege.getCategory(), equalTo(ConfigurableClusterPrivilege.Category.PROFILE));
-        assertThat(conditionalPrivilege, instanceOf(ConfigurableClusterPrivileges.UpdateProfileDataPrivileges.class));
+        assertThat(conditionalPrivilege, instanceOf(ConfigurableClusterPrivileges.WriteProfileDataPrivileges.class));
         assertThat(
-            ((ConfigurableClusterPrivileges.UpdateProfileDataPrivileges) conditionalPrivilege).getApplicationNames(),
+            ((ConfigurableClusterPrivileges.WriteProfileDataPrivileges) conditionalPrivilege).getApplicationNames(),
             containsInAnyOrder("", "kibana-*")
         );
 
@@ -495,7 +495,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final String[] applicationNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);
         final String[] profileNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);
         ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
-            new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(Sets.newHashSet(profileNames)),
+            new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(Sets.newHashSet(profileNames)),
             new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(applicationNames)) };
         RoleDescriptor role1 = new RoleDescriptor(
             roleName,
@@ -540,7 +540,7 @@ public class RoleDescriptorTests extends ESTestCase {
             {
               "global": {
                 "profile": {
-                  "update": {
+                  "write": {
                     "applications": [ %s ]
                   }
                 },
@@ -562,7 +562,7 @@ public class RoleDescriptorTests extends ESTestCase {
                   }
                 },
                 "profile": {
-                  "update": {
+                  "write": {
                     "applications": [ %s ]
                   }
                 }
@@ -613,7 +613,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 : new ConfigurableClusterPrivilege[] {
                     randomBoolean()
                         ? new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo"))
-                        : new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(Collections.singleton("bar")) },
+                        : new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(Collections.singleton("bar")) },
             booleans.get(4) ? new String[0] : new String[] { "foo" },
             booleans.get(5) ? new HashMap<>() : Collections.singletonMap("foo", "bar"),
             Collections.singletonMap("foo", "bar")
@@ -673,11 +673,11 @@ public class RoleDescriptorTests extends ESTestCase {
                     Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
                 ) };
             case 2 -> new ConfigurableClusterPrivilege[] {
-                new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
+                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
                     Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
                 ) };
             case 3 -> new ConfigurableClusterPrivilege[] {
-                new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
+                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
                     Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
                 ),
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
@@ -687,7 +687,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
                     Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
                 ),
-                new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
+                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
                     Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
                 ) };
             default -> throw new IllegalStateException("Unexpected value");

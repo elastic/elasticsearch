@@ -112,7 +112,7 @@ The following describes the structure of the global privileges entry:
     }
   },
   "profile": {
-    "update": { <3>
+    "write": { <3>
       "applications": [ ... ] <4>
     }
   }
@@ -124,8 +124,8 @@ The following describes the structure of the global privileges entry:
 <2> The list of application names that may be managed. This list supports
     wildcards (e.g. `"myapp-*"`) and regular expressions (e.g.
     `"/app[0-9]*/"`)
-<3> The privilege for the ability to update the `access` and `data` of any user profile
-<4> The list of names and wildcards to which the update privilege is restricted to
+<3> The privilege for the ability to write the `access` and `data` of any user profile
+<4> The list of names and wildcards to which the write privilege is restricted to
 
 [[roles-application-priv]]
 ==== Application Privileges

@@ -70,7 +70,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
         final Set<String> cluster = new LinkedHashSet<>(Arrays.asList("monitor", "manage_ml", "manage_watcher"));
         final Set<ConfigurableClusterPrivilege> conditionalCluster = new LinkedHashSet<>(
             Arrays.asList(
-                new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("app*"))),
+                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("app*"))),
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
             )
         );
@@ -119,7 +119,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
               "global": [
                 {
                   "profile": {
-                    "update": {
+                    "write": {
                       "applications": [ "app*" ]
                     }
                   }

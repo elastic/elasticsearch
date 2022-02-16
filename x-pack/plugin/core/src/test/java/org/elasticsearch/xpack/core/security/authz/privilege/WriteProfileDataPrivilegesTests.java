@@ -49,16 +49,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
-public class UpdateProfileDataPrivilegesTests extends ESTestCase {
+public class WriteProfileDataPrivilegesTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        final ConfigurableClusterPrivileges.UpdateProfileDataPrivileges original = buildPrivileges();
+        final ConfigurableClusterPrivileges.WriteProfileDataPrivileges original = buildPrivileges();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             original.writeTo(out);
             final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                final ConfigurableClusterPrivileges.UpdateProfileDataPrivileges copy =
-                    ConfigurableClusterPrivileges.UpdateProfileDataPrivileges.createFrom(in);
+                final ConfigurableClusterPrivileges.WriteProfileDataPrivileges copy =
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges.createFrom(in);
                 assertThat(copy, equalTo(original));
                 assertThat(original, equalTo(copy));
             }
@@ -70,7 +70,7 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             final XContentBuilder builder = new XContentBuilder(xContent, out);
 
-            final ConfigurableClusterPrivileges.UpdateProfileDataPrivileges original = buildPrivileges();
+            final ConfigurableClusterPrivileges.WriteProfileDataPrivileges original = buildPrivileges();
             builder.startObject();
             original.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
@@ -80,8 +80,8 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
             try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, bytes)) {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-                final ConfigurableClusterPrivileges.UpdateProfileDataPrivileges clone =
-                    ConfigurableClusterPrivileges.UpdateProfileDataPrivileges.parse(parser);
+                final ConfigurableClusterPrivileges.WriteProfileDataPrivileges clone =
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges.parse(parser);
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
 
                 assertThat(clone, equalTo(original));
@@ -97,11 +97,11 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
         if (other.startsWith(prefix) || other.equals(name)) {
             other = null;
         }
-        final ConfigurableClusterPrivileges.UpdateProfileDataPrivileges updateProfileDataPrivilege =
-            new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(Sets.newHashSet(prefix + "*", name));
-        final ClusterPermission updateProfileDataPermission = updateProfileDataPrivilege.buildPermission(ClusterPermission.builder())
+        final ConfigurableClusterPrivileges.WriteProfileDataPrivileges writeProfileDataPrivileges =
+            new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(Sets.newHashSet(prefix + "*", name));
+        final ClusterPermission writeProfileDataPermission = writeProfileDataPrivileges.buildPermission(ClusterPermission.builder())
             .build();
-        assertThat(updateProfileDataPermission, notNullValue());
+        assertThat(writeProfileDataPermission, notNullValue());
 
         final Authentication authentication = mock(Authentication.class);
         // request application name matches privilege wildcard
@@ -109,18 +109,18 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
             ? newUpdateProfileDataRequest(Set.of(prefix + randomAlphaOfLengthBetween(0, 2)), Set.of())
             : newUpdateProfileDataRequest(Set.of(), Set.of(prefix + randomAlphaOfLengthBetween(0, 2)));
         assertTrue(
-            updateProfileDataPermission.check("cluster:admin/xpack/security/profile/put/data", updateProfileDataRequest, authentication)
+            writeProfileDataPermission.check("cluster:admin/xpack/security/profile/put/data", updateProfileDataRequest, authentication)
         );
         // request application name matches privilege name
         updateProfileDataRequest = randomBoolean()
             ? newUpdateProfileDataRequest(Set.of(name), Set.of())
             : newUpdateProfileDataRequest(Set.of(), Set.of(name));
         assertTrue(
-            updateProfileDataPermission.check("cluster:admin/xpack/security/profile/put/data", updateProfileDataRequest, authentication)
+            writeProfileDataPermission.check("cluster:admin/xpack/security/profile/put/data", updateProfileDataRequest, authentication)
         );
         // different action name
         assertFalse(
-            updateProfileDataPermission.check(
+            writeProfileDataPermission.check(
                 randomFrom(ActivateProfileAction.NAME, GetProfileAction.NAME, SearchProfilesAction.NAME),
                 updateProfileDataRequest,
                 authentication
@@ -136,17 +136,17 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
                     Set.of(),
                     randomBoolean() ? Set.of(prefix + randomAlphaOfLengthBetween(0, 2), other) : Set.of(other)
                 );
-            assertFalse(updateProfileDataPermission.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication));
+            assertFalse(writeProfileDataPermission.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication));
             updateProfileDataRequest = randomBoolean()
                 ? newUpdateProfileDataRequest(randomBoolean() ? Set.of(name, other) : Set.of(other), Set.of())
                 : newUpdateProfileDataRequest(Set.of(), randomBoolean() ? Set.of(name, other) : Set.of(other));
-            assertFalse(updateProfileDataPermission.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication));
+            assertFalse(writeProfileDataPermission.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, authentication));
         }
-        assertFalse(updateProfileDataPermission.check(UpdateProfileDataAction.NAME, mock(TransportRequest.class), authentication));
+        assertFalse(writeProfileDataPermission.check(UpdateProfileDataAction.NAME, mock(TransportRequest.class), authentication));
     }
 
     public void testParseAbnormals() throws Exception {
-        final String nullApplications = "{\"update\":{\"applications\":null}}";
+        final String nullApplications = "{\"write\":{\"applications\":null}}";
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(
@@ -156,11 +156,11 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
                 )
         ) {
             parser.nextToken(); // {
-            parser.nextToken(); // "update" field
-            expectThrows(XContentParseException.class, () -> ConfigurableClusterPrivileges.UpdateProfileDataPrivileges.parse(parser));
+            parser.nextToken(); // "write" field
+            expectThrows(XContentParseException.class, () -> ConfigurableClusterPrivileges.WriteProfileDataPrivileges.parse(parser));
             parser.nextToken();
         }
-        final String emptyApplications = "{\"update\":{\"applications\":[]}}";
+        final String emptyApplications = "{\"write\":{\"applications\":[]}}";
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(
@@ -170,8 +170,8 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
                 )
         ) {
             parser.nextToken(); // {
-            parser.nextToken(); // "update" field
-            ConfigurableClusterPrivileges.UpdateProfileDataPrivileges priv = ConfigurableClusterPrivileges.UpdateProfileDataPrivileges
+            parser.nextToken(); // "write" field
+            ConfigurableClusterPrivileges.WriteProfileDataPrivileges priv = ConfigurableClusterPrivileges.WriteProfileDataPrivileges
                 .parse(parser);
             parser.nextToken();
             assertThat(priv.getApplicationNames().size(), is(0));
@@ -181,7 +181,7 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
             ClusterPermission perm = priv.buildPermission(ClusterPermission.builder()).build();
             assertFalse(perm.check(UpdateProfileDataAction.NAME, updateProfileDataRequest, mock(Authentication.class)));
         }
-        final String aNullApplication = "{\"update\":{\"applications\":[null]}}";
+        final String aNullApplication = "{\"write\":{\"applications\":[null]}}";
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(
@@ -191,11 +191,11 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
                 )
         ) {
             parser.nextToken(); // {
-            parser.nextToken(); // "update" field
-            expectThrows(ElasticsearchParseException.class, () -> ConfigurableClusterPrivileges.UpdateProfileDataPrivileges.parse(parser));
+            parser.nextToken(); // "write" field
+            expectThrows(ElasticsearchParseException.class, () -> ConfigurableClusterPrivileges.WriteProfileDataPrivileges.parse(parser));
             parser.nextToken();
         }
-        final String anEmptyApplication = "{\"update\":{\"applications\":[\"\"]}}";
+        final String anEmptyApplication = "{\"write\":{\"applications\":[\"\"]}}";
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(
@@ -205,8 +205,8 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
                 )
         ) {
             parser.nextToken(); // {
-            parser.nextToken(); // "update" field
-            ConfigurableClusterPrivileges.UpdateProfileDataPrivileges priv = ConfigurableClusterPrivileges.UpdateProfileDataPrivileges
+            parser.nextToken(); // "write" field
+            ConfigurableClusterPrivileges.WriteProfileDataPrivileges priv = ConfigurableClusterPrivileges.WriteProfileDataPrivileges
                 .parse(parser);
             parser.nextToken();
             assertThat(priv.getApplicationNames().size(), is(1));
@@ -226,8 +226,8 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
         final int applicationNameLength = randomIntBetween(4, 7);
-        final ConfigurableClusterPrivileges.UpdateProfileDataPrivileges privileges = buildPrivileges(applicationNameLength);
-        final EqualsHashCodeTestUtils.MutateFunction<ConfigurableClusterPrivileges.UpdateProfileDataPrivileges> mutate =
+        final ConfigurableClusterPrivileges.WriteProfileDataPrivileges privileges = buildPrivileges(applicationNameLength);
+        final EqualsHashCodeTestUtils.MutateFunction<ConfigurableClusterPrivileges.WriteProfileDataPrivileges> mutate =
             orig -> buildPrivileges(applicationNameLength + randomIntBetween(1, 3));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(privileges, this::clone, mutate);
     }
@@ -251,18 +251,18 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
         );
     }
 
-    private ConfigurableClusterPrivileges.UpdateProfileDataPrivileges clone(
-        ConfigurableClusterPrivileges.UpdateProfileDataPrivileges original
+    private ConfigurableClusterPrivileges.WriteProfileDataPrivileges clone(
+        ConfigurableClusterPrivileges.WriteProfileDataPrivileges original
     ) {
-        return new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(new LinkedHashSet<>(original.getApplicationNames()));
+        return new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(new LinkedHashSet<>(original.getApplicationNames()));
     }
 
-    static ConfigurableClusterPrivileges.UpdateProfileDataPrivileges buildPrivileges() {
+    static ConfigurableClusterPrivileges.WriteProfileDataPrivileges buildPrivileges() {
         return buildPrivileges(randomIntBetween(4, 7));
     }
 
-    static ConfigurableClusterPrivileges.UpdateProfileDataPrivileges buildPrivileges(int applicationNameLength) {
+    static ConfigurableClusterPrivileges.WriteProfileDataPrivileges buildPrivileges(int applicationNameLength) {
         Set<String> applicationNames = Sets.newHashSet(Arrays.asList(generateRandomStringArray(5, applicationNameLength, false, false)));
-        return new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(applicationNames);
+        return new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(applicationNames);
     }
 }

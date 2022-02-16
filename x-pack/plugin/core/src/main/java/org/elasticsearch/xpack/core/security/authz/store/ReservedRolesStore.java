@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.UpdateProfileDataPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.WriteProfileDataPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
@@ -780,7 +780,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             null,
             new ConfigurableClusterPrivilege[] {
                 new ManageApplicationPrivileges(Set.of("kibana-*")),
-                new UpdateProfileDataPrivileges(Set.of("kibana-*")) },
+                new WriteProfileDataPrivileges(Set.of("kibana-*")) },
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             null

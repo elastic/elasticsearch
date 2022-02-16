@@ -300,7 +300,7 @@ public class SecuritySystemIndices {
                                 builder.field("type", "object");
                                 builder.startObject("properties");
                                 {
-                                    builder.startObject("update");
+                                    builder.startObject("write");
                                     {
                                         builder.field("type", "object");
                                         builder.startObject("properties");

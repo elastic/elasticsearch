@@ -197,14 +197,14 @@ public class PutRoleRequestTests extends ESTestCase {
                 break;
             case 2:
                 request.conditionalCluster(
-                    new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
+                    new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
                         Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
                     )
                 );
                 break;
             case 3:
                 request.conditionalCluster(
-                    new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(
+                    new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(
                         Sets.newHashSet(randomArray(0, 3, String[]::new, stringWithInitialLowercase))
                     ),
                     new ConfigurableClusterPrivileges.ManageApplicationPrivileges(

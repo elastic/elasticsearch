@@ -112,8 +112,8 @@ public final class ConfigurableClusterPrivileges {
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
 
-                    expectFieldName(parser, UpdateProfileDataPrivileges.Fields.UPDATE);
-                    privileges.add(UpdateProfileDataPrivileges.parse(parser));
+                    expectFieldName(parser, WriteProfileDataPrivileges.Fields.WRITE);
+                    privileges.add(WriteProfileDataPrivileges.parse(parser));
                 }
             }
         }
@@ -147,19 +147,19 @@ public final class ConfigurableClusterPrivileges {
     }
 
     /**
-     * The {@code UpdateProfileDataPrivileges} privilege is a {@link ConfigurableClusterPrivilege} that grants the
-     * ability to update the {@code data} and {@code access} sections of any profile.
-     * The grant privilege is namespace configurable such that only specific top-level keys in the {@code data} and {@code access}
-     * dictionary become updateable (wildcards are supported, but exclusion is not).
+     * The {@link WriteProfileDataPrivileges} privilege is a {@link ConfigurableClusterPrivilege} that grants the
+     * ability to write the {@code data} and {@code access} sections of any user profile.
+     * The privilege is namespace configurable such that only specific top-level keys in the {@code data} and {@code access}
+     * dictionary permit writes (wildcards and regexps are supported, but exclusions are not).
      */
-    public static class UpdateProfileDataPrivileges implements ConfigurableClusterPrivilege {
-        public static final String WRITEABLE_NAME = "update-profile-data-privileges";
+    public static class WriteProfileDataPrivileges implements ConfigurableClusterPrivilege {
+        public static final String WRITEABLE_NAME = "write-profile-data-privileges";
 
         private final Set<String> applicationNames;
         private final Predicate<String> applicationPredicate;
         private final Predicate<TransportRequest> requestPredicate;
 
-        public UpdateProfileDataPrivileges(Set<String> applicationNames) {
+        public WriteProfileDataPrivileges(Set<String> applicationNames) {
             this.applicationNames = Collections.unmodifiableSet(applicationNames);
             this.applicationPredicate = StringMatcher.of(applicationNames);
             this.requestPredicate = request -> {
@@ -191,26 +191,26 @@ public final class ConfigurableClusterPrivileges {
             out.writeCollection(this.applicationNames, StreamOutput::writeString);
         }
 
-        public static UpdateProfileDataPrivileges createFrom(StreamInput in) throws IOException {
+        public static WriteProfileDataPrivileges createFrom(StreamInput in) throws IOException {
             final Set<String> applications = in.readSet(StreamInput::readString);
-            return new UpdateProfileDataPrivileges(applications);
+            return new WriteProfileDataPrivileges(applications);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(Fields.UPDATE.getPreferredName(), Map.of(Fields.APPLICATIONS.getPreferredName(), applicationNames));
+            return builder.field(Fields.WRITE.getPreferredName(), Map.of(Fields.APPLICATIONS.getPreferredName(), applicationNames));
         }
 
-        public static UpdateProfileDataPrivileges parse(XContentParser parser) throws IOException {
+        public static WriteProfileDataPrivileges parse(XContentParser parser) throws IOException {
             expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
-            expectFieldName(parser, Fields.UPDATE);
+            expectFieldName(parser, Fields.WRITE);
             expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
             expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
             expectFieldName(parser, Fields.APPLICATIONS);
             expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
             final String[] applications = XContentUtils.readStringArray(parser, false);
             expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
-            return new UpdateProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList(applications)));
+            return new WriteProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList(applications)));
         }
 
         @Override
@@ -218,7 +218,7 @@ public final class ConfigurableClusterPrivileges {
             return "{"
                 + getCategory()
                 + ":"
-                + Fields.UPDATE.getPreferredName()
+                + Fields.WRITE.getPreferredName()
                 + ":"
                 + Fields.APPLICATIONS.getPreferredName()
                 + "="
@@ -234,7 +234,7 @@ public final class ConfigurableClusterPrivileges {
             if (o == null || getClass() != o.getClass()) {
                 return false;
             }
-            final UpdateProfileDataPrivileges that = (UpdateProfileDataPrivileges) o;
+            final WriteProfileDataPrivileges that = (WriteProfileDataPrivileges) o;
             return this.applicationNames.equals(that.applicationNames);
         }
 
@@ -249,7 +249,7 @@ public final class ConfigurableClusterPrivileges {
         }
 
         private interface Fields {
-            ParseField UPDATE = new ParseField("update");
+            ParseField WRITE = new ParseField("write");
             ParseField APPLICATIONS = new ParseField("applications");
         }
     }

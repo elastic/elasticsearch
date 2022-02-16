@@ -115,9 +115,6 @@ public class JwtRealmTests extends JwtTestCase {
         );
         final JwtIssuer jwtIssuer = this.randomIssuer();
         final JwtRealm jwtRealm = jwtIssuer.realm;
-        if (jwtRealm.allowedIssuer.equals("iss12807")) {
-            LOGGER.info("Found it");
-        }
         final User user = this.randomUser(jwtIssuer);
         final SecureString jwt = this.generateJwt(jwtIssuer, user);
         final SecureString clientSecret = jwtRealm.clientAuthenticationSharedSecret;
@@ -583,9 +580,6 @@ public class JwtRealmTests extends JwtTestCase {
                 for (final JwtRealm candidateJwtRealm : allJwtRealms) {
                     final PlainActionFuture<AuthenticationResult<User>> authenticateFuture = PlainActionFuture.newFuture();
                     try {
-                        if (candidateJwtRealm.equals("iss12807")) {
-                            LOGGER.info("Found it");
-                        }
                         candidateJwtRealm.authenticate(jwtAuthenticationToken, authenticateFuture);
                         final AuthenticationResult<User> authenticationResult = authenticateFuture.actionGet();
                         final Exception authenticationResultException = authenticationResult.getException();

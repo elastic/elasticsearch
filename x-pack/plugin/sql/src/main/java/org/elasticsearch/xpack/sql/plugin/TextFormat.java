@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
@@ -55,8 +54,8 @@ enum TextFormat implements MediaType {
                 BasicFormatter formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
 
                 return tuple(formatter.formatWithHeader(response.columns(), response.rows()), formatter);
-            } else if (CollectionUtils.isEmpty(response.rows())) {
-                // empty response or async query
+            } else if (response.hasId() || response.rows().isEmpty()) {
+                // async query or empty response
                 return tuple(StringUtils.EMPTY, null);
             } else {
                 throw new SqlIllegalArgumentException("Cannot format non-empty response with formatter state {}", state);

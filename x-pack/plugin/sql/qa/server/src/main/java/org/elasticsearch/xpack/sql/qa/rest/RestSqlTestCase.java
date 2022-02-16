@@ -1452,11 +1452,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     private void testNonEmptyLastPage(String format) throws IOException {
         // see https://github.com/elastic/elasticsearch/issues/83788
-        int size = 10;
+        int size = randomIntBetween(4, 20);
         // ensure that second page is neither empty nor full
         int pageSize = size / 2 + 1;
 
-        String doc = IntStream.range(0, 10).mapToObj(i -> "\"field" + i + "\": 1").collect(Collectors.joining(",", "{", "}"));
+        String doc = IntStream.range(0, size).mapToObj(i -> "\"field" + i + "\": 1").collect(Collectors.joining(",", "{", "}"));
         index(doc);
 
         Tuple<String, String> response = runSqlAsText(

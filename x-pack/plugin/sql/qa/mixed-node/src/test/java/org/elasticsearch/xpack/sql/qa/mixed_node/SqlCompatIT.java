@@ -28,7 +28,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -198,22 +197,24 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         }
     }
 
-    public void testFormatTxtQueryWithCursorOnNewNode() throws IOException {
-        testFormatTxtQueryWithCursor(newNodesClient);
+    public void testCreateCursorWithFormatTxtOnNewNode() throws IOException {
+        testCreateCursorWithFormatTxt(newNodesClient);
     }
 
-    public void testFormatTxtQueryWithCursorOnOldNode() throws IOException {
-        testFormatTxtQueryWithCursor(oldNodesClient);
+    public void testCreateCursorWithFormatTxtOnOldNode() throws IOException {
+        testCreateCursorWithFormatTxt(oldNodesClient);
     }
 
-    public void testFormatTxtQueryWithCursor(RestClient client) throws IOException {
-        // see https://github.com/elastic/elasticsearch/issues/83581
+    /**
+     * Tests covering https://github.com/elastic/elasticsearch/issues/83581
+     */
+    public void testCreateCursorWithFormatTxt(RestClient client) throws IOException {
         index("{\"foo\":1}", "{\"foo\":2}");
 
         Request query = new Request("POST", "_sql");
         XContentBuilder json = XContentFactory.jsonBuilder()
             .startObject()
-            .field("query", "select foo from test order by foo")
+            .field("query", randomFrom("SELECT foo FROM test", "SELECT foo FROM test GROUP BY foo"))
             .field("fetch_size", 1)
             .endObject();
 
@@ -222,12 +223,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
 
         Response response = client.performRequest(query);
         assertOK(response);
-        String content = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
-        assertEquals("""
-                  foo     \s
-            ---------------
-            1             \s
-            """, content);
+        assertFalse(Strings.isNullOrEmpty(response.getHeader("Cursor")));
     }
 
 }

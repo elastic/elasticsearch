@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -112,7 +113,7 @@ public class CursorTests extends ESTestCase {
     public void testAttachingStateToCursorFromOtherVersion() {
         Cursor cursor = randomSearchHitCursor();
         ZoneId zone = randomZone();
-        String encoded = encodeToString(cursor, Version.V_7_17_1, zone);
+        String encoded = encodeToString(cursor, randomValueOtherThan(Version.CURRENT, () -> VersionUtils.randomVersion(random())), zone);
 
         FormatterState state = randomFormatterState();
         String withState = attachState(encoded, state);

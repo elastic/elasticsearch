@@ -70,6 +70,12 @@ no partial results. Defaults to `true`.
 To override the default for this field, set the
 `search.default_allow_partial_results` cluster setting to `false`.
 
+A {ccs} request can still return partial search results even
+`default_allow_partial_results` is set to `false` if some remote clusters are
+unavailable and their <<skip-unavailable-clusters,skip_unavailable>> settings
+are set to `true`. In this case, the caller needs to examine the number of
+skipped clusters returned at `_clusters.skipped` in the search response.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]

@@ -311,7 +311,12 @@ PUT _cluster/settings
 // TEST[continued]
 
 If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
-include matching documents from that cluster in the final results.
+include matching documents from that cluster in the final results. If users
+want the <<search-partial-responses,`allow_partial_search_results`>> and
+<<multi-index,`ignore_unavailable`>> parameters of a {ccs} request to take
+effect on remote clusters, the `skip_unavailable` setting of remote clusters
+must not be set to `true`. The other option is to examine the number of skipped
+clusters returned at `_clusters.skipped` in the search response.
 
 [discrete]
 [[ccs-network-delays]]

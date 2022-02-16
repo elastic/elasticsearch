@@ -578,7 +578,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 C a = createAggregator(builder, context);
                 a.preCollection();
                 if (context.isInSortOrderExecutionRequired()) {
-                    new TimeSeriesIndexSearcher(subSearcher).search(rewritten, a);
+                    new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
                 } else {
                     Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
                     subSearcher.search(weight, a);
@@ -589,7 +589,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         } else {
             root.preCollection();
             if (context.isInSortOrderExecutionRequired()) {
-                new TimeSeriesIndexSearcher(searcher).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+                new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
             } else {
                 searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
             }

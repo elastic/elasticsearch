@@ -20,6 +20,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -104,6 +105,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -566,6 +568,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
             r -> internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry, clusterService, recoverySettings))
         );
         return internalRepositories;
+    }
+
+    @Override
+    public Consumer<IndexMetadata> addPreRestoreCheck() {
+        List<Consumer<IndexMetadata>> checks = filterPlugins(RepositoryPlugin.class).stream()
+            .map(RepositoryPlugin::addPreRestoreCheck)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        return checks.isEmpty() ? null : imd -> checks.forEach(c -> c.accept(imd));
     }
 
     @Override

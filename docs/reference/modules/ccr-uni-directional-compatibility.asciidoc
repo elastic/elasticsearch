@@ -9,7 +9,7 @@ h| Cluster version containing leader index             | 6.8           | 7.1–7
 | 8.0–{minor-version} | {no-icon}     | {no-icon}     | {no-icon}     | {yes-icon}^*^
 |====
 
-^*^ For versions ranges like `7.1-7.16`, the follower must be running the same or newer version as the leader.
+^*^ The cluster containing the follower index must be running the same or newer version as the cluster containing the leader index.
 
 ifeval::["{release-state}"!="released"]
 NOTE: This documentation is for {es} version {version}, which is not yet

@@ -1,8 +1,8 @@
 // tag::ccr-uni-directional-version-compatibility-matrix[]
 [cols="^,^,^,^,^"]
 |====
-| 4+^h| Follower
-h| Leader             | 6.8           | 7.1–7.16      | 7.17          | 8.0–{minor-version}
+| 4+^h| Cluster version containing follower index
+h| Cluster version containing leader index             | 6.8           | 7.1–7.16      | 7.17          | 8.0–{minor-version}
 | 6.8                 | {yes-icon}^*^ | {yes-icon}    | {yes-icon}    | {no-icon}
 | 7.1–7.16            | {no-icon}     | {yes-icon}^*^ | {yes-icon}    | {no-icon}
 | 7.17                | {no-icon}     | {no-icon}     | {yes-icon}^*^ | {yes-icon}

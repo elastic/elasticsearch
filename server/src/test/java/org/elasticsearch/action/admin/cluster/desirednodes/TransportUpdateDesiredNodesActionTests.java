@@ -159,7 +159,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         assertThat(desiredNodes, is(notNullValue()));
         assertThat(desiredNodes.historyID(), is(equalTo(request.getHistoryID())));
         assertThat(desiredNodes.version(), is(equalTo(request.getVersion())));
-        assertThat(desiredNodes.nodes(), is(equalTo(request.getNodes())));
+        // TODO: handle this better
+        assertThat(Set.copyOf(desiredNodes.nodes()), is(equalTo(Set.copyOf(request.getNodes()))));
     }
 
     public void testUpdatesAreIdempotent() {

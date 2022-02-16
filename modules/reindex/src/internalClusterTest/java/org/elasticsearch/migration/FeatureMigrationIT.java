@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -278,7 +279,8 @@ public class FeatureMigrationIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        SetOnce<Boolean> clusterStateUpdated = new SetOnce<>();
+        SetOnce<Exception> failure = new SetOnce<>();
+        CountDownLatch clusterStateUpdated = new CountDownLatch(1);
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
             .submitStateUpdateTask(this.getTestName(), new ClusterStateUpdateTask() {
                 @Override
@@ -297,25 +299,29 @@ public class FeatureMigrationIT extends ESIntegTestCase {
 
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    clusterStateUpdated.set(true);
+                    clusterStateUpdated.countDown();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    clusterStateUpdated.set(false);
+                    failure.set(e);
+                    clusterStateUpdated.countDown();
                 }
             }, ClusterStateTaskExecutor.unbatched());
 
-        assertBusy(() -> assertTrue(Optional.ofNullable(clusterStateUpdated.get()).orElse(false)));
+        clusterStateUpdated.await();
+        if (failure.get() != null) {
+            logger.error("cluster state update to inject migration failure state did not succeed", failure.get());
+            fail("cluster state update failed, see log for details");
+        }
 
         PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
         PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
         // Make sure we actually started the migration
-        final Set<String> migratingFeatures = migrationResponse.getFeatures()
-            .stream()
-            .map(PostFeatureUpgradeResponse.Feature::getFeatureName)
-            .collect(Collectors.toSet());
-        assertThat(migratingFeatures, hasItem(FEATURE_NAME));
+        assertTrue(
+            "could not find [" + FEATURE_NAME + "] in response: " + Strings.toString(migrationResponse),
+            migrationResponse.getFeatures().stream().anyMatch(feature -> feature.getFeatureName().equals(FEATURE_NAME))
+        );
 
         // Now wait for the migration to finish (otherwise the test infra explodes)
         assertBusy(() -> {

@@ -616,10 +616,7 @@ public class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkNodeAttrData(
-        final Settings settings,
-        final PluginsAndModules pluginsAndModules
-    ) {
+    static DeprecationIssue checkNodeAttrData(final Settings settings, final PluginsAndModules pluginsAndModules) {
         String nodeAttrDataValue = settings.get("node.attr.data");
         if (nodeAttrDataValue == null) {
             return null;

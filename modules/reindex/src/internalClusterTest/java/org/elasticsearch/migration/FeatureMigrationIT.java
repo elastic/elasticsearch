@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -309,7 +310,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
                 }
             }, ClusterStateTaskExecutor.unbatched());
 
-        clusterStateUpdated.await();
+        clusterStateUpdated.await(10, TimeUnit.SECONDS); // Should be basically instantaneous
         if (failure.get() != null) {
             logger.error("cluster state update to inject migration failure state did not succeed", failure.get());
             fail("cluster state update failed, see log for details");

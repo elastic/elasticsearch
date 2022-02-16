@@ -309,7 +309,14 @@ public abstract class JwtTestCase extends ESTestCase {
         // To compensate, use Base64(randomBytes) as a UTF8 password bytes.
         final String bytesAsBase64 = hmacKey.getKeyValue().toString();
         final byte[] base64AsUtf8 = bytesAsBase64.getBytes(StandardCharsets.UTF_8);
-        return new OctetSequenceKey.Builder(base64AsUtf8).build();
+        final OctetSequenceKey.Builder utf8HmacKeyBuilder = new OctetSequenceKey.Builder(base64AsUtf8);
+        // Note: Copying null attributes is OK (no-op)
+        utf8HmacKeyBuilder.keyID(hmacKey.getKeyID());
+        utf8HmacKeyBuilder.algorithm(hmacKey.getAlgorithm());
+        utf8HmacKeyBuilder.keyUse(hmacKey.getKeyUse());
+        utf8HmacKeyBuilder.keyOperations(hmacKey.getKeyOperations());
+        utf8HmacKeyBuilder.keyStore(hmacKey.getKeyStore());
+        return utf8HmacKeyBuilder.build();
     }
 
     public static OctetSequenceKey randomJwkHmacOidc(final JWSAlgorithm jwsAlgorithm) throws JOSEException {

@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FieldCapabilitiesIndexResponseTest extends ESTestCase {
+public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
 
     public void testShareResponsesUsingMappingHash() throws Exception {
         final Supplier<Map<String, IndexFieldCapabilities>> randomFieldCaps = () -> {

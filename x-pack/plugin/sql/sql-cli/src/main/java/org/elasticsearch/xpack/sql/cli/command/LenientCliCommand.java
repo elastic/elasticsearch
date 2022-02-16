@@ -12,18 +12,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * fetch_separator command that allows to change the separator string between fetches
+ * lenient command, enables/disables fields multi-value leniency.
+ * ie. with lenient = true, in case of array values, return the first value, with no guarantee of consistent results.
+ *
  */
-public class FetchSeparatorCliCommand extends AbstractCliCommand {
+public class LenientCliCommand extends AbstractCliCommand {
 
-    public FetchSeparatorCliCommand() {
-        super(Pattern.compile("fetch(?: |_)separator *= *\"(.+)\"", Pattern.CASE_INSENSITIVE));
+    public LenientCliCommand() {
+        super(Pattern.compile("lenient *= *(.+)", Pattern.CASE_INSENSITIVE));
     }
 
     @Override
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, Matcher m, String line) {
-        cliSession.cfg().setFetchSeparator(m.group(1));
-        terminal.line().text("fetch separator set to \"").em(cliSession.cfg().getFetchSeparator()).text("\"").end();
+        cliSession.cfg().setLenient(Boolean.parseBoolean(m.group(1)));
+        terminal.line().text("lenient set to ").em(Boolean.toString(cliSession.cfg().isLenient())).end();
         return true;
     }
 }

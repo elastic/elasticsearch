@@ -23,6 +23,11 @@ public class GeoIpUpgradeIT extends AbstractUpgradeTestCase {
                 String tasks = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
                 assertThat(tasks, Matchers.containsString("geoip-downloader"));
             });
+            assertBusy(() -> {
+                Response response = client().performRequest(new Request("GET", "_ingest/geoip/stats"));
+                String tasks = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+                assertThat(tasks, Matchers.containsString("failed_downloads\":1"));
+            });
         }
     }
 }

@@ -152,10 +152,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             GEOIP_DOWNLOADER,
             new GeoIpTaskParams(),
             ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
-                Throwable t = e;
-                if (e instanceof RemoteTransportException) {
-                    t = e.getCause();
-                }
+                Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
                     logger.error("failed to create geoip downloader task", e);
                     onFailure.run();
@@ -168,10 +165,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(
             r -> logger.debug("Stopped geoip downloader task"),
             e -> {
-                Throwable t = e;
-                if (e instanceof RemoteTransportException) {
-                    t = e.getCause();
-                }
+                Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                 if (t instanceof ResourceNotFoundException == false) {
                     logger.error("failed to remove geoip downloader task", e);
                     onFailure.run();
@@ -183,12 +177,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             ActionListener.runAfter(
                 listener,
                 () -> client.admin().indices().prepareDelete(DATABASES_INDEX).execute(ActionListener.wrap(rr -> {}, e -> {
-                    Throwable t = e;
-                    if (e instanceof RemoteTransportException) {
-                        t = e.getCause();
-                    }
+                    Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                     if (t instanceof ResourceNotFoundException == false) {
-                        logger.warn(e.getClass() + "failed to remove " + DATABASES_INDEX, e);
+                        logger.warn("failed to remove " + DATABASES_INDEX, e);
                     }
                 }))
             )

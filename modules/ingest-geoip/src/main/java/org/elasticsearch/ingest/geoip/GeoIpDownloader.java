@@ -264,6 +264,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         try {
             updateDatabases();
         } catch (Exception e) {
+            stats = stats.failedDownload();
             logger.error("exception during geoip databases update", e);
         }
         try {

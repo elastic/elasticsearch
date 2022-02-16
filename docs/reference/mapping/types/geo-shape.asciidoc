@@ -26,7 +26,7 @@ type.
 
 |`orientation`
 a|Optional. Default <<polygon-orientation,orientation>> for the field's
-polygons.
+WKT polygons.
 
 This parameter sets and returns only a `RIGHT` (counterclockwise) or `LEFT`
 (clockwise) value. However, you can specify either value in multiple ways.
@@ -252,33 +252,27 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-[IMPORTANT]
-====
-WKT doesn't enforce a specific order for vertices. This means ambiguous polygons
-around the international dateline (+/-180° longitude) and poles are possible
-using WKT.
-
-https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON] mandates that an
-outer polygon use a counterclockwise vertex order and interior shapes use a
-clockwise vertex order. This aligns with the Open Geospatial Consortium (OGC)
-https://www.opengeospatial.org/standards/sfa[Simple Feature Access]
-specification for vertex ordering.
-====
-
 [discrete]
 [[polygon-orientation]]
 ===== Polygon orientation
 
 A polygon's orientation indicates the order of its vertices: `RIGHT`
-(counterclockwise) or `LEFT` (clockwise).
+(counterclockwise) or `LEFT` (clockwise). {es} uses a polygon’s orientation to
+determine if it crosses the international dateline (+/-180° longitude). 
 
-You can set a default orientation for a `geo_shape` field using the
-<<geo-shape-mapping-options,`orientation` mapping parameter>>. You can override
-this default for specific polygons using the document-level `orientation`
-parameter.
+You can set a default orientation for WKT polygons using the
+<<geo-shape-mapping-options,`orientation` mapping parameter>>. The WKT
+specification doesn't specify or enforce a default orientation.
 
-For example, the following indexing request specifies a document-level
-`orientation` of `LEFT`.
+GeoJSON polygons use a default orientation of `RIGHT`, regardless of
+`orientation` mapping parameter. The
+https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON specification]
+mandates that an outer polygon use a counterclockwise orientation and interior
+shapes use a clockwise orientation.
+
+You can override the default orientation for WKT and GeoJSON polygons using the
+document-level `orientation` parameter. For example, the following indexing
+request specifies a document-level `orientation` of `LEFT`.
 
 [source,console]
 ----
@@ -295,15 +289,15 @@ POST /example/_doc
 ----
 
 {es} only uses a polygon’s orientation to determine if it crosses the
-international dateline (+/-180° longitude). If the difference between a
-polygon’s minimum longitude and the maximum longitude is less than 180°, the
-polygon doesn't cross the dateline and its orientation has no effect.
+international dateline. If the difference between a polygon’s minimum longitude
+and the maximum longitude is less than 180°, the polygon doesn't cross the
+dateline and its orientation has no effect.
 
 If the difference between a polygon’s minimum longitude and the maximum
 longitude is 180° or greater, {es} checks whether the polygon's document-level
-`orientation` differs from the default in the `orientation` mapping parameter.
-If the orientation differs, {es} considers the polygon to cross the
-international dateline and splits the polygon at the dateline.
+`orientation` differs from the default orientation. If the orientation differs,
+{es} considers the polygon to cross the international dateline and splits the
+polygon at the dateline.
 
 [discrete]
 [[geo-multipoint]]

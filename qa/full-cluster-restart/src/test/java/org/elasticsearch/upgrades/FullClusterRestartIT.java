@@ -224,7 +224,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83926")
     public void testSearchTimeSeriesMode() throws Exception {
         assumeTrue("time series mode introduced in 8.0.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
         int numDocs;
@@ -267,7 +266,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83926")
     public void testNewReplicasTimeSeriesMode() throws Exception {
         assumeTrue("time series mode introduced in 8.0.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
         if (isRunningAgainstOldCluster()) {

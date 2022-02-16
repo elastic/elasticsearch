@@ -480,9 +480,11 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             // generate a series of updates and check if batching works
             final String indexName = randomAlphaOfLength(10);
             long currentTerm = state.term();
+            boolean wroteState = false;
             final int iterations = randomIntBetween(1, 1000);
             for (int i = 0; i < iterations; i++) {
-                if (rarely()) {
+                final boolean mustWriteState = wroteState == false && i == iterations - 1;
+                if (rarely() && mustWriteState == false) {
                     // bump term
                     currentTerm = currentTerm + (rarely() ? randomIntBetween(1, 5) : 0L);
                     persistedState.setCurrentTerm(currentTerm);
@@ -496,8 +498,10 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                         Metadata.builder().coordinationMetadata(createCoordinationMetadata(term)).put(indexMetadata, false).build()
                     );
                     persistedState.setLastAcceptedState(state);
+                    wroteState = true;
                 }
             }
+            assertTrue(wroteState); // must write it at least once
             assertEquals(currentTerm, persistedState.getCurrentTerm());
             assertClusterStateEqual(state, persistedState.getLastAcceptedState());
             assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()));

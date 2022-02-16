@@ -47,6 +47,7 @@
   - do:
       ml.get_memory_stats:
         node_id: "ml:true"
+        master_timeout: "1m"
 
   - match: { _nodes.total: 1 }
   - match: { _nodes.successful: 1 }
@@ -83,6 +84,7 @@
   - do:
       ml.get_memory_stats:
         node_id: $node_id
+        timeout: "29s"
 
   - match: { _nodes.total: 1 }
   - match: { _nodes.successful: 1 }

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -64,7 +64,7 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
         super(NAME, Response::new);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> {
 
         private final String nodeId;
 

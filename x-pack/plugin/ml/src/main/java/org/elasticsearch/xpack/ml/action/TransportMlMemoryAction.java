@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
@@ -95,7 +97,7 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
         ActionListener<NodesStatsResponse> nodeStatsListener = ActionListener.wrap(nodesStatsResponse -> {
             TrainedModelCacheInfoAction.Request trainedModelCacheInfoRequest = new TrainedModelCacheInfoAction.Request(
                 nodesStatsResponse.getNodes().stream().map(NodeStats::getNode).toArray(DiscoveryNode[]::new)
-            );
+            ).timeout(request.timeout());
 
             parentTaskClient.execute(
                 TrainedModelCacheInfoAction.INSTANCE,
@@ -115,7 +117,14 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
 
         // Next get node stats related to the OS and JVM
         ActionListener<Void> memoryTrackerRefreshListener = ActionListener.wrap(
-            r -> parentTaskClient.admin().cluster().prepareNodesStats(nodeIds).clear().setOs(true).setJvm(true).execute(nodeStatsListener),
+            r -> parentTaskClient.admin()
+                .cluster()
+                .prepareNodesStats(nodeIds)
+                .clear()
+                .setOs(true)
+                .setJvm(true)
+                .setTimeout(request.timeout())
+                .execute(nodeStatsListener),
             listener::onFailure
         );
 
@@ -141,9 +150,23 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
         boolean useAutoMachineMemoryPercent = clusterSettings.get(USE_AUTO_MACHINE_MEMORY_PERCENT);
         NodeLoadDetector nodeLoadDetector = new NodeLoadDetector(memoryTracker);
         Map<String, CacheInfo> cacheInfoByNode = trainedModelCacheInfoResponse.getNodesMap();
+        List<FailedNodeException> failures = new ArrayList<>(nodesStatsResponse.failures());
 
         for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
             DiscoveryNode node = nodeStats.getNode();
+            String nodeId = node.getId();
+            // We only provide a response if both requests we issued to all nodes returned.
+            // The loop is iterating successes of the node stats call with failures already
+            // accumulated. This check adds failures of the trained model cache call that
+            // happened on nodes where the node stats call succeeded.
+            Optional<FailedNodeException> trainedModelCacheInfoFailure = trainedModelCacheInfoResponse.failures()
+                .stream()
+                .filter(e -> nodeId.equals(e.nodeId()))
+                .findFirst();
+            if (trainedModelCacheInfoFailure.isPresent()) {
+                failures.add(trainedModelCacheInfoFailure.get());
+                continue;
+            }
             OsStats.Mem mem = nodeStats.getOs().getMem();
             ByteSizeValue mlMax;
             ByteSizeValue mlNativeCodeOverhead;
@@ -173,7 +196,7 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             ByteSizeValue jvmHeapMax = nodeStats.getJvm().getMem().getHeapMax();
             ByteSizeValue jvmInferenceMax;
             ByteSizeValue jvmInference;
-            CacheInfo cacheInfoForNode = cacheInfoByNode.get(node.getId());
+            CacheInfo cacheInfoForNode = cacheInfoByNode.get(nodeId);
             if (cacheInfoForNode != null) {
                 jvmInferenceMax = cacheInfoForNode.getJvmInferenceMax();
                 jvmInference = cacheInfoForNode.getJvmInference();
@@ -198,7 +221,7 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             );
         }
 
-        listener.onResponse(new MlMemoryAction.Response(state.getClusterName(), nodeResponses, nodesStatsResponse.failures()));
+        listener.onResponse(new MlMemoryAction.Response(state.getClusterName(), nodeResponses, failures));
     }
 
     @Override

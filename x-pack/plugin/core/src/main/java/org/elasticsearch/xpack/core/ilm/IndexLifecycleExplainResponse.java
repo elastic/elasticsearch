@@ -416,7 +416,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         if (lifecycleDate == null) {
             return TimeValue.MINUS_ONE;
         } else {
-            return TimeValue.timeValueMillis(System.currentTimeMillis() - lifecycleDate);
+            return TimeValue.timeValueMillis(Math.max(0L, System.currentTimeMillis() - lifecycleDate));
         }
     }
 

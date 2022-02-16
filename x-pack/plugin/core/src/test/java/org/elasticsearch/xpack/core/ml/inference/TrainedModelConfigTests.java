@@ -391,7 +391,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             builder.setModelType(null);
             builder.setLocation(null);
         }
-        if (instance.getInferenceConfig() instanceof TextClassificationConfig textClassificationConfig) {
+        if (instance.getInferenceConfig()instanceof TextClassificationConfig textClassificationConfig) {
             builder.setInferenceConfig(TextClassificationConfigTests.mutateInstance(textClassificationConfig, version));
         }
         return builder.build();

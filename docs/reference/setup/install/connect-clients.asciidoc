@@ -5,9 +5,11 @@ HTTP layer. A CA certificate is generated and stored on disk, and the hex-coded
 SHA-256 fingerprint of this certificate is also output to the terminal. Any 
 clients that connect to {es}, such as the 
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} Clients],
-{beats}, {ls}, and {fleet} must validate that they trust the certificate that
-{es} uses for HTTPS. Clients can establish trust by using either the fingerprint
-of the CA certificate or the CA certificate itself.
+{beats}, standalone {agent}s, and {ls} must validate that they trust the
+certificate that {es} uses for HTTPS. {fleet-server} and {fleet}-managed
+{agent}s are automatically configured to trust the fingerprint of the CA.
+Clients can establish trust by using either the fingerprint of the CA
+certificate or the CA certificate itself.
 
 If the auto-configuration process already completed, you can still obtain the 
 fingerprint of the security certificate. You can also copy the CA certificate

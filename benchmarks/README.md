@@ -5,7 +5,7 @@ This directory contains the microbenchmark suite of Elasticsearch. It relies on 
 ## Purpose
 
 We do not want to microbenchmark everything but the kitchen sink and should typically rely on our
-[macrobenchmarks](https://elasticsearch-benchmarks.elastic.co/app/kibana#/dashboard/Nightly-Benchmark-Overview) with
+[macrobenchmarks](https://elasticsearch-benchmarks.elastic.co/) with
 [Rally](http://github.com/elastic/rally). Microbenchmarks are intended to spot performance regressions in performance-critical components.
 The microbenchmark suite is also handy for ad-hoc microbenchmarks but please remove them again before merging your PR.
 

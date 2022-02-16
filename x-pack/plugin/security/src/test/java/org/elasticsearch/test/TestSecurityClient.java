@@ -8,10 +8,12 @@
 package org.elasticsearch.test;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
@@ -21,6 +23,8 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 
 public class TestSecurityClient {
 
@@ -34,6 +38,17 @@ public class TestSecurityClient {
     public TestSecurityClient(RestClient client, RequestOptions options) {
         this.client = client;
         this.options = options;
+    }
+
+    /**
+     * Uses the REST API to retrieve the currently authenticated user.
+     * @see User.Fields
+     * @see org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction
+     */
+    public Map<String, Object> authenticate() throws IOException {
+        final String endpoint = "/_security/_authenticate";
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        return entityAsMap(execute(request));
     }
 
     /**
@@ -98,11 +113,11 @@ public class TestSecurityClient {
         return bytes.utf8ToString();
     }
 
-    private void execute(Request request) throws IOException {
+    private Response execute(Request request) throws IOException {
         if (this.options != null) {
             request.setOptions(options);
         }
-        this.client.performRequest(request);
+        return this.client.performRequest(request);
     }
 
 }

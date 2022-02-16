@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
+import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Collections;
@@ -92,14 +93,27 @@ public class JwkValidateUtil {
         throw new Exception("Expected public key class [RSAPublicKey]. Got [" + publicKey.getClass().getSimpleName() + "] instead.");
     }
 
-    static List<JWK> loadJwksFromJwkSetString(final String jwkSetConfigKey, final String jwkSetContents) throws SettingsException {
+    static List<JWK> loadJwksFromJwkSetString(final String jwkSetConfigKey, final CharSequence jwkSetContents) throws SettingsException {
         if (Strings.hasText(jwkSetContents)) {
             try {
-                return JWKSet.parse(jwkSetContents).getKeys();
+                return JWKSet.parse(jwkSetContents.toString()).getKeys();
             } catch (Exception e) {
                 throw new SettingsException("JWKSet parse failed for setting [" + jwkSetConfigKey + "]", e);
             }
         }
         return Collections.emptyList();
+    }
+
+    static OctetSequenceKey loadHmacJwkFromJwkString(final String jwkSetConfigKey, final CharSequence hmacKeyContents) {
+        if (Strings.hasText(hmacKeyContents)) {
+            try {
+                final String hmacKeyString = hmacKeyContents.toString();
+                final byte[] utf8Bytes = hmacKeyString.getBytes(StandardCharsets.UTF_8); // OIDC spec: UTF8 encoding of HMAC keys
+                return new OctetSequenceKey.Builder(utf8Bytes).build(); // Note: JWK has no attributes (kid, alg, use, ops)
+            } catch (Exception e) {
+                throw new SettingsException("HMAC Key parse failed for setting [" + jwkSetConfigKey + "]", e);
+            }
+        }
+        return null;
     }
 }

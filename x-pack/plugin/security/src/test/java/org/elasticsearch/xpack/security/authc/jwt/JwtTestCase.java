@@ -52,6 +52,7 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.ParseException;
@@ -135,7 +136,7 @@ public abstract class JwtTestCase extends ESTestCase {
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.ALLOWED_CLOCK_SKEW),
                 randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(1, 5) + randomFrom("s", "m", "h")
             )
-            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.JWKSET_PKC_PATH), includePublicKey ? jwkSetPath : "")
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.PKC_JWKSET_PATH), includePublicKey ? jwkSetPath : "")
             // Audience settings
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.ALLOWED_AUDIENCES),
@@ -192,10 +193,17 @@ public abstract class JwtTestCase extends ESTestCase {
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         if (includeHmac) {
-            secureSettings.setString(
-                RealmSettings.getFullSettingKey(name, JwtRealmSettings.JWKSET_HMAC_CONTENTS),
-                randomAlphaOfLengthBetween(10, 20)
-            );
+            if (randomBoolean()) {
+                secureSettings.setString(
+                    RealmSettings.getFullSettingKey(name, JwtRealmSettings.HMAC_JWKSET),
+                    randomAlphaOfLengthBetween(10, 20)
+                );
+            } else {
+                secureSettings.setString(
+                    RealmSettings.getFullSettingKey(name, JwtRealmSettings.HMAC_KEY),
+                    randomAlphaOfLengthBetween(10, 20)
+                );
+            }
         }
         if (JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET.equals(clientAuthenticationType)) {
             secureSettings.setString(
@@ -274,7 +282,7 @@ public abstract class JwtTestCase extends ESTestCase {
     public static JWK randomJwk(final String signatureAlgorithm) throws JOSEException {
         final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
         if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(signatureAlgorithm)) {
-            return JwtTestCase.randomJwkHmac(jwsAlgorithm);
+            return JwtTestCase.toOidcJwkHmac(JwtTestCase.randomJwkHmac(jwsAlgorithm)); // TODO Remove kludge for HMAC single key setting
         } else if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA.contains(signatureAlgorithm)) {
             return JwtTestCase.randomJwkRsa(jwsAlgorithm);
         } else if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_EC.contains(signatureAlgorithm)) {
@@ -289,9 +297,30 @@ public abstract class JwtTestCase extends ESTestCase {
         );
     }
 
+    // Comparison of search spaces of random bytes, base64 characters, and UTF8 1-4 byte characters
+    // - random byte => 2^8 search space => 8 bits per byte
+    // - UTF8 1 byte => 2^7 search space => 7 bits per byte
+    // - UTF8 2 byte => 2^11 search space => 5.5 bits per byte
+    // - UTF8 3 byte => 2^16 search space => 5.333 bits per byte
+    // - UTF8 4 byte => 2^21 search space => 5.25 bits per byte
+    // - Base 64 => 2^6 search space => 6 bits per byte
+    public static OctetSequenceKey toOidcJwkHmac(final OctetSequenceKey hmacKey) {
+        // OIDC HMAC keys must be UTF8 bytes (i.e. a password), but UTF8 search space is much less than random bytes.
+        // To compensate, use Base64(randomBytes) as a UTF8 password bytes.
+        final String bytesAsBase64 = hmacKey.getKeyValue().toString();
+        final byte[] base64AsUtf8 = bytesAsBase64.getBytes(StandardCharsets.UTF_8);
+        return new OctetSequenceKey.Builder(base64AsUtf8).build();
+    }
+
+    public static OctetSequenceKey randomJwkHmacOidc(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
+        return JwtTestCase.toOidcJwkHmac(JwtTestCase.randomJwkHmac(jwsAlgorithm));
+    }
+
+    // Generate using random bytes
+    // - random byte => 2^8 => search space 8-bit per byte
     public static OctetSequenceKey randomJwkHmac(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
         final int minHmacLengthBytes = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
-        final int hmacLengthBits = scaledRandomIntBetween(minHmacLengthBytes, minHmacLengthBytes * 2) * 8;
+        final int hmacLengthBits = scaledRandomIntBetween(minHmacLengthBytes, minHmacLengthBytes * 2) * 8; // Double it: Nice to have
         final OctetSequenceKeyGenerator jwkGenerator = new OctetSequenceKeyGenerator(hmacLengthBits);
         JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm); // options: kid, alg, use, ops
         return jwkGenerator.generate();

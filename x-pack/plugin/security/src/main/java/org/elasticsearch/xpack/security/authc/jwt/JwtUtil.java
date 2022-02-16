@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.util.JSONObjectUtils;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -45,6 +47,9 @@ import java.nio.file.Path;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Collection;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Utilities for JWT realm.
@@ -312,5 +317,42 @@ public class JwtUtil {
             sb.append(secureStrings[i]); // allow null
         }
         return new SecureString(sb.toString().toCharArray());
+    }
+
+    /**
+     * Format and filter JWT contents as user metadata.
+     *   JWSHeader: Header are not support.
+     *   JWTClaimsSet: Claims are supported. Claim keys are prefixed by "jwt_claim_".
+     *   Base64URL: Signature is not supported.
+     * @param jwt SignedJWT object.
+     * @return Map of formatted and filtered values to be used as user metadata.
+     * @throws Exception Parse error.
+     */
+    //
+    // Values will be filtered by type using isAllowedTypeForClaim().
+    public static Map<String, Object> toUserMetadata(final SignedJWT jwt) throws Exception {
+        final JWTClaimsSet claimsSet = jwt.getJWTClaimsSet();
+        return claimsSet.getClaims()
+            .entrySet()
+            .stream()
+            .filter(entry -> JwtUtil.isAllowedTypeForClaim(entry.getValue()))
+            .collect(Collectors.toUnmodifiableMap(entry -> "jwt_claim_" + entry.getKey(), Map.Entry::getValue));
+    }
+
+    /**
+     * JWTClaimsSet values are only allowed to be String, Boolean, Number, or Collection.
+     * Collections are only allowed to contain String, Boolean, or Number.
+     * Collections recursion is not allowed.
+     * Maps are not allowed.
+     * Nulls are not allowed.
+     * @param value Claim value object.
+     * @return True if the claim value is allowed, otherwise false.
+     */
+    static boolean isAllowedTypeForClaim(final Object value) {
+        return (value instanceof String
+            || value instanceof Boolean
+            || value instanceof Number
+            || (value instanceof Collection
+                && ((Collection<?>) value).stream().allMatch(e -> e instanceof String || e instanceof Boolean || e instanceof Number)));
     }
 }

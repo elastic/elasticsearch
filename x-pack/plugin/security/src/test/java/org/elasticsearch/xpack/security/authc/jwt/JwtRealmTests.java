@@ -13,10 +13,12 @@ import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.commons.codec.binary.Hex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -48,12 +50,15 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -110,6 +115,9 @@ public class JwtRealmTests extends JwtTestCase {
         );
         final JwtIssuer jwtIssuer = this.randomIssuer();
         final JwtRealm jwtRealm = jwtIssuer.realm;
+        if (jwtRealm.allowedIssuer.equals("iss12807")) {
+            LOGGER.info("Found it");
+        }
         final User user = this.randomUser(jwtIssuer);
         final SecureString jwt = this.generateJwt(jwtIssuer, user);
         final SecureString clientSecret = jwtRealm.clientAuthenticationSharedSecret;
@@ -359,7 +367,7 @@ public class JwtRealmTests extends JwtTestCase {
                 randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(1, 5) + randomFrom("s", "m", "h")
             )
             .put(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWKSET_PKC_PATH),
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.PKC_JWKSET_PATH),
                 saveJwkSetToTempFile(jwtIssuer.jwkSetPkc, true)
             )
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_AUDIENCES), randomFrom(jwtIssuer.audiences))
@@ -386,10 +394,20 @@ public class JwtRealmTests extends JwtTestCase {
         // JWT authc realm secure settings
         final MockSecureSettings secureSettings = new MockSecureSettings();
         if (jwtIssuer.jwkSetHmac.getKeys().isEmpty() == false) {
-            secureSettings.setString(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWKSET_HMAC_CONTENTS),
-                JwtUtil.serializeJwkSet(jwtIssuer.jwkSetHmac, false)
-            );
+            // >=1 HMAC keys: use JWKSet setting
+            // ==1 HMAC key: use JWKSet setting or Key setting
+            if ((jwtIssuer.jwkSetHmac.getKeys().size() >= 2) || (randomBoolean())) {
+                secureSettings.setString(
+                    RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.HMAC_JWKSET),
+                    JwtUtil.serializeJwkSet(jwtIssuer.jwkSetHmac, false)
+                );
+            } else {
+                final OctetSequenceKey hmacKey = (OctetSequenceKey) jwtIssuer.jwkSetHmac.getKeys().get(0);
+                final byte[] hmacKeyUtf8Bytes = hmacKey.toByteArray();
+                LOGGER.warn("HMAC single key: [" + new String(Hex.encodeHex(hmacKeyUtf8Bytes)) + "]");
+                final String hmacKeyString = new String(hmacKeyUtf8Bytes, StandardCharsets.UTF_8); // OIDC spec: HMAC UTF-8 encoding
+                secureSettings.setString(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.HMAC_KEY), hmacKeyString);
+            }
         }
         if (clientAuthenticationType.equals(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET)) {
             final String clientAuthenticationSharedSecret = Base64.getUrlEncoder().encodeToString(randomByteArrayOfLength(32));
@@ -565,7 +583,7 @@ public class JwtRealmTests extends JwtTestCase {
                 for (final JwtRealm candidateJwtRealm : allJwtRealms) {
                     final PlainActionFuture<AuthenticationResult<User>> authenticateFuture = PlainActionFuture.newFuture();
                     try {
-                        if (jwtRealm.allowedIssuer.equals("iss35883")) {
+                        if (candidateJwtRealm.equals("iss12807")) {
                             LOGGER.info("Found it");
                         }
                         candidateJwtRealm.authenticate(jwtAuthenticationToken, authenticateFuture);
@@ -638,7 +656,7 @@ public class JwtRealmTests extends JwtTestCase {
                 // Loop ended. Confirm authenticatedUser is returned with expected principal and roles.
                 assertThat("Expected realm " + jwtRealm.name() + " to authenticate.", authenticatedUser, is(notNullValue()));
                 assertThat(user.principal(), equalTo(authenticatedUser.principal()));
-                assertThat(user.roles(), equalTo(authenticatedUser.roles()));
+                assertThat(new TreeSet<>(Arrays.asList(user.roles())), equalTo(new TreeSet<>(Arrays.asList(authenticatedUser.roles()))));
                 if (jwtRealm.delegatedAuthorizationSupport.hasDelegation()) {
                     assertThat(user.metadata(), is(equalTo(authenticatedUser.metadata()))); // delegated authz returns user's metadata
                 } else if (jwtRealm.populateUserMetadata) {

@@ -95,7 +95,7 @@ public class JwtRealmSettings {
         // Standard realm settings: order, enabled
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         // JWT Issuer settings
-        set.addAll(List.of(ALLOWED_ISSUER, ALLOWED_SIGNATURE_ALGORITHMS, ALLOWED_CLOCK_SKEW, JWKSET_PKC_PATH));
+        set.addAll(List.of(ALLOWED_ISSUER, ALLOWED_SIGNATURE_ALGORITHMS, ALLOWED_CLOCK_SKEW, PKC_JWKSET_PATH));
         // JWT Audience settings
         set.addAll(List.of(ALLOWED_AUDIENCES));
         // JWT End-user settings
@@ -142,7 +142,7 @@ public class JwtRealmSettings {
      * @return All secure settings.
      */
     public static List<Setting.AffixSetting<SecureString>> getSecureSettings() {
-        return List.of(JWKSET_HMAC_CONTENTS, CLIENT_AUTHENTICATION_SHARED_SECRET);
+        return List.of(HMAC_JWKSET, HMAC_KEY, CLIENT_AUTHENTICATION_SHARED_SECRET);
     }
 
     // JWT issuer settings
@@ -168,13 +168,14 @@ public class JwtRealmSettings {
         )
     );
 
-    public static final Setting.AffixSetting<String> JWKSET_PKC_PATH = RealmSettings.simpleString(
+    public static final Setting.AffixSetting<String> PKC_JWKSET_PATH = RealmSettings.simpleString(
         TYPE,
-        "jwkset_path",
+        "pkc_jwkset_path",
         Setting.Property.NodeScope
     );
 
-    public static final Setting.AffixSetting<SecureString> JWKSET_HMAC_CONTENTS = RealmSettings.secureString(TYPE, "issuer_hmac");
+    public static final Setting.AffixSetting<SecureString> HMAC_JWKSET = RealmSettings.secureString(TYPE, "hmac_jwkset");
+    public static final Setting.AffixSetting<SecureString> HMAC_KEY = RealmSettings.secureString(TYPE, "hmac_key");
 
     // JWT audience settings
 

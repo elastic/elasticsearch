@@ -103,7 +103,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testJwtPath() {
         final String realmName = "jwt" + randomIntBetween(1, 9);
-        final Setting.AffixSetting<String> setting = JwtRealmSettings.JWKSET_PKC_PATH;
+        final Setting.AffixSetting<String> setting = JwtRealmSettings.PKC_JWKSET_PATH;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String ignoredValue : new String[] { null, "" }) {
             final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
@@ -279,7 +279,8 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testSecureStrings() {
         for (final Setting.AffixSetting<SecureString> setting : List.of(
-            JwtRealmSettings.JWKSET_HMAC_CONTENTS,
+            JwtRealmSettings.HMAC_JWKSET,
+            JwtRealmSettings.HMAC_KEY,
             JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET
         )) {
             final String realmName = "jwt" + randomIntBetween(1, 9);

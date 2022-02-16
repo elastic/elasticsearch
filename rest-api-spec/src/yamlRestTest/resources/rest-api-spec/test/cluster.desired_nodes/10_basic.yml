@@ -9,6 +9,9 @@ teardown:
       _internal.delete_desired_nodes: {}
 ---
 "Test update desired nodes":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
   - do:
       cluster.state: {}
 
@@ -49,15 +52,16 @@ teardown:
 
   - do:
       _internal.get_desired_nodes: {}
-  - match:
-      $body:
-        history_id: "test"
-        version: 2
-        nodes:
-          - { settings: { node: { name: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-          - { settings: { node: { name: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
+
+  - match: { history_id: "test" }
+  - match: { version: 2 }
+  - contains: { nodes: { settings: { node: { name: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { name: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version } }
 ---
 "Test update move to a new history id":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
   - do:
       cluster.state: {}
 
@@ -97,13 +101,10 @@ teardown:
 
   - do:
       _internal.get_desired_nodes: {}
-  - match:
-      $body:
-        history_id: "new_history"
-        version: 1
-        nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-          - { settings: { node: { external_id: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
+  - match: { history_id: "new_history" }
+  - match: { version: 1 }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version } }
 ---
 "Test delete desired nodes":
   - do:
@@ -142,6 +143,10 @@ teardown:
   - match: { status: 404 }
 ---
 "Test update desired nodes is idempotent":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
+
   - do:
       cluster.state: {}
 
@@ -158,16 +163,16 @@ teardown:
         body:
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { replaced_existing_history_id: false }
 
   - do:
       _internal.get_desired_nodes: {}
-  - match:
-      $body:
-        history_id: "test"
-        version: 1
-        nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+
+  - match: { history_id: "test" }
+  - match: { version: 1 }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
 
   - do:
       _internal.update_desired_nodes:
@@ -175,17 +180,18 @@ teardown:
         version: 1
         body:
           nodes:
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+
   - match: { replaced_existing_history_id: false }
 
   - do:
       _internal.get_desired_nodes: {}
-  - match:
-      $body:
-        history_id: "test"
-        version: 1
-        nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+
+  - match: { history_id: "test" }
+  - match: { version: 1 }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
 ---
 "Test going backwards within the same history is forbidden":
   - do:

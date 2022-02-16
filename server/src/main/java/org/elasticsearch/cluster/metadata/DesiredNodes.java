@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,7 +59,7 @@ public class DesiredNodes implements Writeable, ToXContentObject {
 
     private final String historyID;
     private final long version;
-    private final List<DesiredNode> nodes;
+    private final Set<DesiredNode> nodes;
 
     public DesiredNodes(String historyID, long version, List<DesiredNode> nodes) {
         assert historyID != null && historyID.isBlank() == false;
@@ -67,7 +68,7 @@ public class DesiredNodes implements Writeable, ToXContentObject {
 
         this.historyID = historyID;
         this.version = version;
-        this.nodes = List.copyOf(nodes);
+        this.nodes = Set.copyOf(nodes);
     }
 
     public DesiredNodes(StreamInput in) throws IOException {
@@ -78,7 +79,7 @@ public class DesiredNodes implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(historyID);
         out.writeLong(version);
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     static DesiredNodes fromXContent(XContentParser parser) throws IOException {
@@ -164,7 +165,7 @@ public class DesiredNodes implements Writeable, ToXContentObject {
     }
 
     public List<DesiredNode> nodes() {
-        return nodes;
+        return nodes.stream().toList();
     }
 
     @Nullable

@@ -189,7 +189,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 String customDataPath,
                 Lister<? extends BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> action
             ) {
-                super(logger, type, shardId, customDataPath, action);
+                super(logger, type, shardId, customDataPath, action, x -> true);
             }
 
             @Override

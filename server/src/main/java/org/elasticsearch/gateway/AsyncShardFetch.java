@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
@@ -65,6 +66,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private final Set<String> nodesToIgnore = new HashSet<>();
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
+    private Predicate<T> validResultPredicate;
+    private Set<DiscoveryNode> completeNodes = new HashSet<>();
 
     @SuppressWarnings("unchecked")
     protected AsyncShardFetch(
@@ -72,13 +75,15 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         String type,
         ShardId shardId,
         String customDataPath,
-        Lister<? extends BaseNodesResponse<T>, T> action
+        Lister<? extends BaseNodesResponse<T>, T> action,
+        Predicate<T> validResultPredicate
     ) {
         this.logger = logger;
         this.type = type;
         this.shardId = Objects.requireNonNull(shardId);
         this.customDataPath = Objects.requireNonNull(customDataPath);
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
+        this.validResultPredicate = validResultPredicate;
     }
 
     @Override
@@ -206,6 +211,10 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                         // if the entry is there, for the right fetching round and not marked as failed already, process it
                         logger.trace("{} marking {} as done for [{}], result is [{}]", shardId, nodeEntry.getNodeId(), type, response);
                         nodeEntry.doneFetching(response);
+                        completeNodes.add(response.getNode());
+                        if (!validResultPredicate.test(response)) {
+                            cache.remove(response.getNode().getId());
+                        }
                     }
                 }
             }
@@ -262,6 +271,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      */
     synchronized void clearCacheForNode(String nodeId) {
         cache.remove(nodeId);
+        completeNodes.remove(nodeId);
     }
 
     /**
@@ -272,12 +282,13 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         // verify that all current data nodes are there
         for (Map.Entry<String, DiscoveryNode> cursor : nodes.getDataNodes().entrySet()) {
             DiscoveryNode node = cursor.getValue();
-            if (shardCache.containsKey(node.getId()) == false) {
+            if (completeNodes.contains(node.getId()) == false && shardCache.containsKey(node.getId()) == false) {
                 shardCache.put(node.getId(), new NodeEntry<T>(node.getId()));
             }
         }
         // remove nodes that are not longer part of the data nodes set
         shardCache.keySet().removeIf(nodeId -> nodes.nodeExists(nodeId) == false);
+        completeNodes.removeIf(node -> !nodes.nodeExists(node.getId()));
     }
 
     /**

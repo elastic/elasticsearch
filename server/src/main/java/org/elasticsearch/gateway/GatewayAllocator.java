@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class GatewayAllocator implements ExistingShardsAllocator {
@@ -217,9 +218,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             String type,
             ShardId shardId,
             String customDataPath,
-            Lister<? extends BaseNodesResponse<T>, T> action
+            Lister<? extends BaseNodesResponse<T>, T> action,
+            Predicate<T> validResultPredicate
         ) {
-            super(logger, type, shardId, customDataPath, action);
+            super(logger, type, shardId, customDataPath, action, validResultPredicate);
         }
 
         @Override
@@ -256,7 +258,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     "shard_started",
                     shardId,
                     IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                    lister
+                    lister,
+                    result -> result.allocationId() != null
                 )
             );
             AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState = fetch.fetchData(
@@ -304,7 +307,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     "shard_store",
                     shard.shardId(),
                     IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                    lister
+                    lister,
+                    result -> !result.storeFilesMetadata().isEmpty()
                 )
             );
             AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetch.fetchData(

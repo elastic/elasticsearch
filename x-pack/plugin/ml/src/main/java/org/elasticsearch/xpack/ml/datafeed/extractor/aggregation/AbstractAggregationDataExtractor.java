@@ -118,6 +118,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         T searchRequest = buildSearchRequest(buildBaseSearchSource());
         assert searchRequest.request().allowPartialSearchResults() == false;
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
+        checkForSkippedClusters(searchResponse);
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
         timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         return validateAggs(searchResponse.getAggregations());

@@ -123,7 +123,14 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            searchRequestBuilder::get
+        );
+        checkForSkippedClusters(searchResponse);
+        return searchResponse;
     }
 
     private SearchRequestBuilder buildSearchRequest(long start) {
@@ -214,12 +221,14 @@ class ScrollDataExtractor implements DataExtractor {
 
     @SuppressWarnings("HiddenField")
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
-        return ClientHelper.executeWithHeaders(
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
             context.headers,
             ClientHelper.ML_ORIGIN,
             client,
             () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
         );
+        checkForSkippedClusters(searchResponse);
+        return searchResponse;
     }
 
     private void clearScroll() {

@@ -252,7 +252,15 @@ public class Maps {
      * @return a new pre-sized {@link HashMap}
      */
     public static <K, V> Map<K, V> newMapWithExpectedSize(int expectedSize) {
+        return newHashMapWithExpectedSize(expectedSize);
+    }
+
+    public static <K, V> Map<K, V> newHashMapWithExpectedSize(int expectedSize) {
         return new HashMap<>(capacity(expectedSize));
+    }
+
+    public static <K, V> Map<K, V> newLinkedHashMapWithExpectedSize(int expectedSize) {
+        return new LinkedHashMap<>(capacity(expectedSize));
     }
 
     static int capacity(int expectedSize) {

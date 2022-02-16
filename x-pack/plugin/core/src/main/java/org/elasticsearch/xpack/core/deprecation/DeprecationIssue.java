@@ -209,7 +209,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         if (similarIssues.size() == 1) {
             return similarIssues.get(0);
         }
-        DeprecationIssue representativeIssue = similarIssues.stream().findAny().get();
+        DeprecationIssue representativeIssue = similarIssues.get(0);
         Optional<Meta> metaIntersection = similarIssues.stream()
             .map(DeprecationIssue::getMetaObject)
             .reduce(
@@ -254,7 +254,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
             this.nonActionMetadata = nonActionMetadata;
         }
 
-        public static Meta fromRemovableSettings(List<String> removableSettings) {
+        private static Meta fromRemovableSettings(List<String> removableSettings) {
             List<Action> actions;
             if (removableSettings == null) {
                 actions = null;
@@ -264,7 +264,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
             return new Meta(actions, Collections.emptyMap());
         }
 
-        public Map<String, Object> toMetaMap() {
+        private Map<String, Object> toMetaMap() {
             Map<String, Object> metaMap;
             if (actions != null) {
                 metaMap = new HashMap<>(nonActionMetadata);
@@ -282,7 +282,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
          * This method gets the intersection of this Meta with another. It assumes that the Meta objects are identical, except possibly the
          * contents of the removal actions. So the interection is a new Meta object with only the removal actions that appear in both.
          */
-        public Meta getIntersection(Meta another) {
+        private Meta getIntersection(Meta another) {
             final List<Action> actionsIntersection;
             if (actions != null && another.actions != null) {
                 List<Action> combinedActions = this.actions.stream()
@@ -320,7 +320,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
          * present.
          */
         @SuppressWarnings("unchecked")
-        public static Optional<Meta> fromMetaMap(Map<String, Object> metaMap) {
+        private static Optional<Meta> fromMetaMap(Map<String, Object> metaMap) {
             if (metaMap == null) {
                 return Optional.empty();
             }
@@ -371,7 +371,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         }
 
         @SuppressWarnings("unchecked")
-        public static RemovalAction fromActionMap(Map<String, Object> actionMap) {
+        private static RemovalAction fromActionMap(Map<String, Object> actionMap) {
             final List<String> removableSettings;
             Object removableSettingsObject = actionMap.get(OBJECTS_FIELD);
             if (removableSettingsObject == null) {
@@ -382,7 +382,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
             return new RemovalAction(removableSettings);
         }
 
-        public Optional<List<String>> getRemovableSettings() {
+        private Optional<List<String>> getRemovableSettings() {
             return removableSettings == null ? Optional.empty() : Optional.of(removableSettings);
         }
 
@@ -410,7 +410,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
             this.actionMap = actionMap;
         }
 
-        public static Action fromActionMap(Map<String, Object> actionMap) {
+        private static Action fromActionMap(Map<String, Object> actionMap) {
             return new UnknownAction(actionMap);
         }
 

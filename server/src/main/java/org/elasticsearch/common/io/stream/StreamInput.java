@@ -607,7 +607,7 @@ public abstract class StreamInput extends InputStream {
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
-        return readMap(keyReader, valueReader, HashMap::new);
+        return readMap(keyReader, valueReader, Maps::newMapWithExpectedSize);
     }
 
     public <K, V> Map<K, V> readOrderedMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {

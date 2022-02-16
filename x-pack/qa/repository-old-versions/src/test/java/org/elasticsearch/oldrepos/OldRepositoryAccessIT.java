@@ -8,7 +8,6 @@
 package org.elasticsearch.oldrepos;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -131,11 +130,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     }
 
     private void afterRestart(String indexName) throws IOException {
-        if (Build.CURRENT.isSnapshot()) {
-            ensureGreen("restored_" + indexName);
-            ensureGreen("mounted_full_copy_" + indexName);
-            ensureGreen("mounted_shared_cache_" + indexName);
-        }
+        ensureGreen("restored_" + indexName);
+        ensureGreen("mounted_full_copy_" + indexName);
+        ensureGreen("mounted_shared_cache_" + indexName);
     }
 
     @SuppressWarnings("removal")
@@ -207,9 +204,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         if (sourceOnlyRepository) {
             repoSettingsBuilder.put("delegate_type", "fs");
         }
-        if (Build.CURRENT.isSnapshot()) {
-            repoSettingsBuilder.put("allow_bwc_indices", true);
-        }
+        repoSettingsBuilder.put("allow_bwc_indices", true);
         ElasticsearchAssertions.assertAcked(
             client.snapshot()
                 .createRepository(
@@ -263,48 +258,42 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertThat(snapshotStatus.getStats().getTotalSize(), greaterThan(0L));
         assertThat(snapshotStatus.getStats().getTotalFileCount(), greaterThan(0));
 
-        if (Build.CURRENT.isSnapshot()) {
-            // restore / mount and check whether searches work
-            restoreMountAndVerify(
-                numDocs,
-                expectedIds,
-                client,
-                numberOfShards,
-                sourceOnlyRepository,
-                oldVersion,
-                indexName,
-                repoName,
-                snapshotName
-            );
+        // restore / mount and check whether searches work
+        restoreMountAndVerify(
+            numDocs,
+            expectedIds,
+            client,
+            numberOfShards,
+            sourceOnlyRepository,
+            oldVersion,
+            indexName,
+            repoName,
+            snapshotName
+        );
 
-            // close indices
-            assertTrue(
-                client.indices().close(new CloseIndexRequest("restored_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged()
-            );
-            assertTrue(
-                client.indices()
-                    .close(new CloseIndexRequest("mounted_full_copy_" + indexName), RequestOptions.DEFAULT)
-                    .isShardsAcknowledged()
-            );
-            assertTrue(
-                client.indices()
-                    .close(new CloseIndexRequest("mounted_shared_cache_" + indexName), RequestOptions.DEFAULT)
-                    .isShardsAcknowledged()
-            );
+        // close indices
+        assertTrue(client.indices().close(new CloseIndexRequest("restored_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged());
+        assertTrue(
+            client.indices().close(new CloseIndexRequest("mounted_full_copy_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged()
+        );
+        assertTrue(
+            client.indices()
+                .close(new CloseIndexRequest("mounted_shared_cache_" + indexName), RequestOptions.DEFAULT)
+                .isShardsAcknowledged()
+        );
 
-            // restore / mount again
-            restoreMountAndVerify(
-                numDocs,
-                expectedIds,
-                client,
-                numberOfShards,
-                sourceOnlyRepository,
-                oldVersion,
-                indexName,
-                repoName,
-                snapshotName
-            );
-        }
+        // restore / mount again
+        restoreMountAndVerify(
+            numDocs,
+            expectedIds,
+            client,
+            numberOfShards,
+            sourceOnlyRepository,
+            oldVersion,
+            indexName,
+            repoName,
+            snapshotName
+        );
     }
 
     private String getType(Version oldVersion, String id) {

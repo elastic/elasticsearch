@@ -125,8 +125,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     def oldEsDependency = configurations['es' + version]
     oldEsDependency.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
     TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
-      dependsOn project.configurations.oldesFixture, jdks.legacy
-      dependsOn unzip
+      dependsOn project.configurations.oldesFixture, jdks.legacy, oldEsDependency
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
       // old versions of Elasticsearch need JAVA_HOME
@@ -137,7 +136,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
       args 'oldes.OldElasticsearch',
         baseDir,
-        unzip.get().temporaryDir,
+        "${ -> oldEsDependency.singleFile.getPath()}",
         version == '090'
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service

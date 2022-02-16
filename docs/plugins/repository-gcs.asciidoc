@@ -139,7 +139,7 @@ in 8.0 and later versions.
 For more information on these client settings, check the
 {ref-80}/repository-gcs.html#repository-gcs-client[8.0 documentation]. For
 upgrade instructions, check
-https://www.elastic.co/guide/en/elastic-stack/8.0/upgrading-elastic-stack.html[Upgrading
+https://www.elastic.co/guide/en/elastic-stack/8.0/upgrading-elastic-stack.html[Upgrade
 Elastic].
 ====
 

@@ -721,11 +721,10 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
             minX = Math.min(minX, points[i].x);
             maxX = Math.max(maxX, points[i].x);
         }
-        if (signedArea == 0) {
-            // Points are collinear or self-intersection
-            throw new InvalidShapeException("Cannot determine orientation: signed area equal to 0");
-        }
-        boolean orientation = signedArea < 0;
+
+        // if the polygon is tiny, the computed area can result in zero. In that case
+        // we assume orientation is correct
+        boolean orientation = signedArea == 0 ? handedness != false : signedArea < 0;
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards

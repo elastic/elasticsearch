@@ -151,6 +151,7 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.core.PrettyPrinter',
             'com.fasterxml.jackson.core.type.TypeReference',
             'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
+            'com.fasterxml.jackson.databind.ObjectMapper',
             'com.fasterxml.jackson.databind.SerializationFeature',
             'com.fasterxml.jackson.annotation.JsonInclude$Include',
             'com.fasterxml.jackson.databind.DeserializationContext',

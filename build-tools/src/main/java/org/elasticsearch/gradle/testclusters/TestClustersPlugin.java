@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -30,6 +31,7 @@ import org.gradle.internal.jvm.Jvm;
 import org.gradle.process.ExecOperations;
 
 import java.io.File;
+import java.util.function.Function;
 
 import javax.inject.Inject;
 
@@ -45,6 +47,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
     private final ProviderFactory providerFactory;
     private Provider<File> runtimeJavaProvider;
+    private Function<Version, Boolean> isReleasedVersion = v -> true;
 
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
@@ -73,6 +76,10 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     public void setRuntimeJava(Provider<File> runtimeJava) {
         this.runtimeJavaProvider = runtimeJava;
+    }
+
+    public void setIsReleasedVersion(Function<Version, Boolean> isReleasedVersion) {
+        this.isReleasedVersion = isReleasedVersion;
     }
 
     @Override
@@ -124,7 +131,8 @@ public class TestClustersPlugin implements Plugin<Project> {
                 getExecOperations(),
                 getFileOperations(),
                 new File(project.getBuildDir(), "testclusters"),
-                runtimeJavaProvider
+                runtimeJavaProvider,
+                isReleasedVersion
             );
         });
         project.getExtensions().add(EXTENSION_NAME, container);

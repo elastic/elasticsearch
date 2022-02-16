@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
+import org.elasticsearch.cluster.coordination.indicators.HasEligibleMasterNodeIndicator;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -1035,7 +1036,8 @@ public class Node implements Closeable {
     private HealthService createHealthService(ClusterService clusterService) {
         var serverHealthIndicatorServices = List.of(
             new InstanceHasMasterHealthIndicatorService(clusterService),
-            new RepositoryIntegrityHealthIndicatorService(clusterService)
+            new RepositoryIntegrityHealthIndicatorService(clusterService),
+            new HasEligibleMasterNodeIndicator(clusterService)
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()

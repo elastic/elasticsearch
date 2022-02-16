@@ -73,7 +73,9 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
             @Override
             protected void doRun() throws Exception {
                 if (responses.size() < featureSets.size()) {
-                    assert Transports.assertNotTransportThread("calculating usage can be more expensive than we allow on transport threads");
+                    assert Transports.assertNotTransportThread(
+                        "calculating usage can be more expensive than we allow on transport threads"
+                    );
                     if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
                         throw new CancellationException("Task cancelled");
                     }

@@ -1,0 +1,5 @@
+pr: 84010
+summary: Remove redundant response of empty result in AsyncShardFetch
+area: Distributed
+type: bug
+issues: []

@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,9 +24,12 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1380,4 +1384,52 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertThat(doc.docs().get(4).get("_field_names"), nullValue());
     }
 
+    public void testNoDimensionNestedFields() {
+        {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(mapping(b -> {
+                b.startObject("nested");
+                {
+                    b.field("type", "nested");
+                    b.startObject("properties");
+                    {
+                        b.startObject("foo")
+                            .field("type", randomFrom(List.of("keyword", "ip", "long", "double", "unsigned_long")))
+                            .field("time_series_dimension", true)
+                            .endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("time_series_dimension can't be configured in nested field [nested.foo]"));
+        }
+
+        {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(mapping(b -> {
+                b.startObject("nested");
+                {
+                    b.field("type", "nested");
+                    b.startObject("properties");
+                    {
+                        b.startObject("other").field("type", "keyword").endObject();
+                        b.startObject("object").field("type", "object");
+                        {
+                            b.startObject("properties");
+                            {
+                                b.startObject("foo")
+                                    .field("type", randomFrom(List.of("keyword", "ip", "long", "double", "unsigned_long")))
+                                    .field("time_series_dimension", true)
+                                    .endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("time_series_dimension can't be configured in nested field [nested.object.foo]"));
+        }
+    }
 }

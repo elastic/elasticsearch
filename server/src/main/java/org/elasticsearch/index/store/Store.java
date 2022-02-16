@@ -52,6 +52,7 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -780,7 +781,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static MetadataSnapshot readFrom(StreamInput in) throws IOException {
             final int metadataSize = in.readVInt();
-            final Map<String, StoreFileMetadata> metadata = metadataSize == 0 ? emptyMap() : new HashMap<>();
+            final Map<String, StoreFileMetadata> metadata = metadataSize == 0 ? emptyMap() : Maps.newMapWithExpectedSize(metadataSize);
             for (int i = 0; i < metadataSize; i++) {
                 final var storeFileMetadata = new StoreFileMetadata(in);
                 metadata.put(storeFileMetadata.name(), storeFileMetadata);

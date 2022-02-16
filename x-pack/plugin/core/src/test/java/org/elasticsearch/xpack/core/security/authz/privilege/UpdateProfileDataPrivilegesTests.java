@@ -257,7 +257,7 @@ public class UpdateProfileDataPrivilegesTests extends ESTestCase {
         return new ConfigurableClusterPrivileges.UpdateProfileDataPrivileges(new LinkedHashSet<>(original.getApplicationNames()));
     }
 
-    private ConfigurableClusterPrivileges.UpdateProfileDataPrivileges buildPrivileges() {
+    static ConfigurableClusterPrivileges.UpdateProfileDataPrivileges buildPrivileges() {
         return buildPrivileges(randomIntBetween(4, 7));
     }
 

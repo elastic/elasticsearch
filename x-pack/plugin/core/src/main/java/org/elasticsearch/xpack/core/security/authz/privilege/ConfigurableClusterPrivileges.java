@@ -166,7 +166,6 @@ public final class ConfigurableClusterPrivileges {
                 if (request instanceof final UpdateProfileDataRequest updateProfileRequest) {
                     assert null == updateProfileRequest.validate();
                     final Collection<String> requestApplicationNames = updateProfileRequest.getApplicationNames();
-                    assert false == requestApplicationNames.isEmpty();
                     return requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
                 }
                 return false;
@@ -179,7 +178,7 @@ public final class ConfigurableClusterPrivileges {
         }
 
         public Collection<String> getApplicationNames() {
-            return Collections.unmodifiableCollection(this.applicationNames);
+            return this.applicationNames;
         }
 
         @Override
@@ -288,7 +287,7 @@ public final class ConfigurableClusterPrivileges {
         }
 
         public Collection<String> getApplicationNames() {
-            return Collections.unmodifiableCollection(this.applicationNames);
+            return this.applicationNames;
         }
 
         @Override

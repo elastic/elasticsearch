@@ -2106,11 +2106,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         Map<String, Object> lookupField = Map.of(
             "type",
             "lookup",
-            "lookup_index",
+            "target_index",
             "hosts",
-            "query_input_field",
+            "input_field",
             "field1",
-            "query_target_field",
+            "target_field",
             "field1",
             "fetch_fields",
             List.of("field1", "field2", "field3")

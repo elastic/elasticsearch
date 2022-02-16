@@ -32,7 +32,7 @@ public class TestSecurityClient {
     private final RequestOptions options;
 
     public TestSecurityClient(RestClient client) {
-        this(client, null);
+        this(client, RequestOptions.DEFAULT);
     }
 
     public TestSecurityClient(RestClient client, RequestOptions options) {
@@ -47,7 +47,7 @@ public class TestSecurityClient {
      */
     public Map<String, Object> authenticate() throws IOException {
         final String endpoint = "/_security/_authenticate";
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         return entityAsMap(execute(request));
     }
 
@@ -57,7 +57,7 @@ public class TestSecurityClient {
      */
     public void putUser(User user, SecureString password) throws IOException {
         final String endpoint = "/_security/user/" + user.principal();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         final Map<String, Object> map = XContentTestUtils.convertToMap(user);
         if (password != null) {
             map.put("password", password.toString());
@@ -74,7 +74,7 @@ public class TestSecurityClient {
      */
     public void deleteUser(String username) throws IOException {
         final String endpoint = "/_security/user/" + username;
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         request.addParameters(Map.of("refresh", "true"));
         execute(request);
     }
@@ -92,7 +92,6 @@ public class TestSecurityClient {
             }
             """.formatted(password.toString());
         request.setJsonEntity(body);
-        request.setOptions(RequestOptions.DEFAULT);
         execute(request);
     }
 
@@ -103,7 +102,6 @@ public class TestSecurityClient {
     public void setUserEnabled(String username, boolean enabled) throws IOException {
         final String endpoint = "/_security/user/" + username + "/" + (enabled ? "_enable" : "_disable");
         final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        request.setOptions(SecuritySettingsSource.SECURITY_REQUEST_OPTIONS);
         execute(request);
     }
 
@@ -114,9 +112,7 @@ public class TestSecurityClient {
     }
 
     private Response execute(Request request) throws IOException {
-        if (this.options != null) {
-            request.setOptions(options);
-        }
+        request.setOptions(options);
         return this.client.performRequest(request);
     }
 

@@ -171,8 +171,9 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
         ) {
             parser.nextToken(); // {
             parser.nextToken(); // "write" field
-            ConfigurableClusterPrivileges.WriteProfileDataPrivileges priv = ConfigurableClusterPrivileges.WriteProfileDataPrivileges
-                .parse(parser);
+            ConfigurableClusterPrivileges.WriteProfileDataPrivileges priv = ConfigurableClusterPrivileges.WriteProfileDataPrivileges.parse(
+                parser
+            );
             parser.nextToken();
             assertThat(priv.getApplicationNames().size(), is(0));
             UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
@@ -206,8 +207,9 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
         ) {
             parser.nextToken(); // {
             parser.nextToken(); // "write" field
-            ConfigurableClusterPrivileges.WriteProfileDataPrivileges priv = ConfigurableClusterPrivileges.WriteProfileDataPrivileges
-                .parse(parser);
+            ConfigurableClusterPrivileges.WriteProfileDataPrivileges priv = ConfigurableClusterPrivileges.WriteProfileDataPrivileges.parse(
+                parser
+            );
             parser.nextToken();
             assertThat(priv.getApplicationNames().size(), is(1));
             assertThat(priv.getApplicationNames().stream().findFirst().get(), is(""));

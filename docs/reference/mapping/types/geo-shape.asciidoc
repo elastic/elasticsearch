@@ -261,11 +261,11 @@ A polygon's orientation indicates the order of its vertices: `RIGHT`
 determine if it crosses the international dateline (+/-180° longitude). 
 
 You can set a default orientation for WKT polygons using the
-<<geo-shape-mapping-options,`orientation` mapping parameter>>. The WKT
-specification doesn't specify or enforce a default orientation.
+<<geo-shape-mapping-options,`orientation` mapping parameter>>. This is because
+the WKT specification doesn't specify or enforce a default orientation.
 
 GeoJSON polygons use a default orientation of `RIGHT`, regardless of
-`orientation` mapping parameter. The
+`orientation` mapping parameter. This is because the
 https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON specification]
 mandates that an outer polygon use a counterclockwise orientation and interior
 shapes use a clockwise orientation.

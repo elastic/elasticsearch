@@ -1,10 +1,10 @@
 [role="xpack"]
-[[ml-apis]]
+[[ml-ad-apis]]
 = {ml-cap} {anomaly-detect} APIs
 
 You can use the following APIs to perform {ml} {anomaly-detect} activities.
 
-See also <<ml-df-analytics-apis>>.
+See also <<ml-apis>>, <<ml-df-analytics-apis>>,  <<ml-df-trained-models-apis>>.
 
 [discrete]
 [[ml-api-anomaly-job-endpoint]]
@@ -71,19 +71,8 @@ See also <<ml-df-analytics-apis>>.
 * <<ml-get-record,Get records>>
 
 [discrete]
-[[ml-api-ml-info-endpoint]]
-== Info
-
-* <<get-ml-info,Machine learning info>>
-
-[discrete]
 [[ml-api-delete-expired-data-endpoint]]
 == Delete expired data
 
 * <<ml-delete-expired-data,Delete expired data>>
 
-[discrete]
-[[ml-set-upgrade-mode-endpoint]]
-== Set upgrade mode
-
-* <<ml-set-upgrade-mode, Set upgrade mode>>

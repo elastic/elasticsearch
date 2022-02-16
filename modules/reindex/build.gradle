@@ -11,6 +11,8 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
+import org.elasticsearch.gradle.transform.UnzipTransform
+import org.gradle.api.internal.artifacts.ArtifactAttributes
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'

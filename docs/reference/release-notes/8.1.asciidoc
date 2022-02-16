@@ -35,6 +35,9 @@ Authorization::
 Autoscaling::
 * Fix autoscaling of follower data streams {es-pull}83302[#83302] (issue: {es-issue}82857[#82857])
 
+Distributed::
+* [GCE Discovery] Correctly handle large zones with 500 or more instances {es-pull}83785[#83785] (issue: {es-issue}83783[#83783])
+
 Geo::
 * Handle bounds properly when grid tiles crosses the dateline {es-pull}83348[#83348] (issue: {es-issue}83299[#83299])
 

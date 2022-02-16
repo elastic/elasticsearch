@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      version: " - 8.1.99"
+      reason: "Pause BWC tests until #83290 is backported"
 
   - do:
       snapshot.create_repository:
@@ -61,6 +64,7 @@ setup:
 
 ---
 "Get snapshot info when verbose is false":
+
   - do:
       indices.create:
         index: test_index
@@ -198,7 +202,6 @@ setup:
   - skip:
       version: " - 7.12.99"
       reason: "Introduced in 7.13.0"
-
   - do:
       indices.create:
         index: test_index

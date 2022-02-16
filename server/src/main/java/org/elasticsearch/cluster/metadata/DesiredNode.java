@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,7 +32,7 @@ import java.util.TreeSet;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
-public record DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version, boolean isMember)
+public record DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version)
     implements
         Writeable,
         ToXContentObject {
@@ -54,8 +53,7 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
             (int) args[1],
             (ByteSizeValue) args[2],
             (ByteSizeValue) args[3],
-            (Version) args[4],
-            false
+            (Version) args[4]
         )
     );
 
@@ -99,14 +97,7 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
     }
 
     public DesiredNode(StreamInput in) throws IOException {
-        this(
-            Settings.readSettingsFromStream(in),
-            in.readInt(),
-            new ByteSizeValue(in),
-            new ByteSizeValue(in),
-            Version.readVersion(in),
-            in.getVersion().onOrAfter(MEMBERSHIP_INFO_SUPPORT_VERSION) && in.readBoolean()
-        );
+        this(Settings.readSettingsFromStream(in), in.readInt(), new ByteSizeValue(in), new ByteSizeValue(in), Version.readVersion(in));
     }
 
     @Override
@@ -116,9 +107,6 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
         memory.writeTo(out);
         storage.writeTo(out);
         Version.writeVersion(version, out);
-        if (out.getVersion().onOrAfter(MEMBERSHIP_INFO_SUPPORT_VERSION)) {
-            out.writeBoolean(isMember);
-        }
     }
 
     public static DesiredNode fromXContent(XContentParser parser) throws IOException {
@@ -146,14 +134,6 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
 
     public boolean hasMasterRole() {
         return NODE_ROLES_SETTING.get(settings).contains(DiscoveryNodeRole.MASTER_ROLE);
-    }
-
-    public boolean isClusterMember(DiscoveryNodes discoveryNodes) {
-        return discoveryNodes.stream().anyMatch(d -> d.getExternalId().equals(externalId()));
-    }
-
-    public DesiredNode asClusterMember() {
-        return new DesiredNode(settings, processors, memory, storage, version, true);
     }
 
     public Set<DiscoveryNodeRole> getRoles() {

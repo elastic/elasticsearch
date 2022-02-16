@@ -8,10 +8,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -21,8 +24,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
     private static final Version MIN_SUPPORTED_VERSION = Version.V_8_1_0;
@@ -44,18 +51,50 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     private final DesiredNodes latestDesiredNodes;
+    private final Set<DesiredNode> memberDesiredNodes;
+    private final Set<DesiredNode> unknownNodes;
 
     public DesiredNodesMetadata(DesiredNodes latestDesiredNodes) {
         this.latestDesiredNodes = latestDesiredNodes;
+        this.memberDesiredNodes = Collections.emptySet();
+        this.unknownNodes = Collections.emptySet();
+    }
+
+    private DesiredNodesMetadata(DesiredNodes latestDesiredNodes, Set<DesiredNode> memberDesiredNodes) {
+        this.latestDesiredNodes = latestDesiredNodes;
+        this.memberDesiredNodes = Collections.unmodifiableSet(memberDesiredNodes);
+        Set<DesiredNode> unknownNodes = new HashSet<>(latestDesiredNodes.nodes());
+        for (DesiredNode memberDesiredNode : memberDesiredNodes) {
+            unknownNodes.remove(memberDesiredNode);
+        }
+        this.unknownNodes = Collections.unmodifiableSet(unknownNodes);
     }
 
     public DesiredNodesMetadata(StreamInput in) throws IOException {
         this.latestDesiredNodes = new DesiredNodes(in);
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            List<String> externalIds = in.readStringList();
+            Set<DesiredNode> memberNodes = new HashSet<>(externalIds.size());
+            for (String externalId : externalIds) {
+                DesiredNode desiredNode = latestDesiredNodes.find(externalId);
+                assert desiredNode != null;
+                memberNodes.add(desiredNode);
+            }
+            this.memberDesiredNodes = memberNodes;
+        } else {
+            this.memberDesiredNodes = Collections.emptySet();
+        }
+
+        this.unknownNodes = Collections.emptySet();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         latestDesiredNodes.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            final List<String> memberExternalIds = memberDesiredNodes.stream().map(DesiredNode::externalId).toList();
+            out.writeStringCollection(memberExternalIds);
+        }
     }
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -72,8 +111,16 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
         return builder;
     }
 
+    public Set<DesiredNode> getMembers() {
+        return memberDesiredNodes;
+    }
+
     public static DesiredNodes latestFromClusterState(ClusterState clusterState) {
         return clusterState.metadata().custom(TYPE, EMPTY).getLatestDesiredNodes();
+    }
+
+    public static DesiredNodesMetadata fromClusterState(ClusterState clusterState) {
+        return clusterState.metadata().custom(TYPE, EMPTY);
     }
 
     @Nullable
@@ -107,5 +154,48 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     @Override
     public int hashCode() {
         return Objects.hash(latestDesiredNodes);
+    }
+
+    public static class Builder {
+        private final Logger logger = LogManager.getLogger(Builder.class);
+
+        private final DesiredNodes desiredNodes;
+        private final Set<DesiredNode> members;
+
+        public Builder(DesiredNodesMetadata desiredNodesMetadata) {
+            this.desiredNodes = desiredNodesMetadata.latestDesiredNodes;
+            this.members = new HashSet<>(desiredNodesMetadata.memberDesiredNodes);
+        }
+
+        public Builder(DesiredNodes desiredNodes) {
+            this.desiredNodes = desiredNodes;
+            this.members = new HashSet<>();
+        }
+
+        public boolean addMember(DiscoveryNode discoveryNode) {
+            if (desiredNodes == null) {
+                return false;
+            }
+
+            DesiredNode desiredNode = desiredNodes.find(discoveryNode.getExternalId());
+
+            if (desiredNode == null) {
+                logger.warn("Missing node {} in desired nodes {}", discoveryNode, desiredNodes);
+            }
+
+            if (desiredNode != null && desiredNode.getRoles().equals(discoveryNode.getRoles()) == false) {
+                logger.warn(
+                    "Desired node and the current node have different roles {} // {}",
+                    desiredNode.getRoles(),
+                    discoveryNode.getRoles()
+                );
+            }
+
+            return desiredNode != null && members.add(desiredNode);
+        }
+
+        public DesiredNodesMetadata build() {
+            return new DesiredNodesMetadata(desiredNodes, members);
+        }
     }
 }

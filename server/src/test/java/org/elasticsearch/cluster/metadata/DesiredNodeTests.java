@@ -24,7 +24,7 @@ public class DesiredNodeTests extends ESTestCase {
         final String nodeName = randomAlphaOfLength(10);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build();
 
-        DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT, false);
+        DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
         assertThat(desiredNode.externalId(), is(notNullValue()));
         assertThat(desiredNode.externalId(), is(equalTo(nodeName)));
     }
@@ -34,7 +34,7 @@ public class DesiredNodeTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> new DesiredNode(settings, -1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT, false)
+            () -> new DesiredNode(settings, -1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
         );
     }
 
@@ -42,7 +42,7 @@ public class DesiredNodeTests extends ESTestCase {
         {
             final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build();
 
-            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT, false);
+            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
             assertTrue(desiredNode.hasMasterRole());
         }
 
@@ -52,7 +52,7 @@ public class DesiredNodeTests extends ESTestCase {
                 .put(NODE_ROLES_SETTING.getKey(), "master")
                 .build();
 
-            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT, false);
+            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
             assertTrue(desiredNode.hasMasterRole());
         }
 
@@ -62,7 +62,7 @@ public class DesiredNodeTests extends ESTestCase {
                 .put(NODE_ROLES_SETTING.getKey(), "data_hot")
                 .build();
 
-            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT, false);
+            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
             assertFalse(desiredNode.hasMasterRole());
         }
     }

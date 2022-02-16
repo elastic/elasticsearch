@@ -18,10 +18,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
-import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -113,15 +113,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     static ClusterState updateDesiredNodes(ClusterState currentState, UpdateDesiredNodesRequest request) {
         DesiredNodesMetadata desiredNodesMetadata = currentState.metadata().custom(DesiredNodesMetadata.TYPE, DesiredNodesMetadata.EMPTY);
         DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
-        DesiredNodes.Builder proposedDesiredNodesBuilder = new DesiredNodes.Builder(request.getHistoryID(), request.getVersion());
-        for (DesiredNode desiredNode : request.getNodes()) {
-            if (desiredNode.isClusterMember(currentState.nodes())) {
-                proposedDesiredNodesBuilder.addNode(desiredNode.asClusterMember());
-            } else {
-                proposedDesiredNodesBuilder.addNode(desiredNode);
-            }
-        }
-        DesiredNodes proposedDesiredNodes = proposedDesiredNodesBuilder.build();
+        DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
 
         if (latestDesiredNodes != null) {
             if (latestDesiredNodes.equals(proposedDesiredNodes)) {
@@ -149,8 +141,13 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             }
         }
 
+        DesiredNodesMetadata.Builder desiredNodesMetadataBuilder = new DesiredNodesMetadata.Builder(proposedDesiredNodes);
+        for (DiscoveryNode node : currentState.nodes()) {
+            desiredNodesMetadataBuilder.addMember(node);
+        }
+
         return currentState.copyAndUpdateMetadata(
-            metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(proposedDesiredNodes))
+            metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadataBuilder.build())
         );
     }
 }

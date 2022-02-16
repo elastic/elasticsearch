@@ -45,6 +45,7 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -367,14 +368,21 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         updateDesiredNodes(desiredNodes);
 
         {
-            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+            final var latestDesiredNodes = getLatestDesiredNodes();
+            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
+            final var members = desiredNodesMetadata.getMembers();
 
             for (String nodeExternalId : currentNodeMembersExternalIds) {
-                assertThat(latestDesiredNodes.find(nodeExternalId).isMember(), is(equalTo(true)));
+                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
+                assertThat(desiredNode, is(not(nullValue())));
+                assertThat(members.contains(desiredNode), is(equalTo(true)));
             }
 
             for (String nodeExternalId : futureNodeMembersExternalIds) {
-                assertThat(latestDesiredNodes.find(nodeExternalId).isMember(), is(equalTo(false)));
+                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
+                assertThat(desiredNode, is(not(nullValue())));
+                assertThat(members.contains(desiredNode), is(equalTo(false)));
             }
         }
 
@@ -384,9 +392,14 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
         {
             final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
+            final var members = desiredNodesMetadata.getMembers();
 
             for (String nodeExternalId : Iterables.concat(currentNodeMembersExternalIds, futureNodeMembersExternalIds)) {
-                assertThat(latestDesiredNodes.find(nodeExternalId).isMember(), is(equalTo(true)));
+                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
+                assertThat(desiredNode, is(not(nullValue())));
+                assertThat(members.contains(desiredNode), is(equalTo(true)));
             }
         }
     }

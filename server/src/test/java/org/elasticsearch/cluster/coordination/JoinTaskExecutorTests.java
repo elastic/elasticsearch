@@ -234,16 +234,14 @@ public class JoinTaskExecutorTests extends ESTestCase {
             1,
             ByteSizeValue.ONE,
             ByteSizeValue.ONE,
-            Version.CURRENT,
-            false
+            Version.CURRENT
         );
         DesiredNode desiredNodeUnknownToCluster = new DesiredNode(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "unknown").build(),
             1,
             ByteSizeValue.ONE,
             ByteSizeValue.ONE,
-            Version.CURRENT,
-            false
+            Version.CURRENT
         );
         final DesiredNodes desiredNodes = new DesiredNodes("history", 1, List.of(desiredNodePresentInCluster, desiredNodeUnknownToCluster));
         Metadata.Builder metadata = Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes));
@@ -267,13 +265,14 @@ public class JoinTaskExecutorTests extends ESTestCase {
         assertTrue(taskResult.isSuccess());
 
         final ClusterState resultingClusterState = result.resultingState();
+        final DesiredNodesMetadata desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(resultingClusterState);
+
         final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(resultingClusterState);
 
         assertThat(latestDesiredNodes.find(knownNodeName), is(notNullValue()));
-        assertThat(latestDesiredNodes.find(knownNodeName).isMember(), is(equalTo(true)));
-
         assertThat(latestDesiredNodes.find("unknown"), is(notNullValue()));
-        assertThat(latestDesiredNodes.find("unknown").isMember(), is(equalTo(false)));
+        assertThat(desiredNodesMetadata.getMembers().contains(desiredNodePresentInCluster), is(equalTo(true)));
+        assertThat(desiredNodesMetadata.getMembers().contains(desiredNodeUnknownToCluster), is(equalTo(false)));
     }
 
     public void testDesiredNodesMembershipIsUpdatedAfterJoinAndLogsAWarningIfRolesAreDifferent() throws Exception {
@@ -303,8 +302,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
             1,
             ByteSizeValue.ONE,
             ByteSizeValue.ONE,
-            Version.CURRENT,
-            false
+            Version.CURRENT
         );
         final DesiredNodes desiredNodes = new DesiredNodes("history", 1, List.of(desiredNodeWithDifferentRoles));
         Metadata.Builder metadata = Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodes));
@@ -315,7 +313,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
 
         MockLogAppender mockAppender = addLoggingExpectation(
             Level.WARN,
-            DesiredNodes.Builder.class,
+            DesiredNodesMetadata.Builder.class,
             "Desired node and the current node have different roles *"
         );
 
@@ -335,8 +333,11 @@ public class JoinTaskExecutorTests extends ESTestCase {
 
         final ClusterState resultingClusterState = result.resultingState();
         final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(resultingClusterState);
+        final DesiredNodesMetadata desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(resultingClusterState);
+        final Set<DesiredNode> desiredNodesMetadataMembers = desiredNodesMetadata.getMembers();
+
         assertThat(latestDesiredNodes.find(knownNodeName), is(notNullValue()));
-        assertThat(latestDesiredNodes.find(knownNodeName).isMember(), is(equalTo(true)));
+        assertThat(desiredNodesMetadataMembers.contains(desiredNodeWithDifferentRoles), is(equalTo(true)));
 
         mockAppender.assertAllExpectationsMatched();
     }

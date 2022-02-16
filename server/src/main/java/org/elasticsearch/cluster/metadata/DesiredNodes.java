@@ -8,10 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,16 +19,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
@@ -107,19 +99,7 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         return historyID.equals(other.historyID);
     }
 
-    public DesiredNodes withMembershipInformationUpdated(DiscoveryNodes discoveryNodes) {
-        List<DesiredNode> updatedDesiredNodes = new ArrayList<>(nodes.size());
-        for (DesiredNode node : nodes) {
-            if (node.isClusterMember(discoveryNodes)) {
-                updatedDesiredNodes.add(node.asClusterMember());
-            } else {
-                updatedDesiredNodes.add(node);
-            }
-        }
-        return new DesiredNodes(historyID, version, updatedDesiredNodes);
-    }
-
-    private static void checkForDuplicatedExternalIDs(List<DesiredNode> nodes) {
+    private static void checkForDuplicatedExternalIDs(Collection<DesiredNode> nodes) {
         Set<String> nodeIDs = new HashSet<>(nodes.size());
         Set<String> duplicatedIDs = new HashSet<>();
         for (DesiredNode node : nodes) {
@@ -155,6 +135,11 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         return Objects.hash(historyID, version, nodes);
     }
 
+    @Override
+    public String toString() {
+        return "DesiredNodes{" + "historyID='" + historyID + '\'' + ", version=" + version + ", nodes=" + nodes + '}';
+    }
+
     public String historyID() {
         return historyID;
     }
@@ -175,53 +160,5 @@ public class DesiredNodes implements Writeable, ToXContentObject {
             }
         }
         return null;
-    }
-
-    public static class Builder {
-        private final Logger logger = LogManager.getLogger(Builder.class);
-
-        private final String historyId;
-        private final long version;
-        private final Map<String, DesiredNode> nodesByExternalId;
-        private boolean changed = false;
-
-        public Builder(String historyId, long version) {
-            this.historyId = historyId;
-            this.version = version;
-            this.nodesByExternalId = new HashMap<>();
-        }
-
-        public Builder(DesiredNodes desiredNodes) {
-            this.historyId = desiredNodes.historyID;
-            this.version = desiredNodes.version;
-            this.nodesByExternalId = desiredNodes.nodes.stream().collect(Collectors.toMap(DesiredNode::externalId, Function.identity()));
-        }
-
-        public Builder addNode(DesiredNode desiredNode) {
-            if (nodesByExternalId.put(desiredNode.externalId(), desiredNode) != null) {
-                throw new IllegalArgumentException("There's a desired node with the same external id " + desiredNode.externalId());
-            }
-            changed = true;
-            return this;
-        }
-
-        public Builder markNodeAsMember(DiscoveryNode discoveryNode) {
-            DesiredNode desiredNode = nodesByExternalId.get(discoveryNode.getExternalId());
-            if (desiredNode == null || desiredNode.isMember()) {
-                return this;
-            }
-
-            if (discoveryNode.getRoles().equals(desiredNode.getRoles()) == false) {
-                logger.warn("Desired node and the current node have different roles {} {}", desiredNode, discoveryNode);
-            }
-
-            changed = true;
-            nodesByExternalId.put(desiredNode.externalId(), desiredNode.asClusterMember());
-            return this;
-        }
-
-        public DesiredNodes build() {
-            return new DesiredNodes(historyId, version, nodesByExternalId.values().stream().toList());
-        }
     }
 }

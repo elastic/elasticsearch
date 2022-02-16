@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -83,8 +82,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
         final boolean enforceVersionBarrier = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
         // processing any joins
         Map<String, String> joiniedNodeNameIds = new HashMap<>();
-        DesiredNodes desiredNodes = DesiredNodesMetadata.latestFromClusterState(currentState);
-        DesiredNodes.Builder desiredNodesBuilder = desiredNodes == null ? null : new DesiredNodes.Builder(desiredNodes);
+        DesiredNodesMetadata desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(currentState);
+        DesiredNodesMetadata.Builder desiredNodesBuilder = new DesiredNodesMetadata.Builder(desiredNodesMetadata);
+        boolean desiredNodesChanged = false;
         for (final JoinTask joinTask : joinTasks) {
             final List<Runnable> onTaskSuccess = new ArrayList<>(joinTask.nodeCount());
             for (final JoinTask.NodeJoinTask nodeJoinTask : joinTask.nodeJoinTasks()) {
@@ -100,11 +100,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
                         ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
-                        if (desiredNodesBuilder != null) {
-                            desiredNodesBuilder.markNodeAsMember(node);
-                        }
                         nodesBuilder.add(node);
                         nodesChanged = true;
+                        desiredNodesChanged |= desiredNodesBuilder.addMember(node);
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
                         if (node.isMasterNode()) {
@@ -140,8 +138,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
             );
 
             Metadata.Builder newMetadata = Metadata.builder(currentState.metadata());
-            if (desiredNodesBuilder != null) {
-                newMetadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodesBuilder.build()));
+            if (desiredNodesChanged) {
+                newMetadata.putCustom(DesiredNodesMetadata.TYPE, desiredNodesBuilder.build());
             }
 
             if (joiniedNodeNameIds.isEmpty() == false) {

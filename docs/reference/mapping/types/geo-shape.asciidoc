@@ -252,6 +252,19 @@ POST /example/_doc
 }
 --------------------------------------------------
 
+[IMPORTANT]
+====
+WKT doesn't enforce a specific order for vertices. This means ambiguous polygons
+around the international dateline (+/-180° longitude) and poles are possible
+using WKT.
+
+https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON] mandates that an
+outer polygon use a counterclockwise vertex order and interior shapes use a
+clockwise vertex order. This aligns with the Open Geospatial Consortium (OGC)
+https://www.opengeospatial.org/standards/sfa[Simple Feature Access]
+specification for vertex ordering.
+====
+
 [discrete]
 [[polygon-orientation]]
 ===== Polygon orientation

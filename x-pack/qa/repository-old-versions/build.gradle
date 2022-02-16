@@ -58,8 +58,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
    * To avoid testing against too many old versions, always pick first and last version per major
    */
   project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
-    transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
-    transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+    transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
+    transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
   });
 
   for (String versionString : ['5.0.0', '5.6.16', '6.0.0', '6.8.20']) {
@@ -70,7 +70,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     String configName = "es${versionNoDots}"
 
     def config = configurations.create(configName)
-    config.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+    config.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
     dependencies.add(configName, artifact)
 
     String repoLocation = "${buildDir}/cluster/shared/repo/${versionNoDots}"

@@ -426,8 +426,8 @@ running:
 
 Elastic also supports searches from a local cluster running the last minor
 version of a major version to a remote cluster running any minor version in the
-following major version line. For example, a local {prev-major-version} cluster
-can search any remote 8.x cluster.
+following major version line. For example, a local 7.17 cluster can search any
+remote 8.x cluster.
 
 [[ccs-version-compatibility]]
 include::{es-repo-dir}/search/search-your-data/ccs-version-compat-matrix.asciidoc[]

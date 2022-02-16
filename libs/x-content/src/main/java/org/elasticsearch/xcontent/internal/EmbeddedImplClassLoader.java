@@ -8,21 +8,15 @@
 
 package org.elasticsearch.xcontent.internal;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
-import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
-import java.util.Collections;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -55,37 +49,12 @@ import java.util.Objects;
  */
 public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
-    private static final String IMPL_PREFIX = "IMPL-JARS/";
-    private static final String MANIFEST_FILE = "/LISTING.TXT";
-
     private final List<String> prefixes;
     private final ClassLoader parent;
     private final Map<String, CodeSource> prefixToCodeBase;
 
-    private static Map<String, CodeSource> getProviderPrefixes(ClassLoader parent, String providerName) {
-        String providerPrefix = IMPL_PREFIX + providerName;
-        URL manifest = parent.getResource(providerPrefix + MANIFEST_FILE);
-        if (manifest == null) {
-            throw new IllegalStateException("missing x-content provider jars list");
-        }
-        try (
-            InputStream in = manifest.openStream();
-            InputStreamReader isr = new InputStreamReader(in, StandardCharsets.UTF_8);
-            BufferedReader reader = new BufferedReader(isr)
-        ) {
-            List<String> prefixes = reader.lines().map(s -> providerPrefix + "/" + s).toList();
-            Map<String, CodeSource> map = new HashMap<>();
-            for (String prefix : prefixes) {
-                map.put(prefix, new CodeSource(new URL(manifest, prefix), (CodeSigner[]) null /*signers*/));
-            }
-            return Collections.unmodifiableMap(map);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
     static EmbeddedImplClassLoader getInstance(ClassLoader parent, String providerName) {
-        return new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
+        return new EmbeddedImplClassLoader(parent, EmbeddedImplUtils.getProviderPrefixes(parent, providerName));
     }
 
     private EmbeddedImplClassLoader(ClassLoader parent, Map<String, CodeSource> prefixToCodeBase) {

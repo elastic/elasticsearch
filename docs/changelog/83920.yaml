@@ -1,5 +1,5 @@
 pr: 83920
-summary: "TSDB: fix tsdb/05_dimension_and_metric_in_non_tsdb_index/nested dimensions"
+summary: "TSDB: Reject the nested object fields that are configured time_series_dimension"
 area: TSDB
-type: bug
+type: enhancement
 issues: []

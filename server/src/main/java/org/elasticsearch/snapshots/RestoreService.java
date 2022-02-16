@@ -10,7 +10,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
@@ -978,7 +977,8 @@ public class RestoreService implements ClusterStateApplier {
                     + "]"
             );
         }
-        if (skipVersionChecks(repository) == false && snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+        if (ALLOW_BWC_INDICES_SETTING.get(repository.settings()) == false
+            && snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with Elasticsearch version ["
@@ -1001,19 +1001,6 @@ public class RestoreService implements ClusterStateApplier {
         false,
         Setting.Property.NodeScope
     );
-
-    private static boolean skipVersionChecks(RepositoryMetadata repositoryMetadata) {
-        if (Build.CURRENT.isSnapshot()) {
-            return ALLOW_BWC_INDICES_SETTING.get(repositoryMetadata.settings());
-        } else {
-            if (ALLOW_BWC_INDICES_SETTING.exists(repositoryMetadata.settings())) {
-                throw new IllegalArgumentException(
-                    "Repository setting [" + ALLOW_BWC_INDICES_SETTING.getKey() + "] only allowed in release builds"
-                );
-            }
-            return false;
-        }
-    }
 
     public static boolean failed(SnapshotInfo snapshot, String index) {
         for (SnapshotShardFailure failure : snapshot.shardFailures()) {

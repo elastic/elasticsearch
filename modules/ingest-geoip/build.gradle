@@ -35,7 +35,6 @@ restResources {
 }
 
 def useFixture = providers.environmentVariable("geoip_use_service")
-  .forUseAtConfigurationTime()
   .map { s -> Boolean.parseBoolean(s) == false }
   .getOrElse(true)
 

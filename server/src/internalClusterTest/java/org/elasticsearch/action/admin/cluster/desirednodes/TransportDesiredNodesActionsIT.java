@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
@@ -32,12 +33,14 @@ import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -341,6 +344,51 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         assertThat(exception.getMessage(), containsString("contain invalid settings"));
         assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
         assertThat(exception.getSuppressed()[0].getMessage(), containsString("[node.external_id] is missing or empty"));
+    }
+
+    public void testDesiredNodesMembershipIsUpdated() {
+        final List<String> currentNodeMembersExternalIds = randomList(1, 4, UUIDs::randomBase64UUID);
+        final List<String> futureNodeMembersExternalIds = randomList(1, 4, UUIDs::randomBase64UUID);
+
+        for (String nodeExternalId : currentNodeMembersExternalIds) {
+            internalCluster().startDataOnlyNode(Settings.builder().put(NODE_EXTERNAL_ID_SETTING.getKey(), nodeExternalId).build());
+        }
+
+        final DesiredNodes desiredNodes = new DesiredNodes(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(1, 20),
+            Stream.concat(currentNodeMembersExternalIds.stream(), futureNodeMembersExternalIds.stream())
+                .map(externalId -> randomDesiredNode(Version.CURRENT, settings -> {
+                    settings.remove(NODE_NAME_SETTING.getKey());
+                    settings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
+                }))
+                .toList()
+        );
+        updateDesiredNodes(desiredNodes);
+
+        {
+            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+
+            for (String nodeExternalId : currentNodeMembersExternalIds) {
+                assertThat(latestDesiredNodes.find(nodeExternalId).isMember(), is(equalTo(true)));
+            }
+
+            for (String nodeExternalId : futureNodeMembersExternalIds) {
+                assertThat(latestDesiredNodes.find(nodeExternalId).isMember(), is(equalTo(false)));
+            }
+        }
+
+        for (String nodeExternalId : futureNodeMembersExternalIds) {
+            internalCluster().startDataOnlyNode(Settings.builder().put(NODE_EXTERNAL_ID_SETTING.getKey(), nodeExternalId).build());
+        }
+
+        {
+            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+
+            for (String nodeExternalId : Iterables.concat(currentNodeMembersExternalIds, futureNodeMembersExternalIds)) {
+                assertThat(latestDesiredNodes.find(nodeExternalId).isMember(), is(equalTo(true)));
+            }
+        }
     }
 
     private void deleteDesiredNodes() {

@@ -29,8 +29,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -115,15 +113,15 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     static ClusterState updateDesiredNodes(ClusterState currentState, UpdateDesiredNodesRequest request) {
         DesiredNodesMetadata desiredNodesMetadata = currentState.metadata().custom(DesiredNodesMetadata.TYPE, DesiredNodesMetadata.EMPTY);
         DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
-        List<DesiredNode> desiredNodes = new ArrayList<>(request.getNodes().size());
+        DesiredNodes.Builder proposedDesiredNodesBuilder = new DesiredNodes.Builder(request.getHistoryID(), request.getVersion());
         for (DesiredNode desiredNode : request.getNodes()) {
             if (desiredNode.isClusterMember(currentState.nodes())) {
-                desiredNodes.add(desiredNode.asClusterMember());
+                proposedDesiredNodesBuilder.addNode(desiredNode.asClusterMember());
             } else {
-                desiredNodes.add(desiredNode);
+                proposedDesiredNodesBuilder.addNode(desiredNode);
             }
         }
-        DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), desiredNodes);
+        DesiredNodes proposedDesiredNodes = proposedDesiredNodesBuilder.build();
 
         if (latestDesiredNodes != null) {
             if (latestDesiredNodes.equals(proposedDesiredNodes)) {

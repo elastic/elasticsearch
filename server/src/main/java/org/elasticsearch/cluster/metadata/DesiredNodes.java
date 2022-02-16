@@ -59,7 +59,6 @@ public class DesiredNodes implements Writeable, ToXContentObject {
     private final String historyID;
     private final long version;
     private final List<DesiredNode> nodes;
-    private final Map<String, DesiredNode> nodesByExternalId;
 
     public DesiredNodes(String historyID, long version, List<DesiredNode> nodes) {
         assert historyID != null && historyID.isBlank() == false;
@@ -69,7 +68,6 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         this.historyID = historyID;
         this.version = version;
         this.nodes = List.copyOf(nodes);
-        this.nodesByExternalId = nodes.stream().collect(Collectors.toMap(DesiredNode::externalId, Function.identity()));
     }
 
     public DesiredNodes(StreamInput in) throws IOException {
@@ -171,12 +169,12 @@ public class DesiredNodes implements Writeable, ToXContentObject {
 
     @Nullable
     public DesiredNode find(String externalId) {
-        DesiredNode desiredNode = nodesByExternalId.get(externalId);
-        if (desiredNode != null) {
-            return desiredNode;
+        for (DesiredNode node : nodes) {
+            if (node.externalId() != null && Objects.equals(node.externalId(), externalId)) {
+                return node;
+            }
         }
-
-        return nodesByExternalId.get(externalId);
+        return null;
     }
 
     public static class Builder {
@@ -185,14 +183,26 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         private final String historyId;
         private final long version;
         private final Map<String, DesiredNode> nodesByExternalId;
-        private final DesiredNodes originalDesiredNodes;
         private boolean changed = false;
+
+        public Builder(String historyId, long version) {
+            this.historyId = historyId;
+            this.version = version;
+            this.nodesByExternalId = new HashMap<>();
+        }
 
         public Builder(DesiredNodes desiredNodes) {
             this.historyId = desiredNodes.historyID;
             this.version = desiredNodes.version;
-            this.nodesByExternalId = new HashMap<>(desiredNodes.nodesByExternalId);
-            this.originalDesiredNodes = desiredNodes;
+            this.nodesByExternalId = desiredNodes.nodes.stream().collect(Collectors.toMap(DesiredNode::externalId, Function.identity()));
+        }
+
+        public Builder addNode(DesiredNode desiredNode) {
+            if (nodesByExternalId.put(desiredNode.externalId(), desiredNode) != null) {
+                throw new IllegalArgumentException("There's a desired node with the same external id " + desiredNode.externalId());
+            }
+            changed = true;
+            return this;
         }
 
         public Builder markNodeAsMember(DiscoveryNode discoveryNode) {
@@ -202,8 +212,7 @@ public class DesiredNodes implements Writeable, ToXContentObject {
             }
 
             if (discoveryNode.getRoles().equals(desiredNode.getRoles()) == false) {
-                logger.warn("Different desired and current node {} {}", desiredNode, discoveryNode);
-                return this;
+                logger.warn("Desired node and the current node have different roles {} {}", desiredNode, discoveryNode);
             }
 
             changed = true;
@@ -212,11 +221,7 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         }
 
         public DesiredNodes build() {
-            if (changed) {
-                return new DesiredNodes(historyId, version, nodesByExternalId.values().stream().toList());
-            }
-
-            return originalDesiredNodes;
+            return new DesiredNodes(historyId, version, nodesByExternalId.values().stream().toList());
         }
     }
 }

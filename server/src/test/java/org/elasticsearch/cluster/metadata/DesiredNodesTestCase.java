@@ -68,7 +68,7 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
             ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
             ByteSizeValue.ofTb(randomIntBetween(1, 40)),
             version,
-            randomBoolean()
+            false
         );
     }
 

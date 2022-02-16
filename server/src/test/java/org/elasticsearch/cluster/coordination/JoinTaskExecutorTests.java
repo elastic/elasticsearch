@@ -7,6 +7,9 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -23,11 +26,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
@@ -213,14 +218,19 @@ public class JoinTaskExecutorTests extends ESTestCase {
         final DiscoveryNode actualNode = new DiscoveryNode(
             knownNodeName,
             UUIDs.base64UUID(),
+            knownNodeName,
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
+            Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE),
             Version.CURRENT
         );
+        assertThat(actualNode.getExternalId(), is(equalTo(knownNodeName)));
 
         DesiredNode desiredNodePresentInCluster = new DesiredNode(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), knownNodeName).build(),
+            Settings.builder()
+                .put(Node.NODE_NAME_SETTING.getKey(), knownNodeName)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
+                .build(),
             1,
             ByteSizeValue.ONE,
             ByteSizeValue.ONE,
@@ -266,7 +276,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
         assertThat(latestDesiredNodes.find("unknown").isMember(), is(equalTo(false)));
     }
 
-    public void testDesiredNodesMembershipIsNotUpdatedAfterJoinIfRolesAreDifferent() {
+    public void testDesiredNodesMembershipIsUpdatedAfterJoinAndLogsAWarningIfRolesAreDifferent() throws Exception {
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
@@ -279,6 +289,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
         final DiscoveryNode actualNode = new DiscoveryNode(
             knownNodeName,
             UUIDs.base64UUID(),
+            knownNodeName,
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE),
@@ -302,6 +313,12 @@ public class JoinTaskExecutorTests extends ESTestCase {
             .metadata(metadata)
             .build();
 
+        MockLogAppender mockAppender = addLoggingExpectation(
+            Level.WARN,
+            DesiredNodes.Builder.class,
+            "Desired node and the current node have different roles *"
+        );
+
         final ClusterStateTaskExecutor.ClusterTasksResult<JoinTask> result = joinTaskExecutor.execute(
             clusterState,
             List.of(
@@ -319,6 +336,20 @@ public class JoinTaskExecutorTests extends ESTestCase {
         final ClusterState resultingClusterState = result.resultingState();
         final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(resultingClusterState);
         assertThat(latestDesiredNodes.find(knownNodeName), is(notNullValue()));
-        assertThat(latestDesiredNodes.find(knownNodeName).isMember(), is(equalTo(false)));
+        assertThat(latestDesiredNodes.find(knownNodeName).isMember(), is(equalTo(true)));
+
+        mockAppender.assertAllExpectationsMatched();
+    }
+
+    private MockLogAppender addLoggingExpectation(Level logLevel, Class<?> klass, String expectedMessage) throws IllegalAccessException {
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation("expected message", klass.getCanonicalName(), logLevel, expectedMessage)
+        );
+
+        Logger desiredNodesBuilderLogger = LogManager.getLogger(klass);
+        Loggers.addAppender(desiredNodesBuilderLogger, mockAppender);
+        return mockAppender;
     }
 }

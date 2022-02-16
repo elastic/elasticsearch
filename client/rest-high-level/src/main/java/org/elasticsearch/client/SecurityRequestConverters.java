@@ -12,13 +12,11 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
@@ -26,7 +24,6 @@ import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -37,42 +34,6 @@ import static org.elasticsearch.client.RequestConverters.createEntity;
 final class SecurityRequestConverters {
 
     private SecurityRequestConverters() {}
-
-    static Request changePassword(ChangePasswordRequest changePasswordRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/user")
-            .addPathPart(changePasswordRequest.getUsername())
-            .addPathPartAsIs("_password")
-            .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(changePasswordRequest, REQUEST_BODY_CONTENT_TYPE));
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(changePasswordRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request putUser(PutUserRequest putUserRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/user")
-            .addPathPart(putUserRequest.getUser().getUsername())
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(putUserRequest, REQUEST_BODY_CONTENT_TYPE));
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(putUserRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request deleteUser(DeleteUserRequest deleteUserRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security", "user")
-            .addPathPart(deleteUserRequest.getName())
-            .build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(deleteUserRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
-        return request;
-    }
 
     static Request putRoleMapping(final PutRoleMappingRequest putRoleMappingRequest) throws IOException {
         final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/role_mapping")

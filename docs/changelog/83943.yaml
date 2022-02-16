@@ -2,9 +2,11 @@ pr: 83943
 summary: Deprecate `index_include_frozen` request parameter
 area: SQL
 type: deprecation
-issues: []
+issues:
+  - 81939
 deprecation:
   title: Deprecate `index_include_frozen` request parameter in `_sql` API
   area: REST API
-  details: "`index_include_frozen` parameter is deprecated because frozen indices have been deprecated."
+  details: '`index_include_frozen` parameter and `FROZEN` syntax is deprecated because frozen indices have been
+    deprecated.'
   impact: None

@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.action.Protocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.DEFAULT_KEEP_ALIVE;
@@ -59,12 +58,10 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SqlQueryRequest.class);
 
-    public static final String INDEX_INCLUDE_FROZEN_DEPRECATION_MESSAGE = format(
-        null,
-        "[{}] parameter is deprecated because frozen indices have been deprecated. "
-            + "Consider cold or frozen tiers in place of frozen indices.",
-        CoreProtocol.INDEX_INCLUDE_FROZEN_NAME
-    );
+    private static final String INDEX_INCLUDE_FROZEN_DEPRECATION_MESSAGE = "["
+        + CoreProtocol.INDEX_INCLUDE_FROZEN_NAME
+        + "] parameter is deprecated because frozen indices have been deprecated. "
+        + "Consider cold or frozen tiers in place of frozen indices.";
 
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);

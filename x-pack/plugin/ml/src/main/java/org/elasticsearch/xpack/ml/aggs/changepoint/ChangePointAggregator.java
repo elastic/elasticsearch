@@ -191,7 +191,11 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             double rv2 = fitTrend(Arrays.copyOfRange(timeWindow, cp, timeWindow.length));
             double v1 = lowerRange.variance() * (1 - Math.abs(rv1));
             double v2 = upperRange.variance() * (1 - Math.abs(rv2));
-            vAndR = vAndR.min(new VarianceAndRValue((cp * v1 + (n - cp) * v2) / n, (cp * rv1 + (n - cp) * rv2) / n));
+            VarianceAndRValue varianceAndRValue = new VarianceAndRValue((cp * v1 + (n - cp) * v2) / n, (cp * rv1 + (n - cp) * rv2) / n);
+            if (varianceAndRValue.compareTo(vAndR) < 0) {
+                vAndR = varianceAndRValue;
+                changePoint = cp;
+            }
             lowerRange.addValues(timeWindow, cp, cp + step);
             upperRange.removeValues(timeWindow, cp, cp + step);
         }

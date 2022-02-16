@@ -53,11 +53,11 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         clusterName = new ClusterName("cluster-1");
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         builder.add(new DiscoveryNode("node-1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
-        ComponentTemplate ct1 = new ComponentTemplate(new Template(Settings.builder()
-            .put("number_of_replicas", 2)
-            .put("index.blocks.write", true)
-            .build(),
-            null, null), 2L, null);
+        ComponentTemplate ct1 = new ComponentTemplate(
+            new Template(Settings.builder().put("number_of_replicas", 2).put("index.blocks.write", true).build(), null, null),
+            2L,
+            null
+        );
         Map<String, ComponentTemplate> componentTemplateMap = new HashMap<>();
         componentTemplateMap.put("test_ct", ct1);
         Metadata metadata = Metadata.builder().componentTemplates(componentTemplateMap).build();
@@ -73,12 +73,10 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
     }
 
     public void testRestCatComponentAction() throws Exception {
-        FakeRestRequest getCatComponentTemplateRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        FakeRestRequest getCatComponentTemplateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("_cat/component_templates")
             .build();
-        FakeRestChannel channel = new FakeRestChannel(
-            getCatComponentTemplateRequest, true, 0);
+        FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
 
         // execute action
         try (NoOpNodeClient nodeClient = buildNodeClient()) {
@@ -88,18 +86,15 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         // validate results
         assertThat(channel.responses().get(), equalTo(1));
         assertThat(channel.capturedResponse().status(), equalTo(RestStatus.OK));
-        assertThat(channel.capturedResponse().content().utf8ToString(),
-            equalTo("test_ct 2 0 0 2 0 []\n"));
+        assertThat(channel.capturedResponse().content().utf8ToString(), equalTo("test_ct 2 0 0 2 0 []\n"));
     }
 
     public void testRestCatComponentActionWithParam() throws Exception {
-        FakeRestRequest getCatComponentTemplateRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        FakeRestRequest getCatComponentTemplateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("_cat/component_templates")
             .withParams(singletonMap("name", "test"))
             .build();
-        FakeRestChannel channel = new FakeRestChannel(
-            getCatComponentTemplateRequest, true, 0);
+        FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
 
         // execute action
         try (NoOpNodeClient nodeClient = buildNodeClient()) {
@@ -113,14 +108,16 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
     }
 
     private NoOpNodeClient buildNodeClient() {
-        ClusterStateResponse clusterStateResponse =
-            new ClusterStateResponse(clusterName, clusterState, false);
+        ClusterStateResponse clusterStateResponse = new ClusterStateResponse(clusterName, clusterState, false);
 
         return new NoOpNodeClient(getTestName()) {
             @Override
             @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 listener.onResponse((Response) clusterStateResponse);
             }
         };

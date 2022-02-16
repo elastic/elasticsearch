@@ -10,16 +10,20 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,9 +44,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_cat/component_templates"),
-            new Route(GET, "/_cat/component_templates/{name}"));
+        return List.of(new Route(GET, "/_cat/component_templates"), new Route(GET, "/_cat/component_templates/{name}"));
     }
 
     @Override
@@ -66,7 +68,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
     }
 
     @Override
-    protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
+    protected BaseRestHandler.RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().metadata(true);
@@ -80,7 +82,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         });
     }
 
-    public Table buildTable(RestRequest request, ClusterStateResponse clusterStateResponse, String patternString) {
+    public Table buildTable(RestRequest request, ClusterStateResponse clusterStateResponse, String patternString) throws Exception {
         Table table = getTableWithHeader(request);
         Metadata metadata = clusterStateResponse.getState().metadata();
         Map<String, Set<String>> reverseIndexOnComposedOfToIndexName = buildReverseIndexOnComposedOfToIndexName(metadata);
@@ -93,10 +95,10 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
                 table.addCell(name);
                 table.addCell(componentTemplate.version());
                 Template template = componentTemplate.template();
-                table.addCell(template == null || template.aliases() == null ? 0: template.aliases().size());
-                table.addCell(reverseIndexOnComposedOfToIndexName.getOrDefault(name, new HashSet<>()).size());
-                table.addCell(template == null  || template.settings() == null ? 0: template.settings().keySet().size());
-                table.addCell(componentTemplate.metadata() == null ? 0: componentTemplate.metadata().size());
+                table.addCell(template == null || template.aliases() == null ? 0 : template.aliases().size());
+                table.addCell(countMappingInTemplate(template));
+                table.addCell(template == null || template.settings() == null ? 0 : template.settings().keySet().size());
+                table.addCell(componentTemplate.metadata() == null ? 0 : componentTemplate.metadata().size());
                 table.addCell(reverseIndexOnComposedOfToIndexName.getOrDefault(name, new HashSet<>()));
                 table.endRow();
             }
@@ -108,12 +110,55 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         Map<String, ComposableIndexTemplate> allTemplates = metadata.templatesV2();
         Map<String, Set<String>> reverseIndex = new HashMap<>();
 
-        for (Map.Entry<String, ComposableIndexTemplate> templateEntry: allTemplates.entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> templateEntry : allTemplates.entrySet()) {
             String templateName = templateEntry.getKey();
             ComposableIndexTemplate template = templateEntry.getValue();
-            template.composedOf()
-                .forEach(composed_of -> reverseIndex.computeIfAbsent(composed_of, k -> new HashSet<>()).add(templateName));
+            template.composedOf().forEach(composed_of -> reverseIndex.computeIfAbsent(composed_of, k -> new HashSet<>()).add(templateName));
         }
         return reverseIndex;
+    }
+
+    private int countMappingInTemplate(Template template) throws Exception {
+        if (template.mappings() == null) {
+            return 0;
+        }
+        int count = 0;
+        XContentType xContentType = XContentType.JSON;
+        XContentParser parser = xContentType.xContent()
+            .createParser(XContentParserConfiguration.EMPTY, template.mappings().uncompressed().array());
+        XContentParser.Token token = parser.nextToken();
+        String currentFieldName = null;
+        while (token != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("_doc".equals(currentFieldName)) {
+                    List<Object> list = parser.mapOrdered().values().stream().toList();
+                    for (Object mapping : list) {
+                        count = count + countSubAttributes(mapping);
+                    }
+                }
+            } else {
+                parser.skipChildren();
+            }
+            token = parser.nextToken();
+        }
+        return count;
+    }
+
+    private int countSubAttributes(Object mapping) {
+        int count = 0;
+        if (mapping instanceof List) {
+            for (Object subObject : (List) mapping) {
+                count = count + countSubAttributes(subObject);
+            }
+        } else if (mapping instanceof Map) {
+            for (Object entry : ((Map) mapping).entrySet()) {
+                count = count + countSubAttributes(entry);
+            }
+        } else {
+            count = count + 1;
+        }
+        return count;
     }
 }

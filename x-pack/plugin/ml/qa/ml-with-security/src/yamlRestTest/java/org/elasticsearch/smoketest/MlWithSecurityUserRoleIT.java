@@ -28,7 +28,6 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
      */
     private static final List<Pattern> ALLOWED_ACTION_PATTERNS = Arrays.asList(
         Pattern.compile("ml\\.get_.*"),
-        Pattern.compile("ml\\.memory"),
         Pattern.compile("ml\\.evaluate_data_frame")
     );
 

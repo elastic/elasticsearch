@@ -1,5 +1,5 @@
 {
-  "ml.memory":{
+  "ml.get_memory_stats":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-memory.html",
       "description":"Returns information on how ML is using memory."

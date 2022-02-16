@@ -5,12 +5,12 @@
   - skip:
       features: [arbitrary_key]
   - do:
-      ml.memory: {}
+      ml.get_memory_stats: {}
   - set:
       nodes._arbitrary_key_: node_id
 
   - do:
-      ml.memory: {}
+      ml.get_memory_stats: {}
 
   - match: { _nodes.total: 1 }
   - match: { _nodes.successful: 1 }
@@ -40,12 +40,12 @@
   - skip:
       features: [arbitrary_key]
   - do:
-      ml.memory: {}
+      ml.get_memory_stats: {}
   - set:
       nodes._arbitrary_key_: node_id
 
   - do:
-      ml.memory:
+      ml.get_memory_stats:
         node_id: "ml:true"
 
   - match: { _nodes.total: 1 }
@@ -76,12 +76,12 @@
   - skip:
       features: [arbitrary_key]
   - do:
-      ml.memory: {}
+      ml.get_memory_stats: {}
   - set:
       nodes._arbitrary_key_: node_id
 
   - do:
-      ml.memory:
+      ml.get_memory_stats:
         node_id: $node_id
 
   - match: { _nodes.total: 1 }

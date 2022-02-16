@@ -296,8 +296,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public DataStream unsafeRollover(Index writeIndex, long generation, IndexMode indexModeFromTemplate) {
         IndexMode indexMode = this.indexMode;
         // This allows for migrating a data stream to be a tsdb data stream:
-        // (only if index_mode hasn't been specified that allow it to be set to time_series)
-        if (indexMode == null && indexModeFromTemplate == IndexMode.TIME_SERIES) {
+        // (only if index_mode=null|standard then allow it to be set to time_series)
+        if ((indexMode == null || indexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.TIME_SERIES) {
             indexMode = IndexMode.TIME_SERIES;
         }
 

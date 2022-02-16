@@ -149,6 +149,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     public void testRolloverAndMigrateDataStream() throws Exception {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         String dataStreamName = "logs-my-app";
+        IndexMode dsIndexMode = randomBoolean() ? null : IndexMode.STANDARD;
         final DataStream dataStream = new DataStream(
             dataStreamName,
             new DataStream.TimestampField("@timestamp"),
@@ -159,7 +160,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             false,
             false,
-            null
+            dsIndexMode
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
             .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
@@ -167,13 +168,15 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
+        Settings.Builder indexSettings = ESTestCase.settings(Version.CURRENT)
+            .put("index.hidden", true)
+            .put(SETTING_INDEX_UUID, dataStream.getWriteIndex().getUUID());
+        if (dsIndexMode != null) {
+            indexSettings.put("index.mode", dsIndexMode.getName());
+        }
         builder.put(
             IndexMetadata.builder(dataStream.getWriteIndex().getName())
-                .settings(
-                    ESTestCase.settings(Version.CURRENT)
-                        .put("index.hidden", true)
-                        .put(SETTING_INDEX_UUID, dataStream.getWriteIndex().getUUID())
-                )
+                .settings(indexSettings)
                 .numberOfShards(1)
                 .numberOfReplicas(0)
         );
@@ -216,7 +219,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
 
             // Nothing changed for the original backing index:
             IndexMetadata im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(0));
-            assertThat(IndexSettings.MODE.exists(im.getSettings()), is(false));
+            assertThat(IndexSettings.MODE.get(im.getSettings()), equalTo(IndexMode.STANDARD));
             assertThat(IndexSettings.TIME_SERIES_START_TIME.exists(im.getSettings()), is(false));
             assertThat(IndexSettings.TIME_SERIES_END_TIME.exists(im.getSettings()), is(false));
             // New backing index is a tsdb index:

@@ -241,7 +241,8 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkXpackDataFrameEnabledSetting,
                 NodeDeprecationChecks::checkWatcherHistoryCleanerServiceSetting,
                 NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
-                NodeDeprecationChecks::checkEqlEnabledSetting
+                NodeDeprecationChecks::checkEqlEnabledSetting,
+                NodeDeprecationChecks::checkNodeAttrData
             )
         ).collect(Collectors.toList());
     }

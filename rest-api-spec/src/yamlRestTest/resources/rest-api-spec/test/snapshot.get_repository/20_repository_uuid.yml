@@ -1,9 +1,4 @@
 ---
-setup:
-  - skip:
-      version: " - 8.1.99"
-      reason: "Pause BWC tests until #83290 is backported"
----
 "Get repository returns UUID":
   - skip:
       version: " - 7.12.99"

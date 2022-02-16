@@ -73,10 +73,10 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             InputStreamReader isr = new InputStreamReader(in, StandardCharsets.UTF_8);
             BufferedReader reader = new BufferedReader(isr)
         ) {
-            List<String> prefixes = reader.lines().map(s -> providerPrefix + "/" + s).toList();
+            List<String> jars = reader.lines().toList();
             Map<String, CodeSource> map = new HashMap<>();
-            for (String prefix : prefixes) {
-                map.put(prefix, new CodeSource(new URL(manifest, prefix), (CodeSigner[]) null /*signers*/));
+            for (String jar : jars) {
+                map.put(providerPrefix + "/" + jar, new CodeSource(new URL(manifest, jar), (CodeSigner[]) null /*signers*/));
             }
             return Collections.unmodifiableMap(map);
         } catch (IOException e) {

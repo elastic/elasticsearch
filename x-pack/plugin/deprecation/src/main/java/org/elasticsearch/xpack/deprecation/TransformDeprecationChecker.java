@@ -7,20 +7,34 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+
+import static java.util.stream.Collectors.toList;
 
 public class TransformDeprecationChecker implements DeprecationChecker {
 
     public static final String TRANSFORM_DEPRECATION_KEY = "transform_settings";
+
+    private static final Logger logger = LogManager.getLogger(TransformDeprecationChecker.class);
 
     @Override
     public boolean enabled(Settings settings) {
@@ -32,7 +46,7 @@ public class TransformDeprecationChecker implements DeprecationChecker {
     public void check(Components components, ActionListener<CheckResult> deprecationIssueListener) {
 
         PageParams startPage = new PageParams(0, PageParams.DEFAULT_SIZE);
-        List<DeprecationIssue> issues = new ArrayList<>();
+        Collection<DeprecationIssue> issues = new ConcurrentLinkedQueue<>();
         recursiveGetTransformsAndCollectDeprecations(
             components,
             issues,
@@ -51,7 +65,7 @@ public class TransformDeprecationChecker implements DeprecationChecker {
 
     private void recursiveGetTransformsAndCollectDeprecations(
         Components components,
-        List<DeprecationIssue> issues,
+        Collection<DeprecationIssue> issues,
         PageParams page,
         ActionListener<List<DeprecationIssue>> listener
     ) {
@@ -60,16 +74,46 @@ public class TransformDeprecationChecker implements DeprecationChecker {
         request.setAllowNoResources(true);
 
         components.client().execute(GetTransformAction.INSTANCE, request, ActionListener.wrap(getTransformResponse -> {
+            CountDownLatch latch = new CountDownLatch(getTransformResponse.getTransformConfigurations().size());
+            ActionListener<ValidateTransformAction.Response> validateTransformListener = new LatchedActionListener<>(
+                ActionListener.wrap(validateTransformResponse -> {
+                    List<String> warningHeaders = components.client().threadPool().getThreadContext().getResponseHeaders().get("Warning");
+                    if (warningHeaders != null) {
+                        issues.addAll(warningHeaders.stream().map(TransformDeprecationChecker::createDeprecationIssue).collect(toList()));
+                    }
+                }, e -> { logger.warn("An exception occurred while gathering deprecation warnings for transform", e); }),
+                latch
+            );
             for (TransformConfig config : getTransformResponse.getTransformConfigurations()) {
                 issues.addAll(config.checkForDeprecations(components.xContentRegistry()));
+
+                ValidateTransformAction.Request validateTransformRequest = new ValidateTransformAction.Request(
+                    config,
+                    false,
+                    TimeValue.timeValueSeconds(30)
+                );
+                components.client().execute(ValidateTransformAction.INSTANCE, validateTransformRequest, validateTransformListener);
             }
+            latch.await();
+
             if (getTransformResponse.getCount() >= (page.getFrom() + page.getSize())) {
                 PageParams nextPage = new PageParams(page.getFrom() + page.getSize(), PageParams.DEFAULT_SIZE);
                 recursiveGetTransformsAndCollectDeprecations(components, issues, nextPage, listener);
             } else {
-                listener.onResponse(issues);
+                listener.onResponse(new ArrayList<>(issues));
             }
 
         }, listener::onFailure));
+    }
+
+    private static DeprecationIssue createDeprecationIssue(String warningHeader) {
+        return new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            HeaderWarning.extractWarningValueFromWarningHeader(warningHeader, true),
+            TransformDeprecations.PAINLESS_BREAKING_CHANGES_URL,
+            null,
+            false,
+            null
+        );
     }
 }

@@ -26,7 +26,7 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.elasticsearch.xpack.sql.execution.search.SearchHitCursorTests.randomSearchHitCursor;
-import static org.elasticsearch.xpack.sql.session.Cursors.attachState;
+import static org.elasticsearch.xpack.sql.session.Cursors.attachFormatter;
 import static org.elasticsearch.xpack.sql.session.Cursors.decodeFromStringWithZone;
 import static org.elasticsearch.xpack.sql.session.Cursors.encodeToString;
 import static org.mockito.Mockito.mock;
@@ -67,62 +67,62 @@ public class CursorTests extends ESTestCase {
         return decodeFromStringWithZone(base64, WRITEABLE_REGISTRY).v1();
     }
 
-    public void testAttachingStateToCursor() {
+    public void testAttachingFormatterToCursor() {
         Cursor cursor = randomSearchHitCursor();
         ZoneId zone = randomZone();
         String encoded = encodeToString(cursor, zone);
 
-        FormatterState state = randomFormatterState();
-        String withState = attachState(encoded, state);
+        BasicFormatter formatter = randomFormatter();
+        String withFormatter = attachFormatter(encoded, formatter);
 
-        Tuple<Cursor, ZoneId> decoded = decodeFromStringWithZone(withState, WRITEABLE_REGISTRY);
+        Tuple<Cursor, ZoneId> decoded = decodeFromStringWithZone(withFormatter, WRITEABLE_REGISTRY);
         assertEquals(cursor, decoded.v1());
         assertEquals(zone, decoded.v2());
-        assertEquals(state, Cursors.decodeState(withState));
+        assertEquals(formatter, Cursors.decodeFormatter(withFormatter));
     }
 
-    public void testAttachingEmptyStateToCursor() {
+    public void testAttachingEmptyFormatterToCursor() {
         Cursor cursor = randomSearchHitCursor();
         ZoneId zone = randomZone();
         String encoded = encodeToString(cursor, zone);
 
-        String withState = attachState(encoded, null);
+        String withFormatter = attachFormatter(encoded, null);
 
-        Tuple<Cursor, ZoneId> decoded = decodeFromStringWithZone(withState, WRITEABLE_REGISTRY);
+        Tuple<Cursor, ZoneId> decoded = decodeFromStringWithZone(withFormatter, WRITEABLE_REGISTRY);
         assertEquals(cursor, decoded.v1());
         assertEquals(zone, decoded.v2());
-        assertNull(Cursors.decodeState(withState));
+        assertNull(Cursors.decodeFormatter(withFormatter));
     }
 
-    public void testAttachingStateToEmptyCursor() {
+    public void testAttachingFormatterToEmptyCursor() {
         Cursor cursor = Cursor.EMPTY;
         ZoneId zone = randomZone();
         String encoded = encodeToString(cursor, zone);
 
-        FormatterState state = randomFormatterState();
-        String withState = attachState(encoded, state);
+        BasicFormatter formatter = randomFormatter();
+        String withFormatter = attachFormatter(encoded, formatter);
 
-        assertEquals(StringUtils.EMPTY, withState);
+        assertEquals(StringUtils.EMPTY, withFormatter);
 
-        Tuple<Cursor, ZoneId> decoded = decodeFromStringWithZone(withState, WRITEABLE_REGISTRY);
+        Tuple<Cursor, ZoneId> decoded = decodeFromStringWithZone(withFormatter, WRITEABLE_REGISTRY);
         assertEquals(cursor, decoded.v1());
         assertNull(decoded.v2());
-        assertNull(Cursors.decodeState(withState));
+        assertNull(Cursors.decodeFormatter(withFormatter));
     }
 
-    public void testAttachingStateToCursorFromOtherVersion() {
+    public void testAttachingFormatterToCursorFromOtherVersion() {
         Cursor cursor = randomSearchHitCursor();
         ZoneId zone = randomZone();
         String encoded = encodeToString(cursor, randomValueOtherThan(Version.CURRENT, () -> VersionUtils.randomVersion(random())), zone);
 
-        FormatterState state = randomFormatterState();
-        String withState = attachState(encoded, state);
+        BasicFormatter formatter = randomFormatter();
+        String withFormatter = attachFormatter(encoded, formatter);
 
-        assertEquals(state, Cursors.decodeState(withState));
-        expectThrows(SqlIllegalArgumentException.class, () -> Cursors.decodeFromStringWithZone(withState, WRITEABLE_REGISTRY));
+        assertEquals(formatter, Cursors.decodeFormatter(withFormatter));
+        expectThrows(SqlIllegalArgumentException.class, () -> Cursors.decodeFromStringWithZone(withFormatter, WRITEABLE_REGISTRY));
     }
 
-    private FormatterState randomFormatterState() {
+    private BasicFormatter randomFormatter() {
         int cols = randomInt(3);
         return new BasicFormatter(
             randomList(cols, cols, () -> new ColumnInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5))),

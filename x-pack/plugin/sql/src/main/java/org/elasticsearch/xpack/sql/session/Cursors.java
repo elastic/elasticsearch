@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.SqlBucketExtractor
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlHitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.literal.Literals;
-import org.elasticsearch.xpack.sql.plugin.FormatterState;
+import org.elasticsearch.xpack.sql.plugin.BasicFormatter;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -60,8 +60,6 @@ public final class Cursors {
         // and custom types
         entries.addAll(Literals.getNamedWriteables());
 
-        entries.addAll(FormatterState.getNamedWriteables());
-
         return entries;
     }
 
@@ -77,7 +75,7 @@ public final class Cursors {
             return StringUtils.EMPTY;
         }
         try (SqlStreamOutput output = SqlStreamOutput.create(version, zoneId)) {
-            output.writeOptionalNamedWriteable(null);
+            output.writeOptionalWriteable(null);
             output.writeNamedWriteable(info);
             output.close();
             // return the string only after closing the resource
@@ -87,12 +85,12 @@ public final class Cursors {
         }
     }
 
-    public static String attachState(String cursor, FormatterState state) {
-        if (Strings.isNullOrEmpty(cursor) || state == null) {
+    public static String attachFormatter(String cursor, BasicFormatter formatter) {
+        if (Strings.isNullOrEmpty(cursor) || formatter == null) {
             return cursor;
         } else {
             try (SqlStreamOutput output = SqlStreamOutput.create(VERSION, ZoneOffset.UTC)) {
-                output.writeOptionalNamedWriteable(state);
+                output.writeOptionalWriteable(formatter);
                 output.writeString(cursor);
                 output.close();
                 // return the string only after closing the resource
@@ -103,14 +101,14 @@ public final class Cursors {
         }
     }
 
-    private static final NamedWriteableRegistry FORMATTER_STATE_REGISTRY = new NamedWriteableRegistry(FormatterState.getNamedWriteables());
+    private static final NamedWriteableRegistry EMPTY_REGISTRY = new NamedWriteableRegistry(List.of());
 
-    public static FormatterState decodeState(String base64) {
+    public static BasicFormatter decodeFormatter(String base64) {
         if (base64.isEmpty()) {
             return null;
         }
-        try (SqlStreamInput in = SqlStreamInput.fromString(base64, FORMATTER_STATE_REGISTRY, VERSION)) {
-            return in.readOptionalNamedWriteable(FormatterState.class);
+        try (SqlStreamInput in = SqlStreamInput.fromString(base64, EMPTY_REGISTRY, VERSION)) {
+            return in.readOptionalWriteable(BasicFormatter::new);
         } catch (IOException ex) {
             throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
         }
@@ -124,7 +122,7 @@ public final class Cursors {
             return new Tuple<>(Cursor.EMPTY, null);
         }
         try (SqlStreamInput in = SqlStreamInput.fromString(base64, writeableRegistry, VERSION)) {
-            if (in.readOptionalNamedWriteable(FormatterState.class) == null) {
+            if (in.readOptionalWriteable(BasicFormatter::new) == null) {
                 Cursor cursor = in.readNamedWriteable(Cursor.class);
                 return new Tuple<>(cursor, in.zoneId());
             } else {

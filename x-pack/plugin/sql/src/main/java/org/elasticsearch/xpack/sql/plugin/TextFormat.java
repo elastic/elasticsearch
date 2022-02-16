@@ -45,10 +45,10 @@ enum TextFormat implements MediaType {
      */
     PLAIN_TEXT() {
         @Override
-        Tuple<String, FormatterState> format(RestRequest request, FormatterState state, SqlQueryResponse response) {
-            if (state instanceof BasicFormatter basicFormatter) {
+        Tuple<String, BasicFormatter> format(RestRequest request, BasicFormatter requestFormatter, SqlQueryResponse response) {
+            if (requestFormatter != null) {
                 // scroll response
-                return tuple(basicFormatter.formatWithoutHeader(response.rows()), state);
+                return tuple(requestFormatter.formatWithoutHeader(response.rows()), requestFormatter);
             } else if (response.columns() != null) {
                 // initial response
                 BasicFormatter formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
@@ -58,7 +58,7 @@ enum TextFormat implements MediaType {
                 // async query or empty response
                 return tuple(StringUtils.EMPTY, null);
             } else {
-                throw new SqlIllegalArgumentException("Cannot format non-empty response with formatter state {}", state);
+                throw new SqlIllegalArgumentException("Cannot format non-empty response without a valid formatter.");
             }
         }
 
@@ -292,7 +292,7 @@ enum TextFormat implements MediaType {
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
 
-    Tuple<String, FormatterState> format(RestRequest request, FormatterState state, SqlQueryResponse response) {
+    Tuple<String, BasicFormatter> format(RestRequest request, BasicFormatter requestFormatter, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
 
         // if the header is requested (and the column info is present - namely it's the first page) return the info

@@ -20,7 +20,7 @@ import java.util.List;
  * Formats {@link SqlQueryResponse} for the CLI and for the TEXT format. {@linkplain Writeable} so
  * that its state can be saved between pages of results.
  */
-public class BasicFormatter extends SimpleFormatter implements FormatterState {
+public class BasicFormatter extends SimpleFormatter implements Writeable {
     /**
      * Create a new {@linkplain BasicFormatter} for formatting responses similar
      * to the provided columns and rows.
@@ -42,12 +42,5 @@ public class BasicFormatter extends SimpleFormatter implements FormatterState {
     @Override
     public int estimateSize(int rows) {
         return super.estimateSize(rows);
-    }
-
-    public static final String NAME = "b";
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
     }
 }

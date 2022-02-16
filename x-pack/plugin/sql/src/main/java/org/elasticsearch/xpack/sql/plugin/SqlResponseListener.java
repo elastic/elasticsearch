@@ -36,12 +36,12 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
     private final long startNanos = System.nanoTime();
     private final MediaType mediaType;
     private final RestRequest request;
-    private final FormatterState state;
+    private final BasicFormatter requestFormatter;
 
     SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest) {
         super(channel);
         this.request = request;
-        this.state = Cursors.decodeState(sqlRequest.cursor());
+        this.requestFormatter = Cursors.decodeFormatter(sqlRequest.cursor());
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request, sqlRequest);
 
         /*
@@ -63,7 +63,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
     SqlResponseListener(RestChannel channel, RestRequest request) {
         super(channel);
         this.request = request;
-        this.state = null;
+        this.requestFormatter = null;
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request);
     }
 
@@ -78,16 +78,16 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
             restResponse = new BytesRestResponse(RestStatus.OK, builder);
         } else { // TextFormat
             TextFormat type = (TextFormat) mediaType;
-            final Tuple<String, FormatterState> dataWithNextState = type.format(request, state, response);
+            final Tuple<String, BasicFormatter> dataWithNextFormatter = type.format(request, requestFormatter, response);
 
             if (response.hasCursor()) {
-                response.cursor(Cursors.attachState(response.cursor(), dataWithNextState.v2()));
+                response.cursor(Cursors.attachFormatter(response.cursor(), dataWithNextFormatter.v2()));
             }
 
             restResponse = new BytesRestResponse(
                 RestStatus.OK,
                 type.contentType(request),
-                dataWithNextState.v1().getBytes(StandardCharsets.UTF_8)
+                dataWithNextFormatter.v1().getBytes(StandardCharsets.UTF_8)
             );
 
             if (response.hasCursor()) {

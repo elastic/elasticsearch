@@ -582,10 +582,22 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expectedShard) throws IOException {
+        byte[] suffix = randomSuffix();
         BytesReference sourceBytes = source(source);
         assertThat(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, sourceBytes), equalTo(expectedShard));
-        String id = ((IndexRouting.ExtractFromSource) routing).createId(XContentType.JSON, sourceBytes, new byte[0]);
-        assertThat(shardIdForReadFromSourceExtracting(routing, id), equalTo(expectedShard));
+        IndexRouting.ExtractFromSource r = (IndexRouting.ExtractFromSource) routing;
+        String idFromSource = r.createId(XContentType.JSON, sourceBytes, suffix);
+        assertThat(shardIdForReadFromSourceExtracting(routing, idFromSource), equalTo(expectedShard));
+        String idFromFlattened = r.createId(flatten(source), suffix);
+        assertThat(idFromFlattened, equalTo(idFromSource));
+    }
+
+    private byte[] randomSuffix() {
+        byte[] suffix = new byte[between(0, 10)];
+        for (int i = 0; i < suffix.length; i++) {
+            suffix[i] = randomByte();
+        }
+        return suffix;
     }
 
     private BytesReference source(Map<String, Object> doc) throws IOException {
@@ -600,6 +612,23 @@ public class IndexRoutingTests extends ESTestCase {
                     )
                 )
         );
+    }
+
+    private Map<String, Object> flatten(Map<String, Object> m) {
+        Map<String, Object> result = new HashMap<>();
+        flatten(result, null, m);
+        return result;
+    }
+
+    private void flatten(Map<String, Object> result, String path, Map<?, ?> m) {
+        for (Map.Entry<?, ?> e : m.entrySet()) {
+            String subPath = path == null ? e.getKey().toString() : path + "." + e.getKey();
+            if (e.getValue()instanceof Map<?, ?> subM) {
+                flatten(result, subPath, subM);
+            } else {
+                result.put(subPath, e.getValue());
+            }
+        }
     }
 
     /**

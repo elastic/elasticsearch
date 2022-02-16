@@ -121,7 +121,18 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         // TODO it'd be way faster to use the fields that we've extract here rather than the source or parse the tsid
         context.id(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
         assert Uid.isURLBase64WithoutPadding(context.id()); // Make sure we get to use Uid's nice optimizations
-        assert context.id().equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
+        /*
+         * Make sure that _id from extracting the tsid matches that _id
+         * from extracting the _source. This should be true for all valid
+         * documents with valid mappings. *But* some invalid mappings
+         * will not parse the field but be rejected later by the dynamic
+         * mappings machinery. So if there are any dynamic mappings
+         * at all we just skip the assertion because we can't be sure
+         * it always must pass.
+         */
+        assert context.getDynamicMappers().isEmpty() == false
+            || context.getDynamicRuntimeFields().isEmpty() == false
+            || context.id().equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new Field(NAME, uidEncoded, Defaults.FIELD_TYPE));

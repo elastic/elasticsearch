@@ -125,7 +125,8 @@ The following describes the structure of the global privileges entry:
     wildcards (e.g. `"myapp-*"`) and regular expressions (e.g.
     `"/app[0-9]*/"`)
 <3> The privilege for the ability to write the `access` and `data` of any user profile
-<4> The list of names and wildcards to which the write privilege is restricted to
+<4> The list of names, wildcards and regular expressions to which the write
+privilege is restricted to
 
 [[roles-application-priv]]
 ==== Application Privileges

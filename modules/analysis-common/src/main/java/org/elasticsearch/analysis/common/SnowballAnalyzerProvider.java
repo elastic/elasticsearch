@@ -36,7 +36,7 @@ import java.util.Map;
 public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<SnowballAnalyzer> {
     private static final Map<String, CharArraySet> DEFAULT_LANGUAGE_STOP_WORDS = Map.of(
         "English",
-        EnglishAnalyzer.ENGLISH_STOP_WORDS_SET,
+        EnglishAnalyzer.getDefaultStopSet(),
         "Dutch",
         DutchAnalyzer.getDefaultStopSet(),
         "German",

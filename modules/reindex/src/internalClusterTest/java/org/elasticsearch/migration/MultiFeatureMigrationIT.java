@@ -37,6 +37,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -91,6 +93,8 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
 
         ensureGreen();
 
+        CountDownLatch hooksCalled = new CountDownLatch(4);
+
         SetOnce<Boolean> preMigrationHookCalled = new SetOnce<>();
         SetOnce<Boolean> postMigrationHookCalled = new SetOnce<>();
         SetOnce<Boolean> secondPluginPreMigrationHookCalled = new SetOnce<>();
@@ -109,6 +113,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             assertThat(currentResults, nullValue());
 
             preMigrationHookCalled.set(true);
+            hooksCalled.countDown();
             return metadata;
         });
 
@@ -125,6 +130,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             assertThat(currentResults, nullValue());
 
             postMigrationHookCalled.set(true);
+            hooksCalled.countDown();
         });
 
         SecondPlugin.preMigrationHook.set(clusterState -> {
@@ -145,6 +151,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
 
             secondPluginPreMigrationHookCalled.set(true);
+            hooksCalled.countDown();
             return metadata;
         });
 
@@ -165,6 +172,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
 
             secondPluginPostMigrationHookCalled.set(true);
+            hooksCalled.countDown();
         });
 
         PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
@@ -176,6 +184,9 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             .map(PostFeatureUpgradeResponse.Feature::getFeatureName)
             .collect(Collectors.toSet());
         assertThat(migratingFeatures, hasItems(FEATURE_NAME, SECOND_FEATURE_NAME));
+
+        // wait for all the plugin methods to have been called before assertBusy since that will exponentially backoff
+        assertThat(hooksCalled.await(30, TimeUnit.SECONDS), is(true));
 
         GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
         assertBusy(() -> {

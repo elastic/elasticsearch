@@ -5,7 +5,7 @@
 ++++
 
 The `geo_shape` data type facilitates the indexing of and searching
-with arbitrary geo shapes such as rectangles and polygons. It should be
+with arbitrary geoshapes such as rectangles and polygons. It should be
 used when either the data being indexed or the queries being executed
 contain shapes other than just points.
 
@@ -66,7 +66,7 @@ and reject the whole document.
 [[geoshape-indexing-approach]]
 [discrete]
 ==== Indexing approach
-GeoShape types are indexed by decomposing the shape into a triangular mesh and
+Geoshape types are indexed by decomposing the shape into a triangular mesh and
 indexing each triangle as a 7 dimension point in a BKD tree. This provides
 near perfect spatial resolution (down to 1e-7 decimal degree precision) since all
 spatial relations are computed using an encoded vector representation of the

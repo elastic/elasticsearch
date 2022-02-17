@@ -289,6 +289,10 @@ public final class DataStreamTestHelper {
         boolean replicated
     ) {
         Metadata.Builder builder = Metadata.builder();
+        builder.put(
+            "template_1",
+            new ComposableIndexTemplate(List.of("*"), null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate())
+        );
 
         List<IndexMetadata> allIndices = new ArrayList<>();
         for (Tuple<String, Integer> dsTuple : dataStreams) {
@@ -324,7 +328,15 @@ public final class DataStreamTestHelper {
 
     public static ClusterState getClusterStateWithDataStream(String dataStream, List<Tuple<Instant, Instant>> timeSlices) {
         Metadata.Builder builder = Metadata.builder();
+        getClusterStateWithDataStream(builder, dataStream, timeSlices);
+        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
+    }
 
+    public static void getClusterStateWithDataStream(
+        Metadata.Builder builder,
+        String dataStream,
+        List<Tuple<Instant, Instant>> timeSlices
+    ) {
         List<IndexMetadata> backingIndices = new ArrayList<>();
         int generation = 1;
         for (Tuple<Instant, Instant> tuple : timeSlices) {
@@ -354,8 +366,6 @@ public final class DataStreamTestHelper {
             IndexMode.TIME_SERIES
         );
         builder.put(ds);
-
-        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
     }
 
     private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {

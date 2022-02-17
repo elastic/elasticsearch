@@ -150,7 +150,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         Map<String, String> headers
     ) {
         ShardFollowTask params = taskInProgress.getParams();
-        Client followerClient = wrapClient(client, params.getHeaders());
+        Client followerClient = wrapClient(client, params.getHeaders(), clusterService.state());
         BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> threadPool.scheduleUnlessShuttingDown(
             delay,
             Ccr.CCR_THREAD_POOL_NAME,
@@ -562,7 +562,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     }
 
     private Client remoteClient(ShardFollowTask params) {
-        return wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
+        // TODO: do we need minNodeVersion here since it is for remote cluster
+        return wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders(), clusterService.state());
     }
 
     interface FollowerStatsInfoHandler {
@@ -571,7 +572,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     protected void nodeOperation(final AllocatedPersistentTask task, final ShardFollowTask params, final PersistentTaskState state) {
-        Client followerClient = wrapClient(client, params.getHeaders());
+        Client followerClient = wrapClient(client, params.getHeaders(), clusterService.state());
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
         logger.info("{} Starting to track leader shard {}", params.getFollowShardId(), params.getLeaderShardId());
 

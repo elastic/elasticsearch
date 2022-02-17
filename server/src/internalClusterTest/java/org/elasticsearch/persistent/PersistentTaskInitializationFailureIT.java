@@ -53,7 +53,7 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         startPersistentTaskFuture.actionGet();
 
         assertBusy(() -> {
-            final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+            final ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
             final PersistentTasksCustomMetadata persistentTasks = clusterService.state()
                 .metadata()
                 .custom(PersistentTasksCustomMetadata.TYPE);

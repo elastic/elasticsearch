@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -37,6 +38,7 @@ import java.util.function.Predicate;
  */
 class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
+    private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
 
     FieldCapabilitiesFetcher(IndicesService indicesService) {
         this.indicesService = indicesService;
@@ -45,6 +47,8 @@ class FieldCapabilitiesFetcher {
     FieldCapabilitiesIndexResponse fetch(
         ShardId shardId,
         String[] fieldPatterns,
+        String[] filters,
+        String[] fieldTypes,
         QueryBuilder indexFilter,
         long nowInMillis,
         Map<String, Object> runtimeFields
@@ -63,70 +67,112 @@ class FieldCapabilitiesFetcher {
             );
 
             if (canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
-                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), Collections.emptyMap(), false);
+                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false);
             }
 
-            Set<String> fieldNames = new HashSet<>();
-            for (String pattern : fieldPatterns) {
-                fieldNames.addAll(searchExecutionContext.getMatchingFieldNames(pattern));
+            final MappingMetadata mapping = indexService.getMetadata().mapping();
+            final String indexMappingHash = mapping != null ? mapping.getSha256() : null;
+            if (indexMappingHash != null) {
+                final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
+                if (existing != null) {
+                    return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true);
+                }
             }
 
             Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
-            Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
-            for (String field : fieldNames) {
-                MappedFieldType ft = searchExecutionContext.getFieldType(field);
-                boolean isMetadataField = searchExecutionContext.isMetadataField(field);
-                if (isMetadataField || fieldPredicate.test(ft.name())) {
-                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
-                        field,
-                        ft.familyTypeName(),
-                        isMetadataField,
-                        ft.isSearchable(),
-                        ft.isAggregatable(),
-                        ft.isDimension(),
-                        ft.getMetricType(),
-                        ft.meta()
-                    );
-                    responseMap.put(field, fieldCap);
-                } else {
-                    continue;
-                }
+            final Map<String, IndexFieldCapabilities> responseMap = retrieveFieldCaps(
+                searchExecutionContext,
+                fieldPatterns,
+                filters,
+                fieldTypes,
+                fieldPredicate
+            );
+            if (indexMappingHash != null) {
+                indexMappingHashToResponses.put(indexMappingHash, responseMap);
+            }
+            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true);
+        }
+    }
 
-                // Check the ancestor of the field to find nested and object fields.
-                // Runtime fields are excluded since they can override any path.
-                // TODO find a way to do this that does not require an instanceof check
-                if (ft instanceof RuntimeField == false) {
-                    int dotIndex = ft.name().lastIndexOf('.');
-                    while (dotIndex > -1) {
-                        String parentField = ft.name().substring(0, dotIndex);
-                        if (responseMap.containsKey(parentField)) {
-                            // we added this path on another field already
-                            break;
-                        }
-                        // checks if the parent field contains sub-fields
-                        if (searchExecutionContext.getFieldType(parentField) == null) {
-                            // no field type, it must be an object field
-                            String type = searchExecutionContext.nestedLookup().getNestedMappers().get(parentField) != null
-                                ? "nested"
-                                : "object";
-                            IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
-                                parentField,
-                                type,
-                                false,
-                                false,
-                                false,
-                                false,
-                                null,
-                                Collections.emptyMap()
-                            );
-                            responseMap.put(parentField, fieldCap);
-                        }
-                        dotIndex = parentField.lastIndexOf('.');
+    static Map<String, IndexFieldCapabilities> retrieveFieldCaps(
+        SearchExecutionContext context,
+        String[] fieldPatterns,
+        String[] filters,
+        String[] types,
+        Predicate<String> indexFieldfilter
+    ) {
+
+        Set<String> fieldNames = new HashSet<>();
+        for (String pattern : fieldPatterns) {
+            fieldNames.addAll(context.getMatchingFieldNames(pattern));
+        }
+
+        boolean includeParentObjects = checkIncludeParents(filters);
+
+        FieldCapsFilter filter = buildFilter(indexFieldfilter, filters, types);
+        Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
+        for (String field : fieldNames) {
+            MappedFieldType ft = context.getFieldType(field);
+            if (filter.matches(ft, context)) {
+                IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                    field,
+                    ft.familyTypeName(),
+                    context.isMetadataField(field),
+                    ft.isSearchable(),
+                    ft.isAggregatable(),
+                    ft.isDimension(),
+                    ft.getMetricType(),
+                    ft.meta()
+                );
+                responseMap.put(field, fieldCap);
+            } else {
+                continue;
+            }
+
+            // Check the ancestor of the field to find nested and object fields.
+            // Runtime fields are excluded since they can override any path.
+            // TODO find a way to do this that does not require an instanceof check
+            if (ft instanceof RuntimeField == false && includeParentObjects) {
+                int dotIndex = ft.name().lastIndexOf('.');
+                while (dotIndex > -1) {
+                    String parentField = ft.name().substring(0, dotIndex);
+                    if (responseMap.containsKey(parentField)) {
+                        // we added this path on another field already
+                        break;
                     }
+                    // checks if the parent field contains sub-fields
+                    if (context.getFieldType(parentField) == null) {
+                        // no field type, it must be an object field
+                        String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
+                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                            parentField,
+                            type,
+                            false,
+                            false,
+                            false,
+                            false,
+                            null,
+                            Collections.emptyMap()
+                        );
+                        responseMap.put(parentField, fieldCap);
+                    }
+                    dotIndex = parentField.lastIndexOf('.');
                 }
             }
-            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), responseMap, true);
         }
+        return responseMap;
+    }
+
+    private static boolean checkIncludeParents(String[] filters) {
+        for (String filter : filters) {
+            if ("-parent".equals(filter)) {
+                return false;
+            }
+            if ("parent".equals(filter)) {
+                return true;
+            }
+        }
+        return true;
     }
 
     private boolean canMatchShard(
@@ -142,6 +188,37 @@ class FieldCapabilitiesFetcher {
         ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(indexFilter));
         return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
+    }
+
+    private interface FieldCapsFilter {
+        boolean matches(MappedFieldType fieldType, SearchExecutionContext context);
+
+        default FieldCapsFilter and(FieldCapsFilter other) {
+            return (ft, context) -> matches(ft, context) && other.matches(ft, context);
+        }
+    }
+
+    private static FieldCapsFilter buildFilter(Predicate<String> fieldFilter, String[] filters, String[] fieldTypes) {
+        // security filters don't exclude metadata fields
+        FieldCapsFilter fcf = (ft, c) -> fieldFilter.test(ft.name()) || c.isMetadataField(ft.name());
+        if (fieldTypes.length > 0) {
+            Set<String> acceptedTypes = Set.of(fieldTypes);
+            fcf = fcf.and((ft, c) -> acceptedTypes.contains(ft.familyTypeName()));
+        }
+        for (String filter : filters) {
+            if ("parent".equals(filter) || "-parent".equals(filter)) {
+                continue;
+            }
+            FieldCapsFilter next = switch (filter) {
+                case "+metadata" -> (ft, c) -> c.isMetadataField(ft.name());
+                case "-metadata" -> (ft, c) -> c.isMetadataField(ft.name()) == false;
+                case "-nested" -> (ft, c) -> c.nestedLookup().getNestedParent(ft.name()) == null;
+                case "-multifield" -> (ft, c) -> c.isMultiField(ft.name()) == false;
+                default -> throw new IllegalArgumentException("Unknown field caps filter [" + filter + "]");
+            };
+            fcf = fcf.and(next);
+        }
+        return fcf;
     }
 
 }

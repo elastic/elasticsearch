@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.prefix;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -310,5 +311,10 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), minDocCount, prefixLength, isIpv6);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_8_1_0;
     }
 }

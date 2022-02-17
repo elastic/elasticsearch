@@ -111,7 +111,7 @@ delete:
       catch: /delete is not supported because the destination index \[test\] is in time series mode/
       delete:
         index:   test
-        id:      1
+        id:      "1"
 
 ---
 delete over _bulk:
@@ -144,7 +144,7 @@ noop update:
       catch: /update is not supported because the destination index \[test\] is in time series mode/
       update:
         index:   test
-        id:      1
+        id:      "1"
         body:
           doc:
             {}
@@ -160,7 +160,7 @@ update:
       catch: /update is not supported because the destination index \[test\] is in time series mode/
       update:
         index:   test
-        id:      1
+        id:      "1"
         body:
           doc:
             "@timestamp": "2021-04-28T18:35:24.467Z"

@@ -13,10 +13,7 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.resolver.AddressResolver;
-import io.netty.resolver.AddressResolverGroup;
-import io.netty.resolver.DefaultNameResolver;
-import io.netty.util.concurrent.EventExecutor;
+import io.netty.resolver.DefaultAddressResolverGroup;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
@@ -50,7 +47,6 @@ import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorSe
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.URL;
 import java.time.Duration;
 import java.util.concurrent.Callable;
@@ -100,8 +96,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
     private final ClientLogger clientLogger = new ClientLogger(AzureClientProvider.class);
-    private final NioLoopResources nioLoopResources;
-    private final Resolver resolver;
+    private final LoopResources nioLoopResources;
     private volatile boolean closed = false;
 
     AzureClientProvider(
@@ -116,8 +111,10 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         this.eventLoopGroup = eventLoopGroup;
         this.connectionProvider = connectionProvider;
         this.byteBufAllocator = byteBufAllocator;
-        this.nioLoopResources = new NioLoopResources(eventLoopGroup);
-        this.resolver = new Resolver();
+        // The underlying http client uses this as part of the connection pool key,
+        // hence we need to use the same instance across all the client instances
+        // to avoid creating multiple connection pools.
+        this.nioLoopResources = useNative -> eventLoopGroup;
     }
 
     static int eventLoopThreadsFromSettings(Settings settings) {
@@ -176,7 +173,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);
         nettyHttpClient = nettyHttpClient.port(80)
             .wiretap(false)
-            .resolver(resolver)
+            .resolver(DefaultAddressResolverGroup.INSTANCE)
             .runOn(nioLoopResources)
             .option(ChannelOption.ALLOCATOR, byteBufAllocator);
 
@@ -282,24 +279,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                     logger.warn("Unable to notify a successful request", e);
                 }
             }
-        }
-    }
-
-    // The underlying http client uses this as part of the connection pool key,
-    // hence we need to use the same instance across all the client instances
-    // to avoid creating multiple connection pools.
-    record NioLoopResources(EventLoopGroup eventLoopGroup) implements LoopResources {
-        @Override
-        public EventLoopGroup onServer(boolean useNative) {
-            // We rely on Nio here, hence we ignore the useNative flag
-            return eventLoopGroup;
-        }
-    }
-
-    static class Resolver extends AddressResolverGroup<InetSocketAddress> {
-        @Override
-        protected AddressResolver<InetSocketAddress> newResolver(EventExecutor executor) {
-            return new DefaultNameResolver(executor).asAddressResolver();
         }
     }
 }

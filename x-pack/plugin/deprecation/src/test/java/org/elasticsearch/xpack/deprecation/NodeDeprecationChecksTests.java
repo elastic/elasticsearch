@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
@@ -25,8 +30,10 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.NODE_SETTINGS_CHECKS;
@@ -222,7 +229,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [" + settingKey + "] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [" + settingKey + "]",
+                    "Remove the following settings: [" + settingKey + "]",
                     false,
                     null
                 )
@@ -247,7 +254,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [" + settingKey + ".*] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [" + subSettingKey + "]",
+                    "Remove the following settings: [" + subSettingKey + "]",
                     false,
                     null
                 )
@@ -421,7 +428,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [xpack.monitoring.exporters.test.use_ingest] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.use_ingest]",
+                    "Remove the following settings: [xpack.monitoring.exporters.test.use_ingest]",
                     false,
                     null
                 )
@@ -448,7 +455,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] "
                         + "settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
+                    "Remove the following settings: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
                     false,
                     null
                 )
@@ -473,8 +480,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "The [xpack.monitoring.exporters.test.index.template.create_legacy_templates] settings are deprecated and will be "
                         + "removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: "
-                        + "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
+                    "Remove the following settings: " + "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
                     false,
                     null
                 )
@@ -735,5 +741,47 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
             )
         );
+    }
+
+    public void testDynamicSettings() throws JsonProcessingException {
+        String concreteSettingKey = "xpack.monitoring.exporters." + randomAlphaOfLength(10) + ".use_ingest";
+        Settings clusterSettings = Settings.builder().put(concreteSettingKey, randomBoolean()).build();
+        Settings nodettings = Settings.builder().build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        if (randomBoolean()) {
+            metadataBuilder.persistentSettings(clusterSettings);
+        } else {
+            metadataBuilder.transientSettings(clusterSettings);
+        }
+        Metadata metadata = metadataBuilder.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            DeprecationChecks.NODE_SETTINGS_CHECKS,
+            c -> c.apply(nodettings, pluginsAndModules, clusterState, licenseState)
+        );
+
+        Map<String, Object> meta = buildMetaObjectForRemovableSettings(concreteSettingKey);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "The [" + concreteSettingKey + "] settings are deprecated and will be removed after 8.0",
+            "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
+            "Remove the following settings: [" + concreteSettingKey + "]",
+            false,
+            meta
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> buildMetaObjectForRemovableSettings(String... settingNames) throws JsonProcessingException {
+        String settingNamesString = Arrays.stream(settingNames)
+            .map(settingName -> "\"" + settingName + "\"")
+            .collect(Collectors.joining(","));
+        String metaString = "{\"actions\": [{\"action_type\": \"remove_settings\", \"objects\":[" + settingNamesString + "]}]}";
+        return new ObjectMapper().readValue(metaString, Map.class);
     }
 }

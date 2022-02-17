@@ -498,7 +498,8 @@ public class Node implements Closeable {
                     IndicesModule.getNamedXContents().stream(),
                     searchModule.getNamedXContents().stream(),
                     pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedXContent().stream()),
-                    ClusterModule.getNamedXWriteables().stream()
+                    ClusterModule.getNamedXWriteables().stream(),
+                    SystemIndexMigrationExecutor.getNamedXContentParsers().stream()
                 ).flatMap(Function.identity()).collect(toList())
             );
             final Map<String, SystemIndices.Feature> featuresMap = pluginsService.filterPlugins(SystemIndexPlugin.class)

@@ -88,6 +88,11 @@ public class NodeLoadDetector {
         }
         updateLoadGivenTasks(nodeLoad, persistentTasks);
         updateLoadGivenModelAllocations(nodeLoad, allocationMetadata);
+        // if any processes are running then the native code will be loaded, but shared between all processes,
+        // so increase the total memory usage to account for this
+        if (nodeLoad.getNumAssignedJobs() > 0) {
+            nodeLoad.incAssignedNativeCodeOverheadMemory(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
+        }
         return nodeLoad.build();
     }
 
@@ -105,12 +110,6 @@ public class NodeLoadDetector {
                     nodeLoad.addTask(task.getTaskName(), taskParams.getMlId(), state.isAllocating(), mlMemoryTracker);
                 }
             }
-
-            // if any jobs are running then the native code will be loaded, but shared between all jobs,
-            // so increase the total memory usage of the assigned jobs to account for this
-            if (nodeLoad.getNumAssignedJobs() > 0) {
-                nodeLoad.incAssignedJobMemory(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
-            }
         }
     }
 
@@ -122,7 +121,7 @@ public class NodeLoadDetector {
                     .orElse(RoutingState.STOPPED)
                     .consumesMemory()) {
                     nodeLoad.incNumAssignedJobs();
-                    nodeLoad.incAssignedJobMemory(allocation.getTaskParams().estimateMemoryUsageBytes());
+                    nodeLoad.incAssignedNativeInferenceMemory(allocation.getTaskParams().estimateMemoryUsageBytes());
                 }
             }
         }

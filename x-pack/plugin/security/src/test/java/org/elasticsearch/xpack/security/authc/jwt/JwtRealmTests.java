@@ -16,6 +16,7 @@ import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.PlainJWT;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
@@ -241,6 +242,12 @@ public class JwtRealmTests extends JwtTestCase {
         final JWSHeader validHeader = parsedJwt.getHeader();
         final JWTClaimsSet validClaimsSet = parsedJwt.getJWTClaimsSet();
         final Base64URL validSignature = parsedJwt.getSignature();
+
+        {   // Verify rejection of unsigned JWT
+            final SecureString unsignedJwt = new SecureString(new PlainJWT(validClaimsSet).serialize().toCharArray());
+            final ThreadContext tc = this.createThreadContext(unsignedJwt, clientSecret);
+            expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm.token(tc));
+        }
 
         {   // Verify rejection of a tampered header (flip HMAC=>RSA or RSA/EC=>HMAC)
             final String mixupAlg; // Check if there are any algorithms available in the realm for attempting a flip test

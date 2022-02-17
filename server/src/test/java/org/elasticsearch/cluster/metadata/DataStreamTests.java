@@ -98,6 +98,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
     }
 
     public void testRolloverIndexMode() {
+        IndexMode indexMode = randomBoolean() ? IndexMode.STANDARD : null;
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         // Unsure index_mode=null
         ds = new DataStream(
@@ -110,7 +111,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             ds.isReplicated(),
             ds.isSystem(),
             ds.isAllowCustomRouting(),
-            null
+            indexMode
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -126,7 +127,6 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRolloverIndexMode_keepIndexMode() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        // Unsure index_mode=standard
         ds = new DataStream(
             ds.getName(),
             ds.getTimeStampField(),
@@ -137,18 +137,19 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             ds.isReplicated(),
             ds.isSystem(),
             ds.isAllowCustomRouting(),
-            IndexMode.STANDARD
+            IndexMode.TIME_SERIES
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
-        var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.TIME_SERIES);
+        IndexMode indexMode = randomBoolean() ? IndexMode.STANDARD : null;
+        var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), indexMode);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
     }
 
     public void testRemoveBackingIndex() {

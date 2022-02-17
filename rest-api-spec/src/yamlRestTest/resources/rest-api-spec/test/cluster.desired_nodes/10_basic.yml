@@ -367,9 +367,8 @@ teardown:
           nodes:
             - { settings: { }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { status: 400 }
-  - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Nodes with ids [<missing>] in positions [0] contain invalid settings" }
-  - match: { error.suppressed.0.reason: "[node.name] or [node.external_id] is missing or empty" }
+  - match: { error.type: x_content_parse_exception }
+  - match: { error.caused_by.caused_by.caused_by.reason: "[node.name] or [node.external_id] is missing or empty" }
 ---
 "Test external_id must have content":
   - do:
@@ -390,9 +389,8 @@ teardown:
           nodes:
             - { settings: { "node.external_id": "  " }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { status: 400 }
-  - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Nodes with ids [<missing>] in positions [0] contain invalid settings" }
-  - match: { error.suppressed.0.reason: "[node.name] or [node.external_id] is missing or empty" }
+  - match: { error.type: x_content_parse_exception }
+  - match: { error.caused_by.caused_by.caused_by.reason: "[node.name] or [node.external_id] is missing or empty" }
 ---
 "Test duplicated external ids are not allowed":
   - do:

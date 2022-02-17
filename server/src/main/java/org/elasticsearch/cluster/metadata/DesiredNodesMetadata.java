@@ -71,7 +71,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     public DesiredNodesMetadata(StreamInput in) throws IOException {
-        this.latestDesiredNodes = new DesiredNodes(in);
+        this.latestDesiredNodes = DesiredNodes.readFrom(in);
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
             List<String> externalIds = in.readStringList();
             Set<DesiredNode> memberNodes = new HashSet<>(externalIds.size());

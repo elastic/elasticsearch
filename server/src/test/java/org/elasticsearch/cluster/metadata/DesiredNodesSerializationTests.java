@@ -19,7 +19,7 @@ import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesi
 public class DesiredNodesSerializationTests extends AbstractSerializingTestCase<DesiredNodes> {
     @Override
     protected Writeable.Reader<DesiredNodes> instanceReader() {
-        return DesiredNodes::new;
+        return DesiredNodes::readFrom;
     }
 
     @Override

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,11 +23,14 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
@@ -52,27 +56,46 @@ public class DesiredNodes implements Writeable, ToXContentObject {
 
     private final String historyID;
     private final long version;
-    private final Set<DesiredNode> nodes;
+    private final Map<String, DesiredNode> nodes;
 
-    public DesiredNodes(String historyID, long version, List<DesiredNode> nodes) {
+    public DesiredNodes(String historyID, long version, Collection<DesiredNode> nodes) {
         assert historyID != null && historyID.isBlank() == false;
         assert version != Long.MIN_VALUE;
         checkForDuplicatedExternalIDs(nodes);
 
         this.historyID = historyID;
         this.version = version;
-        this.nodes = Collections.unmodifiableSortedSet(new TreeSet<>(nodes));
+        this.nodes = toMap(nodes);
     }
 
-    public DesiredNodes(StreamInput in) throws IOException {
-        this(in.readString(), in.readLong(), in.readList(DesiredNode::new));
+    private DesiredNodes(String historyID, long version, Map<String, DesiredNode> nodes) {
+        assert historyID != null && historyID.isBlank() == false;
+        assert version != Long.MIN_VALUE;
+
+        this.historyID = historyID;
+        this.version = version;
+        this.nodes = nodes;
+    }
+
+    public static DesiredNodes readFrom(StreamInput in) throws IOException {
+        final String historyId = in.readString();
+        final long version = in.readLong();
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            return new DesiredNodes(historyId, version, in.readMap(StreamInput::readString, DesiredNode::new));
+        } else {
+            return new DesiredNodes(historyId, version, in.readList(DesiredNode::new));
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(historyID);
         out.writeLong(version);
-        out.writeCollection(nodes);
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            out.writeMap(nodes, StreamOutput::writeString, (streamOutput, value) -> value.writeTo(out));
+        } else {
+            out.writeCollection(nodes.values());
+        }
     }
 
     static DesiredNodes fromXContent(XContentParser parser) throws IOException {
@@ -84,7 +107,7 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(HISTORY_ID_FIELD.getPreferredName(), historyID);
         builder.field(VERSION_FIELD.getPreferredName(), version);
-        builder.xContentList(NODES_FIELD.getPreferredName(), nodes);
+        builder.xContentList(NODES_FIELD.getPreferredName(), nodes.values());
         builder.endObject();
         return builder;
     }
@@ -106,10 +129,9 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         Set<String> duplicatedIDs = new HashSet<>();
         for (DesiredNode node : nodes) {
             String externalID = node.externalId();
-            if (externalID != null) {
-                if (nodeIDs.add(externalID) == false) {
-                    duplicatedIDs.add(externalID);
-                }
+            assert externalID != null;
+            if (nodeIDs.add(externalID) == false) {
+                duplicatedIDs.add(externalID);
             }
         }
         if (duplicatedIDs.isEmpty() == false) {
@@ -150,17 +172,22 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         return version;
     }
 
-    public List<DesiredNode> nodes() {
-        return nodes.stream().toList();
+    public Collection<DesiredNode> nodes() {
+        return nodes.values();
     }
 
     @Nullable
     public DesiredNode find(String externalId) {
-        for (DesiredNode node : nodes) {
-            if (node.externalId() != null && Objects.equals(node.externalId(), externalId)) {
-                return node;
-            }
-        }
-        return null;
+        return nodes.get(externalId);
+    }
+
+    private static Map<String, DesiredNode> toMap(final Collection<DesiredNode> desiredNodes) {
+        // use a linked hash map to preserve order
+        return Collections.unmodifiableMap(
+            desiredNodes.stream().collect(Collectors.toMap(DesiredNode::externalId, Function.identity(), (left, right) -> {
+                assert left.externalId().equals(right.externalId());
+                throw new IllegalStateException("duplicate desired node external id [" + left.externalId() + "]");
+            }, LinkedHashMap::new))
+        );
     }
 }

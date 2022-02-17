@@ -25,24 +25,20 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.Locale;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static java.lang.String.format;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public record DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version)
     implements
         Writeable,
-        ToXContentObject,
-        Comparable<DesiredNode> {
-
-    private static final Comparator<DesiredNode> COMPARATOR = Comparator.comparing(
-        DesiredNode::externalId,
-        Comparator.nullsLast(Comparator.naturalOrder())
-    );
+        ToXContentObject {
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");
@@ -93,11 +89,18 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
     }
 
     public DesiredNode {
+        assert settings != null;
         assert memory != null;
         assert storage != null;
         assert version != null;
         if (processors <= 0) {
             throw new IllegalArgumentException("processors must be greater than 0, but got " + processors);
+        }
+
+        if (NODE_EXTERNAL_ID_SETTING.get(settings).isBlank()) {
+            throw new IllegalArgumentException(
+                format(Locale.ROOT, "[%s] or [%s] is missing or empty", NODE_NAME_SETTING.getKey(), NODE_EXTERNAL_ID_SETTING.getKey())
+            );
         }
     }
 
@@ -133,8 +136,8 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
     }
 
     public String externalId() {
-        String externalId = NODE_EXTERNAL_ID_SETTING.get(settings);
-        return externalId.isBlank() ? null : externalId;
+        assert NODE_EXTERNAL_ID_SETTING.get(settings).isBlank() == false;
+        return NODE_EXTERNAL_ID_SETTING.get(settings);
     }
 
     public boolean hasMasterRole() {
@@ -144,10 +147,5 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
     public Set<DiscoveryNodeRole> getRoles() {
         SortedSet<DiscoveryNodeRole> roles = new TreeSet<>(DiscoveryNode.getRolesFromSettings(settings));
         return Collections.unmodifiableSortedSet(roles);
-    }
-
-    @Override
-    public int compareTo(DesiredNode o) {
-        return COMPARATOR.compare(this, o);
     }
 }

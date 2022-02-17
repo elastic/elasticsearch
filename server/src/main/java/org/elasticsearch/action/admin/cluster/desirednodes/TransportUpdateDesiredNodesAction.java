@@ -75,8 +75,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ActionListener<UpdateDesiredNodesResponse> listener
     ) throws Exception {
         try {
-            DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
-            settingsValidator.validate(proposedDesiredNodes);
+            settingsValidator.validate(request.getNodes());
 
             clusterService.submitStateUpdateTask(
                 "update-desired-nodes",

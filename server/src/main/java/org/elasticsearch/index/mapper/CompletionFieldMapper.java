@@ -30,8 +30,8 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
-import org.elasticsearch.xcontent.DelegatingXContentParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -610,8 +610,8 @@ public class CompletionFieldMapper extends FieldMapper {
      * consumer supports the object structure.
      */
     // This parser changes behaviour depending on which methods are called by consumers, which is extremely delicate. This kind of works for
-    // our internal mappers, but what about mappers from plugins
-    static class MultiFieldParser extends DelegatingXContentParser {
+    // our internal mappers, but what about mappers from plugins?
+    static class MultiFieldParser extends FilterXContentParser {
         private final String textValue;
         private final String fieldName;
         private final XContentLocation locationOffset;

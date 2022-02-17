@@ -52,6 +52,7 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -759,23 +760,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public static final class MetadataSnapshot implements Iterable<StoreFileMetadata>, Writeable {
         private final Map<String, StoreFileMetadata> metadata;
-
-        public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
-
         private final Map<String, String> commitUserData;
-
         private final long numDocs;
+
+        public static final MetadataSnapshot EMPTY = new MetadataSnapshot(emptyMap(), emptyMap(), 0L);
 
         public MetadataSnapshot(Map<String, StoreFileMetadata> metadata, Map<String, String> commitUserData, long numDocs) {
             this.metadata = metadata;
             this.commitUserData = commitUserData;
             this.numDocs = numDocs;
-        }
-
-        MetadataSnapshot() {
-            metadata = emptyMap();
-            commitUserData = emptyMap();
-            numDocs = 0;
         }
 
         MetadataSnapshot(IndexCommit commit, Directory directory, Logger logger) throws IOException {
@@ -786,26 +779,21 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
-        /**
-         * Read from a stream.
-         */
-        public MetadataSnapshot(StreamInput in) throws IOException {
-            final int size = in.readVInt();
-            Map<String, StoreFileMetadata> metadata = new HashMap<>();
-            for (int i = 0; i < size; i++) {
-                StoreFileMetadata meta = new StoreFileMetadata(in);
-                metadata.put(meta.name(), meta);
+        public static MetadataSnapshot readFrom(StreamInput in) throws IOException {
+            final int metadataSize = in.readVInt();
+            final Map<String, StoreFileMetadata> metadata = metadataSize == 0 ? emptyMap() : Maps.newMapWithExpectedSize(metadataSize);
+            for (int i = 0; i < metadataSize; i++) {
+                final var storeFileMetadata = new StoreFileMetadata(in);
+                metadata.put(storeFileMetadata.name(), storeFileMetadata);
             }
-            Map<String, String> commitUserData = new HashMap<>();
-            int num = in.readVInt();
-            for (int i = num; i > 0; i--) {
-                commitUserData.put(in.readString(), in.readString());
-            }
+            final var commitUserData = in.readMap(StreamInput::readString, StreamInput::readString);
+            final var numDocs = in.readLong();
 
-            this.metadata = unmodifiableMap(metadata);
-            this.commitUserData = unmodifiableMap(commitUserData);
-            this.numDocs = in.readLong();
-            assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
+            if (metadataSize == 0 && commitUserData.size() == 0 && numDocs == 0) {
+                return MetadataSnapshot.EMPTY;
+            } else {
+                return new MetadataSnapshot(metadata, commitUserData, numDocs);
+            }
         }
 
         @Override

@@ -11,10 +11,12 @@ package org.elasticsearch.core.internal.provider;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
+import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -35,11 +37,21 @@ public final class ProviderLocator<T> implements Supplier<T> {
     private final String providerName;
     private final Class<T> providerType;
     private final String providerModuleName;
+    private final Set<String> missingModules;
 
     public ProviderLocator(String providerName, Class<T> providerType, String providerModuleName) {
+        this(providerName, providerType, providerModuleName, Set.of());
+    }
+
+    public ProviderLocator(String providerName, Class<T> providerType, String providerModuleName, Set<String> missingModules) {
+        Objects.requireNonNull(providerName);
+        Objects.requireNonNull(providerType);
+        Objects.requireNonNull(providerModuleName);
+        Objects.requireNonNull(missingModules);
         this.providerName = providerName;
         this.providerType = providerType;
         this.providerModuleName = providerModuleName;
+        this.missingModules = missingModules;
     }
 
     @Override
@@ -68,7 +80,11 @@ public final class ProviderLocator<T> implements Supplier<T> {
 
     private T loadAsModule(EmbeddedImplClassLoader loader) throws IOException {
         ProviderLocator.class.getModule().addUses(providerType);
-        ModuleFinder moduleFinder = loader.moduleFinder();
+        ModuleFinder modulePathFinder = loader.moduleFinder();
+        ModuleFinder missingModuleFinder = InMemoryModuleFinder.of(
+            missingModules.stream().map(mn -> ModuleDescriptor.newModule(mn).build()).toArray(ModuleDescriptor[]::new)
+        );
+        ModuleFinder moduleFinder = ModuleFinder.compose(modulePathFinder, missingModuleFinder);
         assert moduleFinder.find(providerModuleName).isPresent();
         ModuleLayer parentLayer = ModuleLayer.boot();
         Configuration cf = parentLayer.configuration().resolve(ModuleFinder.of(), moduleFinder, Set.of(providerModuleName));

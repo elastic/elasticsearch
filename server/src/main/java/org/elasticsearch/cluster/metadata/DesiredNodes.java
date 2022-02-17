@@ -20,11 +20,13 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static java.lang.String.format;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
@@ -59,7 +61,7 @@ public class DesiredNodes implements Writeable, ToXContentObject {
 
         this.historyID = historyID;
         this.version = version;
-        this.nodes = Set.copyOf(nodes);
+        this.nodes = Collections.unmodifiableSortedSet(new TreeSet<>(nodes));
     }
 
     public DesiredNodes(StreamInput in) throws IOException {

@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -35,9 +36,13 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 public record DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version)
     implements
         Writeable,
-        ToXContentObject {
+        ToXContentObject,
+        Comparable<DesiredNode> {
 
-    public static final Version MEMBERSHIP_INFO_SUPPORT_VERSION = Version.CURRENT;
+    private static final Comparator<DesiredNode> COMPARATOR = Comparator.comparing(
+        DesiredNode::externalId,
+        Comparator.nullsLast(Comparator.naturalOrder())
+    );
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");
@@ -139,5 +144,10 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
     public Set<DiscoveryNodeRole> getRoles() {
         SortedSet<DiscoveryNodeRole> roles = new TreeSet<>(DiscoveryNode.getRolesFromSettings(settings));
         return Collections.unmodifiableSortedSet(roles);
+    }
+
+    @Override
+    public int compareTo(DesiredNode o) {
+        return COMPARATOR.compare(this, o);
     }
 }

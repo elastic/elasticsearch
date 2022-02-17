@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -79,9 +78,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.coordination.JoinHelper.JOIN_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
 import static org.elasticsearch.common.settings.Setting.Property;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING;
 import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.JAVA_DEPRECATION_MESSAGE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -1415,59 +1414,69 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testTierAllocationSettings() {
-        String settingValue = DataTier.DATA_HOT;
-        final Settings settings = settings(Version.CURRENT).put(INDEX_ROUTING_REQUIRE_SETTING.getKey(), DataTier.DATA_HOT)
-            .put(INDEX_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
-            .put(INDEX_ROUTING_EXCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
+        final Settings settings = settings(Version.CURRENT).put(CLUSTER_ROUTING_REQUIRE_SETTING.getKey(), DataTier.DATA_HOT)
+            .put(CLUSTER_ROUTING_INCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
+            .put(CLUSTER_ROUTING_EXCLUDE_SETTING.getKey(), DataTier.DATA_HOT)
             .build();
         final DeprecationIssue expectedRequireIssue = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            String.format(Locale.ROOT, "Setting [%s] is deprecated", INDEX_ROUTING_REQUIRE_SETTING.getKey()),
+            String.format(Locale.ROOT, "Setting [%s] is deprecated", CLUSTER_ROUTING_REQUIRE_SETTING.getKey()),
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
             String.format(
                 Locale.ROOT,
                 "Remove the [%s] setting. Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
-                INDEX_ROUTING_REQUIRE_SETTING.getKey()
+                CLUSTER_ROUTING_REQUIRE_SETTING.getKey()
             ),
             false,
             null
         );
         final DeprecationIssue expectedIncludeIssue = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            String.format(Locale.ROOT, "Setting [%s] is deprecated", INDEX_ROUTING_INCLUDE_SETTING.getKey()),
+            String.format(Locale.ROOT, "Setting [%s] is deprecated", CLUSTER_ROUTING_INCLUDE_SETTING.getKey()),
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
             String.format(
                 Locale.ROOT,
                 "Remove the [%s] setting. Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
-                INDEX_ROUTING_INCLUDE_SETTING.getKey()
+                CLUSTER_ROUTING_INCLUDE_SETTING.getKey()
             ),
             false,
             null
         );
         final DeprecationIssue expectedExcludeIssue = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            String.format(Locale.ROOT, "Setting [%s] is deprecated", INDEX_ROUTING_EXCLUDE_SETTING.getKey()),
+            String.format(Locale.ROOT, "Setting [%s] is deprecated", CLUSTER_ROUTING_EXCLUDE_SETTING.getKey()),
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
             String.format(
                 Locale.ROOT,
                 "Remove the [%s] setting. Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
-                INDEX_ROUTING_EXCLUDE_SETTING.getKey()
+                CLUSTER_ROUTING_EXCLUDE_SETTING.getKey()
             ),
             false,
             null
         );
 
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        assertThat(IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata), equalTo(expectedRequireIssue));
-        assertThat(IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata), equalTo(expectedIncludeIssue));
-        assertThat(IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata), equalTo(expectedExcludeIssue));
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        ClusterState clusterState = ClusterState.EMPTY_STATE;
+        assertThat(
+            NodeDeprecationChecks.checkClusterRoutingRequireSetting(settings, pluginsAndModules, clusterState, licenseState),
+            equalTo(expectedRequireIssue)
+        );
+        assertThat(
+            NodeDeprecationChecks.checkClusterRoutingIncludeSetting(settings, pluginsAndModules, clusterState, licenseState),
+            equalTo(expectedIncludeIssue)
+        );
+        assertThat(
+            NodeDeprecationChecks.checkClusterRoutingExcludeSetting(settings, pluginsAndModules, clusterState, licenseState),
+            equalTo(expectedExcludeIssue)
+        );
 
         final String warningTemplate = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! "
             + "See the breaking changes documentation for the next major version.";
         final String[] expectedWarnings = {
-            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_REQUIRE_SETTING.getKey()),
-            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_INCLUDE_SETTING.getKey()),
-            String.format(Locale.ROOT, warningTemplate, INDEX_ROUTING_EXCLUDE_SETTING.getKey()), };
+            String.format(Locale.ROOT, warningTemplate, CLUSTER_ROUTING_REQUIRE_SETTING.getKey()),
+            String.format(Locale.ROOT, warningTemplate, CLUSTER_ROUTING_INCLUDE_SETTING.getKey()),
+            String.format(Locale.ROOT, warningTemplate, CLUSTER_ROUTING_EXCLUDE_SETTING.getKey()), };
 
         assertWarnings(expectedWarnings);
     }

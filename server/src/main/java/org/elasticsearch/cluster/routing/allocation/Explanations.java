@@ -39,9 +39,9 @@ public final class Explanations {
 
         public static final String DELAYED_WITHOUT_ALTERNATIVE = """
             The node holding this shard copy recently left the cluster. Elasticsearch is waiting for it to return. If the node does not \
-            return within [%s] then Elasticsearch can't allocate this shard to another node in the cluster. If you expect this shard to be \
-            allocated to another node, find this node in the node-by-node explanation and address the reasons which prevent Elasticsearch \
-            from allocating this shard there.""";
+            return within [%s] then Elasticsearch will attempt to allocate this shard to another node, but it cannot be allocated to any \
+            other node currently in the cluster. If you expect this shard to be allocated to another node, find this node in the \
+            node-by-node explanation and address the reasons which prevent Elasticsearch from allocating this shard there.""";
 
         public static final String EXISTING_STORES_FORBIDDEN = """
             Elasticsearch isn't allowed to allocate this shard to any of the nodes in the cluster that hold an in-sync copy of its data. \

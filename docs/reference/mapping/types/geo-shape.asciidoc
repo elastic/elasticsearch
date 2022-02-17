@@ -144,7 +144,7 @@ API. The following is an example of a point in GeoJSON.
 POST /example/_doc
 {
   "location" : {
-    "type" : "point",
+    "type" : "Point",
     "coordinates" : [-77.03653, 38.897676]
   }
 }
@@ -164,8 +164,8 @@ POST /example/_doc
 [[geo-linestring]]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
 
-A `linestring` defined by an array of two or more positions. By
-specifying only two points, the `linestring` will represent a straight
+A `LineString` defined by an array of two or more positions. By
+specifying only two points, the `LineString` will represent a straight
 line. Specifying more than two points creates an arbitrary path. The
 following is an example of a LineString in GeoJSON.
 
@@ -174,7 +174,7 @@ following is an example of a LineString in GeoJSON.
 POST /example/_doc
 {
   "location" : {
-    "type" : "linestring",
+    "type" : "LineString",
     "coordinates" : [[-77.03653, 38.897676], [-77.009051, 38.889939]]
   }
 }
@@ -206,7 +206,7 @@ closed). The following is an example of a Polygon in GeoJSON.
 POST /example/_doc
 {
   "location" : {
-    "type" : "polygon",
+    "type" : "Polygon",
     "coordinates" : [
       [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ]
     ]
@@ -233,7 +233,7 @@ of a polygon with a hole:
 POST /example/_doc
 {
   "location" : {
-    "type" : "polygon",
+    "type" : "Polygon",
     "coordinates" : [
       [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0] ],
       [ [100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2] ]
@@ -270,7 +270,7 @@ https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON specification]
 mandates that an outer polygon use a counterclockwise orientation and interior
 shapes use a clockwise orientation.
 
-You can override the default orientation for WKT and GeoJSON polygons using the
+You can override the default orientation for GeoJSON polygons using the
 document-level `orientation` parameter. For example, the following indexing
 request specifies a document-level `orientation` of `LEFT`.
 
@@ -279,7 +279,7 @@ request specifies a document-level `orientation` of `LEFT`.
 POST /example/_doc
 {
   "location" : {
-    "type" : "polygon",
+    "type" : "Polygon",
     "orientation" : "LEFT",
     "coordinates" : [
       [ [-177.0, 10.0], [176.0, 15.0], [172.0, 0.0], [176.0, -15.0], [-177.0, -10.0], [-177.0, 10.0] ]
@@ -310,7 +310,7 @@ The following is an example of a list of GeoJSON points:
 POST /example/_doc
 {
   "location" : {
-    "type" : "multipoint",
+    "type" : "MultiPoint",
     "coordinates" : [
       [102.0, 2.0], [103.0, 2.0]
     ]
@@ -339,7 +339,7 @@ The following is an example of a list of GeoJSON linestrings:
 POST /example/_doc
 {
   "location" : {
-    "type" : "multilinestring",
+    "type" : "MultiLineString",
     "coordinates" : [
       [ [102.0, 2.0], [103.0, 2.0], [103.0, 3.0], [102.0, 3.0] ],
       [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0] ],
@@ -370,7 +370,7 @@ The following is an example of a list of GeoJSON polygons (second polygon contai
 POST /example/_doc
 {
   "location" : {
-    "type" : "multipolygon",
+    "type" : "MultiPolygon",
     "coordinates" : [
       [ [[102.0, 2.0], [103.0, 2.0], [103.0, 3.0], [102.0, 3.0], [102.0, 2.0]] ],
       [ [[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]],
@@ -401,14 +401,14 @@ The following is an example of a collection of GeoJSON geometry objects:
 POST /example/_doc
 {
   "location" : {
-    "type": "geometrycollection",
+    "type": "GeometryCollection",
     "geometries": [
       {
-        "type": "point",
+        "type": "Point",
         "coordinates": [100.0, 0.0]
       },
       {
-        "type": "linestring",
+        "type": "LineString",
         "coordinates": [ [101.0, 0.0], [102.0, 1.0] ]
       }
     ]

@@ -194,11 +194,9 @@ teardown:
 ---
 "Test update desired nodes is idempotent with different order":
   - skip:
-      reason: "contains is a newly added assertion"
-      features: contains
-  - skip:
       version: " - 8.1.99"
-      reason: "Bug fixed in 8.2.0"
+      features: contains
+      reason: "Bug fixed in 8.2.0 and uses contains feature"
   - do:
       cluster.state: {}
 

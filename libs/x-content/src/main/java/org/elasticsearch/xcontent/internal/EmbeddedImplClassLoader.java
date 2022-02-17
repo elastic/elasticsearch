@@ -8,19 +8,31 @@
 
 package org.elasticsearch.xcontent.internal;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.security.AccessController;
+import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * A class loader that is responsible for loading implementation classes and resources embedded within an archive.
@@ -53,8 +65,11 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     private final ClassLoader parent;
     private final Map<String, CodeSource> prefixToCodeBase;
 
+    private static final String IMPL_PREFIX = "IMPL-JARS/";
+    private static final String MANIFEST_FILE = "/LISTING.TXT";
+
     static EmbeddedImplClassLoader getInstance(ClassLoader parent, String providerName) {
-        return new EmbeddedImplClassLoader(parent, EmbeddedImplUtils.getProviderPrefixes(parent, providerName));
+        return new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
     }
 
     private EmbeddedImplClassLoader(ClassLoader parent, Map<String, CodeSource> prefixToCodeBase) {
@@ -85,6 +100,18 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                 return null;
             }
         });
+    }
+
+    @Override
+    public Class<?> findClass(String moduleName, String name) {
+        try {
+            Class<?> c = findClass(name);
+            if (moduleName != null && moduleName.equals(c.getModule().getName()) == false) {
+                throw new AssertionError("expected module:" + moduleName + ", got: " + c.getModule().getName());
+            }
+            return c;
+        } catch (ClassNotFoundException ignore) {}
+        return null;
     }
 
     @Override
@@ -124,7 +151,86 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return new CompoundEnumeration<>(tmp);
     }
 
-    static final class CompoundEnumeration<E> implements Enumeration<E> {
+    /**
+     * Returns a module finder capable of finding the modules, if any, that are loadable by this embedded impl class loader.
+     *
+     * <p> The module finder returned by this method can be used during module resolution in order to create a configuration. This
+     * configuration can subsequently be materialized as a module layer in which classes and resources are loaded by this embedded impl
+     * class loader.
+     *
+     * <p> The module finder returned by this method is closeable. Closing the finder will release any resources held by the finder.
+     */
+    CloseableModuleFinder moduleFinder() throws IOException {
+        Function<Path,Path[]> entries = path ->  prefixToCodeBase.keySet().stream().map(pfx -> path.resolve(pfx)).toArray(Path[]::new);
+
+        URI rootURI = rootURI(prefixToCodeBase.values().stream().findFirst().map(CodeSource::getLocation).orElseThrow());
+        if (rootURI.getScheme().equals("file")) {
+            return CloseableModuleFinder.of(entries.apply(Path.of(rootURI)));
+        } else if (rootURI.getScheme().equals("jar")) {
+            FileSystem fileSystem = FileSystems.newFileSystem(rootURI, Map.of(), ClassLoader.getSystemClassLoader());
+            Path rootPath = fileSystem.getPath("/");
+            return CloseableModuleFinder.of(fileSystem::close, entries.apply(rootPath));
+        } else {
+            throw new UncheckedIOException(new IOException("unknown scheme:" + rootURI.getScheme()));
+        }
+    }
+
+    // -- infra
+
+    /**
+     * Returns the root URI for a given url. The root URI is the base URI where all classes and resources can be searched for by appending
+     * a prefixes.
+     *
+     * Depending on whether running from a jar (distribution), or an exploded archive (testing), the given url will have one of two schemes,
+     * "file", or "jar:file". For example:
+     *  distro- jar:file:/xxx/distro/lib/elasticsearch-x-content-8.2.0-SNAPSHOT.jar!/IMPL-JARS/x-content/xlib-2.10.4.jar
+     *  test  - file:/x/git/es_modules/libs/x-content/build/generated-resources/impl/IMPL-JARS/x-content/xlib-2.10.4.jar
+     */
+    private static URI rootURI(URL url) {
+        try {
+            URI embeddedJarURI = url.toURI();
+            if (embeddedJarURI.getScheme().equals("jar")) {
+                String s = embeddedJarURI.toString();
+                return URI.create(s.substring(0, s.lastIndexOf("!/")));
+            } else {
+                return URI.create(getParent(getParent(getParent(embeddedJarURI.toString()))));
+            }
+        }  catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Map<String, CodeSource> getProviderPrefixes(ClassLoader parent, String providerName) {
+        String providerPrefix = IMPL_PREFIX + providerName;
+        URL manifest = parent.getResource(providerPrefix + MANIFEST_FILE);
+        if (manifest == null) {
+            throw new IllegalStateException("missing x-content provider jars list");
+        }
+        try (
+            InputStream in = manifest.openStream();
+            InputStreamReader isr = new InputStreamReader(in, StandardCharsets.UTF_8);
+            BufferedReader reader = new BufferedReader(isr)
+        ) {
+            List<String> jars = reader.lines().toList();
+            Map<String, CodeSource> map = new HashMap<>();
+            for (String jar : jars) {
+                map.put(providerPrefix + "/" + jar, new CodeSource(new URL(manifest, jar), (CodeSigner[]) null /*signers*/));
+            }
+            return Collections.unmodifiableMap(map);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static String getParent(String uriString) {
+        int index = uriString.lastIndexOf('/');
+        if (index > 0) {
+            return uriString.substring(0, index);
+        }
+        return "/";
+    }
+
+    private static final class CompoundEnumeration<E> implements Enumeration<E> {
         private final Enumeration<E>[] enumerations;
         private int index;
 

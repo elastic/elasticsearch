@@ -209,7 +209,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         public Spliterator<Map.Entry<KType, VType>> spliterator() {
-            return Spliterators.spliteratorUnknownSize(iterator(), 0);
+            return Spliterators.spliterator(iterator(), size(), Spliterator.SIZED);
         }
 
         public void forEach(Consumer<? super Map.Entry<KType, VType>> action) {

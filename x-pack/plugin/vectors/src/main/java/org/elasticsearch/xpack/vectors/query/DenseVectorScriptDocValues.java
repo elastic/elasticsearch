@@ -10,24 +10,16 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
-public abstract class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
-
-    public interface DenseVectorSupplier<T> extends Supplier<BytesRef> {
-
-        @Override
-        default BytesRef getInternal(int index) {
-            throw new UnsupportedOperationException();
-        }
-
-        T getInternal();
-    }
+public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
     public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a vector field!";
 
     private final int dims;
+    protected final DenseVectorSupplier dvSupplier;
 
-    public DenseVectorScriptDocValues(DenseVectorSupplier<?> supplier, int dims) {
+    public DenseVectorScriptDocValues(DenseVectorSupplier supplier, int dims) {
         super(supplier);
+        this.dvSupplier = supplier;
         this.dims = dims;
     }
 
@@ -35,60 +27,58 @@ public abstract class DenseVectorScriptDocValues extends ScriptDocValues<BytesRe
         return dims;
     }
 
+    private DenseVector getCheckedVector() {
+        DenseVector vector = dvSupplier.getInternal();
+        if (vector == null) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+        return vector;
+    }
+
     /**
      * Get dense vector's value as an array of floats
      */
-    public abstract float[] getVectorValue();
+    public float[] getVectorValue() {
+        return getCheckedVector().getVector();
+    }
 
     /**
      * Get dense vector's magnitude
      */
-    public abstract float getMagnitude();
+    public float getMagnitude() {
+        return getCheckedVector().getMagnitude();
+    }
 
-    public abstract double dotProduct(float[] queryVector);
+    public double dotProduct(float[] queryVector) {
+        return getCheckedVector().dotProduct(queryVector);
+    }
 
-    public abstract double l1Norm(float[] queryVector);
+    public double l1Norm(float[] queryVector) {
+        return getCheckedVector().l1Norm(queryVector);
+    }
 
-    public abstract double l2Norm(float[] queryVector);
+    public double l2Norm(float[] queryVector) {
+        return getCheckedVector().l2Norm(queryVector);
+    }
 
     @Override
     public BytesRef get(int index) {
         throw new UnsupportedOperationException(
-            "accessing a vector field's value through 'get' or 'value' is not supported!" + "Use 'vectorValue' or 'magnitude' instead!'"
+            "accessing a vector field's value through 'get' or 'value' is not supported, use 'vectorValue' or 'magnitude' instead."
         );
     }
 
-    public static DenseVectorScriptDocValues empty(DenseVectorSupplier<?> supplier, int dims) {
-        return new DenseVectorScriptDocValues(supplier, dims) {
-            @Override
-            public float[] getVectorValue() {
-                throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
-            }
+    @Override
+    public int size() {
+        return dvSupplier.getInternal() == null ? 0 : 1;
+    }
 
-            @Override
-            public float getMagnitude() {
-                throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
-            }
+    public interface DenseVectorSupplier extends Supplier<BytesRef> {
+        @Override
+        default BytesRef getInternal(int index) {
+            throw new UnsupportedOperationException();
+        }
 
-            @Override
-            public double dotProduct(float[] queryVector) {
-                throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
-            }
-
-            @Override
-            public double l1Norm(float[] queryVector) {
-                throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
-            }
-
-            @Override
-            public double l2Norm(float[] queryVector) {
-                throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
-            }
-
-            @Override
-            public int size() {
-                return supplier.size();
-            }
-        };
+        DenseVector getInternal();
     }
 }

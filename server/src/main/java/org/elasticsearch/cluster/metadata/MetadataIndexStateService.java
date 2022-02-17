@@ -225,10 +225,8 @@ public class MetadataIndexStateService {
                                                                     );
                                                                 }
                                                                 // acknowledged maybe be false but some indices may have been correctly
-                                                                // closed, so
-                                                                // we maintain a kind of coherency by overriding the shardsAcknowledged
-                                                                // value
-                                                                // (see ShardsAcknowledgedResponse constructor)
+                                                                // closed, so we maintain a kind of coherency by overriding the
+                                                                // shardsAcknowledged value (see ShardsAcknowledgedResponse constructor)
                                                                 boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
                                                                 listener.onResponse(
                                                                     new CloseIndexResponse(acknowledged, shardsAcked, indices)
@@ -271,11 +269,9 @@ public class MetadataIndexStateService {
         final Map<Index, ClusterBlock> blockedIndices,
         final ClusterState currentState
     ) {
-        final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-
         final Set<Index> indicesToClose = new HashSet<>();
         for (Index index : indices) {
-            final IndexMetadata indexMetadata = metadata.getSafe(index);
+            final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
             if (indexMetadata.getState() != IndexMetadata.State.CLOSE) {
                 indicesToClose.add(index);
             } else {
@@ -304,8 +300,7 @@ public class MetadataIndexStateService {
             );
         }
 
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-        final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
 
         for (Index index : indicesToClose) {
             ClusterBlock indexBlock = null;
@@ -334,7 +329,7 @@ public class MetadataIndexStateService {
                 blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.joining(","))
             )
         );
-        return ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable.build()).build();
+        return ClusterState.builder(currentState).blocks(blocks).build();
     }
 
     /**
@@ -366,8 +361,7 @@ public class MetadataIndexStateService {
             return Tuple.tuple(currentState, Collections.emptyMap());
         }
 
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-        final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
 
         for (Index index : indicesToAddBlock) {
@@ -405,10 +399,7 @@ public class MetadataIndexStateService {
             block.name,
             blockedIndices.keySet().stream().map(Object::toString).collect(Collectors.toList())
         );
-        return Tuple.tuple(
-            ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable.build()).build(),
-            blockedIndices
-        );
+        return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).metadata(metadata).build(), blockedIndices);
     }
 
     /**
@@ -793,9 +784,8 @@ public class MetadataIndexStateService {
         final Map<Index, ClusterBlock> blockedIndices,
         final Map<Index, IndexResult> verifyResult
     ) {
-
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
 
         final Set<String> closedIndices = new HashSet<>();
@@ -881,7 +871,7 @@ public class MetadataIndexStateService {
         }
         logger.info("completed closing of indices {}", closedIndices);
         return Tuple.tuple(
-            ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable.build()).build(),
+            ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable).build(),
             closingResults.values()
         );
     }
@@ -939,10 +929,7 @@ public class MetadataIndexStateService {
         final Map<Index, AddBlockResult> verifyResult,
         final APIBlock block
     ) {
-
-        final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-        final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
 
         final Set<String> effectivelyBlockedIndices = new HashSet<>();
         Map<Index, AddBlockResult> blockingResults = new HashMap<>(verifyResult);
@@ -995,10 +982,7 @@ public class MetadataIndexStateService {
             }
         }
         logger.info("completed adding block {} to indices {}", block.name, effectivelyBlockedIndices);
-        return Tuple.tuple(
-            ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable.build()).build(),
-            blockingResults.values()
-        );
+        return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).build(), blockingResults.values());
     }
 
     /**
@@ -1129,7 +1113,7 @@ public class MetadataIndexStateService {
             });
 
             final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-            final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+            final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
             final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion();
 
             for (IndexMetadata indexMetadata : indicesToOpen) {
@@ -1168,7 +1152,7 @@ public class MetadataIndexStateService {
                     routingTable.addAsFromCloseToOpen(updatedState.metadata().getIndexSafe(previousIndexMetadata.getIndex()));
                 }
             }
-            return ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
+            return ClusterState.builder(updatedState).routingTable(routingTable).build();
         }
     }
 

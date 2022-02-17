@@ -1,0 +1,6 @@
+pr: 84089
+summary: Preserve context in `snapshotDeletionListeners`
+area: Snapshot/Restore
+type: bug
+issues:
+ - 84036

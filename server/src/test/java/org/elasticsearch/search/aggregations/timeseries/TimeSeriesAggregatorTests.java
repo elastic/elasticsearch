@@ -17,9 +17,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -27,6 +24,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -34,8 +32,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
@@ -81,15 +77,13 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
-        final SortedMap<BytesRef, BytesReference> dimensionFields = new TreeMap<>();
+        final TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder();
         for (int i = 0; i < dimensions.length; i += 2) {
-            final BytesReference reference;
-            if (dimensions[i + 1] instanceof Number) {
-                reference = TimeSeriesIdFieldMapper.encodeTsidValue(((Number) dimensions[i + 1]).longValue());
+            if (dimensions[i + 1]instanceof Number n) {
+                builder.addLong(dimensions[i].toString(), n.longValue());
             } else {
-                reference = TimeSeriesIdFieldMapper.encodeTsidValue(dimensions[i + 1].toString());
+                builder.addString(dimensions[i].toString(), dimensions[i + 1].toString());
             }
-            dimensionFields.put(new BytesRef(dimensions[i].toString()), reference);
         }
         for (int i = 0; i < metrics.length; i += 2) {
             if (metrics[i + 1] instanceof Integer || metrics[i + 1] instanceof Long) {
@@ -100,13 +94,9 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
                 fields.add(new DoubleDocValuesField(metrics[i].toString(), (double) metrics[i + 1]));
             }
         }
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            TimeSeriesIdFieldMapper.encodeTsid(out, dimensionFields);
-            BytesReference timeSeriesId = out.bytes();
-            fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId.toBytesRef()));
-        }
+        fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.build().toBytesRef()));
         // TODO: Handle metrics
-        iw.addDocument(fields.stream().toList());
+        iw.addDocument(fields);
     }
 
     private void timeSeriesTestCase(

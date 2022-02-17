@@ -272,4 +272,17 @@ public class GceDiscoveryTests extends ESTestCase {
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
         assertThat(dynamicHosts, hasSize(1));
     }
+
+    public void testNodesWithPagination() {
+        Settings nodeSettings = Settings.builder()
+            .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
+            .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
+            .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
+            .build();
+        mock = new GceInstancesServiceMock(nodeSettings);
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(2));
+        assertEquals("10.240.79.59", dynamicHosts.get(0).getAddress());
+        assertEquals("10.240.79.60", dynamicHosts.get(1).getAddress());
+    }
 }

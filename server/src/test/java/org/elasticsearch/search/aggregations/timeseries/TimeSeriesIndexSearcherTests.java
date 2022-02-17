@@ -34,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -85,7 +86,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher);
+        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
 
         BucketCollector collector = new BucketCollector() {
 

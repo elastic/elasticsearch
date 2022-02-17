@@ -164,10 +164,10 @@ POST /example/_doc
 [[geo-linestring]]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
 
-A `LineString` defined by an array of two or more positions. By
-specifying only two points, the `LineString` will represent a straight
+A linestring defined by an array of two or more positions. By
+specifying only two points, the linestring will represent a straight
 line. Specifying more than two points creates an arbitrary path. The
-following is an example of a LineString in GeoJSON.
+following is an example of a linestring in GeoJSON.
 
 [source,console]
 --------------------------------------------------
@@ -180,7 +180,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-The following is an example of a LineString in WKT:
+The following is an example of a linestring in WKT:
 
 [source,console]
 --------------------------------------------------
@@ -190,7 +190,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-The above `linestring` would draw a straight line starting at the White
+The above linestring would draw a straight line starting at the White
 House to the US Capitol Building.
 
 [discrete]
@@ -199,7 +199,7 @@ House to the US Capitol Building.
 
 A polygon is defined by a list of a list of points. The first and last
 points in each (outer) list must be the same (the polygon must be
-closed). The following is an example of a Polygon in GeoJSON.
+closed). The following is an example of a polygon in GeoJSON.
 
 [source,console]
 --------------------------------------------------
@@ -214,7 +214,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-The following is an example of a Polygon in WKT:
+The following is an example of a polygon in WKT:
 
 [source,console]
 --------------------------------------------------
@@ -242,7 +242,7 @@ POST /example/_doc
 }
 --------------------------------------------------
 
-The following is an example of a Polygon with a hole in WKT:
+The following is an example of a polygon with a hole in WKT:
 
 [source,console]
 --------------------------------------------------

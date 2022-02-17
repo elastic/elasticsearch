@@ -2286,7 +2286,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private void addDeleteListener(String deleteUUID, ActionListener<Void> listener) {
-        snapshotDeletionListeners.computeIfAbsent(deleteUUID, k -> new CopyOnWriteArrayList<>()).add(listener);
+        snapshotDeletionListeners.computeIfAbsent(deleteUUID, k -> new CopyOnWriteArrayList<>())
+            .add(ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()));
     }
 
     /**

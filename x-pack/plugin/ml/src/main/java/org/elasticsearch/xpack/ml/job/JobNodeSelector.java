@@ -217,7 +217,7 @@ public class JobNodeSelector {
                 reason = createReason(
                     jobId,
                     nodeNameAndMlAttributes(node),
-                    "This node is not providing accurate information to determine is load by memory."
+                    "This node is not providing accurate information to determine its load by memory."
                 );
                 logger.trace(reason);
                 reasons.put(node.getName(), reason);

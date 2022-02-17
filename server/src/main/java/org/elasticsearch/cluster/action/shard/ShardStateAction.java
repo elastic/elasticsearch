@@ -81,7 +81,7 @@ public class ShardStateAction {
     private final ThreadPool threadPool;
 
     // we deduplicate these shard state requests in order to avoid sending duplicate failed/started shard requests for a shard
-    private final ResultDeduplicator<TransportRequest, Void> remoteShardStateUpdateDeduplicator = new ResultDeduplicator<>();
+    private final ResultDeduplicator<TransportRequest, Void> remoteShardStateUpdateDeduplicator;
 
     @Inject
     public ShardStateAction(
@@ -94,6 +94,7 @@ public class ShardStateAction {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        this.remoteShardStateUpdateDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
 
         transportService.registerRequestHandler(
             SHARD_STARTED_ACTION_NAME,

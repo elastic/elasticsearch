@@ -366,6 +366,35 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("is outside of ranges of currently writable indices"));
     }
 
+    public void testChangeTemplateIndexMode() throws Exception {
+        // Create a template
+        {
+            var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
+            putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE);
+            assertOK(client().performRequest(putComposableIndexTemplateRequest));
+        }
+        {
+            var indexRequest = new Request("POST", "/k8s/_doc");
+            var time = Instant.now();
+            indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(time)));
+            var response = client().performRequest(indexRequest);
+            assertOK(response);
+        }
+        {
+            var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
+            putComposableIndexTemplateRequest.setJsonEntity(NON_TSDB_TEMPLATE);
+            var e = expectThrows(ResponseException.class, () -> client().performRequest(putComposableIndexTemplateRequest));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "composable template [1] with index patterns [k8s*], priority [null],"
+                        + " index_mode [null] would cause tsdb data streams [k8s] to no longer match a data stream template"
+                        + " with a time_series index_mode"
+                )
+            );
+        }
+    }
+
     private static Map<?, ?> getIndex(String indexName) throws IOException {
         var getIndexRequest = new Request("GET", "/" + indexName + "?human");
         var response = client().performRequest(getIndexRequest);

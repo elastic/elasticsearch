@@ -18,234 +18,232 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Filters an existing XContentParser by using a delegate
+ * Delegates every method to the parser returned by the {@link #delegate()} method.
+ * To be used extended directly when the delegated parser may dynamically changed.
+ * Extend {@link FilterXContentParserWrapper} instead when the delegate is fixed and can be provided at construction time.
  */
 public abstract class FilterXContentParser implements XContentParser {
 
-    protected final XContentParser in;
-
-    protected FilterXContentParser(XContentParser in) {
-        this.in = in;
-    }
+    protected abstract XContentParser delegate();
 
     @Override
     public XContentType contentType() {
-        return in.contentType();
+        return delegate().contentType();
     }
 
     @Override
     public void allowDuplicateKeys(boolean allowDuplicateKeys) {
-        in.allowDuplicateKeys(allowDuplicateKeys);
+        delegate().allowDuplicateKeys(allowDuplicateKeys);
     }
 
     @Override
     public Token nextToken() throws IOException {
-        return in.nextToken();
+        return delegate().nextToken();
     }
 
     @Override
     public void skipChildren() throws IOException {
-        in.skipChildren();
+        delegate().skipChildren();
     }
 
     @Override
     public Token currentToken() {
-        return in.currentToken();
+        return delegate().currentToken();
     }
 
     @Override
     public String currentName() throws IOException {
-        return in.currentName();
+        return delegate().currentName();
     }
 
     @Override
     public Map<String, Object> map() throws IOException {
-        return in.map();
+        return delegate().map();
     }
 
     @Override
     public Map<String, Object> mapOrdered() throws IOException {
-        return in.mapOrdered();
+        return delegate().mapOrdered();
     }
 
     @Override
     public Map<String, String> mapStrings() throws IOException {
-        return in.mapStrings();
+        return delegate().mapStrings();
     }
 
     @Override
     public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
         throws IOException {
-        return in.map(mapFactory, mapValueParser);
+        return delegate().map(mapFactory, mapValueParser);
     }
 
     @Override
     public List<Object> list() throws IOException {
-        return in.list();
+        return delegate().list();
     }
 
     @Override
     public List<Object> listOrderedMap() throws IOException {
-        return in.listOrderedMap();
+        return delegate().listOrderedMap();
     }
 
     @Override
     public String text() throws IOException {
-        return in.text();
+        return delegate().text();
     }
 
     @Override
     public String textOrNull() throws IOException {
-        return in.textOrNull();
+        return delegate().textOrNull();
     }
 
     @Override
     public CharBuffer charBufferOrNull() throws IOException {
-        return in.charBufferOrNull();
+        return delegate().charBufferOrNull();
     }
 
     @Override
     public CharBuffer charBuffer() throws IOException {
-        return in.charBuffer();
+        return delegate().charBuffer();
     }
 
     @Override
     public Object objectText() throws IOException {
-        return in.objectText();
+        return delegate().objectText();
     }
 
     @Override
     public Object objectBytes() throws IOException {
-        return in.objectBytes();
+        return delegate().objectBytes();
     }
 
     @Override
     public boolean hasTextCharacters() {
-        return in.hasTextCharacters();
+        return delegate().hasTextCharacters();
     }
 
     @Override
     public char[] textCharacters() throws IOException {
-        return in.textCharacters();
+        return delegate().textCharacters();
     }
 
     @Override
     public int textLength() throws IOException {
-        return in.textLength();
+        return delegate().textLength();
     }
 
     @Override
     public int textOffset() throws IOException {
-        return in.textOffset();
+        return delegate().textOffset();
     }
 
     @Override
     public Number numberValue() throws IOException {
-        return in.numberValue();
+        return delegate().numberValue();
     }
 
     @Override
     public NumberType numberType() throws IOException {
-        return in.numberType();
+        return delegate().numberType();
     }
 
     @Override
     public short shortValue(boolean coerce) throws IOException {
-        return in.shortValue(coerce);
+        return delegate().shortValue(coerce);
     }
 
     @Override
     public int intValue(boolean coerce) throws IOException {
-        return in.intValue(coerce);
+        return delegate().intValue(coerce);
     }
 
     @Override
     public long longValue(boolean coerce) throws IOException {
-        return in.longValue(coerce);
+        return delegate().longValue(coerce);
     }
 
     @Override
     public float floatValue(boolean coerce) throws IOException {
-        return in.floatValue(coerce);
+        return delegate().floatValue(coerce);
     }
 
     @Override
     public double doubleValue(boolean coerce) throws IOException {
-        return in.doubleValue(coerce);
+        return delegate().doubleValue(coerce);
     }
 
     @Override
     public short shortValue() throws IOException {
-        return in.shortValue();
+        return delegate().shortValue();
     }
 
     @Override
     public int intValue() throws IOException {
-        return in.intValue();
+        return delegate().intValue();
     }
 
     @Override
     public long longValue() throws IOException {
-        return in.longValue();
+        return delegate().longValue();
     }
 
     @Override
     public float floatValue() throws IOException {
-        return in.floatValue();
+        return delegate().floatValue();
     }
 
     @Override
     public double doubleValue() throws IOException {
-        return in.doubleValue();
+        return delegate().doubleValue();
     }
 
     @Override
     public boolean isBooleanValue() throws IOException {
-        return in.isBooleanValue();
+        return delegate().isBooleanValue();
     }
 
     @Override
     public boolean booleanValue() throws IOException {
-        return in.booleanValue();
+        return delegate().booleanValue();
     }
 
     @Override
     public byte[] binaryValue() throws IOException {
-        return in.binaryValue();
+        return delegate().binaryValue();
     }
 
     @Override
     public XContentLocation getTokenLocation() {
-        return in.getTokenLocation();
+        return delegate().getTokenLocation();
     }
 
     @Override
     public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
-        return in.namedObject(categoryClass, name, context);
+        return delegate().namedObject(categoryClass, name, context);
     }
 
     @Override
     public NamedXContentRegistry getXContentRegistry() {
-        return in.getXContentRegistry();
+        return delegate().getXContentRegistry();
     }
 
     @Override
     public boolean isClosed() {
-        return in.isClosed();
+        return delegate().isClosed();
     }
 
     @Override
     public void close() throws IOException {
-        in.close();
+        delegate().close();
     }
 
     @Override
     public RestApiVersion getRestApiVersion() {
-        return in.getRestApiVersion();
+        return delegate().getRestApiVersion();
     }
 
     @Override
     public DeprecationHandler getDeprecationHandler() {
-        return in.getDeprecationHandler();
+        return delegate().getDeprecationHandler();
     }
 }

@@ -100,6 +100,50 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(e, instanceOf(ElasticsearchStatusException.class));
     }
 
+    public void testProcessResultsWithSpecialTokens() {
+        NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(NerProcessor.IobTag.values(), null, true);
+        BertTokenizer tokenizer = BertTokenizer.builder(
+            List.of(
+                "el",
+                "##astic",
+                "##search",
+                "many",
+                "use",
+                "in",
+                "london",
+                BertTokenizer.PAD_TOKEN,
+                BertTokenizer.UNKNOWN_TOKEN,
+                BertTokenizer.SEPARATOR_TOKEN,
+                BertTokenizer.CLASS_TOKEN
+            ),
+            new BertTokenization(true, true, null, Tokenization.Truncate.NONE)
+        ).build();
+        TokenizationResult tokenization = tokenizer.buildTokenizationResult(
+            List.of(tokenizer.tokenize("Many use Elasticsearch in London", Tokenization.Truncate.NONE))
+        );
+
+        double[][][] scores = {
+            {
+                { 7, 0, 0, 0, 0, 0, 0, 0, 0 }, // cls
+                { 7, 0, 0, 0, 0, 0, 0, 0, 0 }, // many
+                { 7, 0, 0, 0, 0, 0, 0, 0, 0 }, // use
+                { 0.01, 0.01, 0, 0.01, 0, 7, 0, 3, 0 }, // el
+                { 0.01, 0.01, 0, 0, 0, 0, 0, 0, 0 }, // ##astic
+                { 0, 0, 0, 0, 0, 0, 0, 0, 0 }, // ##search
+                { 0, 0, 0, 0, 0, 0, 0, 0, 0 }, // in
+                { 0, 0, 0, 0, 0, 0, 0, 6, 0 }, // london
+                { 7, 0, 0, 0, 0, 0, 0, 0, 0 } // sep
+            } };
+        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchInferenceResult("1", scores, 1L, null));
+
+        assertThat(result.getAnnotatedResult(), equalTo("Many use [Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
+        assertThat(result.getEntityGroups().size(), equalTo(2));
+        assertThat(result.getEntityGroups().get(0).getEntity(), equalTo("elasticsearch"));
+        assertThat(result.getEntityGroups().get(0).getClassName(), equalTo(NerProcessor.Entity.ORG.toString()));
+        assertThat(result.getEntityGroups().get(1).getEntity(), equalTo("london"));
+        assertThat(result.getEntityGroups().get(1).getClassName(), equalTo(NerProcessor.Entity.LOC.toString()));
+    }
+
     public void testProcessResults() {
         NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(NerProcessor.IobTag.values(), null, true);
         TokenizationResult tokenization = tokenize(
@@ -182,7 +226,7 @@ public class NerProcessorTests extends ESTestCase {
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.O, 1.0));
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.O, 1.0));
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.O, 1.0));
-        taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.B_ORG, 1.0));
+        taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i), NerProcessor.IobTag.B_ORG, 1.0));
 
         List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(taggedTokens, input);
         assertThat(entityGroups, hasSize(3));
@@ -218,7 +262,7 @@ public class NerProcessorTests extends ESTestCase {
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.O, 1.0));
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.O, 1.0));
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.B_PER, 1.0));
-        taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.O, 1.0));
+        taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i), NerProcessor.IobTag.O, 1.0));
 
         List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(taggedTokens, input);
         assertThat(entityGroups, hasSize(3));
@@ -241,7 +285,7 @@ public class NerProcessorTests extends ESTestCase {
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.O, 1.0));
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.B_PER, 1.0));
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.I_PER, 1.0));
-        taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.B_ORG, 1.0));
+        taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i), NerProcessor.IobTag.B_ORG, 1.0));
 
         List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(taggedTokens, input);
         assertThat(entityGroups, hasSize(3));
@@ -272,7 +316,7 @@ public class NerProcessorTests extends ESTestCase {
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.I_ORG, 1.0));
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.I_ORG, 1.0));
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.I_ORG, 1.0));
-        taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i++), NerProcessor.IobTag.O, 1.0));
+        taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(i), NerProcessor.IobTag.O, 1.0));
         assertEquals(tokens.size(), taggedTokens.size());
 
         List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(taggedTokens, input);

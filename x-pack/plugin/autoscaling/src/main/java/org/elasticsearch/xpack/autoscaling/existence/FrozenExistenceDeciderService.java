@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * This decider looks at all indices and ensures a minimum capacity is available if any indices are in the frozen ILM phase, since that
@@ -45,7 +44,9 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
 
     @Override
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
-        List<String> indicesNeedingFrozen = StreamSupport.stream(context.state().metadata().spliterator(), false)
+        List<String> indicesNeedingFrozen = context.state()
+            .metadata()
+            .stream()
             .filter(this::needsTier)
             .map(imd -> imd.getIndex().getName())
             .limit(10)

@@ -9,10 +9,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.ChangePasswordRequest;
-import org.elasticsearch.client.security.DisableUserRequest;
-import org.elasticsearch.client.security.EnableUserRequest;
-import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
@@ -31,7 +27,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -87,7 +82,6 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
      * the reserved realm.
      */
     public void testAuthenticateAfterEnablingUser() throws IOException {
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         final List<String> usernames = Arrays.asList(
             ElasticUser.NAME,
             KibanaUser.NAME,
@@ -98,7 +92,8 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
             RemoteMonitoringUser.NAME
         );
         for (String username : usernames) {
-            restClient.security().enableUser(new EnableUserRequest(username, RefreshPolicy.getDefault()), SECURITY_REQUEST_OPTIONS);
+            getSecurityClient().setUserEnabled(username, true);
+
             ClusterHealthResponse response = client().filterWithHeader(
                 singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
             ).admin().cluster().prepareHealth().get();
@@ -126,13 +121,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
 
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        final boolean changed = restClient.security()
-            .changePassword(
-                new ChangePasswordRequest(username, Arrays.copyOf(newPassword, newPassword.length), RefreshPolicy.IMMEDIATE),
-                SECURITY_REQUEST_OPTIONS
-            );
-        assertTrue(changed);
+        getSecurityClient().changePassword(username, new SecureString(Arrays.copyOf(newPassword, newPassword.length)));
 
         ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(
             ElasticsearchSecurityException.class,
@@ -159,9 +148,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(response.getClusterName(), is(cluster().getClusterName()));
 
         // disable user
-        final boolean disabled = restClient.security()
-            .disableUser(new DisableUserRequest(ElasticUser.NAME, RefreshPolicy.getDefault()), SECURITY_REQUEST_OPTIONS);
-        assertTrue(disabled);
+        getSecurityClient().setUserEnabled(ElasticUser.NAME, false);
         ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(
             ElasticsearchSecurityException.class,
             () -> client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
@@ -173,9 +160,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
 
         // enable
-        final boolean enabled = restClient.security()
-            .enableUser(new EnableUserRequest(ElasticUser.NAME, RefreshPolicy.getDefault()), SECURITY_REQUEST_OPTIONS);
-        assertTrue(enabled);
+        getSecurityClient().setUserEnabled(ElasticUser.NAME, true);
         response = client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
             .admin()
             .cluster()

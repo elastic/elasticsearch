@@ -395,6 +395,11 @@ GET /_xpack/usage
   "aggregate_metric" : {
     "available" : true,
     "enabled" : true
+  },
+  "archive" : {
+    "available" : true,
+    "enabled" : true,
+    "indices_count" : 0
   }
 }
 ------------------------------------------------------------

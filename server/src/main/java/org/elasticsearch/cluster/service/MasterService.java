@@ -46,7 +46,6 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -150,13 +149,9 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        protected void onTimeout(List<? extends BatchedTask> tasks, TimeValue timeout) {
+        protected void onTimeout(BatchedTask task, TimeValue timeout) {
             threadPool.generic()
-                .execute(
-                    () -> tasks.forEach(
-                        task -> ((UpdateTask) task).onFailure(new ProcessClusterEventTimeoutException(timeout, task.source))
-                    )
-                );
+                .execute(() -> ((UpdateTask) task).onFailure(new ProcessClusterEventTimeoutException(timeout, task.source)));
         }
 
         @Override
@@ -506,7 +501,21 @@ public class MasterService extends AbstractLifecycleComponent {
         ClusterStateTaskConfig config,
         ClusterStateTaskExecutor<T> executor
     ) {
-        submitStateUpdateTasks(source, List.of(task), config, executor);
+        if (lifecycle.started() == false) {
+            return;
+        }
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
+            taskBatcher.submitTask(taskBatcher.new UpdateTask(config.priority(), source, task, supplier, executor), config.timeout());
+        } catch (EsRejectedExecutionException e) {
+            // ignore cases where we are shutting down..., there is really nothing interesting
+            // to be done here...
+            if (lifecycle.stoppedOrClosed() == false) {
+                throw e;
+            }
+        }
     }
 
     /**
@@ -900,47 +909,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
         void onNoLongerMaster() {
             updateTasks.forEach(task -> task.onNoLongerMaster());
-        }
-    }
-
-    /**
-     * Submits a batch of cluster state update tasks; submitted updates are guaranteed to be processed together,
-     * potentially with more tasks of the same executor.
-     *
-     * @param source   the source of the cluster state update task
-     * @param tasks    a collection of update tasks, which implement {@link ClusterStateTaskListener} so that they are notified when they
-     *                 are executed; tasks that also implement {@link ClusterStateAckListener} are notified on acks too.
-     * @param config   the cluster state update task configuration
-     * @param executor the cluster state update task executor; tasks
-     *                 that share the same executor will be executed
-     *                 batches on this executor
-     * @param <T>      the type of the cluster state update task state
-     *
-     */
-    public <T extends ClusterStateTaskListener> void submitStateUpdateTasks(
-        final String source,
-        final Collection<T> tasks,
-        final ClusterStateTaskConfig config,
-        final ClusterStateTaskExecutor<T> executor
-    ) {
-        if (lifecycle.started() == false) {
-            return;
-        }
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
-
-            List<Batcher.UpdateTask> safeTasks = tasks.stream()
-                .map(task -> taskBatcher.new UpdateTask(config.priority(), source, task, supplier, executor))
-                .toList();
-            taskBatcher.submitTasks(safeTasks, config.timeout());
-        } catch (EsRejectedExecutionException e) {
-            // ignore cases where we are shutting down..., there is really nothing interesting
-            // to be done here...
-            if (lifecycle.stoppedOrClosed() == false) {
-                throw e;
-            }
         }
     }
 

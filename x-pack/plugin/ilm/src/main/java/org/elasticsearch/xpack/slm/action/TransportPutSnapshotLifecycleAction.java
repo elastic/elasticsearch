@@ -80,7 +80,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
-        final Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
         clusterService.submitStateUpdateTask(
             "put-snapshot-lifecycle-" + request.getLifecycleId(),

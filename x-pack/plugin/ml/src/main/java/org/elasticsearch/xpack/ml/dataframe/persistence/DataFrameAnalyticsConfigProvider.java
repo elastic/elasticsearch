@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
@@ -41,6 +42,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -66,7 +68,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 public class DataFrameAnalyticsConfigProvider {
 
@@ -79,11 +80,18 @@ public class DataFrameAnalyticsConfigProvider {
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
     private final DataFrameAnalyticsAuditor auditor;
+    private final ClusterService clusterService;
 
-    public DataFrameAnalyticsConfigProvider(Client client, NamedXContentRegistry xContentRegistry, DataFrameAnalyticsAuditor auditor) {
+    public DataFrameAnalyticsConfigProvider(
+        Client client,
+        NamedXContentRegistry xContentRegistry,
+        DataFrameAnalyticsAuditor auditor,
+        ClusterService clusterService
+    ) {
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = xContentRegistry;
         this.auditor = Objects.requireNonNull(auditor);
+        this.clusterService = clusterService;
     }
 
     /**
@@ -113,7 +121,11 @@ public class DataFrameAnalyticsConfigProvider {
     }
 
     private DataFrameAnalyticsConfig prepareConfigForIndex(DataFrameAnalyticsConfig config, Map<String, String> headers) {
-        return headers.isEmpty() ? config : new DataFrameAnalyticsConfig.Builder(config).setHeaders(filterSecurityHeaders(headers)).build();
+        return headers.isEmpty()
+            ? config
+            : new DataFrameAnalyticsConfig.Builder(config).setHeaders(
+                ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterService.state())
+            ).build();
     }
 
     private void exists(String jobId, ActionListener<Boolean> listener) {
@@ -183,7 +195,7 @@ public class DataFrameAnalyticsConfigProvider {
             // Merge the original config with the given update object
             DataFrameAnalyticsConfig.Builder updatedConfigBuilder = update.mergeWithConfig(originalConfig);
             if (headers.isEmpty() == false) {
-                updatedConfigBuilder.setHeaders(filterSecurityHeaders(headers));
+                updatedConfigBuilder.setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterService.state()));
             }
             DataFrameAnalyticsConfig updatedConfig = updatedConfigBuilder.build();
 

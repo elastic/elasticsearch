@@ -356,12 +356,13 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setPrimaryIndex(".int-man-old")
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
         .setSettings(createSimpleSettings(NEEDS_UPGRADE_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
-        .setMappings(createSimpleMapping(true, true, true))
+        .setMappings(createSimpleMapping(true, true, false)) // See note below
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
         .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
+        .setIndexType("doc") // This simulates `.tasks`, which uses a nonstandard type name. EXTERNAL_MANAGED tests the default type.
         .build();
     static final SystemIndexDescriptor INTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".int-unman-*")

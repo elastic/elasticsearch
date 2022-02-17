@@ -68,8 +68,11 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
     public void testBuildResponse() throws Exception {
         final RestGetUserPrivilegesAction.RestListener listener = new RestGetUserPrivilegesAction.RestListener(null);
         final Set<String> cluster = new LinkedHashSet<>(Arrays.asList("monitor", "manage_ml", "manage_watcher"));
-        final Set<ConfigurableClusterPrivilege> conditionalCluster = Collections.singleton(
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+        final Set<ConfigurableClusterPrivilege> conditionalCluster = new LinkedHashSet<>(
+            Arrays.asList(
+                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("app*"))),
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+            )
         );
         final Set<GetUserPrivilegesResponse.Indices> index = new LinkedHashSet<>(
             Arrays.asList(
@@ -114,6 +117,13 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
             {
               "cluster": [ "monitor", "manage_ml", "manage_watcher" ],
               "global": [
+                {
+                  "profile": {
+                    "write": {
+                      "applications": [ "app*" ]
+                    }
+                  }
+                },
                 {
                   "application": {
                     "manage": {

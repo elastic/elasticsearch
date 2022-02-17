@@ -323,7 +323,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 ImmutableOpenMap.of(),
                 ImmutableOpenMap.of(),
                 ImmutableOpenMap.of(),
-                ImmutableOpenMap.of(),
+                EMPTY_METADATA.customs,
                 Strings.EMPTY_ARRAY,
                 Strings.EMPTY_ARRAY,
                 Strings.EMPTY_ARRAY,

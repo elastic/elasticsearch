@@ -290,9 +290,9 @@ means the document came from the local cluster.
 [[skip-unavailable-clusters]]
 === Skip unavailable clusters
 
-By default, a {ccs} returns an error if *any* cluster in the request is
-unavailable. You can override this default for a specific remote cluster
-using the <<skip-unavailable,`skip_unavailable`>> cluster setting.
+By default, a {ccs} returns an error if a remote cluster in the request is
+unavailable. You can override this default for a specific remote cluster using
+the <<skip-unavailable,`skip_unavailable`>> cluster setting.
 
 If `skip_unavailable` is `true`, a {ccs}:
 
@@ -300,8 +300,9 @@ If `skip_unavailable` is `true`, a {ccs}:
 `_cluster.skipped` value contains a count of any skipped clusters.
 
 * Ignores the <<search-partial-responses,`allow_partial_search_results`>>
-parameter, if specified, when searching the remote cluster. This means searches
-on the remote cluster may return partial results.
+parameter and the related `search.default_allow_partial_results` cluster setting
+when searching the remote cluster. This means searches on the remote cluster may
+return partial results.
 
 The following <<cluster-update-settings,cluster update settings>>
 API request changes `cluster_two`'s `skip_unavailable` setting to `true`.

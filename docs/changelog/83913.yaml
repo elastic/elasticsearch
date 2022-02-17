@@ -1,0 +1,6 @@
+pr: 83913
+summary: Improve BWC for persisted authentication headers
+area: Authentication
+type: enhancement
+issues:
+  - 83567

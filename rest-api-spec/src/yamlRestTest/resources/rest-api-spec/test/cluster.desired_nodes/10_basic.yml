@@ -146,7 +146,6 @@ teardown:
   - skip:
       reason: "contains is a newly added assertion"
       features: contains
-
   - do:
       cluster.state: {}
 
@@ -182,6 +181,59 @@ teardown:
           nodes:
             - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+
+  - match: { history_id: "test" }
+  - match: { version: 1 }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+---
+"Test update desired nodes is idempotent with different order":
+  - skip:
+      reason: "contains is a newly added assertion"
+      features: contains
+  - skip:
+      version: " - 8.1.99"
+      reason: "Bug fixed in 8.2.0"
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+
+  - match: { history_id: "test" }
+  - match: { version: 1 }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+  - contains: { nodes: { settings: { node: { external_id: "instance-000188" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version } }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
 
   - match: { replaced_existing_history_id: false }
 

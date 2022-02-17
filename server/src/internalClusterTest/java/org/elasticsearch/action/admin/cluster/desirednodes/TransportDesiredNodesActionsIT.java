@@ -356,7 +356,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final var latestDesiredNodes = getLatestDesiredNodes();
             final var clusterState = client().admin().cluster().prepareState().get().getState();
             final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
-            final var members = desiredNodesMetadata.getMembers();
+            final var members = desiredNodesMetadata.getClusterMembers();
 
             for (String nodeExternalId : currentNodeMembersExternalIds) {
                 final var desiredNode = latestDesiredNodes.find(nodeExternalId);
@@ -379,7 +379,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
             final var clusterState = client().admin().cluster().prepareState().get().getState();
             final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
-            final var members = desiredNodesMetadata.getMembers();
+            final var members = desiredNodesMetadata.getClusterMembers();
 
             for (String nodeExternalId : Iterables.concat(currentNodeMembersExternalIds, futureNodeMembersExternalIds)) {
                 final var desiredNode = latestDesiredNodes.find(nodeExternalId);

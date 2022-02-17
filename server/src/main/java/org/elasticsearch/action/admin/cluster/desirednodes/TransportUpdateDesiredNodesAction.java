@@ -142,7 +142,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
 
         DesiredNodesMetadata.Builder desiredNodesMetadataBuilder = new DesiredNodesMetadata.Builder(proposedDesiredNodes);
         for (DiscoveryNode node : currentState.nodes()) {
-            desiredNodesMetadataBuilder.addMember(node);
+            desiredNodesMetadataBuilder.markDesiredNodeAsMemberIfPresent(node);
         }
 
         return currentState.copyAndUpdateMetadata(

@@ -40,14 +40,14 @@ public class DesiredNodesMetadataSerializationTests extends SimpleDiffableSerial
 
     @Override
     protected Writeable.Reader<Metadata.Custom> instanceReader() {
-        return DesiredNodesMetadata::new;
+        return DesiredNodesMetadata::readFrom;
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Collections.singletonList(
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new)
+                new NamedWriteableRegistry.Entry(Metadata.Custom.class, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::readFrom)
             )
         );
     }

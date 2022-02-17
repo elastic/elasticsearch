@@ -102,7 +102,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
                         nodesBuilder.add(node);
                         nodesChanged = true;
-                        desiredNodesChanged |= desiredNodesBuilder.addMember(node);
+                        desiredNodesChanged |= desiredNodesBuilder.markDesiredNodeAsMemberIfPresent(node);
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
                         if (node.isMasterNode()) {

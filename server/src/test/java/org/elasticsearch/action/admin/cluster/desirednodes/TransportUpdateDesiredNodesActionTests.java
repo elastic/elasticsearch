@@ -259,6 +259,6 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
         final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(desiredNodesMetadata, is(notNullValue()));
-        assertThat(desiredNodesMetadata.getMembers().contains(desiredNode), is(equalTo(true)));
+        assertThat(desiredNodesMetadata.getClusterMembers().contains(desiredNode), is(equalTo(true)));
     }
 }

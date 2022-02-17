@@ -271,8 +271,8 @@ public class JoinTaskExecutorTests extends ESTestCase {
 
         assertThat(latestDesiredNodes.find(knownNodeName), is(notNullValue()));
         assertThat(latestDesiredNodes.find("unknown"), is(notNullValue()));
-        assertThat(desiredNodesMetadata.getMembers().contains(desiredNodePresentInCluster), is(equalTo(true)));
-        assertThat(desiredNodesMetadata.getMembers().contains(desiredNodeUnknownToCluster), is(equalTo(false)));
+        assertThat(desiredNodesMetadata.getClusterMembers().contains(desiredNodePresentInCluster), is(equalTo(true)));
+        assertThat(desiredNodesMetadata.getClusterMembers().contains(desiredNodeUnknownToCluster), is(equalTo(false)));
     }
 
     public void testDesiredNodesMembershipIsUpdatedAfterJoinAndLogsAWarningIfRolesAreDifferent() throws Exception {
@@ -334,7 +334,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
         final ClusterState resultingClusterState = result.resultingState();
         final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(resultingClusterState);
         final DesiredNodesMetadata desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(resultingClusterState);
-        final Set<DesiredNode> desiredNodesMetadataMembers = desiredNodesMetadata.getMembers();
+        final Set<DesiredNode> desiredNodesMetadataMembers = desiredNodesMetadata.getClusterMembers();
 
         assertThat(latestDesiredNodes.find(knownNodeName), is(notNullValue()));
         assertThat(desiredNodesMetadataMembers.contains(desiredNodeWithDifferentRoles), is(equalTo(true)));

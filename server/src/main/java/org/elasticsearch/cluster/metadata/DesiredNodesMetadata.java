@@ -33,6 +33,8 @@ import java.util.Set;
 
 public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
     private static final Version MIN_SUPPORTED_VERSION = Version.V_8_1_0;
+    private static final Version MEMBER_TRACKING_VERSION = Version.V_8_2_0;
+
     public static final String TYPE = "desired_nodes";
 
     public static final DesiredNodesMetadata EMPTY = new DesiredNodesMetadata((DesiredNodes) null);
@@ -55,43 +57,37 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     private final Set<DesiredNode> unknownNodes;
 
     public DesiredNodesMetadata(DesiredNodes latestDesiredNodes) {
-        this.latestDesiredNodes = latestDesiredNodes;
-        this.memberDesiredNodes = Collections.emptySet();
-        this.unknownNodes = Collections.emptySet();
+        this(latestDesiredNodes, Collections.emptySet());
     }
 
     private DesiredNodesMetadata(DesiredNodes latestDesiredNodes, Set<DesiredNode> memberDesiredNodes) {
         this.latestDesiredNodes = latestDesiredNodes;
         this.memberDesiredNodes = Collections.unmodifiableSet(memberDesiredNodes);
-        Set<DesiredNode> unknownNodes = new HashSet<>(latestDesiredNodes.nodes());
-        for (DesiredNode memberDesiredNode : memberDesiredNodes) {
-            unknownNodes.remove(memberDesiredNode);
-        }
+        final Set<DesiredNode> unknownNodes = new HashSet<>(latestDesiredNodes.nodes());
+        unknownNodes.removeAll(memberDesiredNodes);
         this.unknownNodes = Collections.unmodifiableSet(unknownNodes);
     }
 
-    public DesiredNodesMetadata(StreamInput in) throws IOException {
-        this.latestDesiredNodes = DesiredNodes.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+    public static DesiredNodesMetadata readFrom(StreamInput in) throws IOException {
+        final DesiredNodes desiredNodes = DesiredNodes.readFrom(in);
+        if (in.getVersion().onOrAfter(MEMBER_TRACKING_VERSION)) {
             List<String> externalIds = in.readStringList();
             Set<DesiredNode> memberNodes = new HashSet<>(externalIds.size());
             for (String externalId : externalIds) {
-                DesiredNode desiredNode = latestDesiredNodes.find(externalId);
+                DesiredNode desiredNode = desiredNodes.find(externalId);
                 assert desiredNode != null;
                 memberNodes.add(desiredNode);
             }
-            this.memberDesiredNodes = memberNodes;
+            return new DesiredNodesMetadata(desiredNodes, memberNodes);
         } else {
-            this.memberDesiredNodes = Collections.emptySet();
+            return new DesiredNodesMetadata(desiredNodes);
         }
-
-        this.unknownNodes = Collections.emptySet();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         latestDesiredNodes.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(MEMBER_TRACKING_VERSION)) {
             final List<String> memberExternalIds = memberDesiredNodes.stream().map(DesiredNode::externalId).toList();
             out.writeStringCollection(memberExternalIds);
         }
@@ -111,8 +107,12 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
         return builder;
     }
 
-    public Set<DesiredNode> getMembers() {
+    public Set<DesiredNode> getClusterMembers() {
         return memberDesiredNodes;
+    }
+
+    public Set<DesiredNode> getUnknownNodes() {
+        return unknownNodes;
     }
 
     public static DesiredNodes latestFromClusterState(ClusterState clusterState) {
@@ -172,7 +172,10 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
             this.members = new HashSet<>();
         }
 
-        public boolean addMember(DiscoveryNode discoveryNode) {
+        /**
+         * Returns true if the desired nodes membership has changed
+         */
+        public boolean markDesiredNodeAsMemberIfPresent(DiscoveryNode discoveryNode) {
             if (desiredNodes == null) {
                 return false;
             }
@@ -180,12 +183,13 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
             DesiredNode desiredNode = desiredNodes.find(discoveryNode.getExternalId());
 
             if (desiredNode == null) {
-                logger.warn("Missing node {} in desired nodes {}", discoveryNode, desiredNodes);
+                logger.warn("{} is missing in desired nodes {}", discoveryNode, desiredNodes);
             }
 
             if (desiredNode != null && desiredNode.getRoles().equals(discoveryNode.getRoles()) == false) {
                 logger.warn(
-                    "Desired node and the current node have different roles {} // {}",
+                    "Node {} has different roles [{}] in its desired node [{}]",
+                    discoveryNode,
                     desiredNode.getRoles(),
                     discoveryNode.getRoles()
                 );

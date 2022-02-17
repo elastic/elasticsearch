@@ -516,7 +516,7 @@ public class GeometryIndexerTests extends ESTestCase {
 
     public void testPolygonAllCollinearPoints() {
         Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 1, -1, 0 }, new double[] { 0, 1, -1, 0 }));
-        Geometry prepared  = indexer.prepareForIndexing(polygon);
+        Geometry prepared = indexer.prepareForIndexing(polygon);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexer.indexShape(prepared));
         assertEquals(
             "Unable to Tessellate shape [[1.0, 1.0] [-1.0, -1.0] [0.0, 0.0] [1.0, 1.0] ]. Possible malformed shape detected.",

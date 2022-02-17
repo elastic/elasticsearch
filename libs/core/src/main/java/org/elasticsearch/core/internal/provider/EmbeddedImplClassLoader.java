@@ -161,18 +161,26 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
      * <p> The module finder returned by this method is closeable. Closing the finder will release any resources held by the finder.
      */
     CloseableModuleFinder moduleFinder() throws IOException {
-        Function<Path, Path[]> entries = path -> prefixToCodeBase.keySet().stream().map(pfx -> path.resolve(pfx)).toArray(Path[]::new);
+        Path[] modulePath = modulePath();
+        assert modulePath.length >= 1;
+        if (modulePath[0].getFileSystem().provider().getScheme().equals("jar")) {
+            return CloseableModuleFinder.of(() -> modulePath[0].getFileSystem().close(), modulePath);
+        } else {
+            return CloseableModuleFinder.of(modulePath);
+        }
+    }
 
+    private Path[] modulePath() throws IOException {
+        Function<Path, Path[]> entries = path -> prefixToCodeBase.keySet().stream().map(pfx -> path.resolve(pfx)).toArray(Path[]::new);
         URI rootURI = rootURI(prefixToCodeBase.values().stream().findFirst().map(CodeSource::getLocation).orElseThrow());
         if (rootURI.getScheme().equals("file")) {
-            return CloseableModuleFinder.of(entries.apply(Path.of(rootURI)));
+            return entries.apply(Path.of(rootURI));
         } else if (rootURI.getScheme().equals("jar")) {
             FileSystem fileSystem = FileSystems.newFileSystem(rootURI, Map.of(), ClassLoader.getSystemClassLoader());
             Path rootPath = fileSystem.getPath("/");
-            return CloseableModuleFinder.of(fileSystem::close, entries.apply(rootPath));
-        } else {
-            throw new UncheckedIOException(new IOException("unknown scheme:" + rootURI.getScheme()));
+            return entries.apply(rootPath);
         }
+        throw new UncheckedIOException(new IOException("unknown scheme:" + rootURI.getScheme()));
     }
 
     // -- infra

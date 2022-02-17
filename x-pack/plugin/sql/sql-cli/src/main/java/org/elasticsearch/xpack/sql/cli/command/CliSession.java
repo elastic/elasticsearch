@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.cli.command;
 import org.elasticsearch.xpack.sql.client.ClientException;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
-import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
@@ -20,52 +19,19 @@ import java.sql.SQLException;
  */
 public class CliSession {
     private final HttpClient httpClient;
-    private int fetchSize = CoreProtocol.FETCH_SIZE;
-    private String fetchSeparator = "";
-    private boolean debug;
-    private boolean binary;
+    private final CliSessionConfiguration configuration;
 
     public CliSession(HttpClient httpClient) {
         this.httpClient = httpClient;
+        this.configuration = new CliSessionConfiguration();
     }
 
     public HttpClient getClient() {
         return httpClient;
     }
 
-    public void setFetchSize(int fetchSize) {
-        if (fetchSize <= 0) {
-            throw new IllegalArgumentException("Must be > 0.");
-        }
-        this.fetchSize = fetchSize;
-    }
-
-    public int getFetchSize() {
-        return fetchSize;
-    }
-
-    public void setFetchSeparator(String fetchSeparator) {
-        this.fetchSeparator = fetchSeparator;
-    }
-
-    public String getFetchSeparator() {
-        return fetchSeparator;
-    }
-
-    public void setDebug(boolean debug) {
-        this.debug = debug;
-    }
-
-    public boolean isDebug() {
-        return debug;
-    }
-
-    public void setBinary(boolean binary) {
-        this.binary = binary;
-    }
-
-    public boolean isBinary() {
-        return binary;
+    public CliSessionConfiguration cfg() {
+        return configuration;
     }
 
     public void checkConnection() throws ClientException {

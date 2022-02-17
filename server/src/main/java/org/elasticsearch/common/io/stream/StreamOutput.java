@@ -546,6 +546,13 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes values of a map as a collection
+     */
+    public final <K, V> void writeMapAsList(final Map<K, V> map, final Writer<V> valueWriter) throws IOException {
+        writeCollection(map.values(), valueWriter);
+    }
+
+    /**
      * Write a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
      * <pre><code>
      * Map&lt;String, List&lt;String&gt;&gt; map = ...;

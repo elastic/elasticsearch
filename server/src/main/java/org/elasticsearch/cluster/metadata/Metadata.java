@@ -1086,13 +1086,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
         final Function<String, MappingMetadata> mappingLookup;
         if (in.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            final int mappings = in.readVInt();
-            if (mappings > 0) {
-                final Map<String, MappingMetadata> mappingMetadataMap = new HashMap<>(mappings);
-                for (int i = 0; i < mappings; i++) {
-                    final MappingMetadata m = new MappingMetadata(in);
-                    mappingMetadataMap.put(m.getSha256(), m);
-                }
+            final Map<String, MappingMetadata> mappingMetadataMap = in.readMapFromList(MappingMetadata::new, MappingMetadata::getSha256);
+            if (mappingMetadataMap.size() > 0) {
                 mappingLookup = mappingMetadataMap::get;
             } else {
                 mappingLookup = null;

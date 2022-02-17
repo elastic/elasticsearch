@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
@@ -13,12 +14,10 @@ import com.nimbusds.jose.util.Base64URL;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,11 +37,11 @@ public class JwkValidateUtilTests extends JwtTestCase {
         assertThat(this.hmacEncodeDecodeAsPasswordTestHelper(hmacKeyRandomBytes), is(false));
 
         // Convert HMAC random bytes to UTF8 bytes. This makes it usable as an OIDC HMAC key setting.
-        final OctetSequenceKey hmacKeyString1 = JwtTestCase.toOidcJwkHmac(hmacKeyRandomBytes);
+        final OctetSequenceKey hmacKeyString1 = JwtTestCase.conditionJwkHmacForOidc(hmacKeyRandomBytes);
         assertThat(this.hmacEncodeDecodeAsPasswordTestHelper(hmacKeyString1), is(true));
 
         // Generate HMAC UTF8 bytes. This is usable as an OIDC HMAC key setting.
-        final OctetSequenceKey hmacKeyString2 = JwtTestCase.toOidcJwkHmac(hmacKeyRandomBytes);
+        final OctetSequenceKey hmacKeyString2 = JwtTestCase.conditionJwkHmacForOidc(hmacKeyRandomBytes);
         assertThat(this.hmacEncodeDecodeAsPasswordTestHelper(hmacKeyString2), is(true));
     }
 
@@ -72,23 +71,28 @@ public class JwkValidateUtilTests extends JwtTestCase {
         }
     }
 
-    public void testValidateAlgsJwksHmac() throws Exception {
-        final List<String> algs = randomOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC);
-        final Map<String, List<JWK>> algsToJwks = JwtTestCase.randomJwks(algs);
-        final List<JWK> jwks = algsToJwks.values().stream().flatMap(List::stream).toList();
-        // If HMAC JWKSet and algorithms are present, verify they are accepted
-        final Tuple<List<JWK>, List<String>> filtered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algs);
-        assertThat(jwks.size(), equalTo(filtered.v1().size()));
-        assertThat(algs.size(), equalTo(filtered.v2().size()));
+    public void testAlgsJwksAllNotFiltered() throws Exception {
+        this.filterJwksAndAlgorithmsTestHelper(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
     }
 
-    public void testValidateAlgsJwksPkc() throws Exception {
-        final List<String> algs = randomOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
-        final Map<String, List<JWK>> algsToJwks = JwtTestCase.randomJwks(algs);
-        final List<JWK> jwks = algsToJwks.values().stream().flatMap(List::stream).toList();
-        // If RSA/EC JWKSet and algorithms are present, verify they are accepted
-        final Tuple<List<JWK>, List<String>> filtered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algs);
-        assertThat(jwks.size(), equalTo(filtered.v1().size()));
-        assertThat(algs.size(), equalTo(filtered.v2().size()));
+    public void testAlgsJwksAllHmacNotFiltered() throws Exception {
+        this.filterJwksAndAlgorithmsTestHelper(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC);
+    }
+
+    public void testAlgsJwksAllPkcNotFiltered() throws Exception {
+        this.filterJwksAndAlgorithmsTestHelper(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
+    }
+
+    private void filterJwksAndAlgorithmsTestHelper(final List<String> candidateAlgs) throws JOSEException {
+        final List<String> algsRandom = randomOfMinUnique(2, candidateAlgs); // duplicates allowed
+        final List<JwtIssuer.AlgJwkPair> algJwkPairsAll = JwtTestCase.randomJwks(algsRandom);
+        final List<JWK> jwks = algJwkPairsAll.stream().map(JwtIssuer.AlgJwkPair::jwk).toList();
+        final List<String> algsAll = algJwkPairsAll.stream().map(JwtIssuer.AlgJwkPair::alg).toList();
+        final List<JWK> jwksAll = algJwkPairsAll.stream().map(JwtIssuer.AlgJwkPair::jwk).toList();
+
+        // verify no filtering
+        final JwtRealm.JwksAlgs nonFiltered = JwkValidateUtil.filterJwksAndAlgorithms(jwks, algsRandom);
+        assertThat(jwks.size(), equalTo(nonFiltered.jwks().size()));
+        assertThat(algsRandom.size(), equalTo(nonFiltered.algs().size()));
     }
 }

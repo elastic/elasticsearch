@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
 import java.nio.charset.StandardCharsets;
@@ -40,7 +39,7 @@ public class JwkValidateUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwkValidateUtil.class);
 
     // Static method for unit testing. No need to construct a complete RealmConfig with all settings.
-    static Tuple<List<JWK>, List<String>> filterJwksAndAlgorithms(final List<JWK> jwks, final List<String> algs) throws SettingsException {
+    static JwtRealm.JwksAlgs filterJwksAndAlgorithms(final List<JWK> jwks, final List<String> algs) throws SettingsException {
         LOGGER.trace("JWKs [" + jwks.size() + "] and Algorithms [" + String.join(",", algs) + "] before filters.");
 
         final Predicate<JWK> keyUsePredicate = j -> ((j.getKeyUse() == null) || (KeyUse.SIGNATURE.equals(j.getKeyUse())));
@@ -57,7 +56,7 @@ public class JwkValidateUtil {
         final List<String> algsFiltered = algs.stream().filter(a -> (jwksFiltered.stream().anyMatch(j -> isMatch(j, a)))).toList();
         LOGGER.trace("Algorithms [" + String.join(",", algsFiltered) + "] after remaining JWKs [" + jwksFiltered.size() + "] filter.");
 
-        return new Tuple<>(jwksFiltered, algsFiltered);
+        return new JwtRealm.JwksAlgs(jwksFiltered, algsFiltered);
     }
 
     /**

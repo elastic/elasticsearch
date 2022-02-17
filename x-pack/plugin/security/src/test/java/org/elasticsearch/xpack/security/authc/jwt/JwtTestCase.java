@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -63,7 +62,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -263,18 +261,10 @@ public abstract class JwtTestCase extends ESTestCase {
         return roleMapper;
     }
 
-    public static Map<String, List<JWK>> randomJwks(final List<String> signatureAlgorithms) throws JOSEException {
-        final Map<String, List<JWK>> algAndJwks = new HashMap<>();
+    public static List<JwtIssuer.AlgJwkPair> randomJwks(final List<String> signatureAlgorithms) throws JOSEException {
+        final List<JwtIssuer.AlgJwkPair> algAndJwks = new ArrayList<>();
         for (final String signatureAlgorithm : signatureAlgorithms) {
-            final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
-            final List<JWK> previouslyAddedJwks = algAndJwks.get(signatureAlgorithm);
-            if (previouslyAddedJwks == null) {
-                final ArrayList<JWK> jwks = new ArrayList<>();
-                jwks.add(jwk);
-                algAndJwks.put(signatureAlgorithm, jwks);
-            } else {
-                previouslyAddedJwks.add(jwk);
-            }
+            algAndJwks.add(new JwtIssuer.AlgJwkPair(signatureAlgorithm, JwtTestCase.randomJwk(signatureAlgorithm)));
         }
         return algAndJwks;
     }
@@ -282,7 +272,7 @@ public abstract class JwtTestCase extends ESTestCase {
     public static JWK randomJwk(final String signatureAlgorithm) throws JOSEException {
         final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
         if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(signatureAlgorithm)) {
-            return JwtTestCase.toOidcJwkHmac(JwtTestCase.randomJwkHmac(jwsAlgorithm)); // TODO Remove kludge for HMAC single key setting
+            return JwtTestCase.randomJwkHmac(jwsAlgorithm);
         } else if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA.contains(signatureAlgorithm)) {
             return JwtTestCase.randomJwkRsa(jwsAlgorithm);
         } else if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_EC.contains(signatureAlgorithm)) {
@@ -295,32 +285,6 @@ public abstract class JwtTestCase extends ESTestCase {
                 + JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS
                 + "."
         );
-    }
-
-    // Comparison of search spaces of random bytes, base64 characters, and UTF8 1-4 byte characters
-    // - random byte => 2^8 search space => 8 bits per byte
-    // - UTF8 1 byte => 2^7 search space => 7 bits per byte
-    // - UTF8 2 byte => 2^11 search space => 5.5 bits per byte
-    // - UTF8 3 byte => 2^16 search space => 5.333 bits per byte
-    // - UTF8 4 byte => 2^21 search space => 5.25 bits per byte
-    // - Base 64 => 2^6 search space => 6 bits per byte
-    public static OctetSequenceKey toOidcJwkHmac(final OctetSequenceKey hmacKey) {
-        // OIDC HMAC keys must be UTF8 bytes (i.e. a password), but UTF8 search space is much less than random bytes.
-        // To compensate, use Base64(randomBytes) as a UTF8 password bytes.
-        final String bytesAsBase64 = hmacKey.getKeyValue().toString();
-        final byte[] base64AsUtf8 = bytesAsBase64.getBytes(StandardCharsets.UTF_8);
-        final OctetSequenceKey.Builder utf8HmacKeyBuilder = new OctetSequenceKey.Builder(base64AsUtf8);
-        // Note: Copying null attributes is OK (no-op)
-        utf8HmacKeyBuilder.keyID(hmacKey.getKeyID());
-        utf8HmacKeyBuilder.algorithm(hmacKey.getAlgorithm());
-        utf8HmacKeyBuilder.keyUse(hmacKey.getKeyUse());
-        utf8HmacKeyBuilder.keyOperations(hmacKey.getKeyOperations());
-        utf8HmacKeyBuilder.keyStore(hmacKey.getKeyStore());
-        return utf8HmacKeyBuilder.build();
-    }
-
-    public static OctetSequenceKey randomJwkHmacOidc(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
-        return JwtTestCase.toOidcJwkHmac(JwtTestCase.randomJwkHmac(jwsAlgorithm));
     }
 
     // Generate using random bytes
@@ -345,6 +309,40 @@ public abstract class JwtTestCase extends ESTestCase {
         final ECKeyGenerator jwkGenerator = new ECKeyGenerator(ecCurve);
         JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm); // options: kid, alg, use, ops
         return jwkGenerator.generate();
+    }
+
+    public static OctetSequenceKey randomJwkHmacOidc(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
+        return JwtTestCase.conditionJwkHmacForOidc(JwtTestCase.randomJwkHmac(jwsAlgorithm));
+    }
+
+    /**
+     *  Input HMAC key is assumed random bytes. Generating random bytes is useful to guarantee min search space (aka strength, entropy).
+     *
+     *  OIDC HMAC key must be UTF8 bytes (aka password). Encoding random bytes as UTF8 doesn't work, and UTF8 search space is smaller.
+     *
+     *  To satisfy min search space and OIDC UTF8 encoding, Base64(randomBytes) is used as the bytes of a new HMAC OIDC key.
+     *
+     *  Search space comparisons of random bytes, base 64, and UTF-8.
+     *  - random byte => 2^8 search space per 1 byte => 8 bits per byte
+     *  - Base 64 byte => 2^6 search space per 1 byte => 6 bits per byte
+     *  - UTF8 1 byte => 2^7 search space per 1 byte => 7 bits per byte
+     *  - UTF8 2 byte => 2^11 search space per 2 byte => 5.5 bits per byte
+     *  - UTF8 3 byte => 2^16 search space per 3 byte => 5.333 bits per byte
+     *  - UTF8 4 byte => 2^21 search space per 4 byte => 5.25 bits per byte (theoretical, UNICODE currently only allocates 1.1M of 2M)
+     *
+     * @param hmacKey HMAC key with random bytes.
+     * @return HMAC key with UTF-8 bytes, making the key bytes compatible with OIDC UTF-8 string encoding.
+     */
+    public static OctetSequenceKey conditionJwkHmacForOidc(final OctetSequenceKey hmacKey) {
+        final String bytesAsBase64 = hmacKey.getKeyValue().toString();
+        final byte[] base64AsUtf8 = bytesAsBase64.getBytes(StandardCharsets.UTF_8);
+        final OctetSequenceKey.Builder utf8HmacKeyBuilder = new OctetSequenceKey.Builder(base64AsUtf8);
+        utf8HmacKeyBuilder.keyID(hmacKey.getKeyID()); // Copy null attribute is OK (no-op)
+        utf8HmacKeyBuilder.algorithm(hmacKey.getAlgorithm());
+        utf8HmacKeyBuilder.keyUse(hmacKey.getKeyUse());
+        utf8HmacKeyBuilder.keyOperations(hmacKey.getKeyOperations());
+        utf8HmacKeyBuilder.keyStore(hmacKey.getKeyStore());
+        return utf8HmacKeyBuilder.build();
     }
 
     public static JWKGenerator<? extends JWK> randomSettingsForJwkGenerator(
@@ -373,7 +371,7 @@ public abstract class JwtTestCase extends ESTestCase {
         final String principal = "principal1";
         final String claimGroups = randomBoolean() ? null : randomFrom("groups", "roles", "other");
         final List<String> groups = randomFrom(List.of(""), List.of("grp1"), List.of("rol1", "rol2", "rol3"), List.of("per1"));
-        final Tuple<JWSHeader, JWTClaimsSet> headerAndBody = randomValidJwsHeaderAndJwtClaimsSet(
+        final SignedJWT unsignedJwt = randomValidJwsHeaderAndJwtClaimsSet(
             signatureAlgorithm,
             issuer,
             audiences,
@@ -383,7 +381,7 @@ public abstract class JwtTestCase extends ESTestCase {
             groups,
             Map.of("metadata", randomAlphaOfLength(10))
         );
-        return JwtValidateUtil.signJwt(jwsSigner, headerAndBody.v1(), headerAndBody.v2());
+        return JwtValidateUtil.signJwt(jwsSigner, unsignedJwt);
     }
 
     public SecureString buildJWT(final JWSHeader header, final JWTClaimsSet claims, final Base64URL signature) throws ParseException {
@@ -391,7 +389,7 @@ public abstract class JwtTestCase extends ESTestCase {
         return new SecureString(signedJwt.serialize().toCharArray());
     }
 
-    public static Tuple<JWSHeader, JWTClaimsSet> randomValidJwsHeaderAndJwtClaimsSet(
+    public static SignedJWT randomValidJwsHeaderAndJwtClaimsSet(
         final String signatureAlgorithm,
         final String issuer,
         final List<String> audiences,
@@ -485,7 +483,7 @@ public abstract class JwtTestCase extends ESTestCase {
                 + otherClaims
                 + "]"
         );
-        return new Tuple<>(jwtHeader, jwtClaimsSet);
+        return new SignedJWT(jwtHeader, jwtClaimsSet);
     }
 
     public static Map<String, User> generateTestUsersWithRoles(final int numUsers, final int numRolesPerUser) {
@@ -507,7 +505,43 @@ public abstract class JwtTestCase extends ESTestCase {
         return testUsers;
     }
 
-    public static <T> List<T> randomOf(int size, Collection<T> collection) {
-        return IntStream.range(0, size).mapToObj(i -> randomFrom(collection)).toList();
+    public static <T> List<T> randomOfUnique(final Collection<T> collection) {
+        return randomOfMinMaxUnique(0, collection.size(), collection);
+    }
+
+    public static <T> List<T> randomOfNonUnique(final Collection<T> collection) {
+        return randomOfMinMaxNonUnique(0, collection.size(), collection);
+    }
+
+    public static <T> List<T> randomOfMinUnique(final int min, final Collection<T> collection) {
+        return randomOfMinMaxUnique(min, collection.size(), collection);
+    }
+
+    public static <T> List<T> randomOfMinNonUnique(final int min, final Collection<T> collection) {
+        return randomOfMinMaxNonUnique(min, collection.size(), collection);
+    }
+
+    public static <T> List<T> randomOfMaxUnique(final int max, final Collection<T> collection) {
+        return randomOfMinMaxUnique(0, max, collection);
+    }
+
+    public static <T> List<T> randomOfMaxNonUnique(final int max, final Collection<T> collection) {
+        return randomOfMinMaxNonUnique(0, max, collection);
+    }
+
+    public static <T> List<T> randomOfMinMaxUnique(final int min, final int max, final Collection<T> collection) {
+        assert min >= 0 : "min has to be at least zero";
+        assert max >= min : "max has to be at least min";
+        assert collection.size() >= max : "max has to be at least collection size";
+        final int minToMaxInclusive = randomIntBetween(min, max); // min..max inclusive
+        return randomSubsetOf(minToMaxInclusive, collection);
+    }
+
+    public static <T> List<T> randomOfMinMaxNonUnique(final int min, final int max, final Collection<T> collection) {
+        assert min >= 0 : "min has to be at least zero";
+        assert max >= min : "max has to be at least min";
+        assert (min == 0) || (collection.isEmpty() == false) : "if min!=0, collection must be non-empty";
+        final int minToMaxInclusive = randomIntBetween(min, max); // min..max inclusive
+        return IntStream.rangeClosed(1, minToMaxInclusive).mapToObj(i -> randomFrom(collection)).toList(); // 1..N inclusive
     }
 }

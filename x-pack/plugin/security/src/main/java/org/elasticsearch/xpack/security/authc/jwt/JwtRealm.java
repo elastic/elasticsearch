@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -49,20 +48,13 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * JWT realms supports JWTs as bearer tokens for authenticating to Elasticsearch. For security, it is recommended to use a client,
- * credential too; examples follow to illustrate why this is important.
- *
- * In OIDC workflows, end-users are clients of OIDC RP applications. End-users are asked to authenticate to an OIDC OP, and the OIDC RP
- * receives a JWT from the OIDC OP to identify the end-user. Potentially, all OIDC RPs can use JWTs as bearer tokens in Elasticsearch.
- * JWT audience filtering (i.e. OIDC RP client ID) is not sufficient when JWTs are treated as bearer tokens. OIDC RPs may share JWTs with
- * helper applications (ex: microservices), or use them for authenticating to other applications. Client authentication locks down
- * exactly which applications are allowed to be JWT bearer token clients of Elasticsearch.
- *
- * In bespoke JWT workflows, end-users may obtain a JWT directly, and use it as a bearer token in Elasticsearch and other applications.
- * Client authentication prevents those other applications from becoming potential JWT bearer token clients of Elasticsearch too.
+ * JWT realms supports JWTs as bearer tokens for authenticating to Elasticsearch.
+ * For security, it is recommended to authenticate the client too.
  */
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
+
+    record JwksAlgs(List<JWK> jwks, List<String> algs) {}
 
     public static final String HEADER_END_USER_AUTHENTICATION = "Authorization";
     public static final String HEADER_CLIENT_AUTHENTICATION = "X-Client-Authentication";
@@ -71,12 +63,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final UserRoleMapper userRoleMapper;
     final String allowedIssuer;
     final List<String> allowedAudiences;
-    final List<String> algorithmsHmac;
-    final List<JWK> jwksHmac;
     final String jwkSetPath;
     final CloseableHttpAsyncClient httpClient;
-    List<String> algorithmsPkc; // reloadable
-    List<JWK> jwksPkc; // reloadable
+    final JwtRealm.JwksAlgs jwksAlgsHmac;
+    JwtRealm.JwksAlgs jwksAlgsPkc; // reloadable
     final TimeValue allowedClockSkew;
     final Boolean populateUserMetadata;
     final ClaimParser claimParserPrincipal;
@@ -127,13 +117,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.httpClient = null; // no setting means no HTTP client
         }
 
-        final Tuple<List<JWK>, List<String>> algsAndJwksHmac = this.parseAlgsAndJwksHmac();
-        this.jwksHmac = algsAndJwksHmac.v1(); // not reloadable
-        this.algorithmsHmac = algsAndJwksHmac.v2(); // not reloadable
-
-        final Tuple<List<JWK>, List<String>> algsAndJwksPkc = this.parseAlgsAndJwksPkc(false);
-        this.jwksPkc = algsAndJwksPkc.v1(); // reloadable
-        this.algorithmsPkc = algsAndJwksPkc.v2(); // reloadable
+        this.jwksAlgsHmac = this.parseJwksAlgsHmac(); // not reloadable
+        this.jwksAlgsPkc = this.parseJwksAlgsPkc(false); // reloadable
     }
 
     private Cache<char[], Optional<AuthenticationResult<User>>> buildJwtValidationCache() {
@@ -157,18 +142,17 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     // must call parseAlgsAndJwksHmac() before parseAlgsAndJwksPkc()
-    private Tuple<List<JWK>, List<String>> parseAlgsAndJwksHmac() {
+    private JwtRealm.JwksAlgs parseJwksAlgsHmac() {
         final SecureString hmacJwkSetContents = super.config.getSetting(JwtRealmSettings.HMAC_JWKSET);
         final SecureString hmacKeyContents = super.config.getSetting(JwtRealmSettings.HMAC_KEY);
+        // HMAC Key vs HMAC JWKSet settings are mutually exclusive
         if (Strings.hasText(hmacJwkSetContents) && Strings.hasText(hmacKeyContents)) {
             throw new SettingsException("HMAC JWKSet and HMAC Key settings are not allowed at the same time.");
         } else if ((Strings.hasText(hmacJwkSetContents) == false) && (Strings.hasText(hmacKeyContents) == false)) {
-            return new Tuple<>(Collections.emptyList(), Collections.emptyList()); // both empty OK, if PKC JWKSet non-empty
+            return new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList()); // both empty OK, if PKC JWKSet non-empty
         }
-        // Parse HMAC algorithms
-        final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-        final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
-        List<JWK> jwksHmac; // extract list of JWKs from JWKSet setting or or single key setting
+        // At this point, one-and-only-one of the HMAC Key or HMAC JWKSet settings are set
+        List<JWK> jwksHmac;
         if (Strings.hasText(hmacJwkSetContents)) {
             jwksHmac = JwkValidateUtil.loadJwksFromJwkSetString(
                 RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
@@ -179,18 +163,21 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
                 hmacKeyContents
             );
-            jwksHmac = List.of(hmacKey); // Ignore IDE null warning. It is a false positive.
+            jwksHmac = List.of(hmacKey);
         }
         // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
-        final Tuple<List<JWK>, List<String>> algsAndJwksHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
-        LOGGER.debug("HMAC: JWKs [" + algsAndJwksHmac.v1() + "]. Algorithms [" + String.join(",", algsAndJwksHmac.v2()) + "].");
-        return algsAndJwksHmac;
+        final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
+        final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
+        final JwtRealm.JwksAlgs jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
+        LOGGER.debug("HMAC: JWKs [" + jwksAlgsHmac.jwks.size() + "]. Algorithms [" + String.join(",", jwksAlgsHmac.algs()) + "].");
+        return jwksAlgsHmac;
     }
 
-    // must call parseAlgsAndJwksHmac() before parseAlgsAndJwksPkc()
-    private Tuple<List<JWK>, List<String>> parseAlgsAndJwksPkc(final boolean isReload) {
+    private JwtRealm.JwksAlgs parseJwksAlgsPkc(final boolean isReload) {
+        // ASSUME: parseJwksAlgsHmac() has been called at startup, before parseJwksAlgsPkc() during startup or reload
+        assert this.jwksAlgsHmac != null : "HMAC not initialized, PKC validation not available";
         if (Strings.hasText(this.jwkSetPath) == false) {
-            return new Tuple<>(Collections.emptyList(), Collections.emptyList());
+            return new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
         }
         // PKC JWKSet get contents from local file or remote HTTPS URL
         final byte[] jwkSetContentBytesPkc;
@@ -219,40 +206,40 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         // PKC JWKSet filter contents
         final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
         final List<String> algsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
-        final Tuple<List<JWK>, List<String>> newAlgsAndJwksPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
-        LOGGER.debug("PKC: JWKs [" + newAlgsAndJwksPkc.v1() + "]. Algorithms [" + String.join(",", newAlgsAndJwksPkc.v2()) + "].");
+        final JwtRealm.JwksAlgs newJwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
+        LOGGER.debug("PKC: JWKs [" + newJwksAlgsPkc.jwks().size() + "]. Algorithms [" + String.join(",", newJwksAlgsPkc.algs()) + "].");
 
-        // If HMAC has no content, PKC much have content. Fail hard during startup. Fail gracefully during reloads.
-        if (((this.algorithmsHmac.isEmpty()) && (newAlgsAndJwksPkc.v1().isEmpty()))
-            || ((this.jwksHmac.isEmpty()) && (newAlgsAndJwksPkc.v2().isEmpty()))) {
+        // If HMAC has no content, PKC must have content. Fail hard during startup. Fail gracefully during reloads.
+        if (((this.jwksAlgsHmac.algs.isEmpty()) && (newJwksAlgsPkc.jwks().isEmpty()))
+            || ((this.jwksAlgsHmac.jwks.isEmpty()) && (newJwksAlgsPkc.algs().isEmpty()))) {
             if (isReload) {
                 LOGGER.error("No usable PKC JWKs or algorithms. Realm authentication expected to fail until this is fixed.");
-                return newAlgsAndJwksPkc;
+                return newJwksAlgsPkc;
             }
             throw new SettingsException("No usable PKC JWKs or algorithms. Realm authentication expected to fail until this is fixed.");
         }
         if (isReload) {
             // Only give delta feedback during reloads.
-            if ((this.jwksPkc.isEmpty()) && (newAlgsAndJwksPkc.v1().isEmpty() == false)) {
-                LOGGER.info("PKC JWKs changed from none to [" + newAlgsAndJwksPkc.v1().size() + "].");
-            } else if ((this.jwksPkc.isEmpty() == false) && (newAlgsAndJwksPkc.v1().isEmpty())) {
-                LOGGER.warn("PKC JWKs changed from [" + this.jwksPkc.size() + "] to none.");
-            } else if (this.jwksPkc.stream().sorted().toList().equals(newAlgsAndJwksPkc.v1().stream().sorted().toList())) {
-                LOGGER.debug("PKC JWKs changed from [" + this.jwksPkc.size() + "] to [" + newAlgsAndJwksPkc.v1().size() + "].");
+            if ((this.jwksAlgsPkc.jwks.isEmpty()) && (newJwksAlgsPkc.jwks().isEmpty() == false)) {
+                LOGGER.info("PKC JWKs changed from none to [" + newJwksAlgsPkc.jwks().size() + "].");
+            } else if ((this.jwksAlgsPkc.jwks.isEmpty() == false) && (newJwksAlgsPkc.jwks().isEmpty())) {
+                LOGGER.warn("PKC JWKs changed from [" + this.jwksAlgsPkc.jwks.size() + "] to none.");
+            } else if (this.jwksAlgsPkc.jwks.stream().sorted().toList().equals(newJwksAlgsPkc.jwks().stream().sorted().toList())) {
+                LOGGER.debug("PKC JWKs changed from [" + this.jwksAlgsPkc.jwks.size() + "] to [" + newJwksAlgsPkc.jwks().size() + "].");
             } else {
-                LOGGER.trace("PKC JWKs no change from [" + this.algorithmsHmac + "].");
+                LOGGER.trace("PKC JWKs no change from [" + this.jwksAlgsPkc.algs + "].");
             }
-            if ((newAlgsAndJwksPkc.v1().isEmpty()) && (newAlgsAndJwksPkc.v2().isEmpty() == false)) {
-                LOGGER.info("PKC algorithms changed from no usable content to having usable content " + newAlgsAndJwksPkc.v2() + ".");
-            } else if ((this.algorithmsPkc.isEmpty() == false) && (newAlgsAndJwksPkc.v2().isEmpty())) {
-                LOGGER.warn("PKC algorithms changed from having usable content " + this.algorithmsPkc + " to no usable content.");
-            } else if (this.algorithmsPkc.stream().sorted().toList().equals(newAlgsAndJwksPkc.v2().stream().sorted().toList())) {
-                LOGGER.debug("PKC algorithms changed from usable content " + this.algorithmsHmac + " to " + newAlgsAndJwksPkc.v2() + ".");
+            if ((newJwksAlgsPkc.jwks().isEmpty()) && (newJwksAlgsPkc.algs().isEmpty() == false)) {
+                LOGGER.info("PKC algorithms changed from no usable content to having usable content " + newJwksAlgsPkc.algs() + ".");
+            } else if ((this.jwksAlgsPkc.algs.isEmpty() == false) && (newJwksAlgsPkc.algs().isEmpty())) {
+                LOGGER.warn("PKC algorithms changed from having usable content " + this.jwksAlgsPkc.algs + " to no usable content.");
+            } else if (this.jwksAlgsPkc.algs.stream().sorted().toList().equals(newJwksAlgsPkc.algs().stream().sorted().toList())) {
+                LOGGER.debug("PKC algorithms changed from usable content " + this.jwksAlgsHmac.algs + " to " + newJwksAlgsPkc.algs() + ".");
             } else {
-                LOGGER.trace("PKC algorithms did not change from usable content " + this.algorithmsHmac + ".");
+                LOGGER.trace("PKC algorithms did not change from usable content " + this.jwksAlgsHmac.algs + ".");
             }
         }
-        return newAlgsAndJwksPkc;
+        return newJwksAlgsPkc;
     }
 
     void ensureInitialized() {
@@ -452,9 +439,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             if (jwtCacheMissOrOff) {
                 try {
                     final boolean isJwtAlgHmac = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(jwtAlg);
-                    final List<String> algs = isJwtAlgHmac ? this.algorithmsHmac : this.algorithmsPkc;
-                    final List<JWK> jwks = isJwtAlgHmac ? this.jwksHmac : this.jwksPkc;
-                    JwtValidateUtil.validate(jwt, this.allowedIssuer, this.allowedAudiences, this.allowedClockSkew.seconds(), algs, jwks);
+                    final JwtRealm.JwksAlgs jwksAndAlgs = isJwtAlgHmac ? this.jwksAlgsHmac : this.jwksAlgsPkc;
+                    JwtValidateUtil.validate(
+                        jwt,
+                        this.allowedIssuer,
+                        this.allowedAudiences,
+                        this.allowedClockSkew.seconds(),
+                        jwksAndAlgs.algs,
+                        jwksAndAlgs.jwks
+                    );
                     LOGGER.trace("Realm [" + super.name() + "] JWT validation succeeded for token=[" + tokenPrincipal + "].");
                     if (this.jwtValidationCache != null) {
                         this.jwtValidationCache.put(jwtValidationCacheKey, Optional.empty()); // JWT Cache Hit(SigOnly)
@@ -539,9 +532,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     final boolean authc = result.isAuthenticated();
                     final String msg = "Realm [" + super.name() + "] User cache hit [" + authc + "] for principal=[" + principal + "].";
                     LOGGER.debug(msg, result.getException());
-                    if (this.rolesLookupCache != null) {
-                        this.rolesLookupCache.put(principal, result); // JWT Cache Hit(Pass|Fail)
-                    }
                     if (this.jwtValidationCache != null) {
                         this.jwtValidationCache.put(jwtValidationCacheKey, Optional.of(result)); // JWT Cache Hit(Pass|Fail)
                     }
@@ -554,7 +544,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, null, groups, userMetadata, super.config);
             this.userRoleMapper.resolveRoles(userData, ActionListener.wrap(rolesSet -> {
                 // Intercept the role mapper listener response to log the resolved roles here. Empty is OK.
-                final String[] rolesArray = rolesSet.toArray(new String[rolesSet.size()]);
+                final String[] rolesArray = rolesSet.toArray(new String[0]);
                 final User user = new User(principal, rolesArray, null, null, userData.getMetadata(), true);
                 final AuthenticationResult<User> success = AuthenticationResult.success(user);
                 final String rolesString = Arrays.toString(rolesArray);

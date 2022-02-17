@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.ECDSASigner;
@@ -26,12 +25,12 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.JOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.SecurityContext;
-import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.text.ParseException;
 import java.util.Date;
 import java.util.List;
 
@@ -342,9 +341,8 @@ public class JwtValidateUtil {
         return signedJwt.verify(jwtVerifier);
     }
 
-    public static SignedJWT signJwt(final JWSSigner jwtSigner, final JWSHeader jwsHeader, final JWTClaimsSet jwtClaimsSet)
-        throws JOSEException {
-        final SignedJWT signedJwt = new SignedJWT(jwsHeader, jwtClaimsSet);
+    public static SignedJWT signJwt(final JWSSigner jwtSigner, final SignedJWT unsignedJwt) throws JOSEException, ParseException {
+        final SignedJWT signedJwt = new SignedJWT(unsignedJwt.getHeader(), unsignedJwt.getJWTClaimsSet());
         signedJwt.sign(jwtSigner);
         return signedJwt;
     }

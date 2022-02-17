@@ -325,9 +325,22 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
      */
     public static class VotingConfiguration implements Writeable, ToXContentFragment {
 
+        /**
+         * Fake node ID for a voting configuration written by a master-ineligible data node to indicate that its on-disk state is
+         * potentially stale (since it is written asynchronously after application, rather than before acceptance). This node ID means that
+         * if the node is restarted as a master-eligible node then it does not win any elections until it has received a fresh cluster
+         * state.
+         */
+        public static final String STALE_STATE_CONFIG_NODE_ID = "STALE_STATE_CONFIG";
+
         public static final VotingConfiguration EMPTY_CONFIG = new VotingConfiguration(Collections.emptySet());
+
         public static final VotingConfiguration MUST_JOIN_ELECTED_MASTER = new VotingConfiguration(
             Collections.singleton("_must_join_elected_master_")
+        );
+
+        public static final VotingConfiguration STALE_STATE_CONFIG = new VotingConfiguration(
+            Collections.singleton(STALE_STATE_CONFIG_NODE_ID)
         );
 
         private final Set<String> nodeIds;

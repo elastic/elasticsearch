@@ -17,7 +17,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -43,7 +42,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -65,13 +63,6 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * non-stale state, and master-ineligible nodes receive the real cluster state from the elected master after joining the cluster.
  */
 public class GatewayMetaState implements Closeable {
-
-    /**
-     * Fake node ID for a voting configuration written by a master-ineligible data node to indicate that its on-disk state is potentially
-     * stale (since it is written asynchronously after application, rather than before acceptance). This node ID means that if the node is
-     * restarted as a master-eligible node then it does not win any elections until it has received a fresh cluster state.
-     */
-    public static final String STALE_STATE_CONFIG_NODE_ID = "STALE_STATE_CONFIG";
 
     // Set by calling start()
     private final SetOnce<PersistedState> persistedState = new SetOnce<>();
@@ -387,18 +378,8 @@ public class GatewayMetaState implements Closeable {
             });
         }
 
-        static final CoordinationMetadata.VotingConfiguration staleStateConfiguration = new CoordinationMetadata.VotingConfiguration(
-            Collections.singleton(STALE_STATE_CONFIG_NODE_ID)
-        );
-
         static ClusterState resetVotingConfiguration(ClusterState clusterState) {
-            CoordinationMetadata newCoordinationMetadata = CoordinationMetadata.builder(clusterState.coordinationMetadata())
-                .lastAcceptedConfiguration(staleStateConfiguration)
-                .lastCommittedConfiguration(staleStateConfiguration)
-                .build();
-            return ClusterState.builder(clusterState)
-                .metadata(Metadata.builder(clusterState.metadata()).coordinationMetadata(newCoordinationMetadata).build())
-                .build();
+            return ClusterState.builder(clusterState).metadata(clusterState.metadata().forDataNodePersistence()).build();
         }
 
         @Override

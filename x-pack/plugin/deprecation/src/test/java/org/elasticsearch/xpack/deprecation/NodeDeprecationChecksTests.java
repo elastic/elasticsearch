@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -1849,7 +1852,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [" + settingKey + "] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [" + settingKey + "]",
+                    "Remove the following settings: [" + settingKey + "]",
                     false,
                     null
                 )
@@ -1857,26 +1860,41 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
-    void monitoringExporterGroupedSetting(String suffix, String value) {
-        String settingKey = "xpack.monitoring.exporters.test." + suffix;
-        String subSettingKey = settingKey + ".subsetting";
-        Settings settings = Settings.builder().put(subSettingKey, value).build();
-        final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+    void monitoringExporterGroupedSetting(String suffix, String value) throws JsonProcessingException {
+        String settingKey1 = "xpack.monitoring.exporters.test1." + suffix;
+        String settingKey2 = "xpack.monitoring.exporters.test2." + suffix;
+        String subSettingKey1 = settingKey1 + ".subsetting1";
+        String subSetting1Key2 = settingKey2 + ".subsetting1";
+        String subSetting2Key2 = settingKey2 + ".subsetting2";
+        Settings nodeSettings = Settings.builder().put(subSettingKey1, value).build();
+        Settings dynamicSettings = Settings.builder().put(subSetting1Key2, value).put(subSetting2Key2, value).build();
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        if (randomBoolean()) {
+            metadataBuilder.persistentSettings(dynamicSettings);
+        } else {
+            metadataBuilder.transientSettings(dynamicSettings);
+        }
+        Metadata metadata = metadataBuilder.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        final XPackLicenseState licenseState = new XPackLicenseState(nodeSettings, () -> 0);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             MONITORING_SETTINGS_CHECKS,
-            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
+            c -> c.apply(nodeSettings, null, clusterState, licenseState)
         );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
+        Map<String, Object> meta = buildMetaObjectForRemovableSettings(subSetting1Key2, subSetting2Key2);
         assertThat(
             issues,
             hasItem(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "The [" + settingKey + ".*] settings are deprecated and will be removed after 8.0",
+                    "The [" + settingKey1 + ".*," + settingKey2 + ".*] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [" + subSettingKey + "]",
+                    "Remove the following settings: [" + subSettingKey1 + "," + subSetting1Key2 + "," + subSetting2Key2 + "]",
                     false,
-                    null
+                    meta
                 )
             )
         );
@@ -1972,7 +1990,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         monitoringExporterSecureSetting("auth.secure_password", "abcdef");
     }
 
-    public void testCheckMonitoringSettingExportersSSL() {
+    public void testCheckMonitoringSettingExportersSSL() throws JsonProcessingException {
         monitoringExporterGroupedSetting("ssl", "abcdef");
     }
 
@@ -1984,7 +2002,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         monitoringExporterSetting("sniff.enabled", "true");
     }
 
-    public void testCheckMonitoringSettingExportersHeaders() {
+    public void testCheckMonitoringSettingExportersHeaders() throws JsonProcessingException {
         monitoringExporterGroupedSetting("headers", "abcdef");
     }
 
@@ -2036,7 +2054,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().put("xpack.monitoring.exporters.test.use_ingest", true).build();
 
         List<DeprecationIssue> issues = Collections.singletonList(
-            NodeDeprecationChecks.checkExporterUseIngestPipelineSettings(settings, null, null, null)
+            NodeDeprecationChecks.checkExporterUseIngestPipelineSettings(settings, null, ClusterState.EMPTY_STATE, null)
         );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting";
@@ -2047,7 +2065,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [xpack.monitoring.exporters.test.use_ingest] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.use_ingest]",
+                    "Remove the following settings: [xpack.monitoring.exporters.test.use_ingest]",
                     false,
                     null
                 )
@@ -2061,7 +2079,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         List<DeprecationIssue> issues = Collections.singletonList(
-            NodeDeprecationChecks.checkExporterPipelineMasterTimeoutSetting(settings, null, null, null)
+            NodeDeprecationChecks.checkExporterPipelineMasterTimeoutSetting(settings, null, ClusterState.EMPTY_STATE, null)
         );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting";
@@ -2073,7 +2091,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] settings are"
                         + " deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
+                    "Remove the following settings: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
                     false,
                     null
                 )
@@ -2085,7 +2103,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().put("xpack.monitoring.exporters.test.index.template.create_legacy_templates", true).build();
 
         List<DeprecationIssue> issues = Collections.singletonList(
-            NodeDeprecationChecks.checkExporterCreateLegacyTemplateSetting(settings, null, null, null)
+            NodeDeprecationChecks.checkExporterCreateLegacyTemplateSetting(settings, null, ClusterState.EMPTY_STATE, null)
         );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting";
@@ -2097,8 +2115,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "The [xpack.monitoring.exporters.test.index.template.create_legacy_templates] settings are deprecated and will be "
                         + "removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: "
-                        + "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
+                    "Remove the following settings: " + "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
                     false,
                     null
                 )
@@ -2207,7 +2224,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
     }
 
-    public void testDynamicSettings() {
+    public void testDynamicSettings() throws JsonProcessingException {
         Settings clusterSettings = Settings.builder()
             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), randomInt())
             .build();
@@ -2230,6 +2247,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         Collection<Setting<?>> deprecatedSettings = Set.of(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING);
+        Map<String, Object> meta = buildMetaObjectForRemovableSettings("discovery.zen.minimum_master_nodes");
         for (Setting<?> deprecatedSetting : deprecatedSettings) {
             final DeprecationIssue expected = new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
@@ -2237,10 +2255,19 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "https://ela.st/es-deprecation-7-unused_zen_settings",
                 "Remove the [" + deprecatedSetting.getKey() + "] setting.",
                 false,
-                null
+                meta
             );
             assertThat(issues, hasItem(expected));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> buildMetaObjectForRemovableSettings(String... settingNames) throws JsonProcessingException {
+        String settingNamesString = Arrays.stream(settingNames)
+            .map(settingName -> "\"" + settingName + "\"")
+            .collect(Collectors.joining(","));
+        String metaString = "{\"actions\": [{\"action_type\": \"remove_settings\", \"objects\":[" + settingNamesString + "]}]}";
+        return new ObjectMapper().readValue(metaString, Map.class);
     }
 
     public void testAutoImportDanglingIndicesSetting() {

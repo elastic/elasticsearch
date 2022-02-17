@@ -68,13 +68,12 @@ public final class ProviderLocator<T> implements Supplier<T> {
 
     private T loadAsModule(EmbeddedImplClassLoader loader) throws IOException {
         ProviderLocator.class.getModule().addUses(providerType);
-        try (CloseableModuleFinder moduleFinder = loader.moduleFinder()) {
-            assert moduleFinder.find(providerModuleName).isPresent();
-            ModuleLayer parentLayer = ModuleLayer.boot();
-            Configuration cf = parentLayer.configuration().resolve(ModuleFinder.of(), moduleFinder, Set.of(providerModuleName));
-            ModuleLayer layer = parentLayer.defineModules(cf, nm -> loader); // all modules in one loader
-            ServiceLoader<T> sl = ServiceLoader.load(layer, providerType);
-            return sl.findFirst().orElseThrow();
-        }
+        ModuleFinder moduleFinder = loader.moduleFinder();
+        assert moduleFinder.find(providerModuleName).isPresent();
+        ModuleLayer parentLayer = ModuleLayer.boot();
+        Configuration cf = parentLayer.configuration().resolve(ModuleFinder.of(), moduleFinder, Set.of(providerModuleName));
+        ModuleLayer layer = parentLayer.defineModules(cf, nm -> loader); // all modules in one loader
+        ServiceLoader<T> sl = ServiceLoader.load(layer, providerType);
+        return sl.findFirst().orElseThrow();
     }
 }

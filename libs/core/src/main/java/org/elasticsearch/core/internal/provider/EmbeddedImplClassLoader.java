@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.lang.module.ModuleFinder;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -152,22 +153,19 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     }
 
     /**
-     * Returns a module finder capable of finding the modules, if any, that are loadable by this embedded impl class loader.
+     * Returns a module finder capable of finding the modules that are loadable by this embedded impl class loader.
      *
-     * <p> The module finder returned by this method can be used during module resolution in order to create a configuration. This
-     * configuration can subsequently be materialized as a module layer in which classes and resources are loaded by this embedded impl
-     * class loader.
-     *
-     * <p> The module finder returned by this method is closeable. Closing the finder will release any resources held by the finder.
+     * <p> The module finder returned by this method can be used during resolution in order to create a configuration. This configuration
+     * can subsequently be materialized as a module layer in which classes and resources are loaded by this embedded impl class loader.
      */
-    CloseableModuleFinder moduleFinder() throws IOException {
+    ModuleFinder moduleFinder() throws IOException {
         Path[] modulePath = modulePath();
         assert modulePath.length >= 1;
+        ModuleFinder moduleFinder = InMemoryModuleFinder.of(modulePath);
         if (modulePath[0].getFileSystem().provider().getScheme().equals("jar")) {
-            return CloseableModuleFinder.of(() -> modulePath[0].getFileSystem().close(), modulePath);
-        } else {
-            return CloseableModuleFinder.of(modulePath);
+            modulePath[0].getFileSystem().close();
         }
+        return moduleFinder;
     }
 
     private Path[] modulePath() throws IOException {

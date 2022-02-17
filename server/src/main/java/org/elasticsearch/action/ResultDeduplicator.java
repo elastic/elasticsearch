@@ -28,6 +28,7 @@ public final class ResultDeduplicator<T, R> {
     private final ConcurrentMap<T, CompositeListener> requests = ConcurrentCollections.newConcurrentMap();
 
     public ResultDeduplicator(ThreadContext threadContext) {
+        assert threadContext != null;
         this.threadContext = threadContext;
     }
 

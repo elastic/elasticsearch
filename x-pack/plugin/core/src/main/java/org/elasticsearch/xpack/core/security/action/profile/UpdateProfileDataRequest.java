@@ -81,7 +81,7 @@ public class UpdateProfileDataRequest extends ActionRequest {
         return refreshPolicy;
     }
 
-    public Set<String> applicationNames() {
+    public Set<String> getApplicationNames() {
         final Set<String> names = new HashSet<>(access.keySet());
         names.addAll(data.keySet());
         return Set.copyOf(names);
@@ -90,7 +90,7 @@ public class UpdateProfileDataRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        final Set<String> applicationNames = applicationNames();
+        final Set<String> applicationNames = getApplicationNames();
         if (applicationNames.isEmpty()) {
             validationException = addValidationError("update request is empty", validationException);
         }

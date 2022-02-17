@@ -124,14 +124,18 @@ public class AprioriMapReducer implements MapReducer {
     @Override
     public void reduce(Stream<MapReducer> partitions) {
         partitions.forEach(p -> {
-            AprioriMapReducer apprioriPartition = (AprioriMapReducer) p;
-            apprioriPartition.itemSets.forEach((key, value) -> itemSets.merge(key, value, (v1, v2) -> v1 + v2));
+            // we reuse itemSets, therefore must skip the one we already have
+            if (this != p) {
+                logger.info("reduce itemSets: " + itemSets.size());
+                AprioriMapReducer apprioriPartition = (AprioriMapReducer) p;
+                apprioriPartition.itemSets.forEach((key, value) -> itemSets.merge(key, value, (v1, v2) -> v1 + v2));
+            }
         });
     }
 
     @Override
     public void reduceFinalize() {
-        apprioriSimple();
+        aprioriSimple();
     }
 
     @Override
@@ -196,9 +200,9 @@ public class AprioriMapReducer implements MapReducer {
 
     }
 
-    private void apprioriSimple() {
+    private void aprioriSimple() {
         Map<String, Long> frequentItems = new HashMap<>();
-        logger.info("appriori simple");
+        logger.info("apriori simple");
         // TODO; this should be reverse sorted
         List<Tuple<List<String>, Long>> frequentSets = itemSets.entrySet()
             .stream()
@@ -220,6 +224,7 @@ public class AprioriMapReducer implements MapReducer {
             }
             totalItemCount += entry.getValue();
         }
+        logger.info("total item count: " + totalItemCount);
         // logger.info("create start set");
         // we iterate on a list of item sets, keys are flattened as in the global list
         List<Tuple<String, Long>> startSet = new ArrayList<>();
@@ -227,7 +232,7 @@ public class AprioriMapReducer implements MapReducer {
         // create a start set with single items that have at least minSupport
         for (Entry<String, Long> entry : frequentItems.entrySet()) {
             double support = entry.getValue().doubleValue() / totalItemCount;
-            logger.info("item " + entry.getKey() + " support: " + support);
+            // logger.info("item " + entry.getKey() + " support: " + support);
 
             if (support > minimumSupport) {
                 startSet.add(new Tuple<>(entry.getKey(), entry.getValue()));
@@ -235,11 +240,11 @@ public class AprioriMapReducer implements MapReducer {
         }
 
         List<Tuple<String, Long>> lastIteration = startSet;
-        List<FrequentItemSet> closedSets = new ArrayList<>();
+        List<FrequentItemSet> candidateSets = new ArrayList<>();
 
         // frequentSets
         for (int i = 0; i < maxSetSize; ++i) {
-            logger.info("run " + i + " with " + lastIteration.size() + "sets");
+            // logger.info("run " + i + " with " + lastIteration.size() + "sets");
             Set<String> lookedAt = new HashSet<>();
             List<Tuple<String, Long>> newIteration = new ArrayList<>();
 
@@ -285,22 +290,28 @@ public class AprioriMapReducer implements MapReducer {
                         }
                     }
 
-                    logger.info("Found " + occurences + " for " + newItemSet);
+                    // logger.info("Found " + occurences + " for " + newItemSet);
 
                     double support = (double) occurences / totalItemCount;
                     if (support > minimumSupport) {
-                        logger.info("add item to forward set " + newItemSetKey + " support: " + support);
+                        // logger.info("add item to forward set " + newItemSetKey + " occurences: " + occurences + " old: " + entry.v2());
 
-                        addAsClosedSet = false;
+                        // if the new set has the same count, don't add it to closed sets
+
+                        if (occurences >= entry.v2()) {
+                            assert occurences == entry.v2() : "a grown item set can't have more occurences";
+                            addAsClosedSet = false;
+                        }
+
                         newIteration.add(new Tuple<>(newItemSetKey, occurences));
                     } else {
-                        logger.info("drop " + newItemSetKey + " support: " + support);
+                        // logger.info("drop " + newItemSetKey + " support: " + support);
                     }
                 }
 
                 if (addAsClosedSet) {
-                    logger.info("add to closed set: " + entry);
-                    closedSets.add(toFrequentItemSet(totalItemCount, entry));
+                    // logger.info("add to closed set: " + entry);
+                    candidateSets.add(toFrequentItemSet(totalItemCount, entry));
                 }
 
             }
@@ -308,10 +319,32 @@ public class AprioriMapReducer implements MapReducer {
         }
 
         for (Tuple<String, Long> item : lastIteration) {
-            closedSets.add(toFrequentItemSet(totalItemCount, item));
+            candidateSets.add(toFrequentItemSet(totalItemCount, item));
         }
-        closedSets.sort((e1, e2) -> Long.compare(e2.getDocCount(), e1.getDocCount()));
+        candidateSets.sort((e1, e2) -> {
+            int diff = Long.compare(e2.getDocCount(), e1.getDocCount());
 
+            // if 2 sets have the same doc count, prefer the larger over the smaller
+            if (diff == 0) {
+                diff = e2.getItems().size() - e1.getItems().size();
+                // TODO: if 2 sets have even the same size, do we need to compare the elements?
+            }
+
+            return diff;
+        });
+
+        // because apriori goes many ways to build sets, we have to do some additional pruning to get to closed sets
+        List<FrequentItemSet> closedSets = new ArrayList<>();
+
+        FrequentItemSet last = null;
+        for (FrequentItemSet e : candidateSets) {
+            if (last != null && last.getItems().entrySet().containsAll(e.getItems().entrySet())) {
+                continue;
+            }
+            closedSets.add(e);
+
+            last = e;
+        }
         this.frequentSets = closedSets;
     }
 
@@ -319,7 +352,7 @@ public class AprioriMapReducer implements MapReducer {
         Map<String, List<String>> frequentItemsKeyValues = new HashMap<>();
         String[] closedSetItems = Strings.tokenizeToStringArray(entry.v1(), "#");
 
-        logger.info("toFrequentItem " + entry.v1());
+        // logger.info("toFrequentItem " + entry.v1());
 
         for (String keyValue : closedSetItems) {
             String[] closedSetKeyValue = Strings.tokenizeToStringArray(keyValue, "!");

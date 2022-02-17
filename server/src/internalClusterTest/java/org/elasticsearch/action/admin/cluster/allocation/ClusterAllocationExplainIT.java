@@ -261,7 +261,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertThat(
                 parser.text(),
-                startsWith("The node holding this shard copy left the cluster and Elasticsearch is waiting for it to return.")
+                startsWith("The node containing this shard copy recently left the cluster. Elasticsearch is waiting for it to return.")
             );
             parser.nextToken();
             assertEquals("configured_delay_in_millis", parser.currentName());

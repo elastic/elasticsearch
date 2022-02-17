@@ -809,6 +809,8 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
+            final StatsRequestLimiter statsRequestLimiter = new StatsRequestLimiter(settings, settingsModule.getClusterSettings());
+
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
                 transportService,
@@ -842,7 +844,8 @@ public class Node implements Closeable {
                 responseCollectorService,
                 searchTransportService,
                 indexingLimits,
-                searchModule.getValuesSourceRegistry().getUsageService()
+                searchModule.getValuesSourceRegistry().getUsageService(),
+                statsRequestLimiter
             );
 
             final SearchService searchService = newSearchService(
@@ -899,9 +902,6 @@ public class Node implements Closeable {
             final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
                 clusterService.getClusterSettings()
             );
-
-
-            final StatsRequestLimiter statsRequestLimiter = new StatsRequestLimiter(settings, settingsModule.getClusterSettings());
 
             HealthService healthService = createHealthService(clusterService);
 

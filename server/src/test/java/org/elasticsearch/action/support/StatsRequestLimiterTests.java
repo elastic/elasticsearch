@@ -47,7 +47,7 @@ public class StatsRequestLimiterTests extends ESTestCase {
             Settings.builder().put(MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.getKey(), maxPermits).build(),
             clusterSettings
         );
-
+        StatsRequestStats.Stats stats = statsRequestLimiter.stats().iterator().next();
         for (int i = 0; i < maxPermits; i++) {
             PlainActionFuture<Integer> listener = new PlainActionFuture<>();
             statsRequestLimiter.maybeDoExecute(null, i, listener, execute);
@@ -55,12 +55,16 @@ public class StatsRequestLimiterTests extends ESTestCase {
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         statsRequestLimiter.maybeDoExecute(null, maxPermits, listener, execute);
         expectThrows(EsRejectedExecutionException.class, listener::actionGet);
+        assertEquals(maxPermits, stats.getCurrent());
 
         barrier.await();
         for (Thread thread : threads) {
             thread.join();
         }
         assertBusy(() -> assertTrue(statsRequestLimiter.tryAcquire()));
+        assertEquals(0, stats.getCurrent());
+        assertEquals(maxPermits, stats.getCompleted());
+        assertEquals(1, stats.getRejected());
     }
 
     public void testStatsRequestPermitCanBeDynamicallyUpdated() {
@@ -111,6 +115,9 @@ public class StatsRequestLimiterTests extends ESTestCase {
             throw new RuntimeException("simulated");
         };
         expectThrows(RuntimeException.class, () -> statsRequestLimiter.maybeDoExecute(null, 10, listener, execute));
+        StatsRequestStats.Stats stats = statsRequestLimiter.stats().iterator().next();
+        assertEquals(0, stats.getCurrent());
+        assertEquals(1, stats.getCompleted());
         assertTrue(statsRequestLimiter.tryAcquire());
     }
 }

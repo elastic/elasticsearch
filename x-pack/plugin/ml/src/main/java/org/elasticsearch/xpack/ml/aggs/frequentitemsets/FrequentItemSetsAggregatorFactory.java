@@ -24,6 +24,9 @@ import java.util.Map;
 public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
 
     private final List<MultiValuesSourceFieldConfig> fields;
+    private final double minimumSupport;
+    private final int minimumSetSize;
+    private final int size;
 
     public FrequentItemSetsAggregatorFactory(
         String name,
@@ -31,10 +34,16 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
         AggregatorFactory parent,
         Builder subFactoriesBuilder,
         Map<String, Object> metadata,
-        List<MultiValuesSourceFieldConfig> fields
+        List<MultiValuesSourceFieldConfig> fields,
+        double minimumSupport,
+        int minimumSetSize,
+        int size
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.fields = fields;
+        this.minimumSupport = minimumSupport;
+        this.minimumSetSize = minimumSetSize;
+        this.size = size;
     }
 
     @Override
@@ -58,7 +67,7 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
 
         }
 
-        return new FrequentItemSetsAggregator(name, context, parent, metadata, configs);
+        return new FrequentItemSetsAggregator(name, context, parent, metadata, configs, minimumSupport, minimumSetSize, size);
     }
 
 }

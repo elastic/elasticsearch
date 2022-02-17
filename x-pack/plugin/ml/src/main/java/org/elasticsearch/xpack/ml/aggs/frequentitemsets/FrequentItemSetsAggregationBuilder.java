@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -29,7 +30,12 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
 
     public static final String NAME = "frequent_items";
 
-    public static final ParseField ALGORITHM_FIELD = new ParseField("algorithm");
+    public static final double DEFAULT_MINIMUM_SUPPORT = 0.01;
+    public static final int DEFAULT_MINIMUM_SET_SIZE = 0;
+    public static final int DEFAULT_SIZE = 1000;
+
+    public static final ParseField MINIMUM_SUPPORT = new ParseField("minimum_support");
+    public static final ParseField MINIMUM_SET_SIZE = new ParseField("minimum_set_size");
     public static final ParseField FIELDS = new ParseField("fields");
 
     public static final ConstructingObjectParser<FrequentItemSetsAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
@@ -38,8 +44,11 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
         (args, context) -> {
             @SuppressWarnings("unchecked")
             List<MultiValuesSourceFieldConfig> fields = (List<MultiValuesSourceFieldConfig>) args[0];
+            double minimumSupport = args[1] == null ? DEFAULT_MINIMUM_SUPPORT : (double) args[1];
+            int minimumSetSize = args[2] == null ? DEFAULT_MINIMUM_SET_SIZE : (int) args[2];
+            int size = args[3] == null ? DEFAULT_SIZE : (int) args[3];
 
-            return new FrequentItemSetsAggregationBuilder(context, fields, (String) args[1]);
+            return new FrequentItemSetsAggregationBuilder(context, fields, minimumSupport, minimumSetSize, size);
         }
     );
 
@@ -51,27 +60,41 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
             false
         );
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, n) -> metricParser.parse(p, null).build(), FIELDS);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ALGORITHM_FIELD);
+        PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MINIMUM_SUPPORT);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MINIMUM_SET_SIZE);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Aggregation.CommonFields.SIZE);
     }
 
-    private final String algorithm;
     private final List<MultiValuesSourceFieldConfig> fields;
+    private final double minimumSupport;
+    private final int minimumSetSize;
+    private final int size;
 
-    public FrequentItemSetsAggregationBuilder(String name, List<MultiValuesSourceFieldConfig> fields, String algorithm) {
+    public FrequentItemSetsAggregationBuilder(
+        String name,
+        List<MultiValuesSourceFieldConfig> fields,
+        double minimumSupport,
+        int minimumSetSize,
+        int size
+    ) {
         super(name);
         this.fields = fields;
-        this.algorithm = algorithm != null ? algorithm : "placeholder_default";
+        this.minimumSupport = minimumSupport;
+        this.minimumSetSize = minimumSetSize;
+        this.size = size;
     }
 
     public FrequentItemSetsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         this.fields = in.readList(MultiValuesSourceFieldConfig::new);
-        this.algorithm = in.readString();
+        this.minimumSupport = in.readDouble();
+        this.minimumSetSize = in.readInt();
+        this.size = in.readInt();
     }
 
     @Override
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
-        return new FrequentItemSetsAggregationBuilder(name, fields, algorithm);
+        return new FrequentItemSetsAggregationBuilder(name, fields, minimumSupport, minimumSetSize, size);
     }
 
     @Override
@@ -82,14 +105,26 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeList(fields);
-        out.writeString(algorithm);
+        out.writeDouble(minimumSupport);
+        out.writeInt(minimumSetSize);
+        out.writeInt(size);
     }
 
     @Override
     protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
         throws IOException {
 
-        return new FrequentItemSetsAggregatorFactory(name, context, parent, subfactoriesBuilder, metadata, fields);
+        return new FrequentItemSetsAggregatorFactory(
+            name,
+            context,
+            parent,
+            subfactoriesBuilder,
+            metadata,
+            fields,
+            minimumSupport,
+            minimumSetSize,
+            size
+        );
     }
 
     @Override
@@ -100,6 +135,9 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
             field.toXContent(builder, params);
         }
         builder.endArray();
+        builder.field(MINIMUM_SUPPORT.getPreferredName(), minimumSupport);
+        builder.field(MINIMUM_SET_SIZE.getPreferredName(), minimumSetSize);
+        builder.field(Aggregation.CommonFields.SIZE.getPreferredName(), size);
         builder.endObject();
         return builder;
     }

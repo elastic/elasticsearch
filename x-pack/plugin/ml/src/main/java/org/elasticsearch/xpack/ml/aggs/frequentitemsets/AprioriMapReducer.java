@@ -37,24 +37,35 @@ public class AprioriMapReducer implements MapReducer {
     private static final int VERSION = 1;
     public static final String NAME = "frequent_items-apriori-" + VERSION;
 
-    // TODO: parameterize
-    private static final double minSupport = 0.1;
-    private static final long minSetSize = 2;
+    // TODO: do we need this parameter???
     private static final long maxSetSize = 10;
 
     private final String aggregationWritableName;
 
     private Map<String, Long> itemSets = null;
+    private final double minimumSupport;
+    private final int minimumSetSize;
+    private final int size;
 
     private StringBuilder stringBuilder = new StringBuilder();
     private List<FrequentItemSet> frequentSets = null;
 
-    public AprioriMapReducer(String aggregationWritableName) {
+    public AprioriMapReducer(String aggregationWritableName, double minimumSupport, int minimumSetSize, int size) {
         this.aggregationWritableName = aggregationWritableName;
+        this.minimumSupport = minimumSupport;
+        this.minimumSetSize = minimumSetSize;
+        this.size = size;
     }
 
     public AprioriMapReducer(StreamInput in) throws IOException {
         this.aggregationWritableName = in.readString();
+
+        // parameters
+        this.minimumSupport = in.readDouble();
+        this.minimumSetSize = in.readInt();
+        this.size = in.readInt();
+
+        // data
         this.itemSets = in.readMap(StreamInput::readString, StreamInput::readLong);
 
         // not send over the wire
@@ -74,6 +85,13 @@ public class AprioriMapReducer implements MapReducer {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(aggregationWritableName);
+
+        // parameters
+        out.writeDouble(minimumSupport);
+        out.writeInt(minimumSetSize);
+        out.writeInt(size);
+
+        // data
         out.writeMap(itemSets, StreamOutput::writeString, StreamOutput::writeLong);
     }
 
@@ -211,7 +229,7 @@ public class AprioriMapReducer implements MapReducer {
             double support = entry.getValue().doubleValue() / totalItemCount;
             logger.info("item " + entry.getKey() + " support: " + support);
 
-            if (support > minSupport) {
+            if (support > minimumSupport) {
                 startSet.add(new Tuple<>(entry.getKey(), entry.getValue()));
             }
         }
@@ -229,7 +247,7 @@ public class AprioriMapReducer implements MapReducer {
                 String[] itemsArray = Strings.tokenizeToStringArray(entry.v1(), "#");
                 List<String> items = itemsArray != null ? Arrays.asList(itemsArray) : Collections.singletonList(entry.v1());
 
-                boolean addAsClosedSet = items.size() > minSetSize;
+                boolean addAsClosedSet = items.size() > minimumSetSize;
                 // iterate over the start set and try to add items
                 for (Tuple<String, Long> item : startSet) {
 
@@ -251,7 +269,7 @@ public class AprioriMapReducer implements MapReducer {
 
                     long occurences = 0;
                     long countDown = totalItemCount;
-                    long minCount = (long) (totalItemCount * minSupport);
+                    long minCount = (long) (totalItemCount * minimumSupport);
                     // calculate the new support for it
                     for (Tuple<List<String>, Long> groundTruth : frequentSets) {
                         // logger.info("Lookup " + newItemSet + " in " + groundTruth.v1());
@@ -270,7 +288,7 @@ public class AprioriMapReducer implements MapReducer {
                     logger.info("Found " + occurences + " for " + newItemSet);
 
                     double support = (double) occurences / totalItemCount;
-                    if (support > minSupport) {
+                    if (support > minimumSupport) {
                         logger.info("add item to forward set " + newItemSetKey + " support: " + support);
 
                         addAsClosedSet = false;

@@ -137,7 +137,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
 
     @Override
     protected void doExecute(Task task, RecoveryRequest request, ActionListener<RecoveryResponse> listener) {
-        statsRequestLimiter.maybeDoExecute(task, request, listener, super::doExecute);
+        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
     }
 
     @Nullable // unless running tests that inject extra behaviour

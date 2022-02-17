@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.support.StatsRequestLimiter.MAX_CONCURRENT_STATS_REQUESTS_PER_NODE;
 
 public class StatsRequestLimiterTests extends ESTestCase {
@@ -47,14 +49,15 @@ public class StatsRequestLimiterTests extends ESTestCase {
             Settings.builder().put(MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.getKey(), maxPermits).build(),
             clusterSettings
         );
-        StatsRequestStats.Stats stats = statsRequestLimiter.stats().iterator().next();
+
         for (int i = 0; i < maxPermits; i++) {
             PlainActionFuture<Integer> listener = new PlainActionFuture<>();
-            statsRequestLimiter.maybeDoExecute(null, i, listener, execute);
+            statsRequestLimiter.tryToExecute(createTask(), i, listener, execute);
         }
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
-        statsRequestLimiter.maybeDoExecute(null, maxPermits, listener, execute);
+        statsRequestLimiter.tryToExecute(createTask(), maxPermits, listener, execute);
         expectThrows(EsRejectedExecutionException.class, listener::actionGet);
+        StatsRequestStats.Stats stats = getStats(statsRequestLimiter);
         assertEquals(maxPermits, stats.getCurrent());
 
         barrier.await();
@@ -62,6 +65,7 @@ public class StatsRequestLimiterTests extends ESTestCase {
             thread.join();
         }
         assertBusy(() -> assertTrue(statsRequestLimiter.tryAcquire()));
+        stats = getStats(statsRequestLimiter);
         assertEquals(0, stats.getCurrent());
         assertEquals(maxPermits, stats.getCompleted());
         assertEquals(1, stats.getRejected());
@@ -114,10 +118,25 @@ public class StatsRequestLimiterTests extends ESTestCase {
             assertFalse(statsRequestLimiter.tryAcquire());
             throw new RuntimeException("simulated");
         };
-        expectThrows(RuntimeException.class, () -> statsRequestLimiter.maybeDoExecute(null, 10, listener, execute));
-        StatsRequestStats.Stats stats = statsRequestLimiter.stats().iterator().next();
+        expectThrows(RuntimeException.class, () -> statsRequestLimiter.tryToExecute(createTask(), 10, listener, execute));
+        StatsRequestStats.Stats stats = getStats(statsRequestLimiter);
         assertEquals(0, stats.getCurrent());
         assertEquals(1, stats.getCompleted());
         assertTrue(statsRequestLimiter.tryAcquire());
+    }
+
+    private StatsRequestStats.Stats getStats(StatsRequestLimiter statsRequestLimiter) {
+        return statsRequestLimiter.stats().iterator().next();
+    }
+
+    private Task createTask() {
+        return new Task(
+            randomLong(),
+            "transport",
+            "stats_action",
+            "description",
+            new TaskId(randomLong() + ":" + randomLong()),
+            emptyMap()
+        );
     }
 }

@@ -52,7 +52,7 @@ public class StatsRequestLimiter {
         this.maxConcurrentStatsRequestsPerNodeSemaphore.setMaxPermits(maxConcurrentBoundedDiagnosticRequestsPerNode);
     }
 
-    public <Request, Response> void maybeDoExecute(
+    public <Request, Response> void tryToExecute(
         Task task,
         Request request,
         ActionListener<Response> listener,
@@ -77,7 +77,6 @@ public class StatsRequestLimiter {
             }
         } else {
             listener.onFailure(new EsRejectedExecutionException("too many bounded diagnostic requests"));
-            statsHolder.current.dec();
             statsHolder.rejected.inc();
         }
     }

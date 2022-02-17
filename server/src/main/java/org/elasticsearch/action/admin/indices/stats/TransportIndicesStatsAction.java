@@ -151,6 +151,6 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected void doExecute(Task task, IndicesStatsRequest request, ActionListener<IndicesStatsResponse> listener) {
-        statsRequestLimiter.maybeDoExecute(task, request, listener, super::doExecute);
+        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
     }
 }

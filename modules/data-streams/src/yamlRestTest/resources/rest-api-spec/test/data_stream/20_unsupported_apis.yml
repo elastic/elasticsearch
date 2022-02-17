@@ -227,7 +227,7 @@
           - '@timestamp': '2020-12-12'
           - delete:
               _index: logs-foobar
-              _id: 10
+              _id: "10"
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: illegal_argument_exception }

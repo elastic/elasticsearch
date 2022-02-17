@@ -118,7 +118,7 @@ public class ShardStateAction {
 
     // a list of shards that failed during replication
     // we keep track of these shards in order to avoid sending duplicate failed shard requests for a single failing shard.
-    private final ResultDeduplicator<FailedShardEntry, Void> remoteFailedShardsDeduplicator = new ResultDeduplicator<>();
+    private final ResultDeduplicator<FailedShardEntry, Void> remoteFailedShardsDeduplicator;
 
     @Inject
     public ShardStateAction(
@@ -131,6 +131,7 @@ public class ShardStateAction {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        remoteFailedShardsDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
 
         followUpRerouteTaskPriority = FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()

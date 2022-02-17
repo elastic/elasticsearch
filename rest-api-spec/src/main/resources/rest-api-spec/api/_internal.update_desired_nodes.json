@@ -1,10 +1,10 @@
 {
-  "desired_nodes.update_desired_nodes":{
+  "_internal.update_desired_nodes":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/update-desired-nodes.html",
       "description": "Updates the desired nodes. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
     },
-    "stability":"stable",
+    "stability":"experimental",
     "visibility":"private",
     "headers":{
       "accept": [ "application/json"],

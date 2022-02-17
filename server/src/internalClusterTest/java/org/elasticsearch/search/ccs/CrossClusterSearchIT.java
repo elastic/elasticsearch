@@ -47,6 +47,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -95,10 +96,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         );
 
         final String nodeWithRemoteClusterClientRole = randomFrom(
-            localCluster.clusterService()
-                .state()
-                .nodes()
-                .stream()
+            StreamSupport.stream(localCluster.clusterService().state().nodes().spliterator(), false)
                 .map(DiscoveryNode::getName)
                 .filter(nodeName -> nodeWithoutRemoteClusterClientRole.equals(nodeName) == false)
                 .filter(nodeName -> nodeName.equals(pureDataNode) == false)
@@ -165,10 +163,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         final Settings.Builder allocationFilter = Settings.builder();
         if (randomBoolean()) {
             remoteCluster.ensureAtLeastNumDataNodes(3);
-            List<String> remoteDataNodes = remoteCluster.clusterService()
-                .state()
-                .nodes()
-                .stream()
+            List<String> remoteDataNodes = StreamSupport.stream(remoteCluster.clusterService().state().nodes().spliterator(), false)
                 .filter(DiscoveryNode::canContainData)
                 .map(DiscoveryNode::getName)
                 .collect(Collectors.toList());

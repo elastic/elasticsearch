@@ -160,7 +160,8 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 return discoNodes.getLocalNode();
             }
 
-            final var nodes = discoNodes.stream()
+            final var nodes = discoNodes.getAllNodes()
+                .stream()
                 // filter out elected master node (which is the local node)
                 .filter(discoNode -> discoNode.getId().equals(discoNodes.getMasterNodeId()) == false)
                 // filter out dedicated master nodes

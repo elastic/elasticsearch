@@ -202,7 +202,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      *
      * @param nodeName         the nodes name
      * @param nodeId           the nodes unique persistent id. An ephemeral id will be auto generated.
-     * @param externalId       the external id provided by orchestrators
+     * @param externalId       the external id used to identify this node by external systems
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
@@ -280,7 +280,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param attributes       node attributes
      * @param roles            node roles
      * @param version          the version of the node
-     * @param externalId       an external id provided by an orchestrator
+     * @param externalId       the external id used to identify this node by external systems
      */
     public DiscoveryNode(
         String nodeName,
@@ -436,7 +436,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * An id used to identify this node in orchestrators
+     * The external id used to identify this node by external systems
      */
     public String getExternalId() {
         return externalId;

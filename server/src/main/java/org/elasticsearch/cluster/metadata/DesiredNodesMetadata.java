@@ -63,9 +63,13 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     private DesiredNodesMetadata(DesiredNodes latestDesiredNodes, Set<DesiredNode> memberDesiredNodes) {
         this.latestDesiredNodes = latestDesiredNodes;
         this.memberDesiredNodes = Collections.unmodifiableSet(memberDesiredNodes);
-        final Set<DesiredNode> unknownNodes = new HashSet<>(latestDesiredNodes.nodes());
-        unknownNodes.removeAll(memberDesiredNodes);
-        this.unknownNodes = Collections.unmodifiableSet(unknownNodes);
+        if (latestDesiredNodes != null) {
+            final Set<DesiredNode> unknownNodes = new HashSet<>(latestDesiredNodes.nodes());
+            unknownNodes.removeAll(memberDesiredNodes);
+            this.unknownNodes = Collections.unmodifiableSet(unknownNodes);
+        } else {
+            this.unknownNodes = Collections.emptySet();
+        }
     }
 
     public static DesiredNodesMetadata readFrom(StreamInput in) throws IOException {
@@ -188,7 +192,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
             if (desiredNode != null && desiredNode.getRoles().equals(discoveryNode.getRoles()) == false) {
                 logger.warn(
-                    "Node {} has different roles [{}] in its desired node [{}]",
+                    "Node {} has different roles {} than its desired node {}",
                     discoveryNode,
                     desiredNode.getRoles(),
                     discoveryNode.getRoles()

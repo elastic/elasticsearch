@@ -314,7 +314,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
         MockLogAppender mockAppender = addLoggingExpectation(
             Level.WARN,
             DesiredNodesMetadata.Builder.class,
-            "Desired node and the current node have different roles *"
+            "Node * has different roles * than its desired node *"
         );
 
         final ClusterStateTaskExecutor.ClusterTasksResult<JoinTask> result = joinTaskExecutor.execute(

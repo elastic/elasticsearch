@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -161,11 +162,14 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     ModuleFinder moduleFinder() throws IOException {
         Path[] modulePath = modulePath();
         assert modulePath.length >= 1;
-        ModuleFinder moduleFinder = InMemoryModuleFinder.of(modulePath);
+        ModuleFinder moduleFinder1 = InMemoryModuleFinder.of(modulePath);
         if (modulePath[0].getFileSystem().provider().getScheme().equals("jar")) {
             modulePath[0].getFileSystem().close();
         }
-        return moduleFinder;
+        ModuleFinder moduleFinder2 = InMemoryModuleFinder.of(
+            ModuleDescriptor.newModule("jackson-databind").build()  // stub databind
+        );
+        return ModuleFinder.compose(moduleFinder1, moduleFinder2);
     }
 
     private Path[] modulePath() throws IOException {

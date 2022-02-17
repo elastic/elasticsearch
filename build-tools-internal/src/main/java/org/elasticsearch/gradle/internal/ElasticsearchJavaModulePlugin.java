@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Named;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -220,6 +221,7 @@ public class ElasticsearchJavaModulePlugin implements Plugin<Project> {
         Configuration moduleConfiguration = configurations.maybeCreate(moduleConfigurationNameFor(configurationName));
         moduleConfiguration.setCanBeConsumed(false);
         moduleConfiguration.setCanBeResolved(false);
+        GradleUtils.disableTransitiveDependencies(moduleConfiguration);
         conventionConfiguration.extendsFrom(moduleConfiguration);
         // logger.info("Created module configuration for %s: %s".formatted(conventionConfiguration.getName(),
         // moduleConfiguration.getName()));

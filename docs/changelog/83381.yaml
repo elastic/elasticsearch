@@ -1,0 +1,7 @@
+pr: 83381
+summary: Replace scroll cursors with point-in-time and `search_after`
+area: SQL
+type: enhancement
+issues:
+ - 61873
+ - 80523

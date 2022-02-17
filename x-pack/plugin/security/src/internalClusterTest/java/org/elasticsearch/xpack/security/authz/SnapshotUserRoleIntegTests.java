@@ -17,10 +17,7 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.PutUserRequest;
-import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +28,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
@@ -72,12 +68,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         final char[] password = new char[] { 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
         final String snapshotUserToken = basicAuthHeaderValue(user, new SecureString(password));
         client = client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken));
-        PutUserResponse response = new TestRestHighLevelClient().security()
-            .putUser(
-                PutUserRequest.withPassword(new User(user, List.of("snapshot_user")), password, true, RefreshPolicy.IMMEDIATE),
-                SECURITY_REQUEST_OPTIONS
-            );
-        assertTrue(response.isCreated());
+        getSecurityClient().putUser(new org.elasticsearch.xpack.core.security.user.User(user, "snapshot_user"), new SecureString(password));
         ensureGreen(INTERNAL_SECURITY_MAIN_INDEX_7);
     }
 

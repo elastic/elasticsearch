@@ -305,7 +305,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
      * @return a copy of this {@link Metadata} with most of the global components removed since these need not be persisted on data nodes.
      */
     public Metadata forDataNodePersistence() {
-        return Metadata.builder(
+        final var builder = Metadata.builder(
             new Metadata(
                 clusterUUID,
                 clusterUUIDCommitted,
@@ -334,7 +334,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 Collections.emptyMap(),
                 Version.CURRENT
             )
-        ).build();
+        );
+        for (final var indexMetadata : indices.values()) {
+            builder.put(indexMetadata.forDataNodePersistence(), false);
+        }
+        return builder.build();
     }
 
     public long version() {

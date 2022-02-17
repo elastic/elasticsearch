@@ -645,6 +645,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
+    public IndexMetadata forDataNodePersistence() {
+        final var builder = builder(this);
+        builder.putMapping(MappingMetadata.EMPTY_MAPPINGS);
+        builder.removeAllAliases();
+        for (String customKey : customData.keySet()) {
+            builder.removeCustom(customKey);
+        }
+        // TODO clear out unnecessary settings too? NB need SETTING_DATA_PATH for RemoveCorruptedShardDataCommand
+        return builder.build();
+    }
+
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
         if (mapping() == mapping) {
             return this;

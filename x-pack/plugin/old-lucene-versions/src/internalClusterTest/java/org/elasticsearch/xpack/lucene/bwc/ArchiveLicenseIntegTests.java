@@ -31,6 +31,7 @@ import org.elasticsearch.license.PostStartTrialRequest;
 import org.elasticsearch.license.PostStartTrialResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -42,6 +43,9 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
+import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -52,6 +56,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.oneOf;
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
@@ -128,6 +133,24 @@ public class ArchiveLicenseIntegTests extends AbstractSnapshotIntegTestCase {
 
         PostStartTrialRequest request = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName()).acknowledge(true);
         client().execute(PostStartTrialAction.INSTANCE, request).get();
+    }
+
+    public void testFeatureUsage() throws Exception {
+        XPackUsageFeatureResponse usage = client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest()).get();
+        assertThat(usage.getUsage(), instanceOf(ArchiveFeatureSetUsage.class));
+        ArchiveFeatureSetUsage archiveUsage = (ArchiveFeatureSetUsage) usage.getUsage();
+        assertEquals(0, archiveUsage.getNumberOfArchiveIndices());
+
+        final RestoreSnapshotRequest req = new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName).waitForCompletion(true);
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().restoreSnapshot(req).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+        ensureGreen(indexName);
+
+        usage = client().execute(XPackUsageFeatureAction.ARCHIVE, new XPackUsageRequest()).get();
+        assertThat(usage.getUsage(), instanceOf(ArchiveFeatureSetUsage.class));
+        archiveUsage = (ArchiveFeatureSetUsage) usage.getUsage();
+        assertEquals(1, archiveUsage.getNumberOfArchiveIndices());
     }
 
     public void testFailRestoreOnInvalidLicense() throws Exception {

@@ -47,7 +47,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     private final String type;
     private final String id;
 
-    private boolean ignoreUnmapped = false;
+    private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     public ParentIdQueryBuilder(String type, String id) {
         this.type = type;
@@ -103,8 +103,10 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         builder.startObject(NAME);
         builder.field(TYPE_FIELD.getPreferredName(), type);
         builder.field(ID_FIELD.getPreferredName(), id);
-        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
-        printBoostAndQueryName(builder);
+        if (ignoreUnmapped != DEFAULT_IGNORE_UNMAPPED) {
+            builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

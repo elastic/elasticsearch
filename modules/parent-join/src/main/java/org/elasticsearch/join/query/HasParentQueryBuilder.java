@@ -48,6 +48,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
+    private static final boolean DEFAULT_SCORE = false;
+
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField PARENT_TYPE_FIELD = new ParseField("parent_type");
     private static final ParseField SCORE_FIELD = new ParseField("score");
@@ -198,9 +200,13 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         builder.field(QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
         builder.field(PARENT_TYPE_FIELD.getPreferredName(), parentType);
-        builder.field(SCORE_FIELD.getPreferredName(), score);
-        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
-        printBoostAndQueryName(builder);
+        if (score != DEFAULT_SCORE) {
+            builder.field(SCORE_FIELD.getPreferredName(), score);
+        }
+        if (ignoreUnmapped != DEFAULT_IGNORE_UNMAPPED) {
+            builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
+        }
+        boostAndQueryNameToXContent(builder);
         if (innerHitBuilder != null) {
             builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
         }
@@ -210,7 +216,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     public static HasParentQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String parentType = null;
-        boolean score = false;
+        boolean score = DEFAULT_SCORE;
         String queryName = null;
         InnerHitBuilder innerHits = null;
         boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;

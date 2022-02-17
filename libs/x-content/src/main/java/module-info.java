@@ -6,6 +6,9 @@
  * Side Public License, v 1.
  */
 
+/**
+ * The X-Content module.
+ */
 module org.elasticsearch.xcontent {
     requires transitive org.elasticsearch.core;
 

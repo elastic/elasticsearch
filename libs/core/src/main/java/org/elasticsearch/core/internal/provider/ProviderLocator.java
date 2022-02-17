@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal;
+package org.elasticsearch.core.internal.provider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,7 +36,7 @@ public final class ProviderLocator<T> implements Supplier<T> {
     private final Class<T> providerType;
     private final String providerModuleName;
 
-    ProviderLocator(String providerName, Class<T> providerType, String providerModuleName) {
+    public ProviderLocator(String providerName, Class<T> providerType, String providerModuleName) {
         this.providerName = providerName;
         this.providerType = providerType;
         this.providerModuleName = providerModuleName;
@@ -67,6 +67,7 @@ public final class ProviderLocator<T> implements Supplier<T> {
     }
 
     private T loadAsModule(EmbeddedImplClassLoader loader) throws IOException {
+        ProviderLocator.class.getModule().addUses(providerType);
         try (CloseableModuleFinder moduleFinder = loader.moduleFinder()) {
             assert moduleFinder.find(providerModuleName).isPresent();
             ModuleLayer parentLayer = ModuleLayer.boot();

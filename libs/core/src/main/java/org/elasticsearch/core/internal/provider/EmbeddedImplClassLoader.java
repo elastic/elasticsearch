@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal;
+package org.elasticsearch.core.internal.provider;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -161,7 +161,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
      * <p> The module finder returned by this method is closeable. Closing the finder will release any resources held by the finder.
      */
     CloseableModuleFinder moduleFinder() throws IOException {
-        Function<Path,Path[]> entries = path ->  prefixToCodeBase.keySet().stream().map(pfx -> path.resolve(pfx)).toArray(Path[]::new);
+        Function<Path, Path[]> entries = path -> prefixToCodeBase.keySet().stream().map(pfx -> path.resolve(pfx)).toArray(Path[]::new);
 
         URI rootURI = rootURI(prefixToCodeBase.values().stream().findFirst().map(CodeSource::getLocation).orElseThrow());
         if (rootURI.getScheme().equals("file")) {
@@ -195,7 +195,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             } else {
                 return URI.create(getParent(getParent(getParent(embeddedJarURI.toString()))));
             }
-        }  catch (URISyntaxException e) {
+        } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
     }

@@ -1,5 +1,5 @@
 pr: 82316
 summary: Add an index->step cache to the `PolicyStepsRegistry`
-area: Features/ILM+SLM
+area: ILM+SLM
 type: enhancement
 issues: []

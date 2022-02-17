@@ -22,17 +22,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
-import org.elasticsearch.xpack.core.common.IteratingActionListener;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.BiConsumer;
 
 public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUsageRequest, XPackUsageResponse> {
 
@@ -72,37 +67,29 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
 
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener) {
-        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener = listener.delegateFailure(
-            (l, usages) -> l.onResponse(new XPackUsageResponse(usages))
-        );
-        final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(featureSets.size());
-        final AtomicInteger position = new AtomicInteger(0);
-        final BiConsumer<XPackFeatureSet, ActionListener<List<Usage>>> consumer = (featureSet, iteratingListener) -> {
-            assert Transports.assertNotTransportThread("calculating usage can be more expensive than we allow on transport threads");
-            if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
-                throw new CancellationException("Task cancelled");
-            }
+        new ActionRunnable<XPackUsageResponse>(listener) {
+            final List<XPackFeatureSet.Usage> responses = new ArrayList<>(featureSets.size());
 
-            featureSet.usage(iteratingListener.delegateFailure((l, usage) -> {
-                featureSetUsages.set(position.getAndIncrement(), usage);
-                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(ActionRunnable.supply(iteratingListener, Collections::emptyList));
-            }));
-        };
-        IteratingActionListener<List<XPackFeatureSet.Usage>, XPackFeatureSet> iteratingActionListener = new IteratingActionListener<>(
-            usageActionListener,
-            consumer,
-            featureSets,
-            threadPool.getThreadContext(),
-            (ignore) -> {
-                final List<Usage> usageList = new ArrayList<>(featureSetUsages.length());
-                for (int i = 0; i < featureSetUsages.length(); i++) {
-                    usageList.add(featureSetUsages.get(i));
+            @Override
+            protected void doRun() throws Exception {
+                if (responses.size() < featureSets.size()) {
+                    assert Transports.assertNotTransportThread(
+                        "calculating usage can be more expensive than we allow on transport threads"
+                    );
+                    if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
+                        throw new CancellationException("Task cancelled");
+                    }
+
+                    featureSets.get(responses.size()).usage(listener.delegateFailure((l, usage) -> {
+                        responses.add(usage);
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(this);
+                    }));
+                } else {
+                    assert responses.size() == featureSets.size() : responses.size() + " vs " + featureSets.size();
+                    listener.onResponse(new XPackUsageResponse(responses));
                 }
-                return usageList;
-            },
-            (ignore) -> true
-        );
-        iteratingActionListener.run();
+            }
+        }.run();
     }
 
     @Override

@@ -440,8 +440,8 @@ cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8
 cluster is not supported.
 
 Only features that exist across all searched clusters are supported. Using a
-recent feature with a remote cluster where the feature is not supported will
-result in undefined behavior.
+feature with a remote cluster where the feature is not supported will result in
+undefined behavior.
 
 A {ccs} using an unsupported configuration may still work. However, such
 searches aren't tested by Elastic, and their behavior isn't guaranteed.

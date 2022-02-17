@@ -32,7 +32,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     static final double P_VALUE_THRESHOLD = 0.025;
     private static final int MINIMUM_BUCKETS = 10;
-    private static final int MAXIMUM_CANDIDATE_CHANGE_POINTS = 100;
+    private static final int MAXIMUM_CANDIDATE_CHANGE_POINTS = 1000;
     private static final KolmogorovSmirnovTest KOLMOGOROV_SMIRNOV_TEST = new KolmogorovSmirnovTest();
 
     static Tuple<int[], Integer> candidateChangePoints(double[] values) {
@@ -184,20 +184,58 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         // Initialize running stats so that they are only missing the individual changepoint values
         upperRange.addValues(timeWindow, candidateChangePoints[0], timeWindow.length);
         lowerRange.addValues(timeWindow, 0, candidateChangePoints[0]);
+        LeastSquaresOnlineRegression lowerLeastSquares = new LeastSquaresOnlineRegression(2);
+        LeastSquaresOnlineRegression upperLeastSquares = new LeastSquaresOnlineRegression(2);
+        for (int i = 0; i < candidateChangePoints[0]; i++) {
+            lowerLeastSquares.add(i, timeWindow[i]);
+        }
+        for (int i = candidateChangePoints[0], x = 0; i < timeWindow.length; i++, x++) {
+            upperLeastSquares.add(x, timeWindow[i]);
+        }
         // TODO This is crazy inefficient, not only does it do multiple array copies, it calculates r_value without
         // taking account previous values.
+        double[] monotonicX = new double[timeWindow.length];
+        for (int i = 0; i < timeWindow.length; i++) {
+            monotonicX[i] = i;
+        }
+        int upperMovingWindow = 0;
         for (int cp : candidateChangePoints) {
-            double rv1 = fitTrend(Arrays.copyOfRange(timeWindow, 0, cp));
-            double rv2 = fitTrend(Arrays.copyOfRange(timeWindow, cp, timeWindow.length));
-            double v1 = lowerRange.variance() * (1 - Math.abs(rv1));
-            double v2 = upperRange.variance() * (1 - Math.abs(rv2));
+            double lowerRangeVar = lowerRange.variance();
+            double upperRangeVar = upperRange.variance();
+            double rv1 = lowerLeastSquares.squareResidual(
+                monotonicX,
+                0,
+                cp,
+                timeWindow,
+                0,
+                cp,
+                lowerLeastSquares.parameters(),
+                lowerRangeVar
+            );
+            double rv2 = upperLeastSquares.squareResidual(
+                monotonicX,
+                upperMovingWindow,
+                timeWindow.length - cp,
+                timeWindow,
+                cp,
+                timeWindow.length - cp,
+                upperLeastSquares.parameters(),
+                upperRangeVar
+            );
+            double v1 = lowerRangeVar * (1 - Math.abs(rv1));
+            double v2 = upperRangeVar * (1 - Math.abs(rv2));
             VarianceAndRValue varianceAndRValue = new VarianceAndRValue((cp * v1 + (n - cp) * v2) / n, (cp * rv1 + (n - cp) * rv2) / n);
             if (varianceAndRValue.compareTo(vAndR) < 0) {
                 vAndR = varianceAndRValue;
                 changePoint = cp;
             }
-            lowerRange.addValues(timeWindow, cp, cp + step);
-            upperRange.removeValues(timeWindow, cp, cp + step);
+            for (int i = 0; i < step; i++) {
+                lowerRange.addValue(timeWindow[i + cp]);
+                upperRange.removeValue(timeWindow[i + cp]);
+                lowerLeastSquares.add(i + cp, timeWindow[i + cp]);
+                upperLeastSquares.remove(i + upperMovingWindow, timeWindow[i + cp]);
+                upperMovingWindow++;
+            }
         }
 
         dfAlt = n - 6;

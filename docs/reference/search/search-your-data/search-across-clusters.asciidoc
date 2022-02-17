@@ -455,8 +455,7 @@ on the same version of {es}. If you need to maintain clusters with different
 versions, you can:
 
 * Maintain a dedicated cluster for {ccs}. Keep this cluster on the earliest
-version needed to search the other clusters. For example, if you have 6.8, 7.14,
-and 7.17 clusters, you can maintain a dedicated 6.8 cluster to use
+version needed to search the other clusters. For example, if you have 7.17 and 8.x clusters, you can maintain a dedicated 7.17 cluster to use
 as the local cluster for {ccs}.
 
 * Keep each cluster no more than one minor version apart. This lets you use any

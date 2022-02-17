@@ -158,6 +158,11 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(values);
         out.writeBoolean(keyed);

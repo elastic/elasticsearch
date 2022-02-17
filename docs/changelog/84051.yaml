@@ -1,0 +1,6 @@
+pr: 84051
+summary: '`GeometryNormalizer` should not fail if it cannot compute signed area'
+area: Geo
+type: bug
+issues:
+ - 83946

@@ -9,32 +9,25 @@
 package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -47,7 +40,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
         taskBatcher = new TestTaskBatcher(logger, threadExecutor);
     }
 
-    class TestTaskBatcher extends TaskBatcher {
+    static class TestTaskBatcher extends TaskBatcher {
 
         TestTaskBatcher(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
             super(logger, threadExecutor);
@@ -58,20 +51,13 @@ public class TaskBatcherTests extends TaskExecutorTests {
         protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
             List<UpdateTask> updateTasks = (List<UpdateTask>) tasks;
             ((TestExecutor<Object>) batchingKey).execute(updateTasks.stream().map(t -> t.task).collect(Collectors.toList()));
-            updateTasks.forEach(updateTask -> updateTask.listener.processed(updateTask.source));
+            updateTasks.forEach(updateTask -> updateTask.listener.processed());
         }
 
         @Override
-        protected void onTimeout(List<? extends BatchedTask> tasks, TimeValue timeout) {
+        protected void onTimeout(BatchedTask task, TimeValue timeout) {
             threadPool.generic()
-                .execute(
-                    () -> tasks.forEach(
-                        task -> ((UpdateTask) task).listener.onFailure(
-                            task.source,
-                            new ProcessClusterEventTimeoutException(timeout, task.source)
-                        )
-                    )
-                );
+                .execute(() -> ((UpdateTask) task).listener.onFailure(new ProcessClusterEventTimeoutException(timeout, task.source)));
         }
 
         class UpdateTask extends BatchedTask {
@@ -99,20 +85,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
     }
 
     private <T> void submitTask(String source, T task, ClusterStateTaskConfig config, TestExecutor<T> executor, TestListener listener) {
-        submitTasks(source, Collections.singletonMap(task, listener), config, executor);
-    }
-
-    private <T> void submitTasks(
-        final String source,
-        final Map<T, TestListener> tasks,
-        final ClusterStateTaskConfig config,
-        final TestExecutor<T> executor
-    ) {
-        List<TestTaskBatcher.UpdateTask> safeTasks = tasks.entrySet()
-            .stream()
-            .map(e -> taskBatcher.new UpdateTask(config.priority(), source, e.getKey(), e.getValue(), executor))
-            .collect(Collectors.toList());
-        taskBatcher.submitTasks(safeTasks, config.timeout());
+        taskBatcher.submitTask(taskBatcher.new UpdateTask(config.priority(), source, task, listener, executor), config.timeout());
     }
 
     @Override
@@ -144,7 +117,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
         TaskExecutor executorB = new TaskExecutor();
 
         final ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.NORMAL);
-        final TestListener noopListener = (source, e) -> { throw new AssertionError(e); };
+        final TestListener noopListener = e -> { throw new AssertionError(e); };
         // this blocks the cluster state queue, so we can set it up right
         submitTask("0", "A0", config, executorA, noopListener);
         // wait to be processed
@@ -196,19 +169,16 @@ public class TaskBatcherTests extends TaskExecutorTests {
 
         int tasksSubmittedPerThread = randomIntBetween(2, 1024);
 
-        CopyOnWriteArrayList<Tuple<String, Throwable>> failures = new CopyOnWriteArrayList<>();
         CountDownLatch updateLatch = new CountDownLatch(numberOfThreads * tasksSubmittedPerThread);
 
         final TestListener listener = new TestListener() {
             @Override
-            public void onFailure(String source, Exception e) {
-                logger.error(() -> new ParameterizedMessage("unexpected failure: [{}]", source), e);
-                failures.add(new Tuple<>(source, e));
-                updateLatch.countDown();
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
             }
 
             @Override
-            public void processed(String source) {
+            public void processed() {
                 updateLatch.countDown();
             }
         };
@@ -242,9 +212,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
         // wait for all threads to finish
         barrier.await();
 
-        updateLatch.await();
-
-        assertThat(failures, empty());
+        assertTrue(updateLatch.await(10, TimeUnit.SECONDS));
 
         for (int i = 0; i < numberOfThreads; i++) {
             assertEquals(tasksSubmittedPerThread, executors[i].tasks.size());
@@ -255,34 +223,24 @@ public class TaskBatcherTests extends TaskExecutorTests {
         }
     }
 
-    public void testSingleBatchSubmission() throws InterruptedException {
-        Map<Integer, TestListener> tasks = new HashMap<>();
-        final int numOfTasks = randomInt(10);
-        final CountDownLatch latch = new CountDownLatch(numOfTasks);
-        Set<Integer> usedKeys = new HashSet<>(numOfTasks);
-        for (int i = 0; i < numOfTasks; i++) {
-            int key = randomValueOtherThanMany(k -> usedKeys.contains(k), () -> randomInt(1024));
-            tasks.put(key, new TestListener() {
-                @Override
-                public void processed(String source) {
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
-            usedKeys.add(key);
-        }
-        assert usedKeys.size() == numOfTasks;
-
+    public void testSingleTaskSubmission() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final Integer task = randomInt(1024);
         TestExecutor<Integer> executor = taskList -> {
-            assertThat(taskList.size(), equalTo(tasks.size()));
-            assertThat(taskList.stream().collect(Collectors.toSet()), equalTo(tasks.keySet()));
+            assertThat(taskList.size(), equalTo(1));
+            assertThat(taskList.get(0), equalTo(task));
         };
-        submitTasks("test", tasks, ClusterStateTaskConfig.build(Priority.LANGUID), executor);
+        submitTask("test", task, ClusterStateTaskConfig.build(randomFrom(Priority.values())), executor, new TestListener() {
+            @Override
+            public void processed() {
+                latch.countDown();
+            }
 
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        });
         latch.await();
     }
 
@@ -295,12 +253,12 @@ public class TaskBatcherTests extends TaskExecutorTests {
             SimpleTask task = new SimpleTask(1);
             TestListener listener = new TestListener() {
                 @Override
-                public void processed(String source) {
+                public void processed() {
                     latch.countDown();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     throw new AssertionError(e);
                 }
             };

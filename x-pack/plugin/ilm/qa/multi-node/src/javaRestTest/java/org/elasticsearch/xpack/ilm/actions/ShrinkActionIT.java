@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm.actions;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -184,7 +185,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         // add a policy
         Map<String, LifecycleAction> hotActions = Map.of(
             RolloverAction.NAME,
-            new RolloverAction(null, null, null, 1L),
+            new RolloverAction(null, null, null, 1L, null),
             ShrinkAction.NAME,
             new ShrinkAction(expectedFinalShards, null)
         );

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.junit.After;
@@ -24,7 +23,7 @@ import java.util.concurrent.Future;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
@@ -91,18 +90,13 @@ public class SqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
         disableBlocks(plugins);
         Exception exception = expectThrows(Exception.class, future::get);
-        Throwable inner = ExceptionsHelper.unwrap(exception, SearchPhaseExecutionException.class);
+        assertNotNull(ExceptionsHelper.unwrap(exception, TaskCancelledException.class));
         if (cancelDuringSearch) {
             // Make sure we cancelled inside search
-            assertNotNull(inner);
-            assertThat(inner, instanceOf(SearchPhaseExecutionException.class));
-            assertThat(inner.getCause(), instanceOf(TaskCancelledException.class));
+            assertThat(getNumberOfContexts(plugins), greaterThan(0));
         } else {
             // Make sure we were not cancelled inside search
-            assertNull(inner);
             assertThat(getNumberOfContexts(plugins), equalTo(0));
-            Throwable cancellationException = ExceptionsHelper.unwrap(exception, TaskCancelledException.class);
-            assertNotNull(cancellationException);
         }
     }
 }

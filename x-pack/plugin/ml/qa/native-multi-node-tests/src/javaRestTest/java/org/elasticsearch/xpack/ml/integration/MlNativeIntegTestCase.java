@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
-import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -111,7 +110,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.monitoring.MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
@@ -207,7 +205,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     protected void cleanUp() {
         setUpgradeModeTo(false);
-        deleteAllDataStreams();
         cleanUpResources();
     }
 
@@ -220,7 +217,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                 AnomalyDetectorsIndex.jobResultsIndexPrefix(),
                 InferenceIndexConstants.LATEST_INDEX_NAME,
-                SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME
+                SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME,
+                ".deprecation-indexing-template",
+                ".deprecation-indexing-settings",
+                ".deprecation-indexing-mappings"
             )
         );
     }
@@ -411,14 +411,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             )
         ).actionGet();
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
-    }
-
-    protected static void deleteAllDataStreams() {
-        AcknowledgedResponse response = client().execute(
-            DeleteDataStreamAction.INSTANCE,
-            new DeleteDataStreamAction.Request(new String[] { "*" })
-        ).actionGet();
-        assertAcked(response);
     }
 
     public static class MockPainlessScriptEngine extends MockScriptEngine {

@@ -16,6 +16,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -69,6 +70,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     private final TriggerService triggerService;
     private final WatchParser watchParser;
     private final Client client;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportExecuteWatchAction(
@@ -80,7 +82,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
         XPackLicenseState licenseState,
         WatchParser watchParser,
         Client client,
-        TriggerService triggerService
+        TriggerService triggerService,
+        ClusterService clusterService
     ) {
         super(ExecuteWatchAction.NAME, transportService, actionFilters, licenseState, ExecuteWatchRequest::new);
         this.threadPool = threadPool;
@@ -89,6 +92,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
         this.triggerService = triggerService;
         this.watchParser = watchParser;
         this.client = client;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -150,7 +154,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
              * Ensure that the headers from the incoming request are used instead those of the stored watch otherwise the watch would run
              * as the user who stored the watch, but it needs to run as the user who executes this request.
              */
-            watch.status().setHeaders(ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()));
+            watch.status()
+                .setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state()));
 
             final String triggerType = watch.trigger().type();
             final TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());

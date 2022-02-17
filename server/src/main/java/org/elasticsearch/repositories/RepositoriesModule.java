@@ -8,6 +8,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -18,10 +19,12 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Sets up classes for Snapshot/Restore.
@@ -80,6 +83,14 @@ public final class RepositoriesModule {
             }
         }
 
+        List<Consumer<IndexMetadata>> preRestoreChecks = new ArrayList<>();
+        for (RepositoryPlugin repoPlugin : repoPlugins) {
+            Consumer<IndexMetadata> preRestoreCheck = repoPlugin.addPreRestoreCheck();
+            if (preRestoreCheck != null) {
+                preRestoreChecks.add(preRestoreCheck);
+            }
+        }
+
         Settings settings = env.settings();
         Map<String, Repository.Factory> repositoryTypes = Collections.unmodifiableMap(factories);
         Map<String, Repository.Factory> internalRepositoryTypes = Collections.unmodifiableMap(internalFactories);
@@ -89,7 +100,8 @@ public final class RepositoriesModule {
             transportService,
             repositoryTypes,
             internalRepositoryTypes,
-            transportService.getThreadPool()
+            transportService.getThreadPool(),
+            preRestoreChecks
         );
     }
 

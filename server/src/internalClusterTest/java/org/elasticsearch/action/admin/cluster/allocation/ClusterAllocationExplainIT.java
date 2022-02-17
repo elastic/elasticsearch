@@ -209,9 +209,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertThat(
             allocateDecision.getExplanation(),
             allOf(
-                containsString("The node holding this shard copy left the cluster and Elasticsearch is waiting for it to return."),
+                containsString("The node containing this shard copy recently left the cluster. Elasticsearch is waiting for it to return."),
                 containsString("If the node does not return within ["),
-                containsString("] then Elasticsearch will be able to allocate this shard to another node in the cluster.")
+                containsString("] then Elasticsearch will allocate this shard to another node. Please wait.")
             )
         );
         assertNull(allocateDecision.getAllocationId());

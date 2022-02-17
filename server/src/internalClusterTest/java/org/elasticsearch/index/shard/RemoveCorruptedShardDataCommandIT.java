@@ -468,6 +468,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         assertThat(seqNoStats.getLocalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testCorruptTranslogTruncationOfReplica() throws Exception {
         internalCluster().startMasterOnlyNode();
 

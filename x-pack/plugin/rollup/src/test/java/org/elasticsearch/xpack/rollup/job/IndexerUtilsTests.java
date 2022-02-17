@@ -314,11 +314,11 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             List<CompositeAggregation.Bucket> foos = new ArrayList<>();
 
             CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
-            Map<String, Object> keys = Maps.newLinkedHashMapWithExpectedSize(3);
+            LinkedHashMap<String, Object> keys = Maps.newLinkedHashMapWithExpectedSize(3);
             keys.put("foo.date_histogram", 123L);
             keys.put("bar.terms", "baz");
             keys.put("abc.histogram", 1.9);
-            keys = shuffleMap((LinkedHashMap<String, Object>) keys, Collections.emptySet());
+            keys = shuffleMap(keys, Collections.emptySet());
             when(bucket.getKey()).thenReturn(keys);
 
             List<Aggregation> list = new ArrayList<>(3);

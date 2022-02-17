@@ -753,7 +753,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     expectedUrl,
                     "Remove the [index.search.slowlog.level] setting. Use the [index.*.slowlog.threshold] settings to set the log levels.",
                     false,
-                    null
+                    DeprecationIssue.createMetaMapForRemovableSettings(
+                        Collections.singletonList(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey())
+                    )
                 ),
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
@@ -762,7 +764,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     "Remove the [index.indexing.slowlog.level] setting. Use the [index.*.slowlog.threshold]"
                         + " settings to set the log levels.",
                     false,
-                    null
+                    DeprecationIssue.createMetaMapForRemovableSettings(
+                        Collections.singletonList(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey())
+                    )
                 )
             )
         );
@@ -809,7 +813,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 settingValue
             ),
             false,
-            null
+            DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(INDEX_ROUTING_REQUIRE_SETTING.getKey()))
         );
         final DeprecationIssue expectedIncludeIssue = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
@@ -822,7 +826,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 settingValue
             ),
             false,
-            null
+            DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(INDEX_ROUTING_INCLUDE_SETTING.getKey()))
         );
         final DeprecationIssue expectedExcludeIssue = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
@@ -834,7 +838,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 INDEX_ROUTING_EXCLUDE_SETTING.getKey()
             ),
             false,
-            null
+            DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(INDEX_ROUTING_EXCLUDE_SETTING.getKey()))
         );
 
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
@@ -963,7 +967,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     "Remove the [index.max_adjacency_matrix_filters] setting. Set [indices.query.bool.max_clause_count] to [5]. "
                         + "[index.max_adjacency_matrix_filters] will be ignored in 8.0.",
                     false,
-                    null
+                    DeprecationIssue.createMetaMapForRemovableSettings(
+                        Collections.singletonList(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey())
+                    )
                 )
             )
         );
@@ -1041,7 +1047,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://ela.st/es-deprecation-7-mapper-dynamic-setting",
             "Remove the [index.mapper.dynamic] setting.",
             false,
-            null
+            DeprecationIssue.createMetaMapForRemovableSettings(
+                Collections.singletonList(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey())
+            )
         );
         assertThat(issues, hasItem(expected));
     }

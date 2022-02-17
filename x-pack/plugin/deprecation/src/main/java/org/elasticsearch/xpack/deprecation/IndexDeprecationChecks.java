@@ -591,7 +591,14 @@ public class IndexDeprecationChecks {
                 "Remove the [%s] setting. Use the [index.*.slowlog.threshold] settings to " + "set the log levels.",
                 setting.getKey()
             );
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                message,
+                url,
+                details,
+                false,
+                DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(setting.getKey()))
+            );
         }
         return null;
     }
@@ -637,7 +644,11 @@ public class IndexDeprecationChecks {
         final String value = removedSetting.get(settings).toString();
         final String message = String.format(Locale.ROOT, messagePattern, removedSettingKey);
         final String details = String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetail);
-        return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
+        boolean canBeRemoved = removedSetting.isDynamic() && removedSetting.isPrivateIndex() == false;
+        Map<String, Object> meta = canBeRemoved
+            ? DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(removedSettingKey))
+            : null;
+        return new DeprecationIssue(deprecationLevel, message, url, details, false, meta);
     }
 
     static DeprecationIssue checkIndexRoutingRequireSetting(IndexMetadata indexMetadata) {
@@ -754,10 +765,6 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkSettingNoReplacement(IndexMetadata indexMetadata, Setting<?> deprecatedSetting, String url) {
-        return NodeDeprecationChecks.checkSettingNoReplacement(indexMetadata.getSettings(), deprecatedSetting, url);
-    }
-
     static DeprecationIssue httpContentTypeRequiredSettingCheck(IndexMetadata indexMetadata) {
         Setting<Boolean> deprecatedSetting = Store.FORCE_RAM_TERM_DICT;
         String url = "https://ela.st/es-deprecation-7-force-memory-term-dictionary-setting";
@@ -772,7 +779,15 @@ public class IndexDeprecationChecks {
 
     static DeprecationIssue mapperDyamicSettingCheck(IndexMetadata indexMetadata) {
         Setting<Boolean> deprecatedSetting = MapperService.INDEX_MAPPER_DYNAMIC_SETTING;
+        Settings indexSettings = indexMetadata.getSettings();
+        if (deprecatedSetting.exists(indexSettings) == false) {
+            return null;
+        }
+        String deprecatedSettingKey = deprecatedSetting.getKey();
         String url = "https://ela.st/es-deprecation-7-mapper-dynamic-setting";
-        return checkSettingNoReplacement(indexMetadata, deprecatedSetting, url);
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
+        final String details = String.format(Locale.ROOT, "Remove the [%s] setting.", deprecatedSettingKey);
+        Map<String, Object> meta = DeprecationIssue.createMetaMapForRemovableSettings(Collections.singletonList(deprecatedSettingKey));
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, meta);
     }
 }

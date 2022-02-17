@@ -786,7 +786,7 @@ public class MachineLearning extends Plugin
             anomalyDetectionAuditor
         );
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
-        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry, clusterService);
         this.datafeedConfigProvider.set(datafeedConfigProvider);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(
@@ -969,7 +969,8 @@ public class MachineLearning extends Plugin
         DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(
             client,
             xContentRegistry,
-            dataFrameAnalyticsAuditor
+            dataFrameAnalyticsAuditor,
+            clusterService
         );
         assert client instanceof NodeClient;
         DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager(

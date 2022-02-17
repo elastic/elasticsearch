@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -212,7 +213,12 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         private final ValueFetcher inputFieldValueFetcher;
 
         LookupFieldValueFetcher(SearchExecutionContext context) {
-            this.inputFieldValueFetcher = context.getFieldType(inputField).valueFetcher(context, null);
+            final MappedFieldType inputFieldType = context.getFieldType(inputField);
+            // do not allow unmapped field
+            if (inputFieldType == null) {
+                throw new QueryShardException(context, "No field mapping can be found for the field with name [{}]", inputField);
+            }
+            this.inputFieldValueFetcher = inputFieldType.valueFetcher(context, null);
         }
 
         @Override

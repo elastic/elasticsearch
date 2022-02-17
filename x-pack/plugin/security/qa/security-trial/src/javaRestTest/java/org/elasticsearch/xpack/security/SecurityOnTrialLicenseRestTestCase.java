@@ -12,21 +12,19 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.PutUserRequest;
-import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.support.ApiKey;
-import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -36,6 +34,7 @@ import java.util.List;
 @SuppressWarnings("removal")
 public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase {
     private RestHighLevelClient highLevelAdminClient;
+    private TestSecurityClient securityClient;
 
     @Override
     protected Settings restAdminSettings() {
@@ -49,13 +48,15 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    protected TestSecurityClient getSecurityClient() {
+        if (securityClient == null) {
+            securityClient = new TestSecurityClient(adminClient());
+        }
+        return securityClient;
+    }
+
     protected void createUser(String username, SecureString password, List<String> roles) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security()
-            .putUser(
-                PutUserRequest.withPassword(new User(username, roles), password.getChars(), true, RefreshPolicy.WAIT_UNTIL),
-                RequestOptions.DEFAULT
-            );
+        getSecurityClient().putUser(new User(username, roles.toArray(String[]::new)), password);
     }
 
     protected void createRole(String name, Collection<String> clusterPrivileges) throws IOException {
@@ -75,8 +76,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     }
 
     protected void deleteUser(String username) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security().deleteUser(new DeleteUserRequest(username), RequestOptions.DEFAULT);
+        getSecurityClient().deleteUser(username);
     }
 
     protected void deleteRole(String name) throws IOException {

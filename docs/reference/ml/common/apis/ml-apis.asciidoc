@@ -1,0 +1,19 @@
+[role="xpack"]
+[[ml-apis]]
+= {ml-cap} APIs
+
+You can use the following APIs to retrieve information related to the {stack-ml-features}.
+
+See also <<ml-ad-apis>>, <<ml-df-analytics-apis>>, and <<ml-df-trained-models-apis>>.
+
+[discrete]
+[[ml-api-ml-info-endpoint]]
+== Info
+
+* <<get-ml-info,Machine learning info>>
+
+[discrete]
+[[ml-set-upgrade-mode-endpoint]]
+== Set upgrade mode
+
+* <<ml-set-upgrade-mode,Set upgrade mode>>

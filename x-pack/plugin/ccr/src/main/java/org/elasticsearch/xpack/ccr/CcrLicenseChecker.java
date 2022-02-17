@@ -393,11 +393,11 @@ public class CcrLicenseChecker {
         return securityContext.getUser();
     }
 
-    public static Client wrapClient(Client client, Map<String, String> headers) {
+    public static Client wrapClient(Client client, Map<String, String> headers, ClusterState clusterState) {
         if (headers.isEmpty()) {
             return client;
         } else {
-            Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(headers);
+            Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterState);
             if (filteredHeaders.isEmpty()) {
                 return client;
             }

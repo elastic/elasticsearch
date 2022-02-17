@@ -107,6 +107,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             .normalizePrefix("xpack.security.authc.realms." + type + "." + name + ".")
             .put(globalSettings)
             .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
+            .put(getFullSettingKey(identifier, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "15s")
             .build();
         final Environment env = TestEnvironment.newEnvironment(mergedSettings);
         this.sslService = new SSLService(env);

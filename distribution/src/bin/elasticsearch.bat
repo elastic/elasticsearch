@@ -158,7 +158,7 @@ ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
   -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
   -Des.bundled_jdk="%ES_BUNDLED_JDK%" ^
   --module-path="%ES_MODULEPATH%" ^
-  -m org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch !newparams!
+  --module="org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 
 endlocal
 endlocal

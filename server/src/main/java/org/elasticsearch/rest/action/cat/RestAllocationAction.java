@@ -8,6 +8,14 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+
+import com.carrotsearch.hppc.ObjectIntMap;
+
+import com.carrotsearch.hppc.ObjectIntWormMap;
+
+import com.carrotsearch.hppc.procedures.ObjectIntProcedure;
+
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -103,7 +111,7 @@ public class RestAllocationAction extends AbstractCatAction {
                 nodeId = shard.currentNodeId();
             }
 
-            allocs.put(nodeId, 1);
+            allocs.merge(nodeId, 1, Integer::sum);
         }
 
         Table table = getTableWithHeader(request);

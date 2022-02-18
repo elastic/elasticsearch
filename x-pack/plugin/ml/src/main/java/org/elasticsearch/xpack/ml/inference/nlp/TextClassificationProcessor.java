@@ -27,13 +27,14 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
-public class TextClassificationProcessor implements NlpTask.Processor {
+public class TextClassificationProcessor extends NlpTask.Processor {
 
     private final NlpTask.RequestBuilder requestBuilder;
     private final String[] classLabels;
     private final int numTopClasses;
 
     TextClassificationProcessor(NlpTokenizer tokenizer, TextClassificationConfig config) {
+        super(tokenizer);
         this.requestBuilder = tokenizer.requestBuilder();
         List<String> classLabels = config.getClassificationLabels();
         this.classLabels = classLabels.toArray(String[]::new);

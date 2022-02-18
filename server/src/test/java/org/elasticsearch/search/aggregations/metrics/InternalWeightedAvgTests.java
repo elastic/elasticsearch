@@ -11,11 +11,14 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalWeightedAvgTests extends InternalAggregationTestCase<InternalWeightedAvg> {
 
@@ -42,6 +45,16 @@ public class InternalWeightedAvgTests extends InternalAggregationTestCase<Intern
         assertEquals(sum, reduced.getSum(), 0.0000001);
         assertEquals(weight, reduced.getWeight(), 0.0000001);
         assertEquals(sum / weight, reduced.getValue(), 0.0000001);
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalWeightedAvg sampled, InternalWeightedAvg reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getValue(), equalTo(reduced.getValue()));
     }
 
     @Override

@@ -24,5 +24,7 @@ dependencies {
 addQaCheckDependencies()
 
 tasks.named("internalClusterTest").configure {
-  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+  }
 }

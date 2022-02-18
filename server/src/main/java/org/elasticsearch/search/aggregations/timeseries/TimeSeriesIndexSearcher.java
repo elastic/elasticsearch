@@ -20,6 +20,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -36,22 +37,29 @@ import java.util.List;
  * TODO: Convert it to use index sort instead of hard-coded tsid and timestamp values
  */
 public class TimeSeriesIndexSearcher {
+    private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
     // We need to delegate to the other searcher here as opposed to extending IndexSearcher and inheriting default implementations as the
     // IndexSearcher would most of the time be a ContextIndexSearcher that has important logic related to e.g. document-level security.
     private final IndexSearcher searcher;
+    private final List<Runnable> cancellations;
 
-    public TimeSeriesIndexSearcher(IndexSearcher searcher) {
+    public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
         this.searcher = searcher;
+        this.cancellations = cancellations;
     }
 
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
+        int seen = 0;
         query = searcher.rewrite(query);
         Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
 
         // Create LeafWalker for each subreader
         List<LeafWalker> leafWalkers = new ArrayList<>();
         for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+            if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
+                checkCancelled();
+            }
             LeafBucketCollector leafCollector = bucketCollector.getLeafCollector(leaf);
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
@@ -75,6 +83,9 @@ public class TimeSeriesIndexSearcher {
         // walkers are ordered by timestamp.
         while (populateQueue(leafWalkers, queue)) {
             do {
+                if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
+                    checkCancelled();
+                }
                 LeafWalker walker = queue.top();
                 walker.collectCurrent();
                 if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
@@ -99,7 +110,7 @@ public class TimeSeriesIndexSearcher {
                 it.remove();
                 continue;
             }
-            BytesRef tsid = leafWalker.tsids.lookupOrd(leafWalker.tsids.ordValue());
+            BytesRef tsid = leafWalker.getTsid();
             if (currentTsid == null) {
                 currentTsid = tsid;
             }
@@ -130,12 +141,19 @@ public class TimeSeriesIndexSearcher {
         return true;
     }
 
+    private void checkCancelled() {
+        for (Runnable r : cancellations) {
+            r.run();
+        }
+    }
+
     private static class LeafWalker {
         private final LeafCollector collector;
         private final Bits liveDocs;
         private final DocIdSetIterator iterator;
         private final SortedDocValues tsids;
         private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
+        private final BytesRefBuilder scratch = new BytesRefBuilder();
         int docId = -1;
         int tsidOrd;
         long timestamp;
@@ -166,6 +184,11 @@ public class TimeSeriesIndexSearcher {
                 timestamp = timestamps.nextValue();
             }
             return docId;
+        }
+
+        BytesRef getTsid() throws IOException {
+            scratch.copyBytes(tsids.lookupOrd(tsids.ordValue()));
+            return scratch.get();
         }
 
         // invalid if the doc is deleted or if it doesn't have a tsid or timestamp entry

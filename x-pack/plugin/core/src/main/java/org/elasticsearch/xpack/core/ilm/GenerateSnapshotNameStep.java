@@ -103,7 +103,6 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             .metadata(
                 Metadata.builder(clusterState.getMetadata())
                     .put(IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap()))
-                    .build(false)
             )
             .build();
     }

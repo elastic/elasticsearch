@@ -165,9 +165,6 @@ public class MasterService extends AbstractLifecycleComponent {
             private final ClusterStateTaskListener listener;
             private final Supplier<ThreadContext.StoredContext> threadContextSupplier;
 
-            @Nullable
-            private final ContextPreservingAckListener contextPreservingAckListener;
-
             UpdateTask(
                 Priority priority,
                 String source,
@@ -178,11 +175,6 @@ public class MasterService extends AbstractLifecycleComponent {
                 super(priority, source, executor, task);
                 this.threadContextSupplier = threadContextSupplier;
                 this.listener = task;
-                if (task instanceof ClusterStateAckListener clusterStateAckListener) {
-                    this.contextPreservingAckListener = new ContextPreservingAckListener(clusterStateAckListener, threadContextSupplier);
-                } else {
-                    this.contextPreservingAckListener = null;
-                }
             }
 
             @Override
@@ -210,10 +202,10 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             @Nullable
-            public TaskAckListener createTaskAckListener(long clusterStateVersion, DiscoveryNodes nodes) {
-                return contextPreservingAckListener == null
+            public ContextPreservingAckListener wrapInTaskContext(@Nullable ClusterStateAckListener clusterStateAckListener) {
+                return clusterStateAckListener == null
                     ? null
-                    : new TaskAckListener(contextPreservingAckListener, clusterStateVersion, nodes, threadPool);
+                    : new ContextPreservingAckListener(Objects.requireNonNull(clusterStateAckListener), threadContextSupplier);
             }
 
             @Override
@@ -465,7 +457,7 @@ public class MasterService extends AbstractLifecycleComponent {
      * Submits a cluster state update task
      * @param source     the source of the cluster state update task
      * @param updateTask the full context for the cluster state update, which implements {@link ClusterStateTaskListener} so that it is
-     *                   notified when it is executed; tasks that also implement {@link ClusterStateAckListener} are notified on acks too.
+     *                   notified when it is executed.
      * @param executor   the executor for the task; tasks that share the same executor instance may be batched together
      *
      */
@@ -487,7 +479,7 @@ public class MasterService extends AbstractLifecycleComponent {
      *
      * @param source   the source of the cluster state update task
      * @param task     the state needed for the cluster state update task, which implements {@link ClusterStateTaskListener} so that it is
-     *                 notified when it is executed; tasks that also implement {@link ClusterStateAckListener} are notified on acks too.
+     *                 notified when it is executed.
      * @param config   the cluster state update task configuration
      * @param executor the cluster state update task executor; tasks
      *                 that share the same executor will be executed
@@ -557,8 +549,16 @@ public class MasterService extends AbstractLifecycleComponent {
         ClusterStatePublisher.AckListener createAckListener(ClusterState newClusterState) {
             return new CompositeTaskAckListener(
                 nonFailedTasks.stream()
-                    .map(task -> task.task().createTaskAckListener(newClusterState.version(), newClusterState.nodes()))
+                    .map(NonFailedTask::getContextPreservingAckListener)
                     .filter(Objects::nonNull)
+                    .map(
+                        contextPreservingAckListener -> new TaskAckListener(
+                            contextPreservingAckListener,
+                            newClusterState.version(),
+                            newClusterState.nodes(),
+                            threadPool
+                        )
+                    )
                     .collect(Collectors.toList())
             );
         }
@@ -580,10 +580,10 @@ public class MasterService extends AbstractLifecycleComponent {
 
         void notifySuccessfulTasksOnUnchangedClusterState() {
             nonFailedTasks.forEach(task -> {
-                Batcher.UpdateTask updateTask = task.task();
-                if (updateTask.contextPreservingAckListener != null) {
+                final var contextPreservingAckListener = task.getContextPreservingAckListener();
+                if (contextPreservingAckListener != null) {
                     // no need to wait for ack if nothing changed, the update can be counted as acknowledged
-                    updateTask.contextPreservingAckListener.onAllNodesAcked(null);
+                    contextPreservingAckListener.onAllNodesAcked(null);
                 }
                 task.onClusterStateUnchanged(newClusterState);
             });
@@ -837,7 +837,11 @@ public class MasterService extends AbstractLifecycleComponent {
         return clusterTasksResult;
     }
 
-    private record NonFailedTask(Batcher.UpdateTask task, ActionListener<ClusterState> publishListener) {
+    private record NonFailedTask(
+        Batcher.UpdateTask task,
+        ActionListener<ClusterState> publishListener,
+        @Nullable ClusterStateAckListener clusterStateAckListener
+    ) {
 
         public void onPublishSuccess(ClusterState newClusterState) {
             try (ThreadContext.StoredContext ignored = task.threadContextSupplier.get()) {
@@ -875,6 +879,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 logger.error("exception thrown by listener notifying of failure", inner);
             }
         }
+
+        public ContextPreservingAckListener getContextPreservingAckListener() {
+            return task.wrapInTaskContext(clusterStateAckListener);
+        }
     }
 
     private List<NonFailedTask> getNonFailedTasks(TaskInputs taskInputs, ClusterTasksResult<ClusterStateTaskListener> clusterTasksResult) {
@@ -882,7 +890,7 @@ public class MasterService extends AbstractLifecycleComponent {
             assert clusterTasksResult.executionResults().containsKey(updateTask.getTask()) : "missing " + updateTask;
             final ClusterStateTaskExecutor.TaskResult taskResult = clusterTasksResult.executionResults().get(updateTask.getTask());
             if (taskResult.isSuccess()) {
-                return Stream.of(new NonFailedTask(updateTask, taskResult.taskListener()));
+                return Stream.of(new NonFailedTask(updateTask, taskResult.publishListener(), taskResult.clusterStateAckListener()));
             } else {
                 return Stream.of();
             }

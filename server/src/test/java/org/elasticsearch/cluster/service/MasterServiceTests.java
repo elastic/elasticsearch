@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -1265,6 +1266,150 @@ public class MasterServiceTests extends ESTestCase {
             });
             masterService.setClusterStateSupplier(() -> initialClusterState);
             masterService.start();
+
+            // check that we complete the ack listener
+            {
+                final CountDownLatch latch = new CountDownLatch(2);
+
+                publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
+                    publishListener.onResponse(null);
+                    ackListener.onCommit(TimeValue.ZERO);
+                    ackListener.onNodeAck(node1, null);
+                    ackListener.onNodeAck(node2, null);
+                    ackListener.onNodeAck(node3, null);
+                });
+
+                class Task implements ClusterStateTaskListener, ClusterStateAckListener {
+
+                    @Override
+                    public boolean mustAck(DiscoveryNode discoveryNode) {
+                        return true;
+                    }
+
+                    @Override
+                    public void onAllNodesAcked(Exception e) {
+                        assertNull(e);
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onAckTimeout() {
+                        fail();
+                    }
+
+                    @Override
+                    public TimeValue ackTimeout() {
+                        return TimeValue.timeValueDays(30);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        fail();
+                    }
+                }
+
+                masterService.submitStateUpdateTask(
+                    "success-test",
+                    new Task(),
+                    ClusterStateTaskConfig.build(Priority.NORMAL),
+                    (state, tasks) -> {
+                        final var builder = ClusterTasksResult.<Task>builder();
+                        for (Task task : tasks) {
+                            builder.success(task, new ActionListener<>() {
+                                @Override
+                                public void onResponse(ClusterState clusterState) {
+                                    latch.countDown();
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    throw new AssertionError(e);
+                                }
+                            }, task);
+                        }
+                        return builder.build(randomBoolean() ? state : ClusterState.builder(state).build());
+                    }
+                );
+
+                assertTrue(latch.await(10, TimeUnit.SECONDS));
+            }
+
+            // check that we complete a dynamic ack listener supplied by the task
+            {
+                final CountDownLatch latch = new CountDownLatch(2);
+
+                publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
+                    publishListener.onResponse(null);
+                    ackListener.onCommit(TimeValue.ZERO);
+                    ackListener.onNodeAck(node1, null);
+                    ackListener.onNodeAck(node2, null);
+                    ackListener.onNodeAck(node3, null);
+                });
+
+                class Task implements ClusterStateTaskListener {
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        fail();
+                    }
+                }
+
+                masterService.submitStateUpdateTask(
+                    "success-test",
+                    new Task(),
+                    ClusterStateTaskConfig.build(Priority.NORMAL),
+                    (state, tasks) -> {
+                        final var builder = ClusterTasksResult.<Task>builder();
+                        for (Task task : tasks) {
+                            builder.success(task, new ActionListener<>() {
+                                @Override
+                                public void onResponse(ClusterState clusterState) {
+                                    latch.countDown();
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    throw new AssertionError(e);
+                                }
+                            }, new ClusterStateAckListener() {
+                                @Override
+                                public boolean mustAck(DiscoveryNode discoveryNode) {
+                                    return true;
+                                }
+
+                                @Override
+                                public void onAllNodesAcked(Exception e) {
+                                    assertNull(e);
+                                    latch.countDown();
+                                }
+
+                                @Override
+                                public void onAckTimeout() {
+                                    fail();
+                                }
+
+                                @Override
+                                public TimeValue ackTimeout() {
+                                    return TimeValue.timeValueDays(30);
+                                }
+                            });
+                        }
+                        return builder.build(randomBoolean() ? state : ClusterState.builder(state).build());
+                    }
+                );
+
+                assertTrue(latch.await(10, TimeUnit.SECONDS));
+            }
 
             // check that we don't time out before even committing the cluster state
             {

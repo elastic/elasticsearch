@@ -308,6 +308,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.aggregations.pipeline;
     exports org.elasticsearch.search.aggregations.support;
     exports org.elasticsearch.search.aggregations.support.values;
+    exports org.elasticsearch.search.aggregations.timeseries;
     exports org.elasticsearch.search.builder;
     exports org.elasticsearch.search.collapse;
     exports org.elasticsearch.search.dfs;

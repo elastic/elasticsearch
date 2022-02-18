@@ -44,6 +44,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -284,7 +285,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(state);
+        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
         final DesiredNodes latestProposedDesiredNodes = proposedDesiredNodes.get(proposedDesiredNodes.size() - 1);
         assertThat(latestDesiredNodes, equalTo(latestProposedDesiredNodes));
     }
@@ -312,7 +313,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(state);
+        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
         assertThat(latestDesiredNodes, is(nullValue()));
     }
 
@@ -357,17 +358,20 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final var clusterState = client().admin().cluster().prepareState().get().getState();
             final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
             final var members = desiredNodesMetadata.getClusterMembers();
+            final var notClusterMembers = desiredNodesMetadata.getNotClusterMembers();
 
             for (String nodeExternalId : currentNodeMembersExternalIds) {
                 final var desiredNode = latestDesiredNodes.find(nodeExternalId);
                 assertThat(desiredNode, is(not(nullValue())));
                 assertThat(members.contains(desiredNode), is(equalTo(true)));
+                assertThat(notClusterMembers.contains(desiredNode), is(equalTo(false)));
             }
 
             for (String nodeExternalId : futureNodeMembersExternalIds) {
                 final var desiredNode = latestDesiredNodes.find(nodeExternalId);
                 assertThat(desiredNode, is(not(nullValue())));
                 assertThat(members.contains(desiredNode), is(equalTo(false)));
+                assertThat(notClusterMembers.contains(desiredNode), is(equalTo(true)));
             }
         }
 
@@ -380,6 +384,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final var clusterState = client().admin().cluster().prepareState().get().getState();
             final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
             final var members = desiredNodesMetadata.getClusterMembers();
+            assertThat(desiredNodesMetadata.getNotClusterMembers(), is(empty()));
 
             for (String nodeExternalId : Iterables.concat(currentNodeMembersExternalIds, futureNodeMembersExternalIds)) {
                 final var desiredNode = latestDesiredNodes.find(nodeExternalId);

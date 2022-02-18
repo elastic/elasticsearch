@@ -43,6 +43,7 @@ import static org.elasticsearch.cluster.metadata.DesiredNodesMetadataSerializati
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -259,6 +260,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
         final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(desiredNodesMetadata, is(notNullValue()));
-        assertThat(desiredNodesMetadata.getClusterMembers().contains(desiredNode), is(equalTo(true)));
+        assertThat(desiredNodesMetadata.getClusterMembers(), contains(desiredNode));
+        assertThat(desiredNodesMetadata.getNotClusterMembers(), is(empty()));
     }
 }

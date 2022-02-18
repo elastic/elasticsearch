@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -16,7 +17,9 @@ import org.elasticsearch.test.ESTestCase;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -84,6 +87,24 @@ public class DesiredNodeTests extends ESTestCase {
 
             DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
             assertFalse(desiredNode.hasMasterRole());
+        }
+    }
+
+    public void testGetRoles() {
+        final var settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10));
+
+        final var role = randomBoolean() ? null : randomFrom(DiscoveryNodeRole.roles());
+        if (role != null) {
+            settings.put(NODE_ROLES_SETTING.getKey(), role.roleName());
+        }
+
+        final var desiredNode = new DesiredNode(settings.build(), 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+
+        if (role != null) {
+            assertThat(desiredNode.getRoles(), hasSize(1));
+            assertThat(desiredNode.getRoles(), contains(role));
+        } else {
+            assertThat(desiredNode.getRoles(), contains(NODE_ROLES_SETTING.get(Settings.EMPTY).toArray()));
         }
     }
 }

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
-import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -55,7 +54,7 @@ public class TransportGetDesiredNodesAction extends TransportMasterNodeReadActio
         ClusterState state,
         ActionListener<GetDesiredNodesAction.Response> listener
     ) throws Exception {
-        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(state);
+        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
         if (latestDesiredNodes == null) {
             listener.onFailure(new ResourceNotFoundException("Desired nodes not found"));
         } else {

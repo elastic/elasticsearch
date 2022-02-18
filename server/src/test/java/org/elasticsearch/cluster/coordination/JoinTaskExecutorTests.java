@@ -214,21 +214,21 @@ public class JoinTaskExecutorTests extends ESTestCase {
 
         final DiscoveryNode masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
-        final String knownNodeName = "name";
+        final String knownNodeExternalId = randomAlphaOfLength(10);
         final DiscoveryNode actualNode = new DiscoveryNode(
-            knownNodeName,
+            knownNodeExternalId,
             UUIDs.base64UUID(),
-            knownNodeName,
+            knownNodeExternalId,
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE),
             Version.CURRENT
         );
-        assertThat(actualNode.getExternalId(), is(equalTo(knownNodeName)));
+        assertThat(actualNode.getExternalId(), is(equalTo(knownNodeExternalId)));
 
         DesiredNode desiredNodePresentInCluster = new DesiredNode(
             Settings.builder()
-                .put(Node.NODE_NAME_SETTING.getKey(), knownNodeName)
+                .put(Node.NODE_NAME_SETTING.getKey(), knownNodeExternalId)
                 .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
                 .build(),
             1,
@@ -267,9 +267,9 @@ public class JoinTaskExecutorTests extends ESTestCase {
         final ClusterState resultingClusterState = result.resultingState();
         final DesiredNodesMetadata desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(resultingClusterState);
 
-        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(resultingClusterState);
+        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(resultingClusterState);
 
-        assertThat(latestDesiredNodes.find(knownNodeName), is(notNullValue()));
+        assertThat(latestDesiredNodes.find(knownNodeExternalId), is(notNullValue()));
         assertThat(latestDesiredNodes.find("unknown"), is(notNullValue()));
         assertThat(desiredNodesMetadata.getClusterMembers().contains(desiredNodePresentInCluster), is(equalTo(true)));
         assertThat(desiredNodesMetadata.getClusterMembers().contains(desiredNodeUnknownToCluster), is(equalTo(false)));
@@ -332,7 +332,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
         assertTrue(taskResult.isSuccess());
 
         final ClusterState resultingClusterState = result.resultingState();
-        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(resultingClusterState);
+        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(resultingClusterState);
         final DesiredNodesMetadata desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(resultingClusterState);
         final Set<DesiredNode> desiredNodesMetadataMembers = desiredNodesMetadata.getClusterMembers();
 

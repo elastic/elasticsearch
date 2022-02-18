@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -110,6 +111,10 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         builder.xContentList(NODES_FIELD.getPreferredName(), nodes.values());
         builder.endObject();
         return builder;
+    }
+
+    public static DesiredNodes latestFromClusterState(ClusterState clusterState) {
+        return DesiredNodesMetadata.fromClusterState(clusterState).getLatestDesiredNodes();
     }
 
     public boolean isSupersededBy(DesiredNodes otherDesiredNodes) {

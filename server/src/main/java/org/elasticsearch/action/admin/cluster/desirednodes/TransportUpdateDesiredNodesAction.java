@@ -85,8 +85,8 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         final ClusterState updatedState = updateDesiredNodes(currentState, request);
-                        final DesiredNodes previousDesiredNodes = DesiredNodesMetadata.latestFromClusterState(currentState);
-                        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(updatedState);
+                        final DesiredNodes previousDesiredNodes = DesiredNodes.latestFromClusterState(currentState);
+                        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(updatedState);
                         replacedExistingHistoryId = previousDesiredNodes != null
                             && previousDesiredNodes.hasSameHistoryId(latestDesiredNodes) == false;
                         return updatedState;

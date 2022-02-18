@@ -26,8 +26,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static java.lang.String.format;
@@ -35,10 +35,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
-public record DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version)
-    implements
-        Writeable,
-        ToXContentObject {
+public final class DesiredNode implements Writeable, ToXContentObject {
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");
@@ -88,7 +85,15 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
         return Version.fromString(version);
     }
 
-    public DesiredNode {
+    private final Settings settings;
+    private final int processors;
+    private final ByteSizeValue memory;
+    private final ByteSizeValue storage;
+    private final Version version;
+    private final String externalId;
+    private final Set<DiscoveryNodeRole> roles;
+
+    public DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version) {
         assert settings != null;
         assert memory != null;
         assert storage != null;
@@ -102,6 +107,14 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
                 format(Locale.ROOT, "[%s] or [%s] is missing or empty", NODE_NAME_SETTING.getKey(), NODE_EXTERNAL_ID_SETTING.getKey())
             );
         }
+
+        this.settings = settings;
+        this.processors = processors;
+        this.memory = memory;
+        this.storage = storage;
+        this.version = version;
+        this.externalId = NODE_EXTERNAL_ID_SETTING.get(settings);
+        this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(DiscoveryNode.getRolesFromSettings(settings)));
     }
 
     public DesiredNode(StreamInput in) throws IOException {
@@ -135,17 +148,73 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
         return builder;
     }
 
-    public String externalId() {
-        assert NODE_EXTERNAL_ID_SETTING.get(settings).isBlank() == false;
-        return NODE_EXTERNAL_ID_SETTING.get(settings);
-    }
-
     public boolean hasMasterRole() {
         return NODE_ROLES_SETTING.get(settings).contains(DiscoveryNodeRole.MASTER_ROLE);
     }
 
-    public Set<DiscoveryNodeRole> getRoles() {
-        SortedSet<DiscoveryNodeRole> roles = new TreeSet<>(DiscoveryNode.getRolesFromSettings(settings));
-        return Collections.unmodifiableSortedSet(roles);
+    public Settings settings() {
+        return settings;
     }
+
+    public int processors() {
+        return processors;
+    }
+
+    public ByteSizeValue memory() {
+        return memory;
+    }
+
+    public ByteSizeValue storage() {
+        return storage;
+    }
+
+    public Version version() {
+        return version;
+    }
+
+    public String externalId() {
+        return externalId;
+    }
+
+    public Set<DiscoveryNodeRole> getRoles() {
+        return roles;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        var that = (DesiredNode) obj;
+        return Objects.equals(this.settings, that.settings)
+            && this.processors == that.processors
+            && Objects.equals(this.memory, that.memory)
+            && Objects.equals(this.storage, that.storage)
+            && Objects.equals(this.version, that.version);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(settings, processors, memory, storage, version);
+    }
+
+    @Override
+    public String toString() {
+        return "DesiredNode["
+            + "settings="
+            + settings
+            + ", "
+            + "processors="
+            + processors
+            + ", "
+            + "memory="
+            + memory
+            + ", "
+            + "storage="
+            + storage
+            + ", "
+            + "version="
+            + version
+            + ']';
+    }
+
 }

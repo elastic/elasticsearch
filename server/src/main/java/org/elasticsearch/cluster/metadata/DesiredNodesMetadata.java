@@ -53,22 +53,23 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     private final DesiredNodes latestDesiredNodes;
-    private final Set<DesiredNode> memberDesiredNodes;
-    private final Set<DesiredNode> unknownNodes;
+    private final Set<DesiredNode> clusterMembers;
+    private final Set<DesiredNode> notClusterMembers;
 
     public DesiredNodesMetadata(DesiredNodes latestDesiredNodes) {
         this(latestDesiredNodes, Collections.emptySet());
     }
 
-    private DesiredNodesMetadata(DesiredNodes latestDesiredNodes, Set<DesiredNode> memberDesiredNodes) {
+    private DesiredNodesMetadata(DesiredNodes latestDesiredNodes, Set<DesiredNode> clusterMembers) {
         this.latestDesiredNodes = latestDesiredNodes;
-        this.memberDesiredNodes = Collections.unmodifiableSet(memberDesiredNodes);
+        this.clusterMembers = Collections.unmodifiableSet(clusterMembers);
         if (latestDesiredNodes != null) {
             final Set<DesiredNode> unknownNodes = new HashSet<>(latestDesiredNodes.nodes());
-            unknownNodes.removeAll(memberDesiredNodes);
-            this.unknownNodes = Collections.unmodifiableSet(unknownNodes);
+            unknownNodes.removeAll(clusterMembers);
+            this.notClusterMembers = Collections.unmodifiableSet(unknownNodes);
         } else {
-            this.unknownNodes = Collections.emptySet();
+            assert clusterMembers.isEmpty();
+            this.notClusterMembers = Collections.emptySet();
         }
     }
 
@@ -92,7 +93,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     public void writeTo(StreamOutput out) throws IOException {
         latestDesiredNodes.writeTo(out);
         if (out.getVersion().onOrAfter(MEMBER_TRACKING_VERSION)) {
-            final List<String> memberExternalIds = memberDesiredNodes.stream().map(DesiredNode::externalId).toList();
+            final List<String> memberExternalIds = clusterMembers.stream().map(DesiredNode::externalId).toList();
             out.writeStringCollection(memberExternalIds);
         }
     }
@@ -112,11 +113,11 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     public Set<DesiredNode> getClusterMembers() {
-        return memberDesiredNodes;
+        return clusterMembers;
     }
 
     public Set<DesiredNode> getNotClusterMembers() {
-        return unknownNodes;
+        return notClusterMembers;
     }
 
     public static DesiredNodesMetadata fromClusterState(ClusterState clusterState) {
@@ -160,16 +161,16 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
         private final Logger logger = LogManager.getLogger(Builder.class);
 
         private final DesiredNodes desiredNodes;
-        private final Set<DesiredNode> members;
+        private final Set<DesiredNode> clusterMembers;
 
         public Builder(DesiredNodesMetadata desiredNodesMetadata) {
             this.desiredNodes = desiredNodesMetadata.latestDesiredNodes;
-            this.members = new HashSet<>(desiredNodesMetadata.memberDesiredNodes);
+            this.clusterMembers = new HashSet<>(desiredNodesMetadata.clusterMembers);
         }
 
         public Builder(DesiredNodes desiredNodes) {
             this.desiredNodes = desiredNodes;
-            this.members = new HashSet<>();
+            this.clusterMembers = new HashSet<>();
         }
 
         /**
@@ -195,11 +196,11 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
                 );
             }
 
-            return desiredNode != null && members.add(desiredNode);
+            return desiredNode != null && clusterMembers.add(desiredNode);
         }
 
         public DesiredNodesMetadata build() {
-            return new DesiredNodesMetadata(desiredNodes, members);
+            return new DesiredNodesMetadata(desiredNodes, clusterMembers);
         }
     }
 }

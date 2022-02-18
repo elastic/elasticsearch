@@ -44,6 +44,7 @@ import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -271,8 +272,12 @@ public class JoinTaskExecutorTests extends ESTestCase {
 
         assertThat(latestDesiredNodes.find(knownNodeExternalId), is(notNullValue()));
         assertThat(latestDesiredNodes.find("unknown"), is(notNullValue()));
+
         assertThat(desiredNodesMetadata.getClusterMembers().contains(desiredNodePresentInCluster), is(equalTo(true)));
         assertThat(desiredNodesMetadata.getClusterMembers().contains(desiredNodeUnknownToCluster), is(equalTo(false)));
+
+        assertThat(desiredNodesMetadata.getNotClusterMembers().contains(desiredNodePresentInCluster), is(equalTo(false)));
+        assertThat(desiredNodesMetadata.getNotClusterMembers().contains(desiredNodeUnknownToCluster), is(equalTo(true)));
     }
 
     public void testDesiredNodesMembershipIsUpdatedAfterJoinAndLogsAWarningIfRolesAreDifferent() throws Exception {
@@ -311,11 +316,19 @@ public class JoinTaskExecutorTests extends ESTestCase {
             .metadata(metadata)
             .build();
 
-        MockLogAppender mockAppender = addLoggingExpectation(
-            Level.WARN,
-            DesiredNodesMetadata.Builder.class,
-            "Node * has different roles * than its desired node *"
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "expected message",
+                DesiredNodesMetadata.Builder.class.getCanonicalName(),
+                Level.WARN,
+                "Node * has different roles * than its desired node *"
+            )
         );
+
+        Logger desiredNodesBuilderLogger = LogManager.getLogger(DesiredNodesMetadata.Builder.class);
+        Loggers.addAppender(desiredNodesBuilderLogger, mockAppender);
 
         final ClusterStateTaskExecutor.ClusterTasksResult<JoinTask> result = joinTaskExecutor.execute(
             clusterState,
@@ -334,23 +347,14 @@ public class JoinTaskExecutorTests extends ESTestCase {
         final ClusterState resultingClusterState = result.resultingState();
         final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(resultingClusterState);
         final DesiredNodesMetadata desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(resultingClusterState);
-        final Set<DesiredNode> desiredNodesMetadataMembers = desiredNodesMetadata.getClusterMembers();
+        final Set<DesiredNode> desiredNodesClusterMembers = desiredNodesMetadata.getClusterMembers();
+        final Set<DesiredNode> desiredNodesNotClusterMembers = desiredNodesMetadata.getNotClusterMembers();
 
+        assertThat(desiredNodesNotClusterMembers, is(empty()));
         assertThat(latestDesiredNodes.find(knownNodeName), is(notNullValue()));
-        assertThat(desiredNodesMetadataMembers.contains(desiredNodeWithDifferentRoles), is(equalTo(true)));
+        assertThat(desiredNodesClusterMembers.contains(desiredNodeWithDifferentRoles), is(equalTo(true)));
 
         mockAppender.assertAllExpectationsMatched();
     }
 
-    private MockLogAppender addLoggingExpectation(Level logLevel, Class<?> klass, String expectedMessage) throws IllegalAccessException {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("expected message", klass.getCanonicalName(), logLevel, expectedMessage)
-        );
-
-        Logger desiredNodesBuilderLogger = LogManager.getLogger(klass);
-        Loggers.addAppender(desiredNodesBuilderLogger, mockAppender);
-        return mockAppender;
-    }
 }

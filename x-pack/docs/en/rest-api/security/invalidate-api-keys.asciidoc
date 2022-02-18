@@ -21,7 +21,9 @@ Invalidates one or more API keys.
 ==== {api-description-title}
 
 The API keys created by <<security-api-create-api-key,create API Key>> can be
-invalidated using this API.
+invalidated using this API. 
+
+NOTE: They are automatically deleted approximately 24 hour after being invalidated. There is no way to force that deletion process.
 
 
 [[security-api-invalidate-api-key-request-body]]

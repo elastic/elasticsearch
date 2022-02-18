@@ -43,9 +43,13 @@ public final class XContentTestUtils {
 
     public static Map<String, Object> convertToMap(ToXContent part) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        part.toXContent(builder, EMPTY_PARAMS);
-        builder.endObject();
+        if (part.isFragment()) {
+            builder.startObject();
+            part.toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+        } else {
+            part.toXContent(builder, EMPTY_PARAMS);
+        }
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
 

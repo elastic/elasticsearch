@@ -445,6 +445,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                     ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
                     ConfigurableClusterPrivileges.ManageApplicationPrivileges::createFrom
                 ),
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
+                ),
                 // security : role-mappings
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),

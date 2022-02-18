@@ -10,7 +10,7 @@ typically share the same hardware profile:
 and hold your most recent, most-frequently-accessed data.
 * <<warm-tier, Warm tier>> nodes hold time series data that is accessed less-frequently
 and rarely needs to be updated.
-* <<cold-tier, Cold tier>> nodes hold time series data that is accessed infrequently and not normally updated. <<fully-mounted,Fully mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> are kept on cold tier eliminating the need for replicas with approximately 50% storage reduction compares to warm tiers.
+* <<cold-tier, Cold tier>> nodes hold time series data that is accessed infrequently and not normally updated. <<fully-mounted,Fully mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> may be kept on the cold tier, eliminating the need for replicas with approximately 50% storage reduction compared to the warm tier.
 * <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed rarely and never updated. <<partially-mounted,Partially mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> are kept on frozen tier extend the storage capacity even further by 20 times compares to warm tiers.
 
 When you index documents directly to a specific index, they remain on content tier nodes indefinitely.

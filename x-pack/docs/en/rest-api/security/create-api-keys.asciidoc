@@ -69,7 +69,7 @@ authentication; it will not have authority to call {es} APIs.
 --
 
 `expiration`::
-(Optional, string) Expiration time for the API key. By default, API keys never
+(Optional, <<time-units, time units>>) Expiration time for the API key. By default, API keys never
 expire.
 
 `metadata`::

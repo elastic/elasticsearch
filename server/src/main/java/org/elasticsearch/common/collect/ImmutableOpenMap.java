@@ -446,6 +446,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         @Override
+        public boolean putIfAbsent(KType key, VType value) {
+            return map.putIfAbsent(key, value);
+        }
+
+        @Override
         public VType get(KType key) {
             return map.get(key);
         }
@@ -566,6 +571,11 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         @Override
         public void indexInsert(int index, KType key, VType value) {
             map.indexInsert(index, key, value);
+        }
+
+        @Override
+        public VType indexRemove(int index) {
+            return map.indexRemove(index);
         }
 
         @Override

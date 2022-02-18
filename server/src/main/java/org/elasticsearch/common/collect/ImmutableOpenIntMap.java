@@ -345,6 +345,11 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         }
 
         @Override
+        public boolean putIfAbsent(int key, VType value) {
+            return map.putIfAbsent(key, value);
+        }
+
+        @Override
         public VType get(int key) {
             return map.get(key);
         }
@@ -460,6 +465,11 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         @Override
         public void indexInsert(int index, int key, VType value) {
             map.indexInsert(index, key, value);
+        }
+
+        @Override
+        public VType indexRemove(int index) {
+            return map.indexRemove(index);
         }
 
         @Override

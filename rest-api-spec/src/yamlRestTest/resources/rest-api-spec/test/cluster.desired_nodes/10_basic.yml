@@ -179,8 +179,8 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
 
   - match: { replaced_existing_history_id: false }
 
@@ -230,8 +230,8 @@ teardown:
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
             - { settings: { "node.external_id": "instance-000188" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
 
   - match: { replaced_existing_history_id: false }
 
@@ -399,6 +399,9 @@ teardown:
   - match: { replaced_existing_history_id: false }
 ---
 "Test external_id or node.name is required":
+  - skip:
+      version: " - 8.1.99"
+      reason: "Change error code in 8.2"
   - do:
       cluster.state: {}
 
@@ -421,6 +424,9 @@ teardown:
   - match: { error.caused_by.caused_by.caused_by.reason: "[node.name] or [node.external_id] is missing or empty" }
 ---
 "Test external_id must have content":
+  - skip:
+      version: " - 8.1.99"
+      reason: "Change error code in 8.2"
   - do:
       cluster.state: {}
 

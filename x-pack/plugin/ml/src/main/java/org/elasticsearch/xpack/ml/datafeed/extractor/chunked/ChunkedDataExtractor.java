@@ -141,7 +141,14 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            searchRequestBuilder::get
+        );
+        checkForSkippedClusters(searchResponse);
+        return searchResponse;
     }
 
     private Result getNextStream() throws IOException {
@@ -303,7 +310,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         /**
-         *  The heuristic here is that we want a time interval where we expect roughly scrollSize documents
+         * The heuristic here is that we want a time interval where we expect roughly scrollSize documents
          * (assuming data are uniformly spread over time).
          * We have totalHits documents over dataTimeSpread (latestTime - earliestTime), we want scrollSize documents over chunk.
          * Thus, the interval would be (scrollSize * dataTimeSpread) / totalHits.

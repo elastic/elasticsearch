@@ -515,7 +515,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     GatewayMetaState.AsyncPersistedState.resetVotingConfiguration(state),
                     reloadedPersistedState.getLastAcceptedState()
                 );
-                assertNull(reloadedPersistedState.getLastAcceptedState().metadata().index(indexName));
+                assertNotNull(reloadedPersistedState.getLastAcceptedState().metadata().index(indexName));
             }
         } finally {
             IOUtils.close(cleanup);

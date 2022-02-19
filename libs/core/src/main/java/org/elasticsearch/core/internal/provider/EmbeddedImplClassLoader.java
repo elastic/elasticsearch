@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.lang.module.ModuleFinder;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -26,14 +27,18 @@ import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.jar.Manifest;
+
+import static java.util.jar.Attributes.Name.MULTI_RELEASE;
 
 /**
  * A class loader that is responsible for loading implementation classes and resources embedded within an archive.
@@ -67,7 +72,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     private final Map<String, CodeSource> prefixToCodeBase;
 
     private static final String IMPL_PREFIX = "IMPL-JARS/";
-    private static final String MANIFEST_FILE = "/LISTING.TXT";
+    private static final String JAR_LISTING_FILE = "/LISTING.TXT";
 
     static EmbeddedImplClassLoader getInstance(ClassLoader parent, String providerName) {
         return new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
@@ -152,6 +157,8 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return new CompoundEnumeration<>(tmp);
     }
 
+    // -- modules
+
     /**
      * Returns a module finder capable of finding the modules that are loadable by this embedded impl class loader.
      *
@@ -208,24 +215,66 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
     private static Map<String, CodeSource> getProviderPrefixes(ClassLoader parent, String providerName) {
         String providerPrefix = IMPL_PREFIX + providerName;
-        URL manifest = parent.getResource(providerPrefix + MANIFEST_FILE);
-        if (manifest == null) {
+        URL listingURL = parent.getResource(providerPrefix + JAR_LISTING_FILE);
+        if (listingURL == null) {
             throw new IllegalStateException("missing x-content provider jars list");
         }
         try (
-            InputStream in = manifest.openStream();
+            InputStream in = listingURL.openStream();
             InputStreamReader isr = new InputStreamReader(in, StandardCharsets.UTF_8);
             BufferedReader reader = new BufferedReader(isr)
         ) {
             List<String> jars = reader.lines().toList();
-            Map<String, CodeSource> map = new HashMap<>();
+            Map<String, CodeSource> map = new LinkedHashMap<>();
             for (String jar : jars) {
-                map.put(providerPrefix + "/" + jar, new CodeSource(new URL(manifest, jar), (CodeSigner[]) null /*signers*/));
+                String jarPrefix = providerPrefix + "/" + jar;
+                if (isMultiRelease(parent, jarPrefix)) {
+                    List<String> versionPrefixes = getVersionPrefixes(parent, jarPrefix);
+                    for (String versionPrefix : versionPrefixes) {
+                        map.put(versionPrefix, codeSource(listingURL, jar));
+                    }
+                }
+                // TODO: LinkedHashMap, verify order, need to preserve order for versioned entries
+                map.put(jarPrefix, codeSource(listingURL, jar));
             }
             return Collections.unmodifiableMap(map);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    private static CodeSource codeSource(URL baseURL, String jarName) throws MalformedURLException {
+        return new CodeSource(new URL(baseURL, jarName), (CodeSigner[]) null /*signers*/);
+    }
+
+    private static boolean isMultiRelease(ClassLoader parent, String jarPrefix) throws IOException {
+        try (InputStream is = parent.getResourceAsStream(jarPrefix + "/META-INF/MANIFEST.MF")) {
+            if (is != null) {
+                Manifest manifest = new Manifest(is);
+                return Boolean.parseBoolean(manifest.getMainAttributes().getValue(MULTI_RELEASE));
+            }
+        }
+        return false;
+    }
+
+    private static final int BASE_VERSION_FEATURE = 8; // lowest supported release version
+    private static final int RUNTIME_VERSION_FEATURE = Runtime.version().feature();
+
+    static {
+        assert RUNTIME_VERSION_FEATURE >= BASE_VERSION_FEATURE;
+    }
+
+    private static final String MRJAR_VERSION_PREFIX = "META-INF/versions/";
+
+    private static List<String> getVersionPrefixes(ClassLoader parent, String jarPrefix) throws IOException {
+        List<String> versions = new ArrayList<>();
+        for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
+            URL url = parent.getResource(jarPrefix + "/" + MRJAR_VERSION_PREFIX + v);
+            if (url != null) {
+                versions.add(jarPrefix + "/" + MRJAR_VERSION_PREFIX + v);
+            }
+        }
+        return versions;
     }
 
     private static String getParent(String uriString) {

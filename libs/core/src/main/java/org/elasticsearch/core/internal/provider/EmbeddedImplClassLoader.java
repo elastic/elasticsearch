@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.lang.module.ModuleFinder;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -35,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.jar.Manifest;
 
@@ -165,10 +165,10 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
      * <p> The module finder returned by this method can be used during resolution in order to create a configuration. This configuration
      * can subsequently be materialized as a module layer in which classes and resources are loaded by this embedded impl class loader.
      */
-    ModuleFinder moduleFinder() throws IOException {
+    InMemoryModuleFinder moduleFinder(Set<String> missingModules) throws IOException {
         Path[] modulePath = modulePath();
         assert modulePath.length >= 1;
-        ModuleFinder moduleFinder = InMemoryModuleFinder.of(modulePath);
+        InMemoryModuleFinder moduleFinder = InMemoryModuleFinder.of(missingModules, modulePath);
         if (modulePath[0].getFileSystem().provider().getScheme().equals("jar")) {
             modulePath[0].getFileSystem().close();
         }

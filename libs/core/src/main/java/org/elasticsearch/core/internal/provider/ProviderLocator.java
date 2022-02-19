@@ -11,7 +11,6 @@ package org.elasticsearch.core.internal.provider;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
-import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
@@ -80,11 +79,7 @@ public final class ProviderLocator<T> implements Supplier<T> {
 
     private T loadAsModule(EmbeddedImplClassLoader loader) throws IOException {
         ProviderLocator.class.getModule().addUses(providerType);
-        ModuleFinder modulePathFinder = loader.moduleFinder();
-        ModuleFinder missingModuleFinder = InMemoryModuleFinder.of(
-            missingModules.stream().map(mn -> ModuleDescriptor.newModule(mn).build()).toArray(ModuleDescriptor[]::new)
-        );
-        ModuleFinder moduleFinder = ModuleFinder.compose(modulePathFinder, missingModuleFinder);
+        InMemoryModuleFinder moduleFinder = loader.moduleFinder(missingModules);
         assert moduleFinder.find(providerModuleName).isPresent();
         ModuleLayer parentLayer = ModuleLayer.boot();
         Configuration cf = parentLayer.configuration().resolve(ModuleFinder.of(), moduleFinder, Set.of(providerModuleName));

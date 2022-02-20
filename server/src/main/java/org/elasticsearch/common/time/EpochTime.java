@@ -102,7 +102,7 @@ class EpochTime {
         @Override
         public long getFrom(TemporalAccessor temporal) {
             long millis = temporal.getLong(ChronoField.INSTANT_SECONDS) * 1_000;
-            if (millis >= 0 || !temporal.isSupported(ChronoField.NANO_OF_SECOND)) {
+            if (millis >= 0 || temporal.isSupported(ChronoField.NANO_OF_SECOND) == false) {
                 return millis + temporal.getLong(ChronoField.MILLI_OF_SECOND);
             } else {
                 long nanos = temporal.getLong(ChronoField.NANO_OF_SECOND);

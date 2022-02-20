@@ -19,7 +19,7 @@ bin/elasticsearch-create-enrollment-token
 === Description
 
 NOTE: `elasticsearch-create-enrollment-token` can only be used with {es} clusters
-that have been auto-configured for security.
+that have been <<configuring-stack-security,auto-configured for security>>.
 
 Use this command to create enrollment tokens, which you can use to enroll new
 {es} nodes to an existing cluster or configure {kib} instances to communicate

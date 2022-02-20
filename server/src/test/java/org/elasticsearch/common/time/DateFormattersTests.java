@@ -200,6 +200,13 @@ public class DateFormattersTests extends ESTestCase {
             assertThat(formatter.format(instant), is("1680000430768"));
             assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
+        {
+            Instant instant = Instant.from(formatter.parse("-0.12345"));
+            assertThat(instant.getEpochSecond(), is(-1L));
+            assertThat(instant.getNano(), is(999876550));
+            assertThat(formatter.format(instant), is("-0.12345"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
     }
 
     /**

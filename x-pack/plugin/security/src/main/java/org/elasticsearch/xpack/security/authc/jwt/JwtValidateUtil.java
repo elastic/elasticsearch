@@ -198,7 +198,7 @@ public class JwtValidateUtil {
     }
 
     public static void validateNotBeforeTime(final SignedJWT jwt, final Date now, final long allowedClockSkewSeconds) throws Exception {
-        JwtValidateUtil.validateNotBeforeTime(jwt.getJWTClaimsSet().getIssueTime(), now, allowedClockSkewSeconds);
+        JwtValidateUtil.validateNotBeforeTime(jwt.getJWTClaimsSet().getNotBeforeTime(), now, allowedClockSkewSeconds);
     }
 
     // package private, so this logic can be called from unit tests without constructing a SignedJWT
@@ -210,9 +210,9 @@ public class JwtValidateUtil {
         } else if (allowedClockSkewSeconds < 0L) {
             throw new Exception("Invalid negative allowedClockSkewSeconds [" + allowedClockSkewSeconds + "].");
         }
-        // skewSec=0 nfb=3:00:00.000 now=2:59:59.999 --> fail
-        // skewSec=0 nfb=3:00:00.000 now=3:00:00.000 --> pass
-        // skewSec=1 nfb=3:00:00.000 now=2:59:59.999 --> pass (subtract skew from nfb)
+        // skewSec=0 nbf=3:00:00.000 now=2:59:59.999 --> fail
+        // skewSec=0 nbf=3:00:00.000 now=3:00:00.000 --> pass
+        // skewSec=1 nbf=3:00:00.000 now=2:59:59.999 --> pass (subtract skew from nbf)
         if ((nbf.getTime() - (allowedClockSkewSeconds * 1000L)) > now.getTime()) {
             throw new Exception(
                 "Invalid nbf ["

@@ -52,12 +52,15 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -269,37 +272,66 @@ public class JwtRealmTests extends JwtTestCase {
             // This check can only be executed if there is a flip algorithm available in the realm
             if (Strings.hasText(mixupAlg)) {
                 final JWSHeader tamperedHeader = new JWSHeader.Builder(JWSAlgorithm.parse(mixupAlg)).build();
-                final SecureString tamperedJwt = super.buildJWT(tamperedHeader, validClaimsSet, validSignature);
-
-                final ThreadContext tc = this.createThreadContext(tamperedJwt, clientSecret);
-                final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm.token(tc);
-                final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
-                jwtIssuerAndRealm.realm.authenticate(token, plainActionFuture);
-                assertThat(plainActionFuture.get(), is(notNullValue()));
-                assertThat(plainActionFuture.get().isAuthenticated(), is(false));
+                final SecureString jwtTamperedHeader = super.buildJWT(tamperedHeader, validClaimsSet, validSignature);
+                this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtTamperedHeader, clientSecret);
             }
         }
 
         {   // Verify rejection of a tampered claim set
             final JWTClaimsSet tamperedClaimsSet = new JWTClaimsSet.Builder(validClaimsSet).claim("gr0up", "superuser").build();
-            final SecureString tamperedJwt = buildJWT(validHeader, tamperedClaimsSet, validSignature);
-
-            final ThreadContext tc = this.createThreadContext(tamperedJwt, clientSecret);
-            final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm.token(tc);
-            final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
-            jwtIssuerAndRealm.realm.authenticate(token, plainActionFuture);
-            assertThat(plainActionFuture.get(), is(notNullValue()));
-            assertThat(plainActionFuture.get().isAuthenticated(), is(false));
+            final SecureString jwtTamperedClaimsSet = buildJWT(validHeader, tamperedClaimsSet, validSignature);
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtTamperedClaimsSet, clientSecret);
         }
 
         {   // Verify rejection of a tampered signature
-            final ThreadContext tc = this.createThreadContext(jwt.toString().substring(0, jwt.length() - 1), clientSecret);
-            final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm.token(tc);
-            final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
-            jwtIssuerAndRealm.realm.authenticate(token, plainActionFuture);
-            assertThat(plainActionFuture.get(), is(notNullValue()));
-            assertThat(plainActionFuture.get().isAuthenticated(), is(false));
+            final SecureString jwtWithTruncatedSignature = new SecureString(jwt.toString().substring(0, jwt.length() - 1).toCharArray());
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtWithTruncatedSignature, clientSecret);
         }
+
+        // Get read to re-sign JWTs for time claim failure tests
+        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer.getAllAlgJwkPairs());
+        final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(algJwkPair.alg())).build();
+        final JWSSigner jwsSigner = JwtValidateUtil.createJwsSigner(algJwkPair.jwk());
+        final Instant now = Instant.now();
+        final Date past = Date.from(now.minusSeconds(7200));
+        final Date future = Date.from(now.plusSeconds(7200));
+
+        {   // Verify rejection of JWT auth_time > now
+            final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).claim("auth_time", future).build();
+            final String jwtIatFuture = JwtValidateUtil.signJwt(jwsSigner, new SignedJWT(jwtHeader, claimsSet)).serialize();
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, new SecureString(jwtIatFuture.toCharArray()), clientSecret);
+        }
+
+        {   // Verify rejection of JWT iat > now
+            final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).issueTime(future).build();
+            final String jwtIatFuture = JwtValidateUtil.signJwt(jwsSigner, new SignedJWT(jwtHeader, claimsSet)).serialize();
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, new SecureString(jwtIatFuture.toCharArray()), clientSecret);
+        }
+
+        {   // Verify rejection of JWT nbf > now
+            final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).notBeforeTime(future).build();
+            final String jwtIatFuture = JwtValidateUtil.signJwt(jwsSigner, new SignedJWT(jwtHeader, claimsSet)).serialize();
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, new SecureString(jwtIatFuture.toCharArray()), clientSecret);
+        }
+
+        {   // Verify rejection of JWT now > exp
+            final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).expirationTime(past).build();
+            final String jwtExpPast = JwtValidateUtil.signJwt(jwsSigner, new SignedJWT(jwtHeader, claimsSet)).serialize();
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, new SecureString(jwtExpPast.toCharArray()), clientSecret);
+        }
+    }
+
+    private void verifyAuthenticateFailureHelper(
+        final JwtIssuerAndRealm jwtIssuerAndRealm,
+        final SecureString jwt,
+        final SecureString clientSecret
+    ) throws InterruptedException, ExecutionException {
+        final ThreadContext tc = this.createThreadContext(jwt, clientSecret);
+        final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm.token(tc);
+        final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
+        jwtIssuerAndRealm.realm.authenticate(token, plainActionFuture);
+        assertThat(plainActionFuture.get(), is(notNullValue()));
+        assertThat(plainActionFuture.get().isAuthenticated(), is(false));
     }
 
     private List<JwtIssuerAndRealm> generateJwtIssuerRealmPairs(

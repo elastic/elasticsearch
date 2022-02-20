@@ -7,40 +7,43 @@
  */
 
 module org.elasticsearch.server {
-    requires org.elasticsearch.lz4;
-    requires org.elasticsearch.plugin.classloader;
     requires java.logging;
     requires java.security.jgss;
     requires java.sql;
-    requires jdk.unsupported;
-    requires org.apache.lucene.backward_codecs;
-    requires org.apache.lucene.memory;
-    requires org.apache.lucene.misc;
-    requires org.apache.lucene.sandbox;
-    requires org.elasticsearch.secure_sm;
-
-    requires HdrHistogram;
-    requires com.sun.jna;
-    requires org.elasticsearch.cli;
-    requires org.elasticsearch.geo;
-    requires hppc;
     requires java.management;
+    requires jdk.unsupported;
+
+    requires org.elasticsearch.cli;
+    requires org.elasticsearch.core;
+    requires org.elasticsearch.geo;
+    requires org.elasticsearch.lz4;
+    requires org.elasticsearch.plugin.classloader;
+    requires org.elasticsearch.secure_sm;
+    requires org.elasticsearch.xcontent;
+
+    requires com.sun.jna;
+    requires hppc;
+    requires HdrHistogram;
     requires jopt.simple;
     requires log4j2.ecs.layout;
+    requires org.lz4.java;
+    requires t.digest;
+
+    requires org.apache.logging.log4j;
+    requires org.apache.logging.log4j.core;
+
     requires org.apache.lucene.analysis.common;
+    requires org.apache.lucene.backward_codecs;
     requires org.apache.lucene.core;
     requires org.apache.lucene.grouping;
     requires org.apache.lucene.highlighter;
     requires org.apache.lucene.join;
+    requires org.apache.lucene.memory;
+    requires org.apache.lucene.misc;
     requires org.apache.lucene.queries;
     requires org.apache.lucene.queryparser;
+    requires org.apache.lucene.sandbox;
     requires org.apache.lucene.suggest;
-    requires org.apache.logging.log4j;
-    requires org.apache.logging.log4j.core;
-    requires org.elasticsearch.core;
-    requires org.elasticsearch.xcontent;
-    requires org.lz4.java;
-    requires t.digest;
 
     exports org.elasticsearch;
     exports org.elasticsearch.action; // #### temp, do not export, what does the IDE do for core plugin that uses type from action

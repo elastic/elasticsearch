@@ -7,7 +7,7 @@
  */
 
 module org.elasticsearch.lz4 {
-    requires transitive org.lz4.java;
+    requires org.lz4.java;
 
     exports org.elasticsearch.lz4;
 }

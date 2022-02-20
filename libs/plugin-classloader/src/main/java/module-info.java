@@ -8,5 +8,4 @@
 
 module org.elasticsearch.plugin.classloader {
     exports org.elasticsearch.plugins.loader;
-
 }

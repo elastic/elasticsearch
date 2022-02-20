@@ -415,7 +415,9 @@ public abstract class JwtTestCase extends ESTestCase {
             jwtClaimsSetBuilder.audience(audiences);
         }
         if (randomBoolean()) {
-            jwtClaimsSetBuilder.subject(randomAlphaOfLength(8));
+            jwtClaimsSetBuilder.subject(principalClaimValue);
+        } else {
+            jwtClaimsSetBuilder.subject(principalClaimValue + "_" + randomAlphaOfLength(8));
         }
         // principal and groups claims
         if ((Strings.hasText(principalClaimName)) && (principalClaimValue != null)) {

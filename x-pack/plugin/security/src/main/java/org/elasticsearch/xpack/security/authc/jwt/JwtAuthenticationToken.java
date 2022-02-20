@@ -16,21 +16,17 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.text.ParseException;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 /**
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
-    private static final List<String> CLAIMS_TO_REMOVE = List.of("iss", "aud", "exp", "iat", "nbf", "auth_time", "nonce", "jti");
 
     // Stored members
     protected SecureString endUserSignedJwt; // required
     protected SecureString clientAuthenticationSharedSecret; // optional, nullable
-    protected String principal; // "iss/aud/sub" or "iss/aud/orderedClaimsSubset"
+    protected String principal; // "iss/aud/sub"
 
     /**
      * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
@@ -55,27 +51,18 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         } catch (ParseException e) {
             throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
         }
-        if (Strings.hasText(jwtClaimsSet.getIssuer()) == false) {
-            throw new IllegalArgumentException("Issuer claim is missing.");
-        } else if ((jwtClaimsSet.getAudience() == null) || (jwtClaimsSet.getAudience().isEmpty())) {
-            throw new IllegalArgumentException("Audiences claim is missing.");
+        final String issuer = jwtClaimsSet.getIssuer();
+        final List<String> audiences = jwtClaimsSet.getAudience();
+        final String subject = jwtClaimsSet.getSubject();
+
+        if (Strings.hasText(issuer) == false) {
+            throw new IllegalArgumentException("Issuer claim 'iss' is missing.");
+        } else if ((audiences == null) || (audiences.isEmpty())) {
+            throw new IllegalArgumentException("Audiences claim 'aud' is missing.");
+        } else if (Strings.hasText(subject) == false) {
+            throw new IllegalArgumentException("Subject claim 'sub' is missing.");
         }
-        final String orderedAudiences = String.join(",", new TreeSet<>(jwtClaimsSet.getAudience()));
-        final String computedSubject;
-        if (Strings.hasText(jwtClaimsSet.getSubject())) {
-            computedSubject = jwtClaimsSet.getSubject(); // principal = "iss/aud/sub"
-        } else {
-            final Map<String, Object> remainingClaims = jwtClaimsSet.getClaims()
-                .entrySet()
-                .stream()
-                .filter(e -> CLAIMS_TO_REMOVE.contains(e.getKey()) == false)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            if (remainingClaims.isEmpty()) {
-                throw new IllegalArgumentException("No claims left after filtering [" + String.join(",", CLAIMS_TO_REMOVE) + "].");
-            }
-            computedSubject = new TreeMap<>(jwtClaimsSet.getClaims()).toString(); // principal = "iss/aud/orderedClaimsSubset"
-        }
-        this.principal = jwtClaimsSet.getIssuer() + "/" + orderedAudiences + "/" + computedSubject;
+        this.principal = issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + subject;
     }
 
     @Override

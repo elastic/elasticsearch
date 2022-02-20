@@ -339,6 +339,11 @@ public abstract class JwtTestCase extends ESTestCase {
         return utf8HmacKeyBuilder.build();
     }
 
+    public static OctetSequenceKey jwkHmacRemoveAttributes(final OctetSequenceKey hmacKey) {
+        final String keyBytesAsUtf8 = hmacKey.getKeyValue().decodeToString();
+        return new OctetSequenceKey.Builder(keyBytesAsUtf8.getBytes(StandardCharsets.UTF_8)).build();
+    }
+
     public static JWKGenerator<? extends JWK> randomSettingsForJwkGenerator(
         final JWKGenerator<? extends JWK> jwkGenerator,
         final JWSAlgorithm jwsAlgorithm

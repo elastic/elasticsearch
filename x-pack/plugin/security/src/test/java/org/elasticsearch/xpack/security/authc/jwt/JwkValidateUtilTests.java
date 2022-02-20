@@ -41,11 +41,12 @@ public class JwkValidateUtilTests extends JwtTestCase {
         assertThat(this.hmacEncodeDecodeAsPasswordTestHelper(hmacKeyString1), is(true));
 
         // Generate HMAC UTF8 bytes. This is usable as an OIDC HMAC key setting.
-        final OctetSequenceKey hmacKeyString2 = JwtTestCase.conditionJwkHmacForOidc(hmacKeyRandomBytes);
+        final OctetSequenceKey hmacKeyString2 = JwtTestCase.randomJwkHmacOidc(jwsAlgorithm);
         assertThat(this.hmacEncodeDecodeAsPasswordTestHelper(hmacKeyString2), is(true));
     }
 
     private boolean hmacEncodeDecodeAsPasswordTestHelper(final OctetSequenceKey hmacKey) {
+        final OctetSequenceKey hmacKeyNoAttributes = JwtTestCase.jwkHmacRemoveAttributes(hmacKey);
         // Encode input key as Base64(keyBytes) and Utf8String(keyBytes)
         final String keyBytesToBase64 = hmacKey.getKeyValue().toString();
         final String keyBytesAsUtf8 = hmacKey.getKeyValue().decodeToString();
@@ -53,14 +54,14 @@ public class JwkValidateUtilTests extends JwtTestCase {
         // Decode Base64(keyBytes) into new key and compare to original. This always works.
         final OctetSequenceKey decodeFromBase64 = new OctetSequenceKey.Builder(new Base64URL(keyBytesToBase64)).build();
         LOGGER.info("Base64 enc/dec test:\ngen: [" + hmacKey + "]\nenc: [" + keyBytesToBase64 + "]\ndec: [" + decodeFromBase64 + "]\n");
-        if (decodeFromBase64.equals(hmacKey) == false) {
+        if (decodeFromBase64.equals(hmacKeyNoAttributes) == false) {
             return false;
         }
 
         // Decode Utf8String(keyBytes) into new key and compare to original. Only works for randomJwkHmacString, fails for randomJwkHmac.
         final OctetSequenceKey decodeFromUtf8 = new OctetSequenceKey.Builder(keyBytesAsUtf8.getBytes(StandardCharsets.UTF_8)).build();
         LOGGER.info("UTF8 enc/dec test:\ngen: [" + hmacKey + "]\nenc: [" + keyBytesAsUtf8 + "]\ndec: [" + decodeFromUtf8 + "]\n");
-        return decodeFromUtf8.equals(hmacKey);
+        return decodeFromUtf8.equals(hmacKeyNoAttributes);
     }
 
     public void testComputeBitLengthRsa() throws Exception {

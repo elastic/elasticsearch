@@ -309,8 +309,6 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     public void testTimeSettingsWithDefault() {
         for (final Setting.AffixSetting<TimeValue> setting : List.of(
             JwtRealmSettings.ALLOWED_CLOCK_SKEW,
-            JwtRealmSettings.JWT_VALIDATION_CACHE_TTL,
-            JwtRealmSettings.ROLES_LOOKUP_CACHE_TTL,
             JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT,
             JwtRealmSettings.HTTP_SOCKET_TIMEOUT
         )) {
@@ -351,8 +349,6 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testIntegerSettingsWithDefault() {
         for (final Setting.AffixSetting<Integer> setting : List.of(
-            JwtRealmSettings.JWT_VALIDATION_CACHE_MAX_USERS,
-            JwtRealmSettings.ROLES_LOOKUP_CACHE_MAX_USERS,
             JwtRealmSettings.HTTP_MAX_CONNECTIONS,
             JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS
         )) {

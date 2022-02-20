@@ -110,16 +110,6 @@ public class JwtRealmSettings {
         );
         // JWT Client settings
         set.addAll(List.of(CLIENT_AUTHENTICATION_TYPE));
-        // JWT Cache settings
-        set.addAll(
-            List.of(
-                JWT_VALIDATION_CACHE_HASH_ALGO,
-                JWT_VALIDATION_CACHE_TTL,
-                JWT_VALIDATION_CACHE_MAX_USERS,
-                ROLES_LOOKUP_CACHE_TTL,
-                ROLES_LOOKUP_CACHE_MAX_USERS
-            )
-        );
         // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
         set.addAll(
             List.of(
@@ -214,43 +204,6 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<SecureString> CLIENT_AUTHENTICATION_SHARED_SECRET = RealmSettings.secureString(
         TYPE,
         "client_authentication.shared_secret"
-    );
-
-    // Individual Cache settings
-
-    public static final Setting.AffixSetting<String> JWT_VALIDATION_CACHE_HASH_ALGO = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE),
-        "cache.jwt_validation.hash_algo",
-        key -> Setting.simpleString(key, DEFAULT_JWT_VALIDATION_CACHE_HASH_ALGO, Setting.Property.NodeScope)
-    );
-
-    public static final Setting.AffixSetting<TimeValue> JWT_VALIDATION_CACHE_TTL = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE),
-        "cache.jwt_validation.ttl",
-        key -> Setting.timeSetting(key, DEFAULT_JWT_VALIDATION_CACHE_TTL, Setting.Property.NodeScope)
-    );
-
-    public static final Setting.AffixSetting<Integer> JWT_VALIDATION_CACHE_MAX_USERS = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE),
-        "cache.jwt_validation.max_users",
-        key -> Setting.intSetting(
-            key,
-            DEFAULT_JWT_VALIDATION_CACHE_MAX_USERS,
-            MIN_JWT_VALIDATION_CACHE_MAX_USERS,
-            Setting.Property.NodeScope
-        )
-    );
-
-    public static final Setting.AffixSetting<TimeValue> ROLES_LOOKUP_CACHE_TTL = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE),
-        "cache.roles_lookup.ttl",
-        key -> Setting.timeSetting(key, DEFAULT_ROLES_LOOKUP_CACHE_TTL, Setting.Property.NodeScope)
-    );
-
-    public static final Setting.AffixSetting<Integer> ROLES_LOOKUP_CACHE_MAX_USERS = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE),
-        "cache.roles_lookup.max_users",
-        key -> Setting.intSetting(key, DEFAULT_ROLES_LOOKUP_CACHE_MAX_USERS, MIN_ROLES_LOOKUP_CACHE_MAX_USERS, Setting.Property.NodeScope)
     );
 
     // Individual outgoing HTTP settings

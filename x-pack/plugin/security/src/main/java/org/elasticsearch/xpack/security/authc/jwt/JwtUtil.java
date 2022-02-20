@@ -163,9 +163,6 @@ public class JwtUtil {
                 if (Strings.hasText(uri.getHost()) == false) {
                     // Example URIs w/o host: "https:/", "https://", "https://:443"
                     throw new SettingsException("Host is missing in HTTPS URI [" + uriString + "].");
-                } else if ((Strings.hasText(uri.getPath()) == false) || (uri.getPath().endsWith("/"))) {
-                    // Examples URIs with missing path: "https://example.com", "https://example.com/", "https://example.com:443/path/"
-                    throw new SettingsException("File path is missing in HTTPS URI [" + uriString + "].");
                 }
                 return uri;
             } else if (uriString.startsWith("http")) {

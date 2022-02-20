@@ -137,20 +137,19 @@ public class JwtUtilTests extends JwtTestCase {
         expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://"));
         expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://:443"));
         expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://:443/"));
-        // Reject valid HTTPS URIs where file path is missing
-        expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://example.com"));
-        expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://example.com/"));
-        expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://example.com:443"));
-        expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://example.com:443/"));
-        expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://example.com:8443"));
-        expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://example.com:8443/"));
-        expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://example.com/path/"));
-        expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://example.com:443/path/"));
-        expectThrows(SettingsException.class, () -> JwtUtil.parseHttpsUri("https://example.com:8443/path/"));
     }
 
     public void testParseHttpsUriAccepted() {
         // Accept HTTPS URIs if parse succeeds
+        assertThat(JwtUtil.parseHttpsUri("https://example.com"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUri("https://example.com/"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:443"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:443/"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUri("https://example.com/path/"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:443/path/"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/path/"), is(notNullValue()));
         assertThat(JwtUtil.parseHttpsUri("https://example.com/jwkset.json"), is(notNullValue()));
         assertThat(JwtUtil.parseHttpsUri("https://example.com:443/jwkset.json"), is(notNullValue()));
         assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/jwkset.json"), is(notNullValue()));

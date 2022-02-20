@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-move-to-step]]
 === Move to lifecycle step API
 ++++

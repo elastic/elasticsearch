@@ -13,10 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -56,16 +57,53 @@ public class MetadataMappingService {
         this.indicesService = indicesService;
     }
 
-    class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
+    static class PutMappingClusterStateUpdateTask implements ClusterStateTaskListener, ClusterStateAckListener {
+
+        private final PutMappingClusterStateUpdateRequest request;
+        private final ActionListener<AcknowledgedResponse> listener;
+
+        PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener) {
+            this.request = request;
+            this.listener = listener;
+        }
+
         @Override
-        public ClusterTasksResult<PutMappingClusterStateUpdateRequest> execute(
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public boolean mustAck(DiscoveryNode discoveryNode) {
+            return true;
+        }
+
+        @Override
+        public void onAllNodesAcked(@Nullable Exception e) {
+            listener.onResponse(AcknowledgedResponse.of(e == null));
+        }
+
+        @Override
+        public void onAckTimeout() {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+        }
+
+        @Override
+        public TimeValue ackTimeout() {
+            return request.ackTimeout();
+        }
+    }
+
+    class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateTask> {
+        @Override
+        public ClusterTasksResult<PutMappingClusterStateUpdateTask> execute(
             ClusterState currentState,
-            List<PutMappingClusterStateUpdateRequest> tasks
+            List<PutMappingClusterStateUpdateTask> tasks
         ) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
-            ClusterTasksResult.Builder<PutMappingClusterStateUpdateRequest> builder = ClusterTasksResult.builder();
+            ClusterTasksResult.Builder<PutMappingClusterStateUpdateTask> builder = ClusterTasksResult.builder();
             try {
-                for (PutMappingClusterStateUpdateRequest request : tasks) {
+                for (PutMappingClusterStateUpdateTask task : tasks) {
+                    final PutMappingClusterStateUpdateRequest request = task.request;
                     try {
                         for (Index index : request.indices()) {
                             final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
@@ -77,9 +115,9 @@ public class MetadataMappingService {
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
-                        builder.success(request);
+                        builder.success(task);
                     } catch (Exception e) {
-                        builder.failure(request, e);
+                        builder.failure(task, e);
                     }
                 }
                 return builder.build(currentState);
@@ -162,7 +200,7 @@ public class MetadataMappingService {
                 // update mapping metadata on all types
                 DocumentMapper mapper = mapperService.documentMapper();
                 if (mapper != null) {
-                    indexMetadataBuilder.putMapping(new MappingMetadata(mapper.mappingSource()));
+                    indexMetadataBuilder.putMapping(new MappingMetadata(mapper));
                 }
                 if (updatedMapping) {
                     indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion());
@@ -211,38 +249,12 @@ public class MetadataMappingService {
             return;
         }
 
+        final PutMappingClusterStateUpdateTask task = new PutMappingClusterStateUpdateTask(request, listener);
         clusterService.submitStateUpdateTask(
             "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
-            request,
+            task,
             ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
-            putMappingExecutor,
-            new AckedClusterStateTaskListener() {
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    listener.onFailure(e);
-                }
-
-                @Override
-                public boolean mustAck(DiscoveryNode discoveryNode) {
-                    return true;
-                }
-
-                @Override
-                public void onAllNodesAcked(@Nullable Exception e) {
-                    listener.onResponse(AcknowledgedResponse.of(e == null));
-                }
-
-                @Override
-                public void onAckTimeout() {
-                    listener.onResponse(AcknowledgedResponse.FALSE);
-                }
-
-                @Override
-                public TimeValue ackTimeout() {
-                    return request.ackTimeout();
-                }
-            }
+            putMappingExecutor
         );
     }
 }

@@ -106,7 +106,7 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
 
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("null_value", "1234")));
         doc = mapper.parse(
-            new SourceToParse("test", "1", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON)
+            new SourceToParse("1", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON)
         );
 
         IndexableField[] fields = doc.rootDoc().getFields("field");

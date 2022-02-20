@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.monitoring.collector.ml;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -144,7 +144,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version."
+                + "in a future release."
         );
     }
 
@@ -181,7 +181,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release! See the breaking changes documentation for the next major version."
+                + "in a future release."
         );
     }
 

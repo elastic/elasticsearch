@@ -46,8 +46,8 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
 
             // We should have got here if and only if the only ML endpoints in the test were in the allowed list
             for (ExecutableSection section : testCandidate.getTestSection().getExecutableSections()) {
-                if (section instanceof DoSection) {
-                    String apiName = ((DoSection) section).getApiCallSection().getApi();
+                if (section instanceof DoSection doSection) {
+                    String apiName = doSection.getApiCallSection().getApi();
 
                     if (apiName.startsWith("ml.") && isAllowed(apiName) == false) {
                         fail("call to ml endpoint [" + apiName + "] should have failed because of missing role");

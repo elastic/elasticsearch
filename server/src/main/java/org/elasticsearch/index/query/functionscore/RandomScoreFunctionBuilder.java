@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.query.functionscore;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -146,7 +147,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             String fieldName;
             if (field == null) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.QUERIES,
                     "seed_requires_field",
                     "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set"
@@ -171,6 +172,11 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
 
     private static int hash(long value) {
         return Long.hashCode(value);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     public static RandomScoreFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {

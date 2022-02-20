@@ -25,10 +25,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.elasticsearch.client.internal.Requests.clusterHealthRequest;
+import static org.elasticsearch.client.internal.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -239,9 +238,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
     }
 
     private void assertNodesPresent(RoutingNodes routingNodes, String... nodes) {
-        final Set<String> keySet = StreamSupport.stream(routingNodes.spliterator(), false)
-            .map(RoutingNode::nodeId)
-            .collect(Collectors.toSet());
+        final Set<String> keySet = routingNodes.stream().map(RoutingNode::nodeId).collect(Collectors.toSet());
         assertThat(keySet, containsInAnyOrder(nodes));
     }
 }

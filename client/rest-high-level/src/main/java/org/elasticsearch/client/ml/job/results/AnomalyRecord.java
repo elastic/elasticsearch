@@ -341,8 +341,8 @@ public class AnomalyRecord implements ToXContentObject {
         return isInterim;
     }
 
-    void setInterim(boolean isInterim) {
-        this.isInterim = isInterim;
+    void setInterim(boolean interim) {
+        this.isInterim = interim;
     }
 
     public String getFieldName() {

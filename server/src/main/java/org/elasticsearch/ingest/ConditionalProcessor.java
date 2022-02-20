@@ -37,7 +37,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of("_type", value -> {
-        deprecationLogger.critical(
+        deprecationLogger.warn(
             DeprecationCategory.INDICES,
             "conditional-processor__type",
             "[types removal] Looking up doc types [_type] in scripts is deprecated."
@@ -153,8 +153,8 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             return new UnmodifiableIngestData((Map<String, Object>) raw);
         } else if (raw instanceof List) {
             return new UnmodifiableIngestList((List<Object>) raw);
-        } else if (raw instanceof byte[]) {
-            return ((byte[]) raw).clone();
+        } else if (raw instanceof byte[] bytes) {
+            return bytes.clone();
         }
         return raw;
     }

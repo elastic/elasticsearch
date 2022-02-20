@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-search-api]]
 === SQL search API
 ++++
@@ -54,6 +53,12 @@ precedence.
 [role="child_attributes"]
 [[sql-search-api-request-body]]
 ==== {api-request-body-title}
+
+`catalog`::
+(Optional, string) Default catalog (cluster) for queries. If unspecified, the
+queries execute on the data in the local cluster only.
++
+experimental:[] See <<modules-cross-cluster-search,{ccs}>>.
 
 `columnar`::
 (Optional, Boolean) If `true`, returns results in a columnar format. Defaults to

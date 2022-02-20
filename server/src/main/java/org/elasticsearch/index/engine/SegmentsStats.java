@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -22,6 +20,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class SegmentsStats implements Writeable, ToXContentFragment {
 
@@ -81,13 +80,13 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
     public void addFiles(ImmutableOpenMap<String, FileStats> files) {
         final ImmutableOpenMap.Builder<String, FileStats> map = ImmutableOpenMap.builder(this.files);
-        for (ObjectObjectCursor<String, FileStats> entry : files) {
-            final String extension = entry.key;
+        for (Map.Entry<String, FileStats> entry : files.entrySet()) {
+            final String extension = entry.getKey();
             if (map.containsKey(extension)) {
                 FileStats previous = map.get(extension);
-                map.put(extension, FileStats.merge(previous, entry.value));
+                map.put(extension, FileStats.merge(previous, entry.getValue()));
             } else {
-                map.put(extension, entry.value);
+                map.put(extension, entry.getValue());
             }
         }
         this.files = map.build();
@@ -174,8 +173,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, getBitsetMemory());
         builder.field(Fields.MAX_UNSAFE_AUTO_ID_TIMESTAMP, maxUnsafeAutoIdTimestamp);
         builder.startObject(Fields.FILE_SIZES);
-        for (ObjectObjectCursor<String, FileStats> entry : files) {
-            entry.value.toXContent(builder, params);
+        for (Map.Entry<String, FileStats> entry : files.entrySet()) {
+            entry.getValue().toXContent(builder, params);
         }
         builder.endObject();
         builder.endObject();

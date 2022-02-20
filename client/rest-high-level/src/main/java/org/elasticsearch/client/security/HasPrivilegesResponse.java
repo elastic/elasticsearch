@@ -149,17 +149,17 @@ public final class HasPrivilegesResponse {
      *                                  {@link HasPrivilegesRequest#getIndexPrivileges() included in the request}.
      */
     public boolean hasIndexPrivilege(String indexName, String privilegeName) {
-        Map<String, Boolean> indexPrivileges = this.indexPrivileges.get(indexName);
-        if (indexPrivileges == null) {
+        Map<String, Boolean> privilegesForIndex = this.indexPrivileges.get(indexName);
+        if (privilegesForIndex == null) {
             throw new IllegalArgumentException("No privileges for index [" + indexName + "] were included in this response");
         }
-        Boolean has = indexPrivileges.get(privilegeName);
-        if (has == null) {
+        Boolean hasPrivilege = privilegesForIndex.get(privilegeName);
+        if (hasPrivilege == null) {
             throw new IllegalArgumentException(
                 "Privilege [" + privilegeName + "] was not included in the response for index [" + indexName + "]"
             );
         }
-        return has;
+        return hasPrivilege;
     }
 
     /**

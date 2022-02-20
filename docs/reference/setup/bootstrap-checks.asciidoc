@@ -43,12 +43,11 @@ purposes without triggering production mode.
 [[single-node-discovery]]
 [discrete]
 === Single-node discovery
-We recognize that some users need to bind transport to an external interface for
-testing their usage of the transport client. For this situation, we provide the
-discovery type `single-node` (configure it by setting `discovery.type` to
-`single-node`); in this situation, a node will elect itself master and will not
-join a cluster with any other node.
-
+We recognize that some users need to bind the transport to an external
+interface for testing a remote-cluster configuration. For this situation, we
+provide the discovery type `single-node` (configure it by setting
+`discovery.type` to `single-node`); in this situation, a node will elect itself
+master and will not join a cluster with any other node.
 
 [discrete]
 === Forcing the bootstrap checks

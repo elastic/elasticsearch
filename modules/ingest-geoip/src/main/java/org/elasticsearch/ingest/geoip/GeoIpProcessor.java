@@ -131,15 +131,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
             return ingestDocument;
         }
 
-        if (ip instanceof String) {
-            Map<String, Object> geoData = getGeoData(lazyLoader, (String) ip);
+        if (ip instanceof String ipString) {
+            Map<String, Object> geoData = getGeoData(lazyLoader, ipString);
             if (geoData.isEmpty() == false) {
                 ingestDocument.setFieldValue(targetField, geoData);
             }
-        } else if (ip instanceof List) {
+        } else if (ip instanceof List<?> ipList) {
             boolean match = false;
-            List<Map<String, Object>> geoDataList = new ArrayList<>(((List) ip).size());
-            for (Object ipAddr : (List) ip) {
+            List<Map<String, Object>> geoDataList = new ArrayList<>(ipList.size());
+            for (Object ipAddr : ipList) {
                 if (ipAddr instanceof String == false) {
                     throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
                 }
@@ -170,23 +170,13 @@ public final class GeoIpProcessor extends AbstractProcessor {
             final InetAddress ipAddress = InetAddresses.forString(ip);
             Map<String, Object> geoData;
             if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                try {
-                    geoData = retrieveCityGeoData(lazyLoader, ipAddress);
-                } catch (AddressNotFoundRuntimeException e) {
-                    geoData = Collections.emptyMap();
-                }
+                geoData = retrieveCityGeoData(lazyLoader, ipAddress);
             } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                try {
-                    geoData = retrieveCountryGeoData(lazyLoader, ipAddress);
-                } catch (AddressNotFoundRuntimeException e) {
-                    geoData = Collections.emptyMap();
-                }
+                geoData = retrieveCountryGeoData(lazyLoader, ipAddress);
+
             } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                try {
-                    geoData = retrieveAsnGeoData(lazyLoader, ipAddress);
-                } catch (AddressNotFoundRuntimeException e) {
-                    geoData = Collections.emptyMap();
-                }
+                geoData = retrieveAsnGeoData(lazyLoader, ipAddress);
+
             } else {
                 throw new ElasticsearchParseException(
                     "Unsupported database type [" + lazyLoader.getDatabaseType() + "]",
@@ -222,6 +212,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> retrieveCityGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
         CityResponse response = lazyLoader.getCity(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
         Country country = response.getCountry();
         City city = response.getCity();
         Location location = response.getLocation();
@@ -231,28 +224,26 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP:
-                    geoData.put("ip", NetworkAddress.format(ipAddress));
-                    break;
-                case COUNTRY_ISO_CODE:
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
                         geoData.put("country_iso_code", countryIsoCode);
                     }
-                    break;
-                case COUNTRY_NAME:
+                }
+                case COUNTRY_NAME -> {
                     String countryName = country.getName();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
                     }
-                    break;
-                case CONTINENT_NAME:
+                }
+                case CONTINENT_NAME -> {
                     String continentName = continent.getName();
                     if (continentName != null) {
                         geoData.put("continent_name", continentName);
                     }
-                    break;
-                case REGION_ISO_CODE:
+                }
+                case REGION_ISO_CODE -> {
                     // ISO 3166-2 code for country subdivisions.
                     // See iso.org/iso-3166-country-codes.html
                     String countryIso = country.getIsoCode();
@@ -261,26 +252,26 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         String regionIsoCode = countryIso + "-" + subdivisionIso;
                         geoData.put("region_iso_code", regionIsoCode);
                     }
-                    break;
-                case REGION_NAME:
+                }
+                case REGION_NAME -> {
                     String subdivisionName = subdivision.getName();
                     if (subdivisionName != null) {
                         geoData.put("region_name", subdivisionName);
                     }
-                    break;
-                case CITY_NAME:
+                }
+                case CITY_NAME -> {
                     String cityName = city.getName();
                     if (cityName != null) {
                         geoData.put("city_name", cityName);
                     }
-                    break;
-                case TIMEZONE:
+                }
+                case TIMEZONE -> {
                     String locationTimeZone = location.getTimeZone();
                     if (locationTimeZone != null) {
                         geoData.put("timezone", locationTimeZone);
                     }
-                    break;
-                case LOCATION:
+                }
+                case LOCATION -> {
                     Double latitude = location.getLatitude();
                     Double longitude = location.getLongitude();
                     if (latitude != null && longitude != null) {
@@ -289,7 +280,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         locationObject.put("lon", longitude);
                         geoData.put("location", locationObject);
                     }
-                    break;
+                }
             }
         }
         return geoData;
@@ -297,33 +288,34 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> retrieveCountryGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
         CountryResponse response = lazyLoader.getCountry(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
         Country country = response.getCountry();
         Continent continent = response.getContinent();
 
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP:
-                    geoData.put("ip", NetworkAddress.format(ipAddress));
-                    break;
-                case COUNTRY_ISO_CODE:
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case COUNTRY_ISO_CODE -> {
                     String countryIsoCode = country.getIsoCode();
                     if (countryIsoCode != null) {
                         geoData.put("country_iso_code", countryIsoCode);
                     }
-                    break;
-                case COUNTRY_NAME:
+                }
+                case COUNTRY_NAME -> {
                     String countryName = country.getName();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
                     }
-                    break;
-                case CONTINENT_NAME:
+                }
+                case CONTINENT_NAME -> {
                     String continentName = continent.getName();
                     if (continentName != null) {
                         geoData.put("continent_name", continentName);
                     }
-                    break;
+                }
             }
         }
         return geoData;
@@ -331,6 +323,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> retrieveAsnGeoData(DatabaseReaderLazyLoader lazyLoader, InetAddress ipAddress) {
         AsnResponse response = lazyLoader.getAsn(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
         Integer asn = response.getAutonomousSystemNumber();
         String organization_name = response.getAutonomousSystemOrganization();
         Network network = response.getNetwork();
@@ -409,7 +404,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
             if (value != null) {
-                DEPRECATION_LOGGER.critical(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
+                DEPRECATION_LOGGER.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
             DatabaseReaderLazyLoader lazyLoader = databaseNodeService.getDatabase(databaseFile);
@@ -486,7 +481,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 boolean valid = metadata.isValid(currentState.metadata().settings());
                 if (valid && metadata.isCloseToExpiration()) {
                     HeaderWarning.addWarning(
-                        DeprecationLogger.CRITICAL,
                         "database [{}] was not updated for over 25 days, geoip processor"
                             + " will stop working if there is no update for 30 days",
                         databaseFile
@@ -517,17 +511,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
             return loader == null && IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES.contains(databaseName);
         }
 
-    }
-
-    // Geoip2's AddressNotFoundException is checked and due to the fact that we need run their code
-    // inside a PrivilegedAction code block, we are forced to catch any checked exception and rethrow
-    // it with an unchecked exception.
-    // package private for testing
-    static final class AddressNotFoundRuntimeException extends RuntimeException {
-
-        AddressNotFoundRuntimeException(Throwable cause) {
-            super(cause);
-        }
     }
 
     enum Property {

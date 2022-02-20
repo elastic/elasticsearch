@@ -124,9 +124,10 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
         assertThat(parsedFailures[1].getCause().getMessage(), containsString("fizz"));
     }
 
-    public void testToXContent() {
+    public void testToXContent() throws IOException {
         T response = createTestInstance(10, 10, 0, null);
         String output = Strings.toString(response);
-        assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0}}", output);
+        assertEquals("""
+            {"_shards":{"total":10,"successful":10,"failed":0}}""", output);
     }
 }

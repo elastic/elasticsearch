@@ -35,12 +35,12 @@ public class IcuAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer>
                 "Unknown mode [" + mode + "] in analyzer [" + name + "], expected one of [compose, decompose]"
             );
         }
-        Normalizer2 normalizer = Normalizer2.getInstance(
+        Normalizer2 normalizerInstance = Normalizer2.getInstance(
             null,
             method,
             "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE
         );
-        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, normalizer, settings);
+        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, normalizerInstance, settings);
     }
 
     @Override

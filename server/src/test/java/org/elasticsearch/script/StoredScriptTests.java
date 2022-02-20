@@ -240,18 +240,13 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         Map<String, String> options = instance.getOptions();
 
         switch (between(0, 2)) {
-            case 0:
-                source = randomAlphaOfLength(randomIntBetween(4, 16383));
-                break;
-            case 1:
-                lang = randomAlphaOfLengthBetween(1, 20);
-                break;
-            case 2:
+            case 0 -> source = randomAlphaOfLength(randomIntBetween(4, 16383));
+            case 1 -> lang = randomAlphaOfLengthBetween(1, 20);
+            case 2 -> {
                 options = new HashMap<>(options);
                 options.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new StoredScriptSource(lang, source, options);
     }

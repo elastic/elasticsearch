@@ -31,14 +31,14 @@ public class NativeMemoryCapacityTests extends ESTestCase {
             ByteSizeValue.ofMb(50).getBytes()
         );
         capacity.merge(new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofMb(100).getBytes()));
-        assertThat(capacity.getTier(), equalTo(ByteSizeValue.ofGb(1).getBytes() * 2L));
-        assertThat(capacity.getNode(), equalTo(ByteSizeValue.ofMb(200).getBytes()));
+        assertThat(capacity.getTierMlNativeMemoryRequirement(), equalTo(ByteSizeValue.ofGb(1).getBytes() * 2L));
+        assertThat(capacity.getNodeMlNativeMemoryRequirement(), equalTo(ByteSizeValue.ofMb(200).getBytes()));
         assertThat(capacity.getJvmSize(), equalTo(ByteSizeValue.ofMb(50).getBytes()));
 
         capacity.merge(new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofMb(300).getBytes()));
 
-        assertThat(capacity.getTier(), equalTo(ByteSizeValue.ofGb(1).getBytes() * 3L));
-        assertThat(capacity.getNode(), equalTo(ByteSizeValue.ofMb(300).getBytes()));
+        assertThat(capacity.getTierMlNativeMemoryRequirement(), equalTo(ByteSizeValue.ofGb(1).getBytes() * 3L));
+        assertThat(capacity.getNodeMlNativeMemoryRequirement(), equalTo(ByteSizeValue.ofMb(300).getBytes()));
         assertThat(capacity.getJvmSize(), is(nullValue()));
     }
 
@@ -71,8 +71,8 @@ public class NativeMemoryCapacityTests extends ESTestCase {
     public void testAutoscalingCapacityConsistency() {
         final BiConsumer<NativeMemoryCapacity, Integer> consistentAutoAssertions = (nativeMemory, memoryPercentage) -> {
             AutoscalingCapacity autoscalingCapacity = nativeMemory.autoscalingCapacity(25, true);
-            assertThat(autoscalingCapacity.total().memory().getBytes(), greaterThan(nativeMemory.getTier()));
-            assertThat(autoscalingCapacity.node().memory().getBytes(), greaterThan(nativeMemory.getNode()));
+            assertThat(autoscalingCapacity.total().memory().getBytes(), greaterThan(nativeMemory.getTierMlNativeMemoryRequirement()));
+            assertThat(autoscalingCapacity.node().memory().getBytes(), greaterThan(nativeMemory.getNodeMlNativeMemoryRequirement()));
             assertThat(
                 autoscalingCapacity.total().memory().getBytes(),
                 greaterThanOrEqualTo(autoscalingCapacity.node().memory().getBytes())

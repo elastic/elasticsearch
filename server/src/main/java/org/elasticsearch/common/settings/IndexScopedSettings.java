@@ -53,6 +53,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
         IndexMetadata.SETTING_INDEX_VERSION_CREATED,
+        IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY,
         IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
         IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
         IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
@@ -184,6 +185,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         Set<Setting<?>> result = new HashSet<>(ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS);
         result.add(IndexSettings.MODE);
         result.add(IndexMetadata.INDEX_ROUTING_PATH);
+        result.add(IndexSettings.TIME_SERIES_START_TIME);
+        result.add(IndexSettings.TIME_SERIES_END_TIME);
+        result.add(IndexSettings.LOOK_AHEAD_TIME);
         return Set.copyOf(result);
     }
 

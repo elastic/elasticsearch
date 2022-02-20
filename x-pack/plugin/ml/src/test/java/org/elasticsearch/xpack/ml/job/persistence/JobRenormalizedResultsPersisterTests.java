@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;

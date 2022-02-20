@@ -100,9 +100,9 @@ class HdfsSecurityContext {
         this.restrictedExecutionPermissions = renderPermissions(ugi);
     }
 
-    private Permission[] renderPermissions(UserGroupInformation ugi) {
+    private Permission[] renderPermissions(UserGroupInformation userGroupInformation) {
         Permission[] permissions;
-        if (ugi.isFromKeytab()) {
+        if (userGroupInformation.isFromKeytab()) {
             // KERBEROS
             // Leave room to append one extra permission based on the logged in user's info.
             int permlen = KERBEROS_AUTH_PERMISSIONS.length + 1;
@@ -112,7 +112,7 @@ class HdfsSecurityContext {
 
             // Append a kerberos.ServicePermission to only allow initiating kerberos connections
             // as the logged in user.
-            permissions[permissions.length - 1] = new ServicePermission(ugi.getUserName(), "initiate");
+            permissions[permissions.length - 1] = new ServicePermission(userGroupInformation.getUserName(), "initiate");
         } else {
             // SIMPLE
             permissions = Arrays.copyOf(SIMPLE_AUTH_PERMISSIONS, SIMPLE_AUTH_PERMISSIONS.length);

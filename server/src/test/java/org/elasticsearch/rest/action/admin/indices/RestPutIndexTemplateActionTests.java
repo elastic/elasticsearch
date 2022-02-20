@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
@@ -70,6 +70,6 @@ public class RestPutIndexTemplateActionTests extends ESTestCase {
             .withContent(BytesReference.bytes(typedContent), null)
             .build();
         action.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

@@ -337,20 +337,12 @@ public class TransportBulkActionTests extends ESTestCase {
     private BulkRequest buildBulkRequest(List<String> indices) {
         BulkRequest request = new BulkRequest();
         for (String index : indices) {
-            final DocWriteRequest<?> subRequest;
-            switch (randomIntBetween(1, 3)) {
-                case 1:
-                    subRequest = new IndexRequest(index);
-                    break;
-                case 2:
-                    subRequest = new DeleteRequest(index).id("0");
-                    break;
-                case 3:
-                    subRequest = new UpdateRequest(index, "0");
-                    break;
-                default:
-                    throw new IllegalStateException("only have 3 cases");
-            }
+            final DocWriteRequest<?> subRequest = switch (randomIntBetween(1, 3)) {
+                case 1 -> new IndexRequest(index);
+                case 2 -> new DeleteRequest(index).id("0");
+                case 3 -> new UpdateRequest(index, "0");
+                default -> throw new IllegalStateException("only have 3 cases");
+            };
             request.add(subRequest);
         }
         return request;

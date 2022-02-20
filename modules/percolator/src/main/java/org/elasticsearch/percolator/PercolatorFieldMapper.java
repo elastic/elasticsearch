@@ -362,7 +362,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-        SearchExecutionContext searchExecutionContext = this.searchExecutionContext.get();
+        SearchExecutionContext executionContext = this.searchExecutionContext.get();
         if (context.doc().getField(queryBuilderField.name()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
             // could be provided. In order to prevent this we fail if we try to parse more than one query
@@ -370,21 +370,21 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("a document can only contain one percolator query");
         }
 
-        configureContext(searchExecutionContext, isMapUnmappedFieldAsText());
+        configureContext(executionContext, isMapUnmappedFieldAsText());
 
         XContentParser parser = context.parser();
         QueryBuilder queryBuilder = parseQueryBuilder(parser, parser.getTokenLocation());
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
-        Rewriteable.rewriteAndFetch(queryBuilder, searchExecutionContext, future);
+        Rewriteable.rewriteAndFetch(queryBuilder, executionContext, future);
         queryBuilder = future.actionGet();
 
         Version indexVersion = context.indexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
 
-        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(searchExecutionContext));
-        Query query = queryBuilderForProcessing.toQuery(searchExecutionContext);
+        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(executionContext));
+        Query query = queryBuilderForProcessing.toQuery(executionContext);
         processQuery(query, context);
     }
 
@@ -509,8 +509,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
         } else if (queryBuilder.getName().equals("has_parent")) {
             throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
-        } else if (queryBuilder instanceof BoolQueryBuilder) {
-            BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
+        } else if (queryBuilder instanceof BoolQueryBuilder boolQueryBuilder) {
             List<QueryBuilder> clauses = new ArrayList<>();
             clauses.addAll(boolQueryBuilder.filter());
             clauses.addAll(boolQueryBuilder.must());
@@ -519,15 +518,14 @@ public class PercolatorFieldMapper extends FieldMapper {
             for (QueryBuilder clause : clauses) {
                 verifyQuery(clause);
             }
-        } else if (queryBuilder instanceof ConstantScoreQueryBuilder) {
-            verifyQuery(((ConstantScoreQueryBuilder) queryBuilder).innerQuery());
-        } else if (queryBuilder instanceof FunctionScoreQueryBuilder) {
-            verifyQuery(((FunctionScoreQueryBuilder) queryBuilder).query());
-        } else if (queryBuilder instanceof BoostingQueryBuilder) {
-            verifyQuery(((BoostingQueryBuilder) queryBuilder).negativeQuery());
-            verifyQuery(((BoostingQueryBuilder) queryBuilder).positiveQuery());
-        } else if (queryBuilder instanceof DisMaxQueryBuilder) {
-            DisMaxQueryBuilder disMaxQueryBuilder = (DisMaxQueryBuilder) queryBuilder;
+        } else if (queryBuilder instanceof ConstantScoreQueryBuilder constantScoreQueryBuilder) {
+            verifyQuery(constantScoreQueryBuilder.innerQuery());
+        } else if (queryBuilder instanceof FunctionScoreQueryBuilder functionScoreQueryBuilder) {
+            verifyQuery(functionScoreQueryBuilder.query());
+        } else if (queryBuilder instanceof BoostingQueryBuilder boostingQueryBuilder) {
+            verifyQuery(boostingQueryBuilder.negativeQuery());
+            verifyQuery(boostingQueryBuilder.positiveQuery());
+        } else if (queryBuilder instanceof DisMaxQueryBuilder disMaxQueryBuilder) {
             for (QueryBuilder innerQueryBuilder : disMaxQueryBuilder.innerQueries()) {
                 verifyQuery(innerQueryBuilder);
             }

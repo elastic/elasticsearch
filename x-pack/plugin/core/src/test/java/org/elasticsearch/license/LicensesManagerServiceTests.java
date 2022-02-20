@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -125,7 +124,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     private void removeAndAckSignedLicenses(final LicenseService licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
-        licenseService.removeLicense(new DeleteLicenseRequest(), new ActionListener<PostStartBasicResponse>() {
+        licenseService.removeLicense(new ActionListener<PostStartBasicResponse>() {
             @Override
             public void onResponse(PostStartBasicResponse postStartBasicResponse) {
                 if (postStartBasicResponse.isAcknowledged()) {

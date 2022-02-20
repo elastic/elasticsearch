@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.settings.put;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -81,6 +81,14 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<
 
     public UpdateSettingsRequestBuilder setPreserveExisting(boolean preserveExisting) {
         request.setPreserveExisting(preserveExisting);
+        return this;
+    }
+
+    /**
+     * Sets the origin to use, only set this when the settings update is requested by ES internal processes.
+     */
+    public UpdateSettingsRequestBuilder origin(String origin) {
+        request.origin(origin);
         return this;
     }
 }

@@ -123,7 +123,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
@@ -172,7 +176,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
@@ -220,7 +228,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
@@ -277,7 +289,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
@@ -316,7 +332,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
@@ -358,7 +378,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
@@ -405,7 +429,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 localService.acceptIncomingRequests();
 
                 // Predicate excludes seed node as a possible connection
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
@@ -454,7 +482,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
@@ -522,7 +554,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
@@ -611,7 +647,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
                 List<String> seedNodes = Collections.singletonList(accessibleNode.toString());
                 TransportAddress proxyAddress = accessibleNode.getAddress();
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    transport,
+                    threadPool.getThreadContext()
+                );
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
@@ -659,7 +699,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 localService.start();
                 localService.acceptIncomingRequests();
 
-                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
@@ -894,10 +938,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             Setting<?> concreteSetting = restrictedSetting.v1().getConcreteSettingForNamespace(clusterName);
             Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
-            String expected = "Setting \""
-                + concreteSetting.getKey()
-                + "\" cannot be used with the configured "
-                + "\"cluster.remote.cluster_name.mode\" [required=SNIFF, configured=PROXY]";
+            String expected = """
+                Setting "%s" cannot be used with the configured "cluster.remote.cluster_name.mode" \
+                [required=SNIFF, configured=PROXY]\
+                """.formatted(concreteSetting.getKey());
             assertEquals(expected, iae.getMessage());
         }
     }

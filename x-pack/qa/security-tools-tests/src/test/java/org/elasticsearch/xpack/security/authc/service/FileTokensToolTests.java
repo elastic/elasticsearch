@@ -261,19 +261,19 @@ public class FileTokensToolTests extends CommandTestCase {
     public void testListTokens() throws Exception {
         execute("list", pathHomeParameter);
         final String output = terminal.getOutput();
-        assertThat(
-            output,
-            containsString("elastic/fleet-server/server_1\n" + "elastic/fleet-server/server_2\n" + "elastic/fleet-server/server_3")
-        );
+        assertThat(output, containsString("""
+            elastic/fleet-server/server_1
+            elastic/fleet-server/server_2
+            elastic/fleet-server/server_3"""));
     }
 
     public void testListTokensByPrincipal() throws Exception {
         execute("list", pathHomeParameter, "elastic/fleet-server");
         final String output = terminal.getOutput();
-        assertThat(
-            output,
-            containsString("elastic/fleet-server/server_1\n" + "elastic/fleet-server/server_2\n" + "elastic/fleet-server/server_3")
-        );
+        assertThat(output, containsString("""
+            elastic/fleet-server/server_1
+            elastic/fleet-server/server_2
+            elastic/fleet-server/server_3"""));
     }
 
     public void testListTokensNonExist() throws Exception {

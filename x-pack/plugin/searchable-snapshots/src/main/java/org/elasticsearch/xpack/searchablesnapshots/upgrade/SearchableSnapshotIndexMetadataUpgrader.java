@@ -13,13 +13,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Executor;
@@ -71,12 +71,12 @@ public class SearchableSnapshotIndexMetadataUpgrader {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     clusterService.removeListener(listener);
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.warn(
                         "upgrading frozen indices to have frozen shard limit group failed, will retry on the next cluster state update",
                         e
@@ -84,7 +84,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
                     // let us try again later.
                     upgraded.set(false);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         } else {
             clusterService.removeListener(listener);
         }
@@ -92,9 +92,11 @@ public class SearchableSnapshotIndexMetadataUpgrader {
 
     static boolean needsUpgrade(ClusterState state) {
         return StreamSupport.stream(state.metadata().spliterator(), false)
-            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
+            .filter(
+                imd -> imd.getCompatibilityVersion().onOrAfter(Version.V_7_12_0) && imd.getCompatibilityVersion().before(Version.V_8_0_0)
+            )
+            .filter(IndexMetadata::isPartialSearchableSnapshot)
             .map(IndexMetadata::getSettings)
-            .filter(SearchableSnapshotsSettings::isPartialSearchableSnapshotIndex)
             .anyMatch(SearchableSnapshotIndexMetadataUpgrader::notFrozenShardLimitGroup);
     }
 
@@ -104,11 +106,10 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         }
         Metadata.Builder builder = Metadata.builder(currentState.metadata());
         StreamSupport.stream(currentState.metadata().spliterator(), false)
-            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
             .filter(
-                imd -> SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(imd.getSettings())
-                    && notFrozenShardLimitGroup(imd.getSettings())
+                imd -> imd.getCompatibilityVersion().onOrAfter(Version.V_7_12_0) && imd.getCompatibilityVersion().before(Version.V_8_0_0)
             )
+            .filter(imd -> imd.isPartialSearchableSnapshot() && notFrozenShardLimitGroup(imd.getSettings()))
             .map(SearchableSnapshotIndexMetadataUpgrader::setShardLimitGroupFrozen)
             .forEach(imd -> builder.put(imd, true));
         return ClusterState.builder(currentState).metadata(builder).build();

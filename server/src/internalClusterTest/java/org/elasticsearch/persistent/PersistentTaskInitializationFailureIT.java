@@ -10,7 +10,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -53,7 +53,7 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         startPersistentTaskFuture.actionGet();
 
         assertBusy(() -> {
-            final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+            final ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
             final PersistentTasksCustomMetadata persistentTasks = clusterService.state()
                 .metadata()
                 .custom(PersistentTasksCustomMetadata.TYPE);

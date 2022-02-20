@@ -47,8 +47,7 @@ public class TestMatchers extends Matchers {
 
             @Override
             public boolean matches(Object actual) {
-                if (actual instanceof Throwable) {
-                    final Throwable throwable = (Throwable) actual;
+                if (actual instanceof final Throwable throwable) {
                     return messageMatcher.matches(throwable.getMessage());
                 } else {
                     return false;
@@ -58,8 +57,7 @@ public class TestMatchers extends Matchers {
             @Override
             public void describeMismatch(Object item, Description description) {
                 super.describeMismatch(item, description);
-                if (item instanceof Throwable) {
-                    Throwable e = (Throwable) item;
+                if (item instanceof Throwable e) {
                     final StackTraceElement at = e.getStackTrace()[0];
                     description.appendText(" at ").appendText(at.toString());
                 }

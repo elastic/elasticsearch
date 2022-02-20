@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -20,6 +21,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -59,7 +61,17 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        return new WaitForRolloverReadyStep(stepKey, nextStepKey, client, maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        Long maxPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
+        return new WaitForRolloverReadyStep(
+            stepKey,
+            nextStepKey,
+            client,
+            maxSize,
+            maxPrimaryShardSize,
+            maxAge,
+            maxDocs,
+            maxPrimaryShardDocs
+        );
     }
 
     @Override
@@ -70,36 +82,37 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
+        Long maxPrimaryShardDocs = instance.getMaxPrimaryShardDocs();
 
         switch (between(0, 5)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                maxSize = randomValueOtherThan(maxSize, () -> {
-                    ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-                    return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
-                });
-                break;
-            case 3:
-                maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
-                    ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
-                    return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
-                });
-                break;
-            case 4:
-                maxAge = randomValueOtherThan(maxAge, () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test"));
-                break;
-            case 5:
-                maxDocs = randomValueOtherThan(maxDocs, () -> randomNonNegativeLong());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> maxSize = randomValueOtherThan(maxSize, () -> {
+                ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
+                return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+            });
+            case 3 -> maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
+                ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+                return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
+            });
+            case 4 -> maxAge = randomValueOtherThan(
+                maxAge,
+                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
+            );
+            case 5 -> maxDocs = randomValueOtherThan(maxDocs, () -> randomNonNegativeLong());
+            case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, () -> randomNonNegativeLong());
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        return new WaitForRolloverReadyStep(
+            key,
+            nextKey,
+            instance.getClient(),
+            maxSize,
+            maxPrimaryShardSize,
+            maxAge,
+            maxDocs,
+            maxPrimaryShardDocs
+        );
     }
 
     @Override
@@ -111,7 +124,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             instance.getMaxSize(),
             instance.getMaxPrimaryShardSize(),
             instance.getMaxAge(),
-            instance.getMaxDocs()
+            instance.getMaxDocs(),
+            instance.getMaxPrimaryShardDocs()
         );
     }
 
@@ -176,7 +190,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         Metadata metadata = Metadata.builder()
             .put(indexMetadata, true)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
+            .put(DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
             .build();
         step.evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
@@ -218,7 +232,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .put(firstGenerationIndex, true)
             .put(writeIndex, true)
             .put(
-                new DataStream(
+                DataStreamTestHelper.newInstance(
                     dataStreamName,
                     createTimestampField("@timestamp"),
                     List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())
@@ -262,6 +276,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+            }
+            if (step.getMaxPrimaryShardDocs() != null) {
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
             }
             assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
@@ -465,6 +482,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
             }
+            if (step.getMaxPrimaryShardDocs() != null) {
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
+            }
             assertRolloverIndexRequest(request, alias, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
                 .collect(Collectors.toMap(Condition::toString, condition -> false));
@@ -520,6 +540,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+            }
+            if (step.getMaxPrimaryShardDocs() != null) {
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
             }
             assertRolloverIndexRequest(request, alias, expectedConditions);
             listener.onFailure(exception);

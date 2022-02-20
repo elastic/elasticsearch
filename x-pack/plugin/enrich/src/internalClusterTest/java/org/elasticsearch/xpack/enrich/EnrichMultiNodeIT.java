@@ -303,8 +303,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         // Best effort, sometimes the enrich policy task will not be visible yet or will have already finished
         if (tasks.isEmpty() == false) {
             try {
-                final GetTaskResponse getTaskResponse = client().admin().cluster().prepareGetTask(tasks.get(0).getTaskId()).get();
-                assertEquals(getTaskResponse.getTask().getTask().getAction(), EnrichPolicyExecutor.TASK_ACTION);
+                final GetTaskResponse getTaskResponse = client().admin().cluster().prepareGetTask(tasks.get(0).taskId()).get();
+                assertEquals(getTaskResponse.getTask().getTask().action(), EnrichPolicyExecutor.TASK_ACTION);
             } catch (ResourceNotFoundException e) {
                 // ignored, could be the task has already finished
             }
@@ -313,11 +313,10 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     private static void createPipeline() {
-        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
-            + POLICY_NAME
-            + "\", \"field\": \""
-            + MATCH_FIELD
-            + "\", \"target_field\": \"user\"}}]}";
+        String pipelineBody = """
+            {
+              "processors": [ { "enrich": { "policy_name": "%s", "field": "%s", "target_field": "user" } } ]
+            }""".formatted(POLICY_NAME, MATCH_FIELD);
         PutPipelineRequest request = new PutPipelineRequest(PIPELINE_NAME, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(request).actionGet();
     }

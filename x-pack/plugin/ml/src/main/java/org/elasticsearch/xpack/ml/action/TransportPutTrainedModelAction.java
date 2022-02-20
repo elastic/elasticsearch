@@ -16,8 +16,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -180,7 +180,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             .setCreatedBy("api_user")
             .setLicenseLevel(License.OperationMode.PLATINUM.description());
         if (hasModelDefinition) {
-            trainedModelConfig.setEstimatedHeapMemory(config.getModelDefinition().ramBytesUsed())
+            trainedModelConfig.setModelSize(config.getModelDefinition().ramBytesUsed())
                 .setEstimatedOperations(config.getModelDefinition().getTrainedModel().estimatedNumOperations());
         } else {
             // Set default location for the given model type.

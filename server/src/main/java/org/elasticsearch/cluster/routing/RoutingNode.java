@@ -68,6 +68,23 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert invariant();
     }
 
+    private RoutingNode(RoutingNode original) {
+        this.nodeId = original.nodeId;
+        this.node = original.node;
+        this.shards = new LinkedHashMap<>(original.shards);
+        this.relocatingShards = new LinkedHashSet<>(original.relocatingShards);
+        this.initializingShards = new LinkedHashSet<>(original.initializingShards);
+        this.shardsByIndex = new LinkedHashMap<>(original.shardsByIndex.size());
+        for (Map.Entry<Index, LinkedHashSet<ShardRouting>> entry : original.shardsByIndex.entrySet()) {
+            shardsByIndex.put(entry.getKey(), new LinkedHashSet<>(entry.getValue()));
+        }
+        assert invariant();
+    }
+
+    RoutingNode copy() {
+        return new RoutingNode(this);
+    }
+
     private static LinkedHashMap<ShardId, ShardRouting> buildShardRoutingMap(ShardRouting... shardRoutings) {
         final LinkedHashMap<ShardId, ShardRouting> shards = new LinkedHashMap<>();
         for (ShardRouting shardRouting : shardRoutings) {

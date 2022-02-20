@@ -163,7 +163,7 @@ public class SecurityNioTransport extends NioTransport {
         @Override
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) throws IOException {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
-            TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, bytesRefRecycler, SecurityNioTransport.this);
+            TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, recycler, SecurityNioTransport.this);
             final NioChannelHandler handler;
             if (ipFilter != null) {
                 handler = new NioIPFilter(readWriteHandler, socketConfig.getRemoteAddress(), ipFilter, profileName);
@@ -213,7 +213,7 @@ public class SecurityNioTransport extends NioTransport {
             SSLEngine sslEngine;
             SslConfiguration defaultConfig = profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
             SslConfiguration sslConfig = profileConfiguration.getOrDefault(profileName, defaultConfig);
-            boolean hostnameVerificationEnabled = sslConfig.getVerificationMode().isHostnameVerificationEnabled();
+            boolean hostnameVerificationEnabled = sslConfig.verificationMode().isHostnameVerificationEnabled();
             if (hostnameVerificationEnabled && socketConfig.isAccepted() == false) {
                 InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
                 // we create the socket based on the name given. don't reverse DNS

@@ -161,7 +161,8 @@ public class GeometryParserTests extends ESTestCase {
             // if we serialize non-null value - it should be serialized as geojson
             format.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
             newGeoJson.endObject();
-            assertEquals("{\"val\":{\"type\":\"Point\",\"coordinates\":[100.0,10.0]}}", Strings.toString(newGeoJson));
+            assertEquals("""
+                {"val":{"type":"Point","coordinates":[100.0,10.0]}}""", Strings.toString(newGeoJson));
 
             newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
             format.toXContent(null, newGeoJson, ToXContent.EMPTY_PARAMS);

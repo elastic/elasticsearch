@@ -44,7 +44,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().field("field", "value").startArray("nested").endArray().endObject()
@@ -60,14 +59,13 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> b.startObject("nested1").field("type", "nested").endObject()));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper;
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -92,7 +90,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -139,7 +136,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -153,7 +150,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -230,7 +226,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -244,7 +240,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -322,7 +317,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -336,7 +331,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -413,11 +407,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertEquals("nested1", docMapper.mappers().getNestedParent("nested1.nested2"));
-        assertNull(docMapper.mappers().getNestedParent("nonexistent"));
-        assertNull(docMapper.mappers().getNestedParent("nested1"));
+        assertEquals("nested1", docMapper.mappers().nestedLookup().getNestedParent("nested1.nested2"));
+        assertNull(docMapper.mappers().nestedLookup().getNestedParent("nonexistent"));
+        assertNull(docMapper.mappers().nestedLookup().getNestedParent("nested1"));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper1 = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper1, instanceOf(NestedObjectMapper.class));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper1;
@@ -431,7 +425,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -525,7 +518,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -632,7 +624,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -716,7 +707,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -755,14 +745,13 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper, instanceOf(NestedObjectMapper.class));
         assertThat(nested1Mapper.dynamic(), equalTo(Dynamic.STRICT));
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -857,7 +846,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = new SourceToParse("test1", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
+        SourceToParse source1 = new SourceToParse("1", BytesReference.bytes(docBuilder), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source1));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of ["
@@ -888,7 +877,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = new SourceToParse("test1", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
+        SourceToParse source1 = new SourceToParse("1", BytesReference.bytes(docBuilder), XContentType.JSON);
         ParsedDocument doc = docMapper.parse(source1);
         assertThat(doc.docs().size(), equalTo(3));
 
@@ -905,7 +894,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             docBuilder2.endArray();
         }
         docBuilder2.endObject();
-        SourceToParse source2 = new SourceToParse("test1", "2", BytesReference.bytes(docBuilder2), XContentType.JSON);
+        SourceToParse source2 = new SourceToParse("2", BytesReference.bytes(docBuilder2), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source2));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of ["
@@ -942,7 +931,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = new SourceToParse("test1", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
+        SourceToParse source1 = new SourceToParse("1", BytesReference.bytes(docBuilder), XContentType.JSON);
         ParsedDocument doc = docMapper.parse(source1);
         assertThat(doc.docs().size(), equalTo(3));
 
@@ -964,7 +953,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         }
         docBuilder2.endObject();
-        SourceToParse source2 = new SourceToParse("test1", "2", BytesReference.bytes(docBuilder2), XContentType.JSON);
+        SourceToParse source2 = new SourceToParse("2", BytesReference.bytes(docBuilder2), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source2));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of ["
@@ -985,13 +974,12 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             mapping(b -> b.startObject("nested1").field("type", "nested").endObject())
         );
 
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
+        assertNotEquals(NestedLookup.EMPTY, docMapper.mappers().nestedLookup());
         ObjectMapper mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(mapper, instanceOf(NestedObjectMapper.class));
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -1153,10 +1141,8 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
         merge(mapperService, Strings.toString(doc.dynamicMappingsUpdate()));
 
-        assertThat(
-            Strings.toString(mapperService.documentMapper().mapping()),
-            containsString("\"properties\":{\"object\":{\"type\":\"nested\",\"include_in_parent\":true}}")
-        );
+        assertThat(Strings.toString(mapperService.documentMapper().mapping()), containsString("""
+            "properties":{"object":{"type":"nested","include_in_parent":true}}"""));
     }
 
     public void testFieldNames() throws Exception {
@@ -1214,7 +1200,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             nested1.endObject();
         });
         b.endObject();
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(b), XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("1", BytesReference.bytes(b), XContentType.JSON));
 
         // Note doc values are disabled for field "integer2",
         // so the document only contains an IntPoint field whose stringValue method always returns null.
@@ -1292,7 +1278,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             nested1.endObject();
         });
         b.endObject();
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(b), XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("1", BytesReference.bytes(b), XContentType.JSON));
 
         // Note doc values are disabled for field "integer2",
         // so the document only contains an IntPoint field whose stringValue method always returns null.
@@ -1371,7 +1357,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             nested1.endObject();
         });
         b.endObject();
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(b), XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("1", BytesReference.bytes(b), XContentType.JSON));
 
         // Note doc values are disabled for field "integer2",
         // so the document only contains an IntPoint field whose stringValue method always returns null.

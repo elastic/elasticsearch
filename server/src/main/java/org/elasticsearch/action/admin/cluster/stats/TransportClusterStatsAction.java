@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -49,6 +50,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 
 public class TransportClusterStatsAction extends TransportNodesAction<
     ClusterStatsRequest,
@@ -68,8 +70,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final NodeService nodeService;
     private final IndicesService indicesService;
 
-    private final MetadataStatsCache<MappingStats> mappingStatsCache = new MetadataStatsCache<>(MappingStats::of);
-    private final MetadataStatsCache<AnalysisStats> analysisStatsCache = new MetadataStatsCache<>(AnalysisStats::of);
+    private final MetadataStatsCache<MappingStats> mappingStatsCache;
+    private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
 
     @Inject
     public TransportClusterStatsAction(
@@ -94,6 +96,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;
+        this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
+        this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
     }
 
     @Override
@@ -257,12 +261,18 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private static class MetadataStatsCache<T> extends CancellableSingleObjectCache<Metadata, Long, T> {
         private final BiFunction<Metadata, Runnable, T> function;
 
-        MetadataStatsCache(BiFunction<Metadata, Runnable, T> function) {
+        MetadataStatsCache(ThreadContext threadContext, BiFunction<Metadata, Runnable, T> function) {
+            super(threadContext);
             this.function = function;
         }
 
         @Override
-        protected void refresh(Metadata metadata, Runnable ensureNotCancelled, ActionListener<T> listener) {
+        protected void refresh(
+            Metadata metadata,
+            Runnable ensureNotCancelled,
+            BooleanSupplier supersedeIfStale,
+            ActionListener<T> listener
+        ) {
             ActionListener.completeWith(listener, () -> function.apply(metadata, ensureNotCancelled));
         }
 

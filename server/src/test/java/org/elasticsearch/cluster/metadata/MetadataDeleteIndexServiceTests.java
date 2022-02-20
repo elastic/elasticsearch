@@ -25,21 +25,21 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.core.IsNull;
 import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.singleton;
-import static java.util.Collections.singletonMap;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -63,7 +63,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void testDeleteMissing() {
         Index index = new Index("missing", "doesn't matter");
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> service.deleteIndices(state, singleton(index)));
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> service.deleteIndices(state, Set.of(index)));
         assertEquals(index, e.getIndex());
     }
 
@@ -76,7 +76,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
                 true,
                 false,
                 SnapshotsInProgress.State.INIT,
-                singletonMap(index, new IndexId(index, "doesn't matter")),
+                Map.of(index, new IndexId(index, "doesn't matter")),
                 Collections.emptyList(),
                 Collections.emptyList(),
                 System.currentTimeMillis(),
@@ -90,7 +90,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterState(index)).putCustom(SnapshotsInProgress.TYPE, snaps).build();
         Exception e = expectThrows(
             SnapshotInProgressException.class,
-            () -> service.deleteIndices(state, singleton(state.metadata().getIndices().get(index).getIndex()))
+            () -> service.deleteIndices(state, Set.of(state.metadata().getIndices().get(index).getIndex()))
         );
         assertEquals(
             "Cannot delete indices that are being snapshotted: [["
@@ -110,7 +110,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
 
         // Remove it
-        ClusterState after = service.deleteIndices(before, singleton(before.metadata().getIndices().get(index).getIndex()));
+        ClusterState after = service.deleteIndices(before, Set.of(before.metadata().getIndices().get(index).getIndex()));
 
         // It is gone
         assertNull(after.metadata().getIndices().get(index));
@@ -119,6 +119,30 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         // Make sure we actually attempted to reroute
         verify(allocationService).reroute(any(ClusterState.class), any(String.class));
+    }
+
+    public void testDeleteIndexWithAnAlias() {
+        String index = randomAlphaOfLength(5);
+        String alias = randomAlphaOfLength(5);
+
+        IndexMetadata idxMetadata = IndexMetadata.builder(index)
+            .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(true).build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(idxMetadata, false))
+            .routingTable(RoutingTable.builder().addAsNew(idxMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(idxMetadata))
+            .build();
+
+        ClusterState after = service.deleteIndices(before, Set.of(before.metadata().getIndices().get(index).getIndex()));
+
+        assertNull(after.metadata().getIndices().get(index));
+        assertNull(after.routingTable().index(index));
+        assertNull(after.blocks().indices().get(index));
+        assertNull(after.metadata().getIndicesLookup().get(alias));
     }
 
     public void testDeleteBackingIndexForDataStream() {
@@ -134,12 +158,9 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
         ClusterState after = service.deleteIndices(before, Set.of(indexToDelete));
 
-        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
+        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), nullValue());
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
-        assertThat(
-            after.metadata().getIndices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)),
-            IsNull.nullValue()
-        );
+        assertThat(after.metadata().getIndices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), nullValue());
     }
 
     public void testDeleteMultipleBackingIndexForDataStream() {
@@ -163,10 +184,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState after = service.deleteIndices(before, indicesToDelete);
 
         DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
-        assertThat(dataStream, IsNull.notNullValue());
+        assertThat(dataStream, notNullValue());
         assertThat(dataStream.getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
         for (Index i : indicesToDelete) {
-            assertThat(after.metadata().getIndices().get(i.getName()), IsNull.nullValue());
+            assertThat(after.metadata().getIndices().get(i.getName()), nullValue());
             assertFalse(dataStream.getIndices().contains(i));
         }
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));

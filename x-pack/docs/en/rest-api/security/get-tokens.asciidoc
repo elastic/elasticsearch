@@ -146,6 +146,7 @@ seconds) that the token expires in, and the type:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
+// TESTRESPONSE[s/superuser/_es_test_root/]
 
 The token returned by this API can be used by sending a request with an
 `Authorization` header with a value having the prefix "Bearer " followed
@@ -204,6 +205,7 @@ seconds) that the token expires in, the type, and the refresh token:
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
+// TESTRESPONSE[s/superuser/_es_test_root/]
 
 [[security-api-refresh-token]]
 To extend the life of an existing token obtained using the `password` grant type,
@@ -254,6 +256,7 @@ be used one time.
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
+// TESTRESPONSE[s/superuser/_es_test_root/]
 
 The following example obtains a access token and refresh token using the `kerberos` grant type,
 which simply creates a token in exchange for the base64 encoded kerberos ticket:

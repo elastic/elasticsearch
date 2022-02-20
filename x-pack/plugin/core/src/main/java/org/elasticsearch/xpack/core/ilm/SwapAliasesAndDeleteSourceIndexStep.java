@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -55,7 +55,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
         IndexMetadata targetIndexMetadata = currentClusterState.metadata().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
-            String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+            String policyName = indexMetadata.getLifecyclePolicyName();
             String errorMessage = String.format(
                 Locale.ROOT,
                 "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for" + " index [%s]",

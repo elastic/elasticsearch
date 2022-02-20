@@ -107,7 +107,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.ANALYSIS,
                         "deprecated_token_filter_create",
                         "Using deprecated token filter [deprecated]"
@@ -117,7 +117,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
                 @Override
                 public TokenStream normalize(TokenStream tokenStream) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.ANALYSIS,
                         "deprecated_token_filter_normalize",
                         "Using deprecated token filter [deprecated]"

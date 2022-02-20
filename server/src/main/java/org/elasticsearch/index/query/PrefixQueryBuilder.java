@@ -233,4 +233,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
             && Objects.equals(rewrite, other.rewrite)
             && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

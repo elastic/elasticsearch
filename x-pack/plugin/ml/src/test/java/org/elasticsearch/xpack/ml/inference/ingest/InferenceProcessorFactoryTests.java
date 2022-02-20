@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.inference.ingest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -191,7 +192,11 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         );
         assertThat(
             ex.getMessage(),
-            equalTo("unrecognized inference configuration type [unknown_type]. Supported types [classification, regression]")
+            equalTo(
+                "unrecognized inference configuration type [unknown_type]."
+                    + " Supported types [classification, regression, fill_mask, ner, pass_through, "
+                    + "text_classification, text_embedding, zero_shot_classification]"
+            )
         );
 
         Map<String, Object> config2 = new HashMap<>() {
@@ -408,7 +413,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     }
 
     private static ClusterState builderClusterStateWithModelReferences(Version minNodeVersion, String... modelId) throws IOException {
-        Map<String, PipelineConfiguration> configurations = new HashMap<>(modelId.length);
+        Map<String, PipelineConfiguration> configurations = Maps.newMapWithExpectedSize(modelId.length);
         for (String id : modelId) {
             configurations.put(
                 "pipeline_with_model_" + id,

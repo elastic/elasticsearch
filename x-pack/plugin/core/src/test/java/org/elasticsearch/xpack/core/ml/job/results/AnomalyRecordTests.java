@@ -199,15 +199,22 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
     }
 
     public void testStrictParser_IsLenientOnTopLevelFields() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123544456, "bucket_span": 3600, "foo":"bar"}""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             AnomalyRecord.STRICT_PARSER.apply(parser, null);
         }
     }
 
     public void testStrictParser_IsStrictOnNestedFields() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\","
-            + " \"causes\":[{\"cause_foo\":\"bar\"}]}";
+        String json = """
+            {
+              "job_id": "job_1",
+              "timestamp": 123544456,
+              "bucket_span": 3600,
+              "foo": "bar",
+              "causes": [ { "cause_foo": "bar" } ]
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             XContentParseException e = expectThrows(XContentParseException.class, () -> AnomalyRecord.STRICT_PARSER.apply(parser, null));
             assertThat(e.getCause().getMessage(), containsString("[anomaly_cause] unknown field [cause_foo]"));
@@ -215,8 +222,14 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\","
-            + " \"causes\":[{\"cause_foo\":\"bar\"}]}";
+        String json = """
+            {
+              "job_id": "job_1",
+              "timestamp": 123544456,
+              "bucket_span": 3600,
+              "foo": "bar",
+              "causes": [ { "cause_foo": "bar" } ]
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             AnomalyRecord.LENIENT_PARSER.apply(parser, null);
         }

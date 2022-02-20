@@ -1,24 +1,30 @@
 [[size-your-shards]]
 == Size your shards
 
-To protect against hardware failure and increase capacity, {es} stores copies of
-an index’s data across multiple shards on multiple nodes. The number and size of
-these shards can have a significant impact on your cluster's health. One common
-problem is _oversharding_, a situation in which a cluster with a large number of
-shards becomes unstable.
+Each index in {es} is divided into one or more shards, each of which may be
+replicated across multiple nodes to protect against hardware failures. If you
+are using <<data-streams>> then each data stream is backed by a sequence of
+indices. There is a limit to the amount of data you can store on a single node
+so you can increase the capacity of your cluster by adding nodes and increasing
+the number of indices and shards to match. However, each index and shard has
+some overhead and if you divide your data across too many shards then the
+overhead can become overwhelming. A cluster with too many indices or shards is
+said to suffer from _oversharding_. An oversharded cluster will be less
+efficient at responding to searches and in extreme cases it may even become
+unstable.
 
 [discrete]
 [[create-a-sharding-strategy]]
 === Create a sharding strategy
 
-The best way to prevent oversharding and other shard-related issues
-is to create a sharding strategy. A sharding strategy helps you determine and
+The best way to prevent oversharding and other shard-related issues is to
+create a sharding strategy. A sharding strategy helps you determine and
 maintain the optimal number of shards for your cluster while limiting the size
 of those shards.
 
 Unfortunately, there is no one-size-fits-all sharding strategy. A strategy that
-works in one environment may not scale in another. A good sharding strategy must
-account for your infrastructure, use case, and performance expectations.
+works in one environment may not scale in another. A good sharding strategy
+must account for your infrastructure, use case, and performance expectations.
 
 The best way to create a sharding strategy is to benchmark your production data
 on production hardware using the same queries and indexing loads you'd see in
@@ -28,9 +34,9 @@ cluster sizing video]. As you test different shard configurations, use {kib}'s
 {kibana-ref}/elasticsearch-metrics.html[{es} monitoring tools] to track your
 cluster's stability and performance.
 
-The following sections provide some reminders and guidelines you should consider
-when designing your sharding strategy. If your cluster is already oversharded,
-see <<reduce-cluster-shard-count>>.
+The following sections provide some reminders and guidelines you should
+consider when designing your sharding strategy. If your cluster is already
+oversharded, see <<reduce-cluster-shard-count>>.
 
 [discrete]
 [[shard-sizing-considerations]]
@@ -49,17 +55,22 @@ thread pool>>. This can result in low throughput and slow search speeds.
 
 [discrete]
 [[each-shard-has-overhead]]
-==== Each shard has overhead
+==== Each index and shard has overhead
 
-Every shard uses memory and CPU resources. In most cases, a small
-set of large shards uses fewer resources than many small shards.
+Every index and every shard requires some memory and CPU resources. In most
+cases, a small set of large shards uses fewer resources than many small shards.
 
 Segments play a big role in a shard's resource usage. Most shards contain
 several segments, which store its index data. {es} keeps segment metadata in
-JVM heap memory so it can be quickly retrieved for searches. As a
-shard grows, its segments are <<index-modules-merge,merged>> into fewer, larger
-segments. This decreases the number of segments, which means less metadata is
-kept in heap memory.
+JVM heap memory so it can be quickly retrieved for searches. As a shard grows,
+its segments are <<index-modules-merge,merged>> into fewer, larger segments.
+This decreases the number of segments, which means less metadata is kept in
+heap memory.
+
+Every mapped field also carries some overhead in terms of memory usage and disk
+space. By default {es} will automatically create a mapping for every field in
+every document it indexes, but you can switch off this behaviour to
+<<explicit-mapping,take control of your mappings>>.
 
 [discrete]
 [[shard-auto-balance]]
@@ -110,7 +121,7 @@ Change the <<index-number-of-shards,`index.number_of_shards`>> setting in the
 data stream's <<data-streams-change-mappings-and-settings,matching index
 template>>.
 
-* *Want larger shards?* +
+* *Want larger shards or fewer backing indices?* +
 Increase your {ilm-init} policy's <<ilm-rollover,rollover threshold>>.
 
 * *Need indices that span shorter intervals?* +
@@ -124,13 +135,18 @@ Every new backing index is an opportunity to further tune your strategy.
 [[shard-size-recommendation]]
 ==== Aim for shard sizes between 10GB and 50GB
 
-Large shards may make a cluster less likely to recover from failure. When a node
-fails, {es} rebalances the node's shards across the data tier's remaining nodes.
-Large shards can be harder to move across a network and may tax node resources.
+Larger shards take longer to recover after a failure. When a node fails, {es}
+rebalances the node's shards across the data tier's remaining nodes. This
+recovery process typically involves copying the shard contents across the
+network, so a 100GB shard will take twice as long to recover than a 50GB shard.
+In contrast, small shards carry proportionally more overhead and are less
+efficient to search. Searching fifty 1GB shards will take substantially more
+resources than searching a single 50GB shard containing the same data.
 
-While not a hard limit, shards between 10GB and 50GB tend to work well for logs
-and time series data. You may be able to use larger shards depending on
-your network and use case. Smaller shards may be appropriate for
+There are no hard limits on shard size, but experience shows that shards
+between 10GB and 50GB typically work well for logs and time series data. You
+may be able to use larger shards depending on your network and use case.
+Smaller shards may be appropriate for
 {enterprise-search-ref}/index.html[Enterprise Search] and similar use cases.
 
 If you use {ilm-init}, set the <<ilm-rollover,rollover action>>'s
@@ -161,15 +177,15 @@ index                                 prirep shard store
 [[shard-count-recommendation]]
 ==== Aim for 20 shards or fewer per GB of heap memory
 
-The number of shards a node can hold is proportional to the node's
-heap memory. For example, a node with 30GB of heap memory should
-have at most 600 shards. The further below this limit you can keep your nodes,
-the better. If you find your nodes exceeding more than 20 shards per GB,
-consider adding another node.
+The number of shards a data node can hold is proportional to the node's heap
+memory. For example, a node with 30GB of heap memory should have at most 600
+shards. The further below this limit you can keep your nodes, the better. If
+you find your nodes exceeding more than 20 shards per GB, consider adding
+another node.
 
 Some system indices for {enterprise-search-ref}/index.html[Enterprise Search]
-are nearly empty and rarely used. Due to their low overhead, you shouldn't count
-shards for these indices toward a node's shard limit.
+are nearly empty and rarely used. Due to their low overhead, you shouldn't
+count shards for these indices toward a node's shard limit.
 
 To check the current size of each node's heap, use the <<cat-nodes,cat nodes
 API>>.
@@ -213,6 +229,26 @@ PUT my-index-000001/_settings
 }
 --------------------------------------------------
 // TEST[setup:my_index]
+
+[discrete]
+[[avoid-unnecessary-fields]]
+==== Avoid unnecessary mapped fields
+
+By default {es} <<dynamic-mapping,automatically creates a mapping>> for every
+field in every document it indexes. Every mapped field corresponds to some data
+structures on disk which are needed for efficient search, retrieval, and
+aggregations on this field. Details about each mapped field are also held in
+memory. In many cases this overhead is unnecessary because a field is not used
+in any searches or aggregations. Use <<explicit-mapping>> instead of dynamic
+mapping to avoid creating fields that are never used. If a collection of fields
+are typically used together, consider using <<copy-to>> to consolidate them at
+index time. If a field is only rarely used, it may be better to make it a
+<<runtime,Runtime field>> instead.
+
+You can get information about which fields are being used with the
+<<field-usage-stats>> API, and you can analyze the disk usage of mapped fields
+using the <<indices-disk-usage>> API. Note however that unnecessary mapped
+fields also carry some memory overhead as well as their disk usage.
 
 [discrete]
 [[reduce-cluster-shard-count]]

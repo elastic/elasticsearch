@@ -43,6 +43,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
 /**
@@ -178,7 +179,7 @@ final class BootstrapChecks {
         final Predicate<TransportAddress> isLoopbackAddress = t -> t.address().getAddress().isLoopbackAddress();
         final boolean bound = (Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress)
             && isLoopbackAddress.test(boundTransportAddress.publishAddress())) == false;
-        return bound && "single-node".equals(discoveryType) == false;
+        return bound && SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false;
     }
 
     // the list of checks to execute
@@ -742,7 +743,7 @@ final class BootstrapChecks {
     static class DiscoveryConfiguredCheck implements BootstrapCheck {
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (DiscoveryModule.ZEN2_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings())) == false) {
+            if (DiscoveryModule.MULTI_NODE_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings())) == false) {
                 return BootstrapCheckResult.success();
             }
             if (ClusterBootstrapService.discoveryIsConfigured(context.settings())) {

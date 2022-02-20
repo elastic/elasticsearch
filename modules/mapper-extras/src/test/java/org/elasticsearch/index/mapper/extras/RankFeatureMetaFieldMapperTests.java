@@ -66,7 +66,7 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
         BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON))
+            () -> mapper.parse(new SourceToParse("1", bytes, XContentType.JSON))
         );
         assertThat(
             e.getCause().getMessage(),

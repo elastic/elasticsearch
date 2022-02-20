@@ -25,12 +25,13 @@ import static org.hamcrest.CoreMatchers.not;
 public class HttpCompressionIT extends ESRestTestCase {
 
     private static final String GZIP_ENCODING = "gzip";
-    private static final String SAMPLE_DOCUMENT = "{\n"
-        + "   \"name\": {\n"
-        + "      \"first name\": \"Steve\",\n"
-        + "      \"last name\": \"Jobs\"\n"
-        + "   }\n"
-        + "}";
+    private static final String SAMPLE_DOCUMENT = """
+        {
+           "name": {
+              "first name": "Steve",
+              "last name": "Jobs"
+           }
+        }""";
 
     public void testCompressesResponseIfRequested() throws IOException {
         Request request = new Request("POST", "/company/_doc/2");

@@ -27,7 +27,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -193,9 +193,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             ContextSetup(StreamInput in) throws IOException {
                 index = in.readOptionalString();
                 document = in.readOptionalBytesReference();
-                String xContentType = in.readOptionalString();
-                if (xContentType != null) {
-                    this.xContentType = XContentType.fromMediaType(xContentType);
+                String optionalXContentType = in.readOptionalString();
+                if (optionalXContentType != null) {
+                    this.xContentType = XContentType.fromMediaType(optionalXContentType);
                 }
                 query = in.readOptionalNamedWriteable(QueryBuilder.class);
             }
@@ -709,7 +709,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     String index = indexService.index().getName();
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
+                    SourceToParse sourceToParse = new SourceToParse("_id", document, xContentType);
                     MappingLookup mappingLookup = indexService.mapperService().mappingLookup();
                     DocumentParser documentParser = indexService.mapperService().documentParser();
                     // Note that we are not doing anything with dynamic mapping updates, hence fields that are not mapped but are present

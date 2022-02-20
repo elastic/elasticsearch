@@ -18,7 +18,8 @@ import static org.hamcrest.Matchers.containsString;
 public class RestInvalidateTokenActionTests extends ESTestCase {
 
     public void testParserForUserAndRealm() throws Exception {
-        final String request = "{" + "\"username\": \"user1\"," + "\"realm_name\": \"realm1\"" + "}";
+        final String request = """
+            {"username": "user1","realm_name": "realm1"}""";
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, request)
@@ -32,7 +33,8 @@ public class RestInvalidateTokenActionTests extends ESTestCase {
     }
 
     public void testParserForToken() throws Exception {
-        final String request = "{" + "\"refresh_token\": \"refresh_token_string\"" + "}";
+        final String request = """
+            {"refresh_token": "refresh_token_string"}""";
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, request)
@@ -46,7 +48,8 @@ public class RestInvalidateTokenActionTests extends ESTestCase {
     }
 
     public void testParserForIncorrectInput() throws Exception {
-        final String request = "{" + "\"refresh_token\": \"refresh_token_string\"," + "\"token\": \"access_token_string\"" + "}";
+        final String request = """
+            {"refresh_token": "refresh_token_string","token": "access_token_string"}""";
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, request)

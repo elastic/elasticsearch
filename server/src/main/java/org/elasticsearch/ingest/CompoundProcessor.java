@@ -88,8 +88,8 @@ public class CompoundProcessor implements Processor {
     private static List<Processor> flattenProcessors(List<Processor> processors) {
         List<Processor> flattened = new ArrayList<>();
         for (Processor processor : processors) {
-            if (processor instanceof CompoundProcessor) {
-                flattened.addAll(((CompoundProcessor) processor).flattenProcessors());
+            if (processor instanceof CompoundProcessor compoundProcessor) {
+                flattened.addAll(compoundProcessor.flattenProcessors());
             } else {
                 flattened.add(processor);
             }
@@ -216,8 +216,8 @@ public class CompoundProcessor implements Processor {
     }
 
     static IngestProcessorException newCompoundProcessorException(Exception e, Processor processor, IngestDocument document) {
-        if (e instanceof IngestProcessorException && ((IngestProcessorException) e).getHeader("processor_type") != null) {
-            return (IngestProcessorException) e;
+        if (e instanceof IngestProcessorException ipe && ipe.getHeader("processor_type") != null) {
+            return ipe;
         }
 
         IngestProcessorException exception = new IngestProcessorException(e);

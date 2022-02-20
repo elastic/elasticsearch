@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -32,8 +33,6 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_NAME_SETTING;
 
 public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
@@ -70,7 +69,7 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
                         .indices()
                         .values()
                         .stream()
-                        .filter(idxMeta -> LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()).equals(policyToDelete))
+                        .filter(idxMeta -> policyToDelete.equals(idxMeta.getLifecyclePolicyName()))
                         .map(idxMeta -> idxMeta.getIndex().getName())
                         .collect(Collectors.toList());
                     if (indicesUsingPolicy.isEmpty() == false) {
@@ -94,7 +93,8 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
                     );
                     return newState.build();
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

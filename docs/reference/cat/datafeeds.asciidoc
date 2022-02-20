@@ -1,10 +1,16 @@
 [role="xpack"]
-[testenv="platinum"]
 [[cat-datafeeds]]
 === cat {dfeeds} API
 ++++
 <titleabbrev>cat {dfeeds}</titleabbrev>
 ++++
+
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<ml-get-datafeed-stats,get datafeed statistics API>>.
+====
 
 Returns configuration and usage information about {dfeeds}.
 
@@ -43,7 +49,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-datafeeds]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 

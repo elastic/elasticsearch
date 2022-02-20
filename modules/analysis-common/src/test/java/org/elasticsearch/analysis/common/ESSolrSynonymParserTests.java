@@ -28,7 +28,10 @@ public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
 
     public void testLenientParser() throws IOException, ParseException {
         ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer());
-        String rules = "&,and\n" + "come,advance,approach\n";
+        String rules = """
+            &,and
+            come,advance,approach
+            """;
         StringReader rulesReader = new StringReader(rules);
         parser.parse(rulesReader);
         SynonymMap synonymMap = parser.build();
@@ -54,7 +57,10 @@ public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
 
     public void testNonLenientParser() {
         ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, false, new StandardAnalyzer());
-        String rules = "&,and=>and\n" + "come,advance,approach\n";
+        String rules = """
+            &,and=>and
+            come,advance,approach
+            """;
         StringReader rulesReader = new StringReader(rules);
         ParseException ex = expectThrows(ParseException.class, () -> parser.parse(rulesReader));
         assertThat(ex.getMessage(), containsString("Invalid synonym rule at line 1"));

@@ -199,8 +199,7 @@ public class ActionWrapper implements ToXContentObject {
                 List<Action.Result> results = new ArrayList<>();
                 Object object = ObjectPath.eval(path, toMap(ctx));
                 int runs = 0;
-                if (object instanceof Collection) {
-                    Collection<?> collection = (Collection<?>) object;
+                if (object instanceof Collection<?> collection) {
                     if (collection.isEmpty()) {
                         throw new ElasticsearchException("foreach object [{}] was an empty list, could not run any action", path);
                     } else {

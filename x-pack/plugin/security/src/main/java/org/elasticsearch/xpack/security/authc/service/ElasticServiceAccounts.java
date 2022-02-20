@@ -29,12 +29,29 @@ final class ElasticServiceAccounts {
             new String[] { "monitor", "manage_own_api_key" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-*", "metrics-*", "traces-*", "synthetics-*", ".logs-endpoint.diagnostic.collection-*")
+                    .indices(
+                        "logs-*",
+                        "metrics-*",
+                        "traces-*",
+                        "synthetics-*",
+                        ".logs-endpoint.diagnostic.collection-*",
+                        ".logs-endpoint.action.responses-*"
+                    )
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
+                    // APM Server (and hence Fleet Server, which issues its API Keys) needs additional privileges
+                    // for the non-sensitive "sampled traces" data stream:
+                    // - "maintenance" privilege to refresh indices
+                    // - "monitor" privilege to be able to query index stats for the global checkpoint
+                    // - "read" privilege to search the documents
+                    .indices("traces-apm.sampled-*")
+                    .privileges("read", "monitor", "maintenance")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")
-                    .privileges("read", "write", "monitor", "create_index", "auto_configure")
+                    // Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh"
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .allowRestrictedIndices(true)
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {

@@ -52,7 +52,7 @@ public class ReindexSslConfig {
     static {
         Setting.Property[] defaultProperties = new Setting.Property[] { Setting.Property.NodeScope, Setting.Property.Filtered };
         Setting.Property[] deprecatedProperties = new Setting.Property[] {
-            Setting.Property.Deprecated,
+            Setting.Property.DeprecatedWarning,
             Setting.Property.NodeScope,
             Setting.Property.Filtered };
         for (String key : SslConfigurationKeys.getStringKeys()) {
@@ -147,10 +147,10 @@ public class ReindexSslConfig {
      * configurations if the underlying key/certificate files are modified.
      */
     SSLIOSessionStrategy getStrategy() {
-        final HostnameVerifier hostnameVerifier = configuration.getVerificationMode().isHostnameVerificationEnabled()
+        final HostnameVerifier hostnameVerifier = configuration.verificationMode().isHostnameVerificationEnabled()
             ? new DefaultHostnameVerifier()
             : new NoopHostnameVerifier();
-        final String[] protocols = configuration.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY);
+        final String[] protocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         final String[] cipherSuites = configuration.getCipherSuites().toArray(Strings.EMPTY_ARRAY);
         return new SSLIOSessionStrategy(context, protocols, cipherSuites, hostnameVerifier);
     }

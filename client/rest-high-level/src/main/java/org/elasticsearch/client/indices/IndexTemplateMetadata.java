@@ -222,8 +222,8 @@ public class IndexTemplateMetadata {
             return this;
         }
 
-        public Builder patterns(List<String> indexPatterns) {
-            this.indexPatterns = indexPatterns;
+        public Builder patterns(List<String> patterns) {
+            this.indexPatterns = patterns;
             return this;
         }
 
@@ -237,8 +237,8 @@ public class IndexTemplateMetadata {
             return this;
         }
 
-        public Builder mapping(MappingMetadata mappings) {
-            this.mappings = mappings;
+        public Builder mapping(MappingMetadata mappingMetadata) {
+            this.mappings = mappingMetadata;
             return this;
         }
 

@@ -373,13 +373,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                     assertThat(d.getExplanation(), startsWith("a copy of this shard is already allocated to this node ["));
                 } else if (d.label().equals("filter") && nodeHoldingPrimary == false) {
                     assertEquals(Decision.Type.NO, d.type());
-                    assertEquals(
-                        "node does not match index setting [index.routing.allocation.include] "
-                            + "filters [_name:\""
-                            + primaryNodeName
-                            + "\"]",
-                        d.getExplanation()
-                    );
+                    assertEquals("""
+                        node does not match index setting [index.routing.allocation.include] \
+                        filters [_name:"%s"]\
+                        """.formatted(primaryNodeName), d.getExplanation());
                 } else {
                     assertEquals(Decision.Type.YES, d.type());
                     assertNotNull(d.getExplanation());
@@ -948,10 +945,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         for (Decision d : result.getCanAllocateDecision().getDecisions()) {
             if (d.label().equals("filter")) {
                 assertEquals(Decision.Type.NO, d.type());
-                assertEquals(
-                    "node does not match index setting [index.routing.allocation.include] filters [_name:\"" + primaryNodeName + "\"]",
-                    d.getExplanation()
-                );
+                assertEquals("""
+                    node does not match index setting [index.routing.allocation.include] filters [_name:"%s"]\
+                    """.formatted(primaryNodeName), d.getExplanation());
             } else {
                 assertEquals(Decision.Type.YES, d.type());
                 assertNotNull(d.getExplanation());

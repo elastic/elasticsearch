@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[delete-dfanalytics]]
 = Delete {dfanalytics-jobs} API
 [subs="attributes"]

@@ -39,8 +39,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj instanceof AttributeWrapper) {
-                AttributeWrapper aw = (AttributeWrapper) obj;
+            if (obj instanceof AttributeWrapper aw) {
                 return attr.semanticEquals(aw.attr);
             }
 

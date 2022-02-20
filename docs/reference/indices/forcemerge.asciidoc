@@ -52,11 +52,22 @@ performance.
 [[forcemerge-blocks]]
 ===== Blocks during a force merge
 
-Calls to this API block until the merge is complete. If the client connection
+Calls to this API block until the merge is complete (unless request contains
+wait_for_completion=false, which is default true). If the client connection
 is lost before completion then the force merge process will continue in the
 background. Any new requests to force merge the same indices will also block
 until the ongoing force merge is complete.
 
+[[docs-forcemerge-task-api]]
+===== Running force merge asynchronously
+
+If the request contains `wait_for_completion=false`, {es}
+performs some preflight checks, launches the request, and returns a
+<<tasks,`task`>> you can use to get the status of the task. However, you can
+not cancel this task as the force merge task is not cancelable. {es}
+creates a record of this task as a document at `_tasks/<task_id>`. When you
+are done with a task, you should delete the task document so {es}
+can reclaim the space.
 
 [[forcemerge-multi-index]]
 ===== Force merging multiple indices
@@ -139,6 +150,13 @@ that does not contain those document deletions.
 You can't specify this parameter and `max_num_segments` in the same request.
 --
 
+`wait_for_completion`::
++
+--
+(Optional, Boolean)
+If `true`, the request blocks until the operation is complete.
+Defaults to `true`.
+--
 
 [[forcemerge-api-example]]
 ==== {api-examples-title}

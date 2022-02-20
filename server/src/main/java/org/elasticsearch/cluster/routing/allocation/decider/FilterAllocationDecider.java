@@ -20,11 +20,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
 
 /**
  * This {@link AllocationDecider} control shard allocation by include and
@@ -60,17 +61,18 @@ public class FilterAllocationDecider extends AllocationDecider {
     private static final String CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX = "cluster.routing.allocation.require";
     private static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
     private static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
-    public static final Setting.AffixSetting<String> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING = Setting.prefixKeySetting(
+
+    public static final Setting.AffixSetting<List<String>> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING = Setting.prefixKeySetting(
         CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".",
-        key -> Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope)
+        key -> Setting.stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.NodeScope)
     );
-    public static final Setting.AffixSetting<String> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING = Setting.prefixKeySetting(
+    public static final Setting.AffixSetting<List<String>> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING = Setting.prefixKeySetting(
         CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".",
-        key -> Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope)
+        key -> Setting.stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.NodeScope)
     );
-    public static final Setting.AffixSetting<String> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING = Setting.prefixKeySetting(
+    public static final Setting.AffixSetting<List<String>> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING = Setting.prefixKeySetting(
         CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".",
-        key -> Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope)
+        key -> Setting.stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.NodeScope)
     );
 
     private volatile DiscoveryNodeFilters clusterRequireFilters;
@@ -224,15 +226,15 @@ public class FilterAllocationDecider extends AllocationDecider {
         return null;
     }
 
-    private void setClusterRequireFilters(Map<String, String> filters) {
-        clusterRequireFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValue(AND, filters));
+    private void setClusterRequireFilters(Map<String, List<String>> filters) {
+        clusterRequireFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(AND, filters));
     }
 
-    private void setClusterIncludeFilters(Map<String, String> filters) {
-        clusterIncludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValue(OR, filters));
+    private void setClusterIncludeFilters(Map<String, List<String>> filters) {
+        clusterIncludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(OR, filters));
     }
 
-    private void setClusterExcludeFilters(Map<String, String> filters) {
-        clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValue(OR, filters));
+    private void setClusterExcludeFilters(Map<String, List<String>> filters) {
+        clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(OR, filters));
     }
 }

@@ -35,9 +35,9 @@ import static org.mockito.Mockito.when;
 public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResourceTestCase {
 
     private final ClusterService clusterService = mock(ClusterService.class);
-    private final MultiHttpResource watches = mock(MultiHttpResource.class);
+    private final MultiHttpResource mockWatches = mock(MultiHttpResource.class);
 
-    private final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
+    private final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, mockWatches);
     private final Map<String, String> expectedParameters = getParameters(resource.getDefaultParameters(), GET_EXISTS, XPACK_DOES_NOT_EXIST);
 
     public void testDoCheckIgnoresClientWhenNotElectedMaster() {
@@ -66,12 +66,11 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
     public void testDoCheckExistsAsElectedMaster() {
         whenElectedMaster();
 
-        final String[] noWatcher = {
-            "{}",
-            "{\"features\":{\"watcher\":{\"available\":true,\"enabled\":false}}}",
-            "{\"features\":{\"watcher\":{\"available\":false,\"enabled\":true}}}",
-            "{\"features\":{\"watcher\":{\"available\":true}}}",
-            "{\"features\":{\"watcher\":{\"enabled\":true}}}" };
+        final String[] noWatcher = { "{}", """
+            {"features":{"watcher":{"available":true,"enabled":false}}}""", """
+            {"features":{"watcher":{"available":false,"enabled":true}}}""", """
+            {"features":{"watcher":{"available":true}}}""", """
+            {"features":{"watcher":{"enabled":true}}}""" };
 
         final String endpoint = "/_xpack";
         // success only implies that it responded; it also needs to be available and enabled
@@ -110,8 +109,10 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         whenElectedMaster();
 
         final String[] errorWatcher = {
-            "{\"features\":{}}", // missing watcher object 'string'
-            "{\"watcher\":{\"enabled\":true,\"available\":true}}", // missing features outer object
+            """
+                {"features":{}}""", // missing watcher object 'string'
+            """
+                {"watcher":{"enabled":true,"available":true}}""", // missing features outer object
             "{{}" // extra {
         };
 
@@ -137,9 +138,9 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         final boolean publish = checkResponse == false;
         final MockHttpResource mockWatch = new MockHttpResource(owner, randomBoolean(), checkResponse, publish);
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
-        final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
+        final WatcherExistsHttpResource watcherExistsHttpResource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, wrapMockListener(publishListener));
+        watcherExistsHttpResource.doPublish(client, wrapMockListener(publishListener));
 
         verifyPublishListener(ResourcePublishResult.ready());
 
@@ -150,9 +151,9 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
     public void testDoPublishFalse() {
         final MockHttpResource mockWatch = new MockHttpResource(owner, true, false, false);
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
-        final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
+        final WatcherExistsHttpResource watcherExistsHttpResource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, wrapMockListener(publishListener));
+        watcherExistsHttpResource.doPublish(client, wrapMockListener(publishListener));
 
         verifyPublishListener(new ResourcePublishResult(false));
 
@@ -163,9 +164,9 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
     public void testDoPublishException() {
         final MockHttpResource mockWatch = new MockHttpResource(owner, true, false, null);
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
-        final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
+        final WatcherExistsHttpResource watcherExistsHttpResource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        resource.doPublish(client, wrapMockListener(publishListener));
+        watcherExistsHttpResource.doPublish(client, wrapMockListener(publishListener));
 
         verifyPublishListener(null);
 
@@ -182,7 +183,7 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
     }
 
     public void testGetResources() {
-        assertThat(resource.getWatches(), sameInstance(watches));
+        assertThat(resource.getWatches(), sameInstance(mockWatches));
     }
 
     private void whenElectedMaster() {

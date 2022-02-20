@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class TermsEnumRequestBuilder extends BroadcastOperationRequestBuilder<
     TermsEnumRequest,

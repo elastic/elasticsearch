@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
@@ -40,9 +40,8 @@ final class UnfollowFollowerIndexStep extends AbstractUnfollowIndexStep {
             }
             listener.onResponse(null);
         }, exception -> {
-            if (exception instanceof ElasticsearchException
-                && ((ElasticsearchException) exception).getMetadata("es.failed_to_remove_retention_leases") != null) {
-                List<String> leasesNotRemoved = ((ElasticsearchException) exception).getMetadata("es.failed_to_remove_retention_leases");
+            if (exception instanceof ElasticsearchException e && e.getMetadata("es.failed_to_remove_retention_leases") != null) {
+                List<String> leasesNotRemoved = e.getMetadata("es.failed_to_remove_retention_leases");
                 logger.debug(
                     "failed to remove leader retention lease(s) {} while unfollowing index [{}], " + "continuing with lifecycle execution",
                     leasesNotRemoved,

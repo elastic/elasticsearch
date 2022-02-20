@@ -81,19 +81,19 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             .get()
             .getTasks()
             .get(0);
-        logger.info("Found running task with id {} and parent {}", firstRunningTask.getId(), firstRunningTask.getParentTaskId());
+        logger.info("Found running task with id {} and parent {}", firstRunningTask.id(), firstRunningTask.parentTaskId());
         // Verifying parent
-        assertThat(firstRunningTask.getParentTaskId().getId(), equalTo(allocationId));
-        assertThat(firstRunningTask.getParentTaskId().getNodeId(), equalTo("cluster"));
+        assertThat(firstRunningTask.parentTaskId().getId(), equalTo(allocationId));
+        assertThat(firstRunningTask.parentTaskId().getNodeId(), equalTo("cluster"));
 
         logger.info("Failing the running task");
         // Fail the running task and make sure it restarts properly
         assertThat(
-            new TestTasksRequestBuilder(client()).setOperation("fail").setTaskId(firstRunningTask.getTaskId()).get().getTasks().size(),
+            new TestTasksRequestBuilder(client()).setOperation("fail").setTargetTaskId(firstRunningTask.taskId()).get().getTasks().size(),
             equalTo(1)
         );
 
-        logger.info("Waiting for persistent task with id {} to disappear", firstRunningTask.getId());
+        logger.info("Waiting for persistent task with id {} to disappear", firstRunningTask.id());
         assertBusy(() -> {
             // Wait for the task to disappear completely
             assertThat(
@@ -118,11 +118,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             .get()
             .getTasks()
             .get(0);
-        logger.info("Found running task with id {} and parent {}", firstRunningTask.getId(), firstRunningTask.getParentTaskId());
+        logger.info("Found running task with id {} and parent {}", firstRunningTask.id(), firstRunningTask.parentTaskId());
         // Verifying parent and description
-        assertThat(firstRunningTask.getParentTaskId().getId(), equalTo(allocationId));
-        assertThat(firstRunningTask.getParentTaskId().getNodeId(), equalTo("cluster"));
-        assertThat(firstRunningTask.getDescription(), equalTo("id=" + taskId));
+        assertThat(firstRunningTask.parentTaskId().getId(), equalTo(allocationId));
+        assertThat(firstRunningTask.parentTaskId().getNodeId(), equalTo("cluster"));
+        assertThat(firstRunningTask.description(), equalTo("id=" + taskId));
 
         if (randomBoolean()) {
             logger.info("Simulating errant completion notification");
@@ -144,7 +144,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             );
         }
 
-        stopOrCancelTask(firstRunningTask.getTaskId());
+        stopOrCancelTask(firstRunningTask.taskId());
     }
 
     public void testPersistentActionWithNoAvailableNode() throws Exception {
@@ -169,7 +169,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             .get(0);
 
         // Verifying the task runs on the new node
-        assertThat(taskInfo.getTaskId().getNodeId(), equalTo(newNodeId));
+        assertThat(taskInfo.taskId().getNodeId(), equalTo(newNodeId));
 
         internalCluster().stopRandomNode(settings -> "test".equals(settings.get("node.attr.test_attr")));
 
@@ -220,7 +220,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             .get(0);
 
         // Verifying the task can now be assigned
-        assertThat(taskInfo.getTaskId().getNodeId(), notNullValue());
+        assertThat(taskInfo.taskId().getNodeId(), notNullValue());
 
         // Remove the persistent task
         PlainActionFuture<PersistentTask<?>> removeFuture = new PlainActionFuture<>();
@@ -255,7 +255,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             // Complete the running task and make sure it finishes properly
             assertThat(
                 new TestTasksRequestBuilder(client()).setOperation("update_status")
-                    .setTaskId(firstRunningTask.getTaskId())
+                    .setTargetTaskId(firstRunningTask.taskId())
                     .get()
                     .getTasks()
                     .size(),
@@ -296,7 +296,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         logger.info("Completing the running task");
         // Complete the running task and make sure it finishes properly
         assertThat(
-            new TestTasksRequestBuilder(client()).setOperation("finish").setTaskId(firstRunningTask.getTaskId()).get().getTasks().size(),
+            new TestTasksRequestBuilder(client()).setOperation("finish").setTargetTaskId(firstRunningTask.taskId()).get().getTasks().size(),
             equalTo(1)
         );
 
@@ -327,11 +327,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         logger.info("Completing the running task");
         // Fail the running task and make sure it restarts properly
         assertThat(
-            new TestTasksRequestBuilder(client()).setOperation("finish").setTaskId(firstRunningTask.getTaskId()).get().getTasks().size(),
+            new TestTasksRequestBuilder(client()).setOperation("finish").setTargetTaskId(firstRunningTask.taskId()).get().getTasks().size(),
             equalTo(1)
         );
 
-        logger.info("Waiting for persistent task with id {} to disappear", firstRunningTask.getId());
+        logger.info("Waiting for persistent task with id {} to disappear", firstRunningTask.id());
         assertBusy(() -> {
             // Wait for the task to disappear completely
             assertThat(
@@ -402,7 +402,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             .get()
             .getTasks()
             .get(0);
-        stopOrCancelTask(taskInfo.getTaskId());
+        stopOrCancelTask(taskInfo.taskId());
     }
 
     public void testAbortLocally() throws Exception {
@@ -430,12 +430,12 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         TestPersistentTasksExecutor.setNonClusterStateCondition(false);
 
         // Verifying parent
-        assertThat(firstRunningTask.getParentTaskId().getId(), equalTo(allocationId));
-        assertThat(firstRunningTask.getParentTaskId().getNodeId(), equalTo("cluster"));
+        assertThat(firstRunningTask.parentTaskId().getId(), equalTo(allocationId));
+        assertThat(firstRunningTask.parentTaskId().getNodeId(), equalTo("cluster"));
 
         assertThat(
             new TestTasksRequestBuilder(client()).setOperation("abort_locally")
-                .setTaskId(firstRunningTask.getTaskId())
+                .setTargetTaskId(firstRunningTask.taskId())
                 .get()
                 .getTasks()
                 .size(),
@@ -487,19 +487,22 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             .get()
             .getTasks()
             .get(0);
-        stopOrCancelTask(taskInfo.getTaskId());
+        stopOrCancelTask(taskInfo.taskId());
     }
 
     private void stopOrCancelTask(TaskId taskId) {
         if (randomBoolean()) {
             logger.info("Completing the running task");
             // Complete the running task and make sure it finishes properly
-            assertThat(new TestTasksRequestBuilder(client()).setOperation("finish").setTaskId(taskId).get().getTasks().size(), equalTo(1));
+            assertThat(
+                new TestTasksRequestBuilder(client()).setOperation("finish").setTargetTaskId(taskId).get().getTasks().size(),
+                equalTo(1)
+            );
 
         } else {
             logger.info("Cancelling the running task");
             // Cancel the running task and make sure it finishes properly
-            assertThat(client().admin().cluster().prepareCancelTasks().setTaskId(taskId).get().getTasks().size(), equalTo(1));
+            assertThat(client().admin().cluster().prepareCancelTasks().setTargetTaskId(taskId).get().getTasks().size(), equalTo(1));
         }
     }
 

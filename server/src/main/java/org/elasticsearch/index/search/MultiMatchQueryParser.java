@@ -11,7 +11,6 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -24,6 +23,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.BlendedTermQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,23 +55,15 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             return Queries.newUnmappedFieldsQuery(fieldNames.keySet());
         }
         final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
-        final List<Query> queries;
-        switch (type) {
-            case PHRASE:
-            case PHRASE_PREFIX:
-            case BEST_FIELDS:
-            case MOST_FIELDS:
-            case BOOL_PREFIX:
-                queries = buildFieldQueries(type, fieldNames, value, minimumShouldMatch);
-                break;
-
-            case CROSS_FIELDS:
-                queries = buildCrossFieldQuery(fieldNames, value, minimumShouldMatch, tieBreaker);
-                break;
-
-            default:
-                throw new IllegalStateException("No such type: " + type);
-        }
+        final List<Query> queries = switch (type) {
+            case PHRASE, PHRASE_PREFIX, BEST_FIELDS, MOST_FIELDS, BOOL_PREFIX -> buildFieldQueries(
+                type,
+                fieldNames,
+                value,
+                minimumShouldMatch
+            );
+            case CROSS_FIELDS -> buildCrossFieldQuery(fieldNames, value, minimumShouldMatch, tieBreaker);
+        };
         return combineGrouped(queries, tieBreaker);
     }
 
@@ -285,8 +277,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
                     }
                 }
                 float boost = ft.boost;
-                while (query instanceof BoostQuery) {
-                    BoostQuery bq = (BoostQuery) query;
+                while (query instanceof BoostQuery bq) {
                     query = bq.getQuery();
                     boost *= bq.getBoost();
                 }

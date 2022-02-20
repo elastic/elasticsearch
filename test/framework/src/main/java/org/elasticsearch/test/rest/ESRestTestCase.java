@@ -57,6 +57,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
@@ -103,6 +104,7 @@ import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -133,8 +135,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         try (
             XContentParser parser = xContentType.xContent()
                 .createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY.withRegistry(NamedXContentRegistry.EMPTY)
+                        .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
                     response.getEntity().getContent()
                 )
         ) {
@@ -151,8 +153,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         try (
             XContentParser parser = xContentType.xContent()
                 .createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY.withRegistry(NamedXContentRegistry.EMPTY)
+                        .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
                     response.getEntity().getContent()
                 )
         ) {
@@ -294,10 +296,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         /**
          * Adds to the set of warnings that are permissible (but not required) when running
          * in mixed-version clusters or those that differ in version from the test client.
-         * @param allowedWarnings optional warnings that will be ignored if received
+         * @param allowedWarningsToAdd optional warnings that will be ignored if received
          */
-        public void compatible(String... allowedWarnings) {
-            this.allowedWarnings.addAll(Arrays.asList(allowedWarnings));
+        public void compatible(String... allowedWarningsToAdd) {
+            this.allowedWarnings.addAll(Arrays.asList(allowedWarningsToAdd));
         }
 
         @Override
@@ -422,11 +424,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
      * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete.
      *
-     * @param adminClient the admin client
+     * @param restClient the admin client
      * @throws Exception if an exception is thrown while checking the outstanding tasks
      */
-    public static void waitForPendingTasks(final RestClient adminClient) throws Exception {
-        waitForPendingTasks(adminClient, taskName -> false);
+    public static void waitForPendingTasks(final RestClient restClient) throws Exception {
+        waitForPendingTasks(restClient, taskName -> false);
     }
 
     /**
@@ -434,16 +436,16 @@ public abstract class ESRestTestCase extends ESTestCase {
      * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified filter is used
      * to filter out outstanding tasks that are expected to be there.
      *
-     * @param adminClient the admin client
+     * @param restClient the admin client
      * @param taskFilter  predicate used to filter tasks that are expected to be there
      * @throws Exception if an exception is thrown while checking the outstanding tasks
      */
-    public static void waitForPendingTasks(final RestClient adminClient, final Predicate<String> taskFilter) throws Exception {
+    public static void waitForPendingTasks(final RestClient restClient, final Predicate<String> taskFilter) throws Exception {
         assertBusy(() -> {
             try {
                 final Request request = new Request("GET", "/_cat/tasks");
                 request.addParameter("detailed", "true");
-                final Response response = adminClient.performRequest(request);
+                final Response response = restClient.performRequest(request);
                 /*
                  * Check to see if there are outstanding tasks; we exclude the list task itself, and any expected outstanding tasks using
                  * the specified task filter.
@@ -570,6 +572,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "ilm-history-ilm-policy",
             "slm-history-ilm-policy",
             "watch-history-ilm-policy",
+            "watch-history-ilm-policy-16",
             "ml-size-based-ilm-policy",
             "logs",
             "metrics",
@@ -580,7 +583,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             "180-days-default",
             "365-days-default",
             ".fleet-actions-results-ilm-policy",
-            ".deprecation-indexing-ilm-policy"
+            ".deprecation-indexing-ilm-policy",
+            ".monitoring-8-ilm-policy"
         );
     }
 
@@ -846,9 +850,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         Set<String> unexpectedTemplates = new HashSet<>();
         if (preserveDataStreamsUponCompletion() == false && preserveTemplatesUponCompletion() == false) {
             if (hasXPack) {
-                // In case of bwc testing, if all nodes are before 7.7.0 then no need to attempt to delete component and composable
-                // index templates, because these were introduced in 7.7.0:
-                if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+                // In case of bwc testing, if all nodes are before 7.8.0 then no need to attempt to delete component and composable
+                // index templates, because these were introduced in 7.8.0:
+                if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_8_0))) {
                     Request getTemplatesRequest = new Request("GET", "_index_template");
                     Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
@@ -1059,8 +1063,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 } else if (warnings.size() > 1) {
                     return true;
                 } else {
-                    return warnings.get(0).startsWith("[transient settings removal]") == false
-                        && warnings.get(0).contains("xpack.monitoring") == false;
+                    return warnings.get(0).contains("xpack.monitoring") == false;
                 }
             }));
 
@@ -1398,6 +1401,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
+    public static void assertAcknowledged(Response response) throws IOException {
+        assertOK(response);
+        String jsonBody = EntityUtils.toString(response.getEntity());
+        assertThat(jsonBody, containsString("\"acknowledged\":true"));
+    }
+
     /**
      * Permits subclasses to increase the default timeout when waiting for green health
      */
@@ -1431,15 +1440,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         ensureHealth(client(), index, requestConsumer);
     }
 
-    protected static void ensureHealth(RestClient client, String index, Consumer<Request> requestConsumer) throws IOException {
+    protected static void ensureHealth(RestClient restClient, String index, Consumer<Request> requestConsumer) throws IOException {
         Request request = new Request("GET", "/_cluster/health" + (index.isBlank() ? "" : "/" + index));
         requestConsumer.accept(request);
         try {
-            client.performRequest(request);
+            restClient.performRequest(request);
         } catch (ResponseException e) {
             if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
                 try {
-                    final Response clusterStateResponse = client.performRequest(new Request("GET", "/_cluster/state?pretty"));
+                    final Response clusterStateResponse = restClient.performRequest(new Request("GET", "/_cluster/state?pretty"));
                     fail(
                         "timed out waiting for green state for index ["
                             + index
@@ -1497,9 +1506,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         deleteIndex(client(), name);
     }
 
-    protected static void deleteIndex(RestClient client, String name) throws IOException {
+    protected static void deleteIndex(RestClient restClient, String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
-        client.performRequest(request);
+        restClient.performRequest(request);
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -1614,13 +1623,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         registerRepository(client(), repository, type, verify, settings);
     }
 
-    protected static void registerRepository(RestClient client, String repository, String type, boolean verify, Settings settings)
+    protected static void registerRepository(RestClient restClient, String repository, String type, boolean verify, Settings settings)
         throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
         request.addParameter("verify", Boolean.toString(verify));
         request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).settings(settings)));
 
-        final Response response = client.performRequest(request);
+        final Response response = restClient.performRequest(request);
         assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
     }
 
@@ -1628,12 +1637,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         createSnapshot(client(), repository, snapshot, waitForCompletion);
     }
 
-    protected static void createSnapshot(RestClient client, String repository, String snapshot, boolean waitForCompletion)
+    protected static void createSnapshot(RestClient restClient, String repository, String snapshot, boolean waitForCompletion)
         throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
 
-        final Response response = client.performRequest(request);
+        final Response response = restClient.performRequest(request);
         assertThat(
             "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
             response.getStatusLine().getStatusCode(),
@@ -1657,12 +1666,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         deleteSnapshot(client(), repository, snapshot, ignoreMissing);
     }
 
-    protected static void deleteSnapshot(RestClient client, String repository, String snapshot, boolean ignoreMissing) throws IOException {
+    protected static void deleteSnapshot(RestClient restClient, String repository, String snapshot, boolean ignoreMissing)
+        throws IOException {
         final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         if (ignoreMissing) {
             request.addParameter("ignore", "404");
         }
-        final Response response = client.performRequest(request);
+        final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), ignoreMissing ? anyOf(equalTo(200), equalTo(404)) : equalTo(200));
     }
 

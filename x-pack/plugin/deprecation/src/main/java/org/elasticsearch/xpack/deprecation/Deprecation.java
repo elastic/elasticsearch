@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -110,18 +110,16 @@ public class Deprecation extends Plugin implements ActionPlugin {
         final RateLimitingFilter rateLimitingFilterForIndexing = new RateLimitingFilter();
         // enable on start.
         rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.get(environment.settings()));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, rateLimitingFilterForIndexing::setUseXOpaqueId);
 
-        final DeprecationIndexingComponent component = new DeprecationIndexingComponent(
+        final DeprecationIndexingComponent component = DeprecationIndexingComponent.createDeprecationIndexingComponent(
             client,
             environment.settings(),
             rateLimitingFilterForIndexing,
-            WRITE_DEPRECATION_LOGS_TO_INDEX.get(environment.settings()) // pass the default on startup
+            WRITE_DEPRECATION_LOGS_TO_INDEX.get(environment.settings()), // pass the default on startup
+            clusterService
         );
-
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, rateLimitingFilterForIndexing::setUseXOpaqueId);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(WRITE_DEPRECATION_LOGS_TO_INDEX, component::enableDeprecationLogIndexing);
 
         return List.of(component, rateLimitingFilterForIndexing);
     }

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[preview-dfanalytics]]
 = Preview {dfanalytics} API
 

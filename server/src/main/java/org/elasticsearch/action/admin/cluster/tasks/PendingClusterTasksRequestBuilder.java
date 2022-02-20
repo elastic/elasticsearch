@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.cluster.tasks;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class PendingClusterTasksRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     PendingClusterTasksRequest,

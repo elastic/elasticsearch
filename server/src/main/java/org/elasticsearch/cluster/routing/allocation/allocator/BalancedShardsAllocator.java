@@ -1013,7 +1013,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             updateMinNode = currentDecision.type() == Type.YES;
                         }
                     } else {
-                        updateMinNode = true;
+                        updateMinNode = currentWeight < minWeight;
                     }
                     if (updateMinNode) {
                         minNode = node;

@@ -13,7 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -329,7 +328,7 @@ public class InferenceProcessor extends AbstractProcessor {
             Map<String, String> fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAP);
             if (fieldMap == null) {
                 fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
-                // TODO Remove in 8.x
+                // TODO Remove in 9?.x
                 if (fieldMap != null) {
                     LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
                 }
@@ -403,13 +402,20 @@ public class InferenceProcessor extends AbstractProcessor {
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
                 checkNlpSupported(ZeroShotClassificationConfig.NAME);
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
-            }
-            // TODO missing update types
-            else {
+            } else {
                 throw ExceptionsHelper.badRequestException(
                     "unrecognized inference configuration type {}. Supported types {}",
                     configMap.keySet(),
-                    Arrays.asList(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName())
+                    List.of(
+                        ClassificationConfig.NAME.getPreferredName(),
+                        RegressionConfig.NAME.getPreferredName(),
+                        FillMaskConfig.NAME,
+                        NerConfig.NAME,
+                        PassThroughConfig.NAME,
+                        TextClassificationConfig.NAME,
+                        TextEmbeddingConfig.NAME,
+                        ZeroShotClassificationConfig.NAME
+                    )
                 );
             }
         }

@@ -15,7 +15,7 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -73,7 +73,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] {},
             new DeprecationWarning(
-                DeprecationLogger.CRITICAL,
+                Level.WARN,
                 "Setting [discovery.ec2.access_key] is set but " + "[discovery.ec2.secret_key] is not, which will be unsupported in future"
             )
         );
@@ -91,7 +91,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] {},
             new DeprecationWarning(
-                DeprecationLogger.CRITICAL,
+                Level.WARN,
                 "Setting [discovery.ec2.secret_key] is set but " + "[discovery.ec2.access_key] is not, which will be unsupported in future"
             )
         );

@@ -43,7 +43,7 @@ import java.util.function.Supplier;
 
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
 
-    private static Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
+    private static final Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
     public static final String EC2 = "ec2";
 
     static {
@@ -80,7 +80,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     }
 
     @Override
-    public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
+    public NetworkService.CustomNameResolver getCustomNameResolver(Settings _settings) {
         logger.debug("Register _ec2_, _ec2:xxx_ network names");
         return new Ec2NameResolver();
     }
@@ -171,9 +171,9 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     }
 
     @Override
-    public void reload(Settings settings) {
+    public void reload(Settings settingsToLoad) {
         // secure settings should be readable
-        final Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
+        final Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settingsToLoad);
         ec2Service.refreshAndClearCache(clientSettings);
     }
 }

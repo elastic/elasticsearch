@@ -49,7 +49,6 @@ public class FieldNamesFieldMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = defaultMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().field("a", "100").startObject("b").field("c", 42).endObject().endObject()

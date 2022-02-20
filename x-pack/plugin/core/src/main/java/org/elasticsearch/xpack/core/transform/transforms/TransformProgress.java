@@ -114,9 +114,9 @@ public class TransformProgress implements Writeable, ToXContentObject {
         this.documentsProcessed += docsProcessed;
     }
 
-    public void incrementDocsIndexed(long documentsIndexed) {
-        assert documentsIndexed >= 0;
-        this.documentsIndexed += documentsIndexed;
+    public void incrementDocsIndexed(long numDocumentsIndexed) {
+        assert numDocumentsIndexed >= 0;
+        this.documentsIndexed += numDocumentsIndexed;
     }
 
     public long getDocumentsProcessed() {

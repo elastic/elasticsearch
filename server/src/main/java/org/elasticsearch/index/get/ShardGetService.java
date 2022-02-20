@@ -16,10 +16,8 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -33,8 +31,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -253,15 +249,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             if (fetchSourceContext.fetchSource() == false) {
                 source = null;
             } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
-                Map<String, Object> sourceAsMap;
                 // TODO: The source might be parsed and available in the sourceLookup but that one uses unordered maps so different.
                 // Do we care?
-                Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
-                XContentType sourceContentType = typeMapTuple.v1();
-                sourceAsMap = typeMapTuple.v2();
-                sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
                 try {
-                    source = BytesReference.bytes(XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap));
+                    source = XContentFieldFilter.newFieldFilter(fetchSourceContext.includes(), fetchSourceContext.excludes())
+                        .apply(source, null);
                 } catch (IOException e) {
                     throw new ElasticsearchException("Failed to get id [" + id + "] with includes/excludes set", e);
                 }

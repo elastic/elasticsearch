@@ -64,7 +64,15 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
         this.bits = missingBucket ? new BitArray(Math.min(size, 100), bigArrays) : null;
-        this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+        boolean success = false;
+        try {
+            this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
@@ -216,11 +224,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             return true;
         } else if (query.getClass() == MatchAllDocsQuery.class) {
             return true;
-        } else if (query instanceof PointRangeQuery) {
-            PointRangeQuery pointQuery = (PointRangeQuery) query;
+        } else if (query instanceof PointRangeQuery pointQuery) {
             return fieldName.equals(pointQuery.getField());
-        } else if (query instanceof DocValuesFieldExistsQuery) {
-            DocValuesFieldExistsQuery existsQuery = (DocValuesFieldExistsQuery) query;
+        } else if (query instanceof DocValuesFieldExistsQuery existsQuery) {
             return fieldName.equals(existsQuery.getField());
         } else {
             return false;
@@ -235,8 +241,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         }
         final byte[] lowerPoint;
         final byte[] upperPoint;
-        if (query instanceof PointRangeQuery) {
-            final PointRangeQuery rangeQuery = (PointRangeQuery) query;
+        if (query instanceof final PointRangeQuery rangeQuery) {
             lowerPoint = rangeQuery.getLowerPoint();
             upperPoint = rangeQuery.getUpperPoint();
         } else {
@@ -244,8 +249,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             upperPoint = null;
         }
 
-        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) fieldType;
+        if (fieldType instanceof NumberFieldMapper.NumberFieldType ft) {
             final ToLongFunction<byte[]> toBucketFunction;
 
             switch (ft.typeName()) {

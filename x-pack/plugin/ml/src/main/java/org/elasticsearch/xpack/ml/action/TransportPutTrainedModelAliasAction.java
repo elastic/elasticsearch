@@ -15,13 +15,13 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.License;
@@ -173,7 +173,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                     String warning = Messages.getMessage(TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY, request.getModelId(), oldModelId);
                     auditor.warning(oldModelId, warning);
                     logger.warn("[{}] {}", oldModelId, warning);
-                    HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+                    HeaderWarning.addWarning(warning);
                 }
             }
             clusterService.submitStateUpdateTask("update-model-alias", new AckedClusterStateUpdateTask(request, listener) {
@@ -181,7 +181,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                 public ClusterState execute(final ClusterState currentState) {
                     return updateModelAlias(currentState, request);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
 
         }, listener::onFailure));
     }

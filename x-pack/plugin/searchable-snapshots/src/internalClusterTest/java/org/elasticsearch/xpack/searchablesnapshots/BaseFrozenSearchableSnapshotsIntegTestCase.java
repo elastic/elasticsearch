@@ -25,7 +25,7 @@ public class BaseFrozenSearchableSnapshotsIntegTestCase extends BaseSearchableSn
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         if (DiscoveryNode.canContainData(otherSettings)) {
             builder.put(
-                FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+                FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
                 rarely()
                     ? randomBoolean()
                         ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.KB).getStringRep()

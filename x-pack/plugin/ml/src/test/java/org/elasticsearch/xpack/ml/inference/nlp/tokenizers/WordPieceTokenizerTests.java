@@ -22,39 +22,39 @@ public class WordPieceTokenizerTests extends ESTestCase {
     public static final String UNKNOWN_TOKEN = "[UNK]";
 
     public void testTokenize() {
-        Map<String, Integer> vocabMap = createVocabMap(
-            UNKNOWN_TOKEN,
-            "[CLS]",
-            "[SEP]",
-            "want",
-            "##want",
-            "##ed",
-            "wa",
-            "un",
-            "runn",
-            "##ing"
-        );
+        String[] vocab = { UNKNOWN_TOKEN, "[CLS]", "[SEP]", "want", "##want", "##ed", "wa", "un", "runn", "##ing" };
+        Map<String, Integer> vocabMap = createVocabMap(vocab);
+
         WordPieceTokenizer tokenizer = new WordPieceTokenizer(vocabMap, UNKNOWN_TOKEN, 100);
 
-        List<WordPieceTokenizer.TokenAndId> tokenAndIds = tokenizer.tokenize("");
-        assertThat(tokenAndIds, empty());
+        var tokenIds = tokenizer.tokenize(new DelimitedToken(0, 0, ""));
+        assertThat(tokenIds, empty());
 
-        tokenAndIds = tokenizer.tokenize("unwanted running");
-        List<String> tokens = tokenAndIds.stream().map(WordPieceTokenizer.TokenAndId::getToken).collect(Collectors.toList());
-        assertThat(tokens, contains("un", "##want", "##ed", "runn", "##ing"));
+        tokenIds = tokenizer.tokenize(makeToken("unwanted"));
+        List<String> tokenStrings = tokenIds.stream().map(index -> vocab[index]).collect(Collectors.toList());
+        assertThat(tokenStrings, contains("un", "##want", "##ed"));
 
-        tokenAndIds = tokenizer.tokenize("unwantedX running");
-        tokens = tokenAndIds.stream().map(WordPieceTokenizer.TokenAndId::getToken).collect(Collectors.toList());
-        assertThat(tokens, contains(UNKNOWN_TOKEN, "runn", "##ing"));
+        tokenIds = tokenizer.tokenize(makeToken("running"));
+        tokenStrings = tokenIds.stream().map(index -> vocab[index]).collect(Collectors.toList());
+        assertThat(tokenStrings, contains("runn", "##ing"));
+
+        tokenIds = tokenizer.tokenize(makeToken("unwantedX"));
+        tokenStrings = tokenIds.stream().map(index -> vocab[index]).collect(Collectors.toList());
+        assertThat(tokenStrings, contains(UNKNOWN_TOKEN));
+    }
+
+    private DelimitedToken makeToken(String str) {
+        return new DelimitedToken(0, str.length(), str);
     }
 
     public void testMaxCharLength() {
-        Map<String, Integer> vocabMap = createVocabMap("Some", "words", "will", "become", "UNK");
+        String[] vocab = { "Some", "words", "will", "become", "UNK" };
+        Map<String, Integer> vocabMap = createVocabMap(vocab);
 
         WordPieceTokenizer tokenizer = new WordPieceTokenizer(vocabMap, "UNK", 4);
-        List<WordPieceTokenizer.TokenAndId> tokenAndIds = tokenizer.tokenize("Some words will become UNK");
-        List<String> tokens = tokenAndIds.stream().map(WordPieceTokenizer.TokenAndId::getToken).collect(Collectors.toList());
-        assertThat(tokens, contains("Some", "UNK", "will", "UNK", "UNK"));
+        var tokenIds = tokenizer.tokenize(new DelimitedToken(0, 0, "become"));
+        List<String> tokenStrings = tokenIds.stream().map(index -> vocab[index]).collect(Collectors.toList());
+        assertThat(tokenStrings, contains("UNK"));
     }
 
     static Map<String, Integer> createVocabMap(String... words) {

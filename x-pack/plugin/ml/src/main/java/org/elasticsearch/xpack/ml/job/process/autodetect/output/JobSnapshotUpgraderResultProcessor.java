@@ -139,6 +139,10 @@ public class JobSnapshotUpgraderResultProcessor {
         processKilled = true;
     }
 
+    public boolean isProcessKilled() {
+        return processKilled;
+    }
+
     private void logUnexpectedResult(String resultType) {
         String msg = "[" + jobId + "] [" + snapshotId + "] unexpected result read [" + resultType + "]";
         // This should never happen, but we definitely want to fail if -ea is provided (e.g. during tests)

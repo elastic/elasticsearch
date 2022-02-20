@@ -27,7 +27,6 @@ public class NullValueObjectMappingTests extends MapperServiceTestCase {
 
         ParsedDocument doc = defaultMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().startObject("obj1").endObject().field("value1", "test1").endObject()
@@ -40,7 +39,6 @@ public class NullValueObjectMappingTests extends MapperServiceTestCase {
 
         doc = defaultMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("obj1").field("value1", "test1").endObject()),
                 XContentType.JSON
@@ -51,7 +49,6 @@ public class NullValueObjectMappingTests extends MapperServiceTestCase {
 
         doc = defaultMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()

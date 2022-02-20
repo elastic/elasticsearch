@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[match-enrich-policy-type]]
 === Example: Enrich your data based on exact values
 

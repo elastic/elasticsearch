@@ -224,32 +224,24 @@ public class PrecisionAtKTests extends ESTestCase {
     }
 
     private static PrecisionAtK mutate(PrecisionAtK original) {
-        PrecisionAtK pAtK;
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                pAtK = new PrecisionAtK(
-                    original.getRelevantRatingThreshold(),
-                    original.getIgnoreUnlabeled() == false,
-                    original.forcedSearchSize().getAsInt()
-                );
-                break;
-            case 1:
-                pAtK = new PrecisionAtK(
-                    randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
-                    original.getIgnoreUnlabeled(),
-                    original.forcedSearchSize().getAsInt()
-                );
-                break;
-            case 2:
-                pAtK = new PrecisionAtK(
-                    original.getRelevantRatingThreshold(),
-                    original.getIgnoreUnlabeled(),
-                    original.forcedSearchSize().getAsInt() + 1
-                );
-                break;
-            default:
-                throw new IllegalStateException("The test should only allow three parameters mutated");
-        }
+        PrecisionAtK pAtK = switch (randomIntBetween(0, 2)) {
+            case 0 -> new PrecisionAtK(
+                original.getRelevantRatingThreshold(),
+                original.getIgnoreUnlabeled() == false,
+                original.forcedSearchSize().getAsInt()
+            );
+            case 1 -> new PrecisionAtK(
+                randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
+                original.getIgnoreUnlabeled(),
+                original.forcedSearchSize().getAsInt()
+            );
+            case 2 -> new PrecisionAtK(
+                original.getRelevantRatingThreshold(),
+                original.getIgnoreUnlabeled(),
+                original.forcedSearchSize().getAsInt() + 1
+            );
+            default -> throw new IllegalStateException("The test should only allow three parameters mutated");
+        };
         return pAtK;
     }
 

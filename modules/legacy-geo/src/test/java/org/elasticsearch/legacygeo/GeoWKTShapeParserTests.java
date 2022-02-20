@@ -12,12 +12,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.legacygeo.builders.CoordinatesBuilder;
 import org.elasticsearch.legacygeo.builders.EnvelopeBuilder;
@@ -184,7 +184,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         }
         Geometry expectedGeom;
         if (lines.isEmpty()) {
-            expectedGeom = GeometryCollection.EMPTY;
+            expectedGeom = MultiLine.EMPTY;
         } else if (lines.size() == 1) {
             expectedGeom = new Line(lines.get(0).getX(), lines.get(0).getY());
         } else {
@@ -435,7 +435,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         } else {
             GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
             assertExpected(gcb.buildS4J(), gcb, true);
-            assertExpected(new GeoShapeIndexer(true, "name").prepareForIndexing(gcb.buildGeometry()), gcb, false);
+            assertExpected(GeometryNormalizer.apply(Orientation.CCW, gcb.buildGeometry()), gcb, false);
         }
     }
 

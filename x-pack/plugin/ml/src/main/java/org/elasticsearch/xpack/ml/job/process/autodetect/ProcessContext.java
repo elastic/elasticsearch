@@ -69,9 +69,9 @@ final class ProcessContext {
         lock.unlock();
     }
 
-    void setRunning(AutodetectCommunicator autodetectCommunicator) {
+    void setRunning(AutodetectCommunicator communicator) {
         assert lock.isHeldByCurrentThread();
-        state.setRunning(this, autodetectCommunicator);
+        state.setRunning(this, communicator);
     }
 
     boolean setDying() {

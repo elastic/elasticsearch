@@ -60,8 +60,7 @@ public class CleanerServiceTests extends ESTestCase {
             new CleanerService(settings, clusterSettings, threadPool, licenseState);
         } finally {
             assertWarnings(
-                "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in "
-                    + "a future release! See the breaking changes documentation for the next major version."
+                "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future release."
             );
         }
     }
@@ -73,8 +72,7 @@ public class CleanerServiceTests extends ESTestCase {
         assertEquals(expected, new CleanerService(settings, clusterSettings, threadPool, licenseState).getRetention());
 
         assertWarnings(
-            "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in "
-                + "a future release! See the breaking changes documentation for the next major version."
+            "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
     }
 
@@ -115,11 +113,11 @@ public class CleanerServiceTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(nbExecutions);
 
         logger.debug("--> creates a cleaner service that cleans every second");
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
         CleanerService service = new CleanerService(
             Settings.EMPTY,
             clusterSettings,
-            licenseState,
+            mockLicenseState,
             threadPool,
             new TestExecutionScheduler(1_000)
         );

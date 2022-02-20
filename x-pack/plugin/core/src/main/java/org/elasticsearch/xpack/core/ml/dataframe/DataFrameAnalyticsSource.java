@@ -174,8 +174,8 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     public QueryBuilder getParsedQuery() {
         Exception exception = queryProvider.getParsingException();
         if (exception != null) {
-            if (exception instanceof RuntimeException) {
-                throw (RuntimeException) exception;
+            if (exception instanceof RuntimeException runtimeException) {
+                throw runtimeException;
             } else {
                 throw new ElasticsearchException(queryProvider.getParsingException());
             }

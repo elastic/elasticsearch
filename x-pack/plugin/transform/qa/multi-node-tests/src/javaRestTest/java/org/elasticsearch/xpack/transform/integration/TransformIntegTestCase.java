@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.apache.http.client.methods.HttpGet;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
@@ -379,20 +380,10 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                 if (user != null) {
                     sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
                 }
-                sourceBuilder.append("\"count\":")
-                    .append(i)
-                    .append(",\"business_id\":\"")
-                    .append("business_")
-                    .append(business)
-                    .append("\",\"stars\":")
-                    .append(stars)
-                    .append(",\"comment\":")
-                    .append("\"Great stuff, deserves " + stars + " stars\"")
-                    .append(",\"regular_object\":{\"foo\": 42}")
-                    .append(",\"nested_object\":{\"bar\": 43}")
-                    .append(",\"timestamp\":\"")
-                    .append(dateString)
-                    .append("\"}");
+                sourceBuilder.append("""
+                    "count":%s,"business_id":"business_%s","stars":%s,"comment":"Great stuff, deserves %s stars","regular_object":\
+                    {"foo": 42},"nested_object":{"bar": 43},"timestamp":"%s"}
+                    """.formatted(i, business, stars, stars, dateString));
                 bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
 
                 if (i % 100 == 0) {
@@ -422,13 +413,18 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     }
 
     private void waitForPendingTasks() {
-        ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setWaitForCompletion(true);
-        listTasksRequest.setDetailed(true);
-        listTasksRequest.setTimeout(TimeValue.timeValueSeconds(10));
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-
-            restClient.tasks().list(listTasksRequest, RequestOptions.DEFAULT);
+        Request request = new Request(HttpGet.METHOD_NAME, "/_tasks");
+        Map<String, String> parameters = Map.of(
+            "wait_for_completion",
+            Boolean.TRUE.toString(),
+            "detailed",
+            Boolean.TRUE.toString(),
+            "timeout",
+            TimeValue.timeValueSeconds(10).getStringRep()
+        );
+        request.addParameters(parameters);
+        try {
+            client().performRequest(request);
         } catch (Exception e) {
             throw new AssertionError("Failed to wait for pending tasks to complete", e);
         }

@@ -6,11 +6,15 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 
+import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -179,13 +183,18 @@ public class RealmConfig {
      * (e.g. {@code xpack.security.authc.realms.native.native_realm.order}), it is often necessary to be able to
      * pass this pair of variables as a single type (e.g. in method parameters, or return values).
      */
-    public static class RealmIdentifier {
+    public static class RealmIdentifier implements Writeable {
         private final String type;
         private final String name;
 
         public RealmIdentifier(String type, String name) {
             this.type = Objects.requireNonNull(type, "Realm type cannot be null");
             this.name = Objects.requireNonNull(name, "Realm name cannot be null");
+        }
+
+        public RealmIdentifier(StreamInput in) throws IOException {
+            this.type = in.readString();
+            this.name = in.readString();
         }
 
         public String getType() {
@@ -219,6 +228,12 @@ public class RealmConfig {
         @Override
         public String toString() {
             return type + '/' + name;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(type);
+            out.writeString(name);
         }
     }
 }

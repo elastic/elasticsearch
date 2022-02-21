@@ -32,16 +32,17 @@ public class LoggerUsagePrecommitPlugin extends PrecommitPlugin implements Inter
         TaskProvider<LoggerUsageTask> loggerUsage = project.getTasks().register("loggerUsageCheck", LoggerUsageTask.class);
         loggerUsage.configure(t -> t.setClasspath(loggerUsageConfig));
         project.getPluginManager().withPlugin("java-base", appliedPlugin -> {
-            JavaPluginExtension byType = project.getExtensions().getByType(JavaPluginExtension.class);
-            NamedDomainObjectSet<SourceSet> matching = byType.getSourceSets()
+            JavaPluginExtension javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+            NamedDomainObjectSet<SourceSet> matchingSourceSet =
                 // only check main and test sourceset
-                .matching(
-                    sourceSet -> sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME)
-                        || sourceSet.getName().equals(SourceSet.TEST_SOURCE_SET_NAME)
-                );
+                javaPluginExtension.getSourceSets()
+                    .matching(
+                        sourceSet -> sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME)
+                            || sourceSet.getName().equals(SourceSet.TEST_SOURCE_SET_NAME)
+                    );
             loggerUsage.configure(
                 loggerUsageTask -> loggerUsageTask.setClassDirectories(
-                    matching.stream().map(sourceSet -> sourceSet.getOutput().getClassesDirs()).reduce(FileCollection::plus).get()
+                    matchingSourceSet.stream().map(sourceSet -> sourceSet.getOutput().getClassesDirs()).reduce(FileCollection::plus).get()
                 )
             );
         });

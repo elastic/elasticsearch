@@ -279,7 +279,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         sourceLookup.setSource(BytesReference.bytes(source));
         {
             // make sure that an empty fetch don't deserialize the document
-            FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), List.of());
+            FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), Collections.emptyList());
             Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
             assertThat(fields.size(), equalTo(0));
             assertThat(sourceLookup.hasSourceAsMap(), equalTo(false));

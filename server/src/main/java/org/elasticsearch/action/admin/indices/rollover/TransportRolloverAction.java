@@ -323,7 +323,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .stream()
                 .filter(condition -> postConditionResults.get(condition.toString()))
                 .collect(Collectors.toList());
-            // Update the final condition results so they can be used when returning the response
 
             if (postConditionResults.size() == 0 || metConditions.size() > 0) {
 

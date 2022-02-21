@@ -32,7 +32,7 @@ public class PomValidationTask extends PrecommitTask {
 
     @Inject
     public PomValidationTask(ObjectFactory objects) {
-        pomFile= objects.fileProperty();
+        pomFile = objects.fileProperty();
     }
 
     @InputFile

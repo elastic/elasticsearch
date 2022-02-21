@@ -61,9 +61,10 @@ public final class Explanations {
             Elasticsearch can rebalance this shard to another node.""";
 
         public static final String ALREADY_BALANCED = """
-            Elasticsearch cannot rebalance this shard to another node since there is no node to which allocation is permitted which \
-            would improve the cluster balance. If you expect this shard to be rebalanced to another node, find this node in the \
-            node-by-node explanation and address the reasons which prevent Elasticsearch from rebalancing this shard there.""";
+            This shard is in a well-balanced location and satisfies all allocation rules so it will remain on this node. Elasticsearch \
+            cannot improve the cluster balance by moving it to another node. If you expect this shard to be rebalanced to another node, \
+            find the other node in the node-by-node explanation and address the reasons which prevent Elasticsearch from rebalancing this \
+            shard there.""";
 
         public static final String AWAITING_INFO = """
             Elasticsearch is currently retrieving information about this shard from one or more nodes. It will make a rebalancing decision \

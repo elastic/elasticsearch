@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -141,6 +142,7 @@ import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineA
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.timeseries.ParsedTimeSeries;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.xcontent.ContextParser;
@@ -471,6 +473,12 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         T reduced = (T) inputs.toReduce().get(0).reduce(toReduce, context);
         doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
         assertReduced(reduced, inputs.toReduce());
+        if (supportsSampling()) {
+            SamplingContext randomContext = new SamplingContext(randomDoubleBetween(1e-8, 0.1, false), randomInt());
+            @SuppressWarnings("unchecked")
+            T sampled = (T) reduced.finalizeSampling(randomContext);
+            assertSampled(sampled, reduced, randomContext);
+        }
     }
 
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
@@ -486,9 +494,17 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     protected abstract void assertReduced(T reduced, List<T> inputs);
 
+    protected void assertSampled(T sampled, T reduced, SamplingContext samplingContext) {
+        throw new UnsupportedOperationException("aggregation supports sampling but does not implement assertSampled");
+    }
+
     @Override
     public final T createTestInstance() {
         return createTestInstance(randomAlphaOfLength(5));
+    }
+
+    protected boolean supportsSampling() {
+        return false;
     }
 
     public final Map<String, Object> createTestMetadata() {
@@ -714,6 +730,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         @Override
         public BucketCardinality bucketCardinality() {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
     }
 }

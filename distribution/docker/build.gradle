@@ -18,7 +18,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 ext.cloudflareZlibVersion = '1.2.8'
 
-String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
+String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false
 
 repositories {

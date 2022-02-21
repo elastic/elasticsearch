@@ -26,7 +26,7 @@ path is to the auto-generated CA certificate for the HTTP layer.
 
 [source,sh]
 ----
-openssl x509 -fingerprint -sha256 -in config/tls_auto_config_<timestamp>/http_ca.crt
+openssl x509 -fingerprint -sha256 -in config/certs/http_ca.crt
 ----
 
 `<timestamp>`:: The timestamp of when the auto-configuration process created the security files directory.
@@ -45,6 +45,6 @@ SHA256 Fingerprint=<fingerprint>
 
 If your library doesn't support a method of validating the fingerprint, the 
 auto-generated CA certificate is created in the
-`config/tls_auto_config_<timestamp>` directory on each {es} node. Copy the
+`config/certs` directory on each {es} node. Copy the
 `http_ca.crt` file to your machine and configure your client to use this
 certificate to establish trust when it connects to {es}.

@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
@@ -114,7 +113,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
     ) throws IOException {
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
-        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
+        String policyName = indexMetadata.getLifecyclePolicyName();
         String currentPhase = lifecycleState.phase();
         String stepInfo = lifecycleState.stepInfo();
         BytesArray stepInfoBytes = null;

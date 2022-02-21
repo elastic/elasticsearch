@@ -492,9 +492,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         assertWarnings(
             "[script.context.field.max_compilations_rate] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release! See the breaking changes documentation for the next major version.",
-            "[script.context.score.max_compilations_rate] setting was deprecated in Elasticsearch and will be removed in a future"
-                + " release! See the breaking changes documentation for the next major version."
+                + " removed in a future release.",
+            "[script.context.score.max_compilations_rate] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
     }
 
@@ -527,9 +526,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         assertWarnings(
             "[script.context.update.max_compilations_rate] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release! See the breaking changes documentation for the next major version.",
-            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future"
-                + " release! See the breaking changes documentation for the next major version."
+                + " removed in a future release.",
+            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
     }
 
@@ -562,10 +560,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertWarnings(
-            "[script.context.update.cache_max_size] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release! See the breaking changes documentation for the next major version.",
-            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future"
-                + " release! See the breaking changes documentation for the next major version."
+            "[script.context.update.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release.",
+            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
     }
 
@@ -598,10 +594,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertWarnings(
-            "[script.context.interval.cache_expire] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release! See the breaking changes documentation for the next major version.",
-            "[script.context.moving-function.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future"
-                + " release! See the breaking changes documentation for the next major version."
+            "[script.context.interval.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release.",
+            "[script.context.moving-function.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
     }
 
@@ -655,8 +649,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             true,
             new DeprecationWarning(
                 Level.WARN,
-                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release!"
-                    + " See the breaking changes documentation for the next major version."
+                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release."
             )
         );
     }
@@ -678,9 +671,25 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             true,
             new DeprecationWarning(
                 Level.WARN,
-                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release!"
-                    + " See the breaking changes documentation for the next major version."
+                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
             )
         );
+    }
+
+    public void testCheckNodeAttrData() {
+        Settings settings = Settings.builder().put("node.attr.data", randomAlphaOfLength(randomIntBetween(4, 20))).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Setting node.attributes.data is not recommended",
+            "https://ela.st/es-deprecation-7-node-attr-data-setting",
+            "One or more of your nodes is configured with node.attributes.data settings. This is typically used to create a "
+                + "hot/warm or tiered architecture, based on legacy guidelines. Data tiers are a recommended replacement for tiered "
+                + "architecture clusters.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
     }
 }

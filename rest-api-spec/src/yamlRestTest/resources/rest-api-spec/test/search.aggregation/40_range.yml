@@ -142,8 +142,8 @@ setup:
 ---
 "Float range":
   - skip:
-      version: " - 7.16.99"
-      reason: Bug fixed in 8.1.0 and backported to 7.17.0
+      version: " - 7.17.0"
+      reason: Bug fixed in 8.1.0 and backported to 7.17.1
   - do:
       search:
         index: test
@@ -457,7 +457,9 @@ setup:
               range:
                 field: date
                 ranges:
-                  { from: 2021-05-01T00:00:00Z, to: 2021-05-05T00:00:00Z }
+                 -
+                   from: 2021-05-01T00:00:00Z
+                   to: 2021-05-05T00:00:00Z
 
   - match: { hits.total.value: 5 }
   - length: { aggregations.date_range.buckets: 1 }
@@ -483,7 +485,10 @@ setup:
               range:
                 field: "long"
                 ranges:
-                  { from: -9223372036854775808, to: 9223372036854775807 }
+                  -
+                    from: -9223372036854775808
+                    to: 9223372036854775807
+
   - match: { hits.total.relation: "eq" }
   - match: { hits.total.value: 1 }
   - length: { aggregations.long_range.buckets: 1 }

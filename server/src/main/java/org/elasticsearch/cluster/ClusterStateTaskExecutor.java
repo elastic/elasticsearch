@@ -7,12 +7,14 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
@@ -75,17 +77,28 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
         public static class Builder<T extends ClusterStateTaskListener> {
             private final Map<T, TaskResult> executionResults = new IdentityHashMap<>();
 
-            public Builder<T> success(T task) {
-                return result(task, TaskResult.success());
+            /**
+             * Record that the cluster state update task succeeded.
+             *
+             * @param taskListener A listener for the completion of the resulting cluster state publication. This listener is completed with
+             *                     the cluster state that was published (or the publication exception that occurred) in the thread context
+             *                     in which the task was submitted. The task's {@link ClusterStateTaskListener#clusterStateProcessed} method
+             *                     is not called directly by the master service, nor is {@link ClusterStateTaskListener#onFailure} once the
+             *                     task execution has succeeded, but legacy implementations may use this listener to call those methods.
+             *                     <p>
+             *                     The listener should prefer not to use the published state for things like determining the result of a
+             *                     task. The task may have been executed as part of a batch, and later tasks in the batch may overwrite
+             *                     the results from earlier tasks. Instead the listener should independently capture the information it
+             *                     needs to properly process the completion of a cluster state update.
+             */
+            // TODO remove all remaining usages of the published state and then make this an ActionListener<Void>
+            public Builder<T> success(T task, ActionListener<ClusterState> taskListener) {
+                return result(task, TaskResult.success(taskListener));
             }
 
-            public Builder<T> successes(Iterable<T> tasks) {
-                for (T task : tasks) {
-                    success(task);
-                }
-                return this;
-            }
-
+            /**
+             * Record that the cluster state update task failed.
+             */
             public Builder<T> failure(T task, Exception e) {
                 return result(task, TaskResult.failure(e));
             }
@@ -109,19 +122,22 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
         }
     }
 
-    record TaskResult(Exception failure) {
-        private static final TaskResult SUCCESS = new TaskResult(null);
+    record TaskResult(@Nullable ActionListener<ClusterState> taskListener, @Nullable Exception failure) {
 
-        public static TaskResult success() {
-            return SUCCESS;
+        public TaskResult {
+            assert failure == null ^ taskListener == null;
+        }
+
+        public static TaskResult success(ActionListener<ClusterState> taskListener) {
+            return new TaskResult(Objects.requireNonNull(taskListener), null);
         }
 
         public static TaskResult failure(Exception failure) {
-            return new TaskResult(failure);
+            return new TaskResult(null, Objects.requireNonNull(failure));
         }
 
         public boolean isSuccess() {
-            return this == SUCCESS;
+            return failure == null;
         }
 
         public Exception getFailure() {
@@ -139,8 +155,19 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
             @Override
             public ClusterTasksResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception {
                 assert tasks.size() == 1 : "this only supports a single task but received " + tasks;
-                ClusterState result = tasks.get(0).execute(currentState);
-                return ClusterTasksResult.<T>builder().successes(tasks).build(result);
+                final T task = tasks.get(0);
+                final ClusterState newState = task.execute(currentState);
+                return ClusterTasksResult.<T>builder().success(task, new ActionListener<>() {
+                    @Override
+                    public void onResponse(ClusterState publishedState) {
+                        task.clusterStateProcessed(currentState, publishedState);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        task.onFailure(e);
+                    }
+                }).build(newState);
             }
 
             @Override
@@ -148,6 +175,28 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
                 return ""; // one of task, source is enough
             }
         };
+    }
+
+    /**
+     * An {@link ActionListener} for passing to {@link ClusterStateTaskExecutor.ClusterTasksResult.Builder#success} which preserves the
+     * legacy behaviour of calling {@link ClusterStateTaskListener#clusterStateProcessed} or {@link ClusterStateTaskListener#onFailure}.
+     * <p>
+     * New implementations should use a dedicated listener rather than relying on this legacy behaviour.
+     */
+    // TODO remove all remaining usages of this listener
+    record LegacyClusterTaskResultActionListener(ClusterStateTaskListener task, ClusterState originalState)
+        implements
+            ActionListener<ClusterState> {
+
+        @Override
+        public void onResponse(ClusterState publishedState) {
+            task.clusterStateProcessed(originalState, publishedState);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            task.onFailure(e);
+        }
     }
 
 }

@@ -4,6 +4,12 @@
 <titleabbrev>cat recovery</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<indices-recovery,index recovery API>>.
+====
 
 Returns information about ongoing and completed shard recoveries,
 similar to the <<indices-recovery, index recovery>> API.

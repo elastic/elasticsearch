@@ -37,7 +37,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class AutoscalingCalculateCapacityService implements PolicyValidator {
     private final Map<String, AutoscalingDeciderService> deciderByName;
@@ -246,7 +245,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             this.clusterInfo = clusterInfo;
             this.snapshotShardSizeInfo = snapshotShardSizeInfo;
             this.memoryInfo = memoryInfo;
-            this.currentNodes = StreamSupport.stream(state.nodes().spliterator(), false)
+            this.currentNodes = state.nodes()
+                .stream()
                 .filter(this::rolesFilter)
                 .collect(Collectors.toCollection(() -> new TreeSet<>(AutoscalingDeciderResults.DISCOVERY_NODE_COMPARATOR)));
             this.currentCapacity = calculateCurrentCapacity();

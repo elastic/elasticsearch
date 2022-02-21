@@ -51,8 +51,6 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.analytics.InferencePipelineAggregationBuilder;
-import org.elasticsearch.client.analytics.ParsedInference;
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
 import org.elasticsearch.client.analytics.StringStatsAggregationBuilder;
@@ -276,27 +274,12 @@ public class RestHighLevelClient implements Closeable {
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
 
     private final IndicesClient indicesClient = new IndicesClient(this);
-    private final ClusterClient clusterClient = new ClusterClient(this);
     private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
-    private final TasksClient tasksClient = new TasksClient(this);
-    private final XPackClient xPackClient = new XPackClient(this);
-    private final WatcherClient watcherClient = new WatcherClient(this);
-    private final GraphClient graphClient = new GraphClient(this);
-    private final LicenseClient licenseClient = new LicenseClient(this);
-    private final MigrationClient migrationClient = new MigrationClient(this);
-    private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
-    private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
-    private final RollupClient rollupClient = new RollupClient(this);
-    private final CcrClient ccrClient = new CcrClient(this);
     private final TransformClient transformClient = new TransformClient(this);
-    private final EnrichClient enrichClient = new EnrichClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
-    private final AsyncSearchClient asyncSearchClient = new AsyncSearchClient(this);
-    private final TextStructureClient textStructureClient = new TextStructureClient(this);
     private final SearchableSnapshotsClient searchableSnapshotsClient = new SearchableSnapshotsClient(this);
-    private final FeaturesClient featuresClient = new FeaturesClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -378,15 +361,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Provides a {@link ClusterClient} which can be used to access the Cluster API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
-     */
-    public final ClusterClient cluster() {
-        return clusterClient;
-    }
-
-    /**
      * Provides a {@link IngestClient} which can be used to access the Ingest API.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
@@ -405,121 +379,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Provides methods for accessing the Elastic Licensed Rollup APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-apis.html">
-     * Watcher APIs on elastic.co</a> for more information.
-     */
-    public RollupClient rollup() {
-        return rollupClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed CCR APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-api.html">
-     * CCR APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making CCR API calls
-     */
-    public final CcrClient ccr() {
-        return ccrClient;
-    }
-
-    /**
-     * Provides a {@link TasksClient} which can be used to access the Tasks API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
-     */
-    public final TasksClient tasks() {
-        return tasksClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed X-Pack Info
-     * and Usage APIs that are shipped with the default distribution of
-     * Elasticsearch. All of these APIs will 404 if run against the OSS
-     * distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html">
-     * Info APIs on elastic.co</a> for more information.
-     */
-    public final XPackClient xpack() {
-        return xPackClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Watcher APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api.html">
-     * Watcher APIs on elastic.co</a> for more information.
-     */
-    public WatcherClient watcher() {
-        return watcherClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Graph explore API that
-     * is shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html">
-     * Graph API on elastic.co</a> for more information.
-     */
-    public GraphClient graph() {
-        return graphClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Licensing APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/licensing-apis.html">
-     * Licensing APIs on elastic.co</a> for more information.
-     */
-    public LicenseClient license() {
-        return licenseClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for
-     * accessing the Elastic Index Lifecycle APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management-api.html"> X-Pack APIs
-     * on elastic.co</a> for more information.
-     */
-    public IndexLifecycleClient indexLifecycle() {
-        return ilmClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Index Async Search APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"> X-Pack APIs on elastic.co</a>
-     * for more information.
-     */
-    public AsyncSearchClient asyncSearch() {
-        return asyncSearchClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Text Structure APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/find-structure.html"> X-Pack APIs on elastic.co</a>
-     * for more information.
-     */
-    public TextStructureClient textStructure() {
-        return textStructureClient;
-    }
-
-    /**
      * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Searchable Snapshots APIs.
      * <p>
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html">Searchable Snapshots
@@ -527,42 +386,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public SearchableSnapshotsClient searchableSnapshots() {
         return searchableSnapshotsClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Searchable Snapshots APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html">Searchable Snapshots
-     * APIs on elastic.co</a> for more information.
-     */
-    public FeaturesClient features() {
-        return featuresClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Migration APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api.html">
-     * Migration APIs on elastic.co</a> for more information.
-     */
-    public MigrationClient migration() {
-        return migrationClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Machine Learning APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html">
-     * Machine Learning APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Machine Learning API calls
-     */
-    public MachineLearningClient machineLearning() {
-        return machineLearningClient;
     }
 
     /**
@@ -591,10 +414,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public TransformClient transform() {
         return transformClient;
-    }
-
-    public EnrichClient enrich() {
-        return enrichClient;
     }
 
     /**
@@ -2894,7 +2713,6 @@ public class RestHighLevelClient implements Closeable {
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
         map.put(StringStatsAggregationBuilder.NAME, (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c));
         map.put(TopMetricsAggregationBuilder.NAME, (p, c) -> ParsedTopMetrics.PARSER.parse(p, (String) c));
-        map.put(InferencePipelineAggregationBuilder.NAME, (p, c) -> ParsedInference.fromXContent(p, (String) (c)));
         map.put(TimeSeriesAggregationBuilder.NAME, (p, c) -> ParsedTimeSeries.fromXContent(p, (String) (c)));
         List<NamedXContentRegistry.Entry> entries = map.entrySet()
             .stream()

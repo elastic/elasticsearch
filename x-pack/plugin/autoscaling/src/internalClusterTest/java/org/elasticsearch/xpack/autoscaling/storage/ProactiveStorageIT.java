@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
-import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -23,7 +22,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.hamcrest.Matchers;
-import org.junit.After;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,13 +37,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
-
-    @After
-    public void deleteAllDataStreams() {
-        assertAcked(
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).actionGet()
-        );
-    }
 
     public void testScaleUp() throws IOException, InterruptedException {
         internalCluster().startMasterOnlyNode();

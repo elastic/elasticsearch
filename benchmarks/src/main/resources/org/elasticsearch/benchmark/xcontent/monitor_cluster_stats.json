@@ -1233,6 +1233,11 @@
             "total" : 0,
             "failed" : 0
           }
+        },
+        "archive" : {
+          "available" : false,
+          "enabled" : true,
+          "indices_count" : 0
         }
       }
     }

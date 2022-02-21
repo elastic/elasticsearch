@@ -84,11 +84,15 @@ public class RemoveProcessorTests extends ESTestCase {
 
         Processor processor = new RemoveProcessor(randomAlphaOfLength(10), null, new ArrayList<>(), fieldsToKeep, false);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.hasField("name"), equalTo(true));
-        assertThat(ingestDocument.hasField("address"), equalTo(true));
-        assertThat(ingestDocument.hasField("address.street"), equalTo(true));
-        assertThat(ingestDocument.hasField("age"), equalTo(false));
-        assertThat(ingestDocument.hasField("address.number"), equalTo(false));
+        assertTrue(ingestDocument.hasField("name"));
+        assertTrue(ingestDocument.hasField("address"));
+        assertTrue(ingestDocument.hasField("address.street"));
+        assertFalse(ingestDocument.hasField("age"));
+        assertFalse(ingestDocument.hasField("address.number"));
+        assertTrue(ingestDocument.hasField("_index"));
+        assertTrue(ingestDocument.hasField("_version"));
+        assertTrue(ingestDocument.hasField("_id"));
+        assertTrue(ingestDocument.hasField("_version_type"));
     }
 
     public void testShouldKeep(String a, String b) {

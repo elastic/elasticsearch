@@ -879,6 +879,10 @@ public final class IngestDocument {
             this.fieldName = fieldName;
         }
 
+        public static boolean isMetadata(String field) {
+            return Arrays.stream(Metadata.values()).anyMatch(e -> e.fieldName.equals(field));
+        }
+
         public String getFieldName() {
             return fieldName;
         }

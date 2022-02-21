@@ -56,7 +56,7 @@ public final class RemoveProcessor extends AbstractProcessor {
         if (fieldsToKeep.isEmpty() == false) {
             IngestDocument.getAllFields(document.getSourceAndMetadata())
                 .stream()
-                .filter(documentField -> documentField.startsWith("_") == false)
+                .filter(documentField -> IngestDocument.Metadata.isMetadata(documentField) == false)
                 .filter(documentField -> shouldKeep(documentField, fieldsToKeep, document) == false)
                 .forEach(documentField -> removeWhenPresent(document, documentField));
         }

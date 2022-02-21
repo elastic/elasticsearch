@@ -1099,4 +1099,12 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(result, containsInAnyOrder("_id", "name", "address", "address.street", "address.number"));
     }
 
+    public void testIsMetadata() {
+        assertTrue(IngestDocument.Metadata.isMetadata("_type"));
+        assertTrue(IngestDocument.Metadata.isMetadata("_index"));
+        assertTrue(IngestDocument.Metadata.isMetadata("_version"));
+        assertFalse(IngestDocument.Metadata.isMetadata("name"));
+        assertFalse(IngestDocument.Metadata.isMetadata("address"));
+    }
+
 }

@@ -6,7 +6,7 @@
 
 A `match_bool_prefix` query analyzes its input and constructs a
 <<query-dsl-bool-query,`bool` query>> from the terms. Each term except the last
-is used in a `term` query. The last term is used in a `prefix` query. A
+is used in a `match` query. The last term is used in a `prefix` query. A
 `match_bool_prefix` query such as
 
 [source,console]
@@ -31,8 +31,8 @@ GET /_search
   "query": {
     "bool" : {
       "should": [
-        { "term": { "message": "quick" }},
-        { "term": { "message": "brown" }},
+        { "match": { "message": "quick" }},
+        { "match": { "message": "brown" }},
         { "prefix": { "message": "f"}}
       ]
     }

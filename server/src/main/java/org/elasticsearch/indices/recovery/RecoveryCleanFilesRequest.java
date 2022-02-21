@@ -43,7 +43,7 @@ public class RecoveryCleanFilesRequest extends RecoveryTransportRequest {
         super(in);
         recoveryId = in.readLong();
         shardId = new ShardId(in);
-        snapshotFiles = new Store.MetadataSnapshot(in);
+        snapshotFiles = Store.MetadataSnapshot.readFrom(in);
         totalTranslogOps = in.readVInt();
         globalCheckpoint = in.readZLong();
     }

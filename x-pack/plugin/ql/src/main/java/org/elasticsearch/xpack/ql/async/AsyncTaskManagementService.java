@@ -108,7 +108,10 @@ public class AsyncTaskManagementService<
 
         @Override
         public Task createTask(long id, String type, String actionName, TaskId parentTaskId, Map<String, String> headers) {
-            Map<String, String> originHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+            Map<String, String> originHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+                threadPool.getThreadContext(),
+                clusterService.state()
+            );
             return operation.createTask(
                 request,
                 id,

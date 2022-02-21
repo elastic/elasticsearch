@@ -665,10 +665,10 @@ public abstract class StreamInput extends InputStream {
     public <K, V> Map<K, V> readMapFromList(final Writeable.Reader<V> valueReader, final Function<V, K> keyMapper) throws IOException {
         final int size = readArraySize();
         if (size == 0) {
-            return Collections.emptyMap();
+            return Map.of();
         }
         final Map<K, V> map = Maps.newMapWithExpectedSize(size);
-        for (int i = 0; i < size; ++i) {
+        for (int i = 0; i < size; i++) {
             V value = valueReader.read(this);
             map.put(keyMapper.apply(value), value);
         }

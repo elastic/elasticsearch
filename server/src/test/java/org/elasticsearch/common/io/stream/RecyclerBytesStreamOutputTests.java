@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -597,13 +596,13 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         final Map<String, String> expected = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; ++i) {
             final String value = randomAlphaOfLength(5);
-            expected.put(value, value);
+            expected.put("key_" + value, value);
         }
 
         final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
         out.writeMapAsList(expected, StreamOutput::writeString);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final Map<String, String> loaded = in.readMapFromList(StreamInput::readString, Function.identity());
+        final Map<String, String> loaded = in.readMapFromList(StreamInput::readString, value -> "key_" + value);
 
         assertThat(loaded.size(), equalTo(expected.size()));
         assertThat(expected, equalTo(loaded));

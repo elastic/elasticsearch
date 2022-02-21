@@ -153,7 +153,7 @@ public class SourceLookup implements Map<String, Object> {
     }
 
     /**
-     * Checks of the source has been deserialized as a {@link Map} of java objects.
+     * Checks if the source has been deserialized as a {@link Map} of java objects.
      */
     public boolean hasSourceAsMap() {
         return source != null;

@@ -1,0 +1,6 @@
+pr: 84192
+summary: Registration of `SystemIndexMigrationTask` named xcontent objects
+area: Infra/Core
+type: bug
+issues:
+ - 84115

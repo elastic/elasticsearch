@@ -18,12 +18,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
@@ -75,15 +77,6 @@ public class TransformDeprecationChecker implements DeprecationChecker {
 
         components.client().execute(GetTransformAction.INSTANCE, request, ActionListener.wrap(getTransformResponse -> {
             CountDownLatch latch = new CountDownLatch(getTransformResponse.getTransformConfigurations().size());
-            ActionListener<ValidateTransformAction.Response> validateTransformListener = new LatchedActionListener<>(
-                ActionListener.wrap(validateTransformResponse -> {
-                    List<String> warningHeaders = components.client().threadPool().getThreadContext().getResponseHeaders().get("Warning");
-                    if (warningHeaders != null) {
-                        issues.addAll(warningHeaders.stream().map(TransformDeprecationChecker::createDeprecationIssue).collect(toList()));
-                    }
-                }, e -> { logger.warn("An exception occurred while gathering deprecation warnings for transform", e); }),
-                latch
-            );
             for (TransformConfig config : getTransformResponse.getTransformConfigurations()) {
                 issues.addAll(config.checkForDeprecations(components.xContentRegistry()));
 
@@ -91,6 +84,23 @@ public class TransformDeprecationChecker implements DeprecationChecker {
                     config,
                     false,
                     TimeValue.timeValueSeconds(30)
+                );
+                ActionListener<ValidateTransformAction.Response> validateTransformListener = new LatchedActionListener<>(
+                    ActionListener.wrap(validateTransformResponse -> {
+                        List<String> warningHeaders = components.client()
+                            .threadPool()
+                            .getThreadContext()
+                            .getResponseHeaders()
+                            .get("Warning");
+                        if (warningHeaders != null) {
+                            issues.addAll(
+                                warningHeaders.stream()
+                                    .map(warningHeader -> createDeprecationIssue(config.getId(), warningHeader))
+                                    .collect(toList())
+                            );
+                        }
+                    }, e -> { logger.warn("An exception occurred while gathering deprecation warnings for transform", e); }),
+                    latch
                 );
                 components.client().execute(ValidateTransformAction.INSTANCE, validateTransformRequest, validateTransformListener);
             }
@@ -106,14 +116,14 @@ public class TransformDeprecationChecker implements DeprecationChecker {
         }, listener::onFailure));
     }
 
-    private static DeprecationIssue createDeprecationIssue(String warningHeader) {
+    private static DeprecationIssue createDeprecationIssue(String transformId, String warningHeader) {
         return new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             HeaderWarning.extractWarningValueFromWarningHeader(warningHeader, true),
             TransformDeprecations.PAINLESS_BREAKING_CHANGES_URL,
             null,
             false,
-            null
+            Collections.singletonMap(TransformField.TRANSFORM_ID, transformId)
         );
     }
 }

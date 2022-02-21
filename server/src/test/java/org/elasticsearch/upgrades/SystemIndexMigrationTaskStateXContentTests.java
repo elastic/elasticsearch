@@ -16,7 +16,6 @@ import java.io.IOException;
 
 public class SystemIndexMigrationTaskStateXContentTests extends AbstractXContentTestCase<SystemIndexMigrationTaskState> {
 
-    // how do we compare float and double?
     @Override
     protected SystemIndexMigrationTaskState createTestInstance() {
         return SystemIndexMigrationTaskStateTests.randomSystemIndexMigrationTask();

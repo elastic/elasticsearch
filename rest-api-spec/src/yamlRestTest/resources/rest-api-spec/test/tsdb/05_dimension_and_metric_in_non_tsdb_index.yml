@@ -216,12 +216,13 @@ no _tsid in standard indices:
   - is_false: fields._tsid  # _tsid metadata field must not exist in non-time-series indices
 
 ---
-nested dimensions:
+no nested dimensions:
   - skip:
-      version: all
-      reason: Awaits fix https://github.com/elastic/elasticsearch/issues/83915
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
 
   - do:
+      catch: /time_series_dimension can't be configured in nested field \[nested.dim\]/
       indices.create:
           index: test
           body:
@@ -235,14 +236,3 @@ nested dimensions:
                       dim:
                         type: keyword
                         time_series_dimension: true
-
-  - do:
-      index:
-        index: test
-        refresh: true
-        body:
-          "@timestamp": "2021-04-28T18:35:24.467Z"
-          nested:
-            - dim: foo
-            - dim: bar
-            - dim: baz

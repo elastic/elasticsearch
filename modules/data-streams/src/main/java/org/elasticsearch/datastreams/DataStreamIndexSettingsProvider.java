@@ -36,8 +36,16 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     ) {
         if (dataStreamName != null) {
             DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+            // First backing index is created and then data stream is rolled over (in a single cluster state update).
+            // So at this point we can't check index_mode==time_series,
+            // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
+            boolean migrating = dataStream != null
+                && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
+                && templateIndexMode == IndexMode.TIME_SERIES;
             IndexMode indexMode;
-            if (dataStream != null) {
+            if (migrating) {
+                indexMode = IndexMode.TIME_SERIES;
+            } else if (dataStream != null) {
                 indexMode = dataStream.getIndexMode();
             } else {
                 indexMode = templateIndexMode;
@@ -50,7 +58,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(allSettings);
                     final Instant start;
                     final Instant end;
-                    if (dataStream == null) {
+                    if (dataStream == null || migrating) {
                         start = resolvedAt.minusMillis(lookAheadTime.getMillis());
                         end = resolvedAt.plusMillis(lookAheadTime.getMillis());
                     } else {

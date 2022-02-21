@@ -43,6 +43,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportSubmitAsyncSearchAction extends HandledTransportAction<SubmitAsyncSearchRequest, AsyncSearchResponse> {
+    private final ClusterService clusterService;
     private final NodeClient nodeClient;
     private final BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext> requestToAggReduceContextBuilder;
     private final TransportSearchAction searchAction;
@@ -62,6 +63,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         BigArrays bigArrays
     ) {
         super(SubmitAsyncSearchAction.NAME, transportService, actionFilters, SubmitAsyncSearchRequest::new);
+        this.clusterService = clusterService;
         this.nodeClient = nodeClient;
         this.requestToAggReduceContextBuilder = (task, request) -> searchService.aggReduceContextBuilder(task, request).forFinalReduction();
         this.searchAction = searchAction;
@@ -144,7 +146,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
     private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, Task submitTask, TimeValue keepAlive) {
         String docID = UUIDs.randomBase64UUID();
-        Map<String, String> originHeaders = ClientHelper.filterSecurityHeaders(nodeClient.threadPool().getThreadContext().getHeaders());
+        Map<String, String> originHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            nodeClient.threadPool().getThreadContext(),
+            clusterService.state()
+        );
         SearchRequest searchRequest = new SearchRequest(request.getSearchRequest()) {
             @Override
             public AsyncSearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {

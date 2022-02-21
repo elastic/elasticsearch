@@ -11,9 +11,9 @@ generated for the transport and HTTP layers.
 * An enrollment token is generated for {kib}.
 
 You can then start {kib} and enter the enrollment token, which is valid for 30
-minutes. This token automatically applies the security settings from your {es} 
-cluster, authenticates to {es} with the built-in `kibana` service account, and writes the 
-security configuration to `kibana.yml`. 
+minutes. This token automatically applies the security settings from your {es}
+cluster, authenticates to {es} with the built-in `kibana` service account, and writes the
+security configuration to `kibana.yml`.
 
 [discrete]
 === Prerequisites
@@ -28,7 +28,7 @@ the `kibana 8.0.0-beta` package distribution for your environment.
 [[stack-start-with-security]]
 === Start {es} and enroll {kib} with security enabled
 
-. From the installation directory, start {es}. A password is generated for the 
+. From the installation directory, start {es}. A password is generated for the
 `elastic` user and output to the terminal, plus an enrollment token for
 enrolling {kib}.
 +
@@ -52,8 +52,8 @@ To generate new enrollment tokens for {kib} or {es} nodes, run the
 These tools are available in the {es} `bin` directory.
 ====
 
-. (Optional) Open a new terminal and verify that you can connect to your {es} 
-cluster by making an authenticated call. Enter the password for the `elastic` 
+. (Optional) Open a new terminal and verify that you can connect to your {es}
+cluster by making an authenticated call. Enter the password for the `elastic`
 user when prompted:
 +
 [source,shell]
@@ -108,7 +108,8 @@ to encrypt internode communication. The files are listed here for reference.
 
 `http_ca.crt`::
 The CA certificate that is used to sign the certificates for the HTTP layer of
-this {es} cluster.
+this {es} cluster. You can use this CA certificate to configure any client to
+trust the certificate that {es} uses for HTTPS.
 
 `http.p12`::
 Keystore that contains the key and certificate for the HTTP layer for this node.
@@ -117,6 +118,6 @@ Keystore that contains the key and certificate for the HTTP layer for this node.
 Keystore that contains the key and certificate for the transport layer for all
 the nodes in your cluster.
 
-Additionally, when you use the enrollment token to connect {kib} to a secured {es} cluster, a security certificate is retrieved from {es} and stored in the
+Additionally, when you use the enrollment token to connect {kib} to a secured {es} cluster, the HTTP layer CA certificate is retrieved from {es} and stored in the
 {kib} `/data` directory. This file establishes trust between {kib} and the {es}
 Certificate Authority (CA) for the HTTP layer.

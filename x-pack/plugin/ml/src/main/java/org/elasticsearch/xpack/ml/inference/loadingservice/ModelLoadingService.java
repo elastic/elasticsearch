@@ -181,6 +181,20 @@ public class ModelLoadingService implements ClusterStateListener {
         return localModelCache.get(modelAliasToId.getOrDefault(modelId, modelId)) != null;
     }
 
+    public ByteSizeValue getMaxCacheSize() {
+        return maxCacheSize;
+    }
+
+    /**
+     * This method is intended for use in telemetry, not making decisions about what will fit in the cache.
+     * The value returned could immediately be out-of-date if cache changes are in progress. It is good
+     * enough for external reporting of vaguely up-to-date status, but not for anything related to immediate
+     * additions to the cache.
+     */
+    public ByteSizeValue getCurrentCacheSize() {
+        return ByteSizeValue.ofBytes(localModelCache.weight());
+    }
+
     /**
      * Load the model for use by an ingest pipeline. The model will not be cached if there is no
      * ingest pipeline referencing it i.e. it is used in simulate mode

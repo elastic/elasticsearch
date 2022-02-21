@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
@@ -66,12 +65,6 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
     }
 
     @Override
-    public void test() throws IOException {
-        assumeTrue("feature currently only enabled in snapshot builds", Build.CURRENT.isSnapshot());
-        super.test();
-    }
-
-    @Override
     protected boolean skipSetupSections() {
         // setup in the YAML file is replaced by the method below
         return true;
@@ -79,8 +72,6 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
     @Before
     public void setupIndex() throws IOException {
-        assumeTrue("feature currently only enabled in snapshot builds", Build.CURRENT.isSnapshot());
-
         final boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
         if (afterRestart) {
             return;

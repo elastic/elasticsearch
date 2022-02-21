@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.idp;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -78,9 +78,9 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
             assertThat(samlResponse, containsString("FriendlyName=\"" + attr + "\""));
         }
 
-        assertThat(samlResponse, containsString(user.getUsername()));
-        assertThat(samlResponse, containsString(user.getEmail()));
-        assertThat(samlResponse, containsString(user.getFullName()));
+        assertThat(samlResponse, containsString(user.principal()));
+        assertThat(samlResponse, containsString(user.email()));
+        assertThat(samlResponse, containsString(user.fullName()));
         assertThat(samlResponse, containsString(">admin<"));
 
         deleteUser(username);

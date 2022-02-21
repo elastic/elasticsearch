@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -159,6 +160,10 @@ public class RoutingAllocation {
      */
     public DiscoveryNodes nodes() {
         return clusterState.nodes();
+    }
+
+    public DesiredNodesMetadata desiredNodesMetadata() {
+        return DesiredNodesMetadata.fromClusterState(clusterState);
     }
 
     public ClusterInfo clusterInfo() {

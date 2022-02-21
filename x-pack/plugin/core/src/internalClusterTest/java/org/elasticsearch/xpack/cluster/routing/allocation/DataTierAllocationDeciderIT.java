@@ -7,15 +7,27 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.DataTiersFeatureSetUsage;
@@ -26,9 +38,15 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
+import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class DataTierAllocationDeciderIT extends ESIntegTestCase {
@@ -65,6 +83,61 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
         logger.info("--> waiting for {} to be yellow", index);
         ensureYellow(index);
+    }
+
+    public void testDesiredNodesAreConsideredDuringAllocation() throws Exception {
+        final var initialNodes = client().admin().cluster().prepareState().get().getState().nodes().stream().toList();
+
+        assertThat(initialNodes.size(), is(equalTo(1)));
+
+        final var masterNode = initialNodes.get(0);
+
+        final var warmDesiredNode = desiredNode(randomAlphaOfLength(10), DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+        final var coldDesiredNode = desiredNode(randomAlphaOfLength(15), DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
+        final var masterDesiredNode = desiredNode(masterNode.getName(), DiscoveryNodeRole.MASTER_ROLE);
+        updateDesiredNodes(warmDesiredNode, coldDesiredNode, masterDesiredNode);
+
+        startWarmOnlyNode(warmDesiredNode.externalId());
+        final var coldNodeName = startColdOnlyNode(coldDesiredNode.externalId());
+
+        final var clusterState = client().admin().cluster().prepareState().get().getState();
+        final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
+        final var clusterMembers = desiredNodesMetadata.getClusterMembers();
+        assertThat(clusterMembers.contains(warmDesiredNode), is(equalTo(true)));
+        assertThat(clusterMembers.contains(coldDesiredNode), is(equalTo(true)));
+
+        client().admin()
+            .indices()
+            .prepareCreate(index)
+            .setWaitForActiveShards(0)
+            .setSettings(
+                Settings.builder()
+                    .put(DataTier.TIER_PREFERENCE, String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM))
+                    .put("index.routing.allocation.exclude._name", masterNode.getName()) // Exclude nodes we're not interested in
+                    .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            )
+            .get();
+
+        ensureGreen(index);
+
+        assertShardPrimaryIsAllocatedInNode(coldDesiredNode);
+
+        // Remove the cold tier
+        updateDesiredNodes(masterDesiredNode, warmDesiredNode);
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(index)
+            .setSettings(
+                Settings.builder()
+                    .put("index.routing.allocation.exclude._name", String.join(",", masterNode.getName(), coldNodeName))
+                    .build()
+            )
+            .get();
+
+        assertBusy(() -> assertShardPrimaryIsAllocatedInNode(warmDesiredNode));
+
+        ensureGreen(index);
     }
 
     public void testOverrideDefaultAllocation() {
@@ -301,19 +374,34 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     public void startWarmOnlyNode() {
-        Settings nodeSettings = Settings.builder()
+        startWarmOnlyNode(null);
+    }
+
+    public String startWarmOnlyNode(@Nullable String externalId) {
+        Settings.Builder nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_warm", "ingest"))
-            .put("node.attr.box", "warm")
-            .build();
-        internalCluster().startNode(nodeSettings);
+            .put("node.attr.box", "warm");
+
+        if (externalId != null) {
+            nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
+        }
+        return internalCluster().startNode(nodeSettings);
     }
 
     public void startColdOnlyNode() {
-        Settings nodeSettings = Settings.builder()
+        startColdOnlyNode(null);
+    }
+
+    public String startColdOnlyNode(@Nullable String externalId) {
+        Settings.Builder nodeSettings = Settings.builder()
             .putList("node.roles", Arrays.asList("master", "data_cold", "ingest"))
-            .put("node.attr.box", "cold")
-            .build();
-        internalCluster().startNode(nodeSettings);
+            .put("node.attr.box", "cold");
+
+        if (externalId != null) {
+            nodeSettings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
+        }
+
+        return internalCluster().startNode(nodeSettings);
     }
 
     public void startFrozenOnlyNode() {
@@ -322,5 +410,42 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .put("node.attr.box", "frozen")
             .build();
         internalCluster().startNode(nodeSettings);
+    }
+
+    private DesiredNode desiredNode(DiscoveryNodeRole... roles) {
+        assertThat(roles.length, is(greaterThan(0)));
+
+        final var nodeRoles = Arrays.stream(roles).map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","));
+        final var settings = Settings.builder()
+            .put(NODE_ROLES_SETTING.getKey(), nodeRoles)
+            .put(NODE_EXTERNAL_ID_SETTING.getKey(), randomAlphaOfLength(14))
+            .build();
+        return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE, Version.CURRENT);
+    }
+
+    private DesiredNode desiredNode(String externalId, DiscoveryNodeRole... roles) {
+        assertThat(roles.length, is(greaterThan(0)));
+
+        final var nodeRoles = Arrays.stream(roles).map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","));
+        final var settings = Settings.builder()
+            .put(NODE_ROLES_SETTING.getKey(), nodeRoles)
+            .put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId)
+            .build();
+        return new DesiredNode(settings, 1, ByteSizeValue.ONE, ByteSizeValue.ONE, Version.CURRENT);
+    }
+
+    private void updateDesiredNodes(DesiredNode... desiredNodes) {
+        assertThat(desiredNodes.length, is(greaterThan(0)));
+
+        final var request = new UpdateDesiredNodesRequest(randomAlphaOfLength(10), 1, Arrays.asList(desiredNodes));
+        internalCluster().client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet();
+    }
+
+    protected void assertShardPrimaryIsAllocatedInNode(DesiredNode coldDesiredNode) {
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        IndexShardRoutingTable routingTable = state.routingTable().index(index).shard(0);
+        ShardRouting primaryShard = routingTable.primaryShard();
+        DiscoveryNode discoveryNode = state.nodes().get(primaryShard.currentNodeId());
+        assertThat(discoveryNode.toString(), discoveryNode.getExternalId(), is(equalTo(coldDesiredNode.externalId())));
     }
 }

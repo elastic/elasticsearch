@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -19,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -65,7 +68,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     public interface PreferredTierFunction {
-        Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes);
+        Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes, DesiredNodesMetadata desiredNodesMetadata);
     }
 
     private static final Decision YES_PASSES = Decision.single(Decision.YES.type(), NAME, "node passes tier preference filters");
@@ -80,7 +83,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         if (tierPreference.isEmpty() != false) {
             return YES_PASSES;
         }
-        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes());
+        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), allocation.desiredNodesMetadata());
         if (tier.isPresent()) {
             String tierName = tier.get();
             if (allocationAllowed(tierName, roles)) {
@@ -135,6 +138,29 @@ public final class DataTierAllocationDecider extends AllocationDecider {
      * exist. If no nodes for any of the tiers are available, returns an empty
      * {@code Optional<String>}.
      */
+    public static Optional<String> preferredAvailableTier(
+        List<String> prioritizedTiers,
+        DiscoveryNodes nodes,
+        DesiredNodesMetadata desiredNodesMetadata
+    ) {
+        final var desiredNodesPreferredTier = preferredAvailableTier(prioritizedTiers, List.of());
+
+        if (desiredNodesPreferredTier.isPresent()) {
+            return desiredNodesPreferredTier;
+        }
+
+        return preferredAvailableTier(prioritizedTiers, nodes);
+    }
+
+    public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, Collection<DesiredNode> nodes) {
+        for (String tier : prioritizedTiers) {
+            if (tierNodesPresent(tier, nodes)) {
+                return Optional.of(tier);
+            }
+        }
+        return Optional.empty();
+    }
+
     public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, DiscoveryNodes nodes) {
         for (String tier : prioritizedTiers) {
             if (tierNodesPresent(tier, nodes)) {
@@ -144,15 +170,16 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         return Optional.empty();
     }
 
+    static boolean tierNodesPresent(String singleTier, Collection<DesiredNode> nodes) {
+        assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier)
+            : "tier " + singleTier + " is an invalid tier name";
+        return nodes.stream().anyMatch(node -> allocationAllowed(singleTier, node.getRoles()));
+    }
+
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
         assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier)
             : "tier " + singleTier + " is an invalid tier name";
-        for (DiscoveryNode node : nodes) {
-            if (allocationAllowed(singleTier, node.getRoles())) {
-                return true;
-            }
-        }
-        return false;
+        return nodes.stream().anyMatch(node -> allocationAllowed(singleTier, node.getRoles()));
     }
 
     private static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {

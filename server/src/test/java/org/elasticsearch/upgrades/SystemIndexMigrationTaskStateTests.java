@@ -36,7 +36,7 @@ public class SystemIndexMigrationTaskStateTests extends AbstractNamedWriteableTe
     }
 
     private static Object randomMetadataValue() {
-        switch (randomIntBetween(0, 7)) {
+        switch (randomIntBetween(0, 5)) {
             case 0:
                 return randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(5), randomMetadataValue()));
             case 1:
@@ -44,14 +44,10 @@ public class SystemIndexMigrationTaskStateTests extends AbstractNamedWriteableTe
             case 2:
                 return randomLong();
             case 3:
-                return randomShort();
-            case 4:
                 return randomBoolean();
-            case 5:
-                return randomFloat();
-            case 6:
+            case 4:
                 return randomDouble();
-            case 7:
+            case 5:
                 return randomAlphaOfLengthBetween(5, 10);
         }
         throw new AssertionError("bad randomization");

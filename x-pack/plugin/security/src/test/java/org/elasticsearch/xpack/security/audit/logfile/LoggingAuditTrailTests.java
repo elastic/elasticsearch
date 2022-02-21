@@ -135,6 +135,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -538,6 +539,18 @@ public class LoggingAuditTrailTests extends ESTestCase {
             metaMap,
             Map.of("ignored", 2)
         );
+        RoleDescriptor roleDescriptor5 = new RoleDescriptor(
+            "role_descriptor5",
+            new String[] { "all" },
+            new RoleDescriptor.IndicesPrivileges[0],
+            randomFrom((RoleDescriptor.ApplicationResourcePrivileges[]) null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
+            new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("", "\""))),
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("\"")) },
+            new String[] { "\"[a]/" },
+            Map.of(),
+            Map.of()
+        );
         String keyName = randomAlphaOfLength(4);
         TimeValue expiration = randomFrom(new TimeValue(randomNonNegativeLong(), randomFrom(TimeUnit.values())), null);
         List<RoleDescriptor> allTestRoleDescriptors = List.of(
@@ -545,7 +558,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             roleDescriptor1,
             roleDescriptor2,
             roleDescriptor3,
-            roleDescriptor4
+            roleDescriptor4,
+            roleDescriptor5
         );
         List<RoleDescriptor> keyRoleDescriptors = randomSubsetOf(allTestRoleDescriptors);
         StringBuilder roleDescriptorsStringBuilder = new StringBuilder().append("\"role_descriptors\":[");

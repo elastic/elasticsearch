@@ -8,47 +8,20 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.MachineLearningClient;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.ml.CloseJobRequest;
-import org.elasticsearch.client.ml.CloseJobResponse;
-import org.elasticsearch.client.ml.FlushJobRequest;
-import org.elasticsearch.client.ml.FlushJobResponse;
-import org.elasticsearch.client.ml.GetJobRequest;
-import org.elasticsearch.client.ml.GetJobResponse;
-import org.elasticsearch.client.ml.GetJobStatsRequest;
-import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
-import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
-import org.elasticsearch.client.ml.OpenJobRequest;
-import org.elasticsearch.client.ml.OpenJobResponse;
-import org.elasticsearch.client.ml.PostDataRequest;
-import org.elasticsearch.client.ml.PostDataResponse;
-import org.elasticsearch.client.ml.PutJobRequest;
-import org.elasticsearch.client.ml.PutJobResponse;
-import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
-import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
-import org.elasticsearch.client.ml.job.config.AnalysisConfig;
-import org.elasticsearch.client.ml.job.config.DataDescription;
-import org.elasticsearch.client.ml.job.config.Detector;
-import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.process.DataCounts;
-import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +33,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -67,14 +41,6 @@ import static org.hamcrest.Matchers.is;
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
-
-    private static class HLRC extends RestHighLevelClient {
-        HLRC(RestClient restClient) {
-            super(restClient, RestClient::close, new ArrayList<>());
-        }
-    }
-
-    private MachineLearningClient hlrc;
 
     @Override
     protected Collection<String> templatesToWaitFor() {
@@ -95,7 +61,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
     public void testSnapshotUpgrader() throws Exception {
-        hlrc = new HLRC(client()).machineLearning();
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity("""
             {"persistent": {"logger.org.elasticsearch.xpack.ml": "trace"}}""");
@@ -125,57 +90,51 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void testSnapshotUpgradeFailsOnMixedCluster() throws Exception {
-        Job job = getJob(JOB_ID).jobs().get(0);
-        String currentSnapshot = job.getModelSnapshotId();
-        GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
-        assertThat(modelSnapshots.snapshots(), hasSize(2));
+        Map<String, Object> jobs = entityAsMap(getJob(JOB_ID));
 
-        ModelSnapshot snapshot = modelSnapshots.snapshots()
-            .stream()
-            .filter(s -> s.getSnapshotId().equals(currentSnapshot) == false)
+        String currentSnapshot = ((List<String>) XContentMapValues.extractValue("jobs.model_snapshot_id", jobs)).get(0);
+        Response getResponse = getModelSnapshots(JOB_ID);
+        List<Map<String, Object>> snapshots = (List<Map<String, Object>>) entityAsMap(getResponse).get("model_snapshots");
+        assertThat(snapshots, hasSize(2));
+
+        Map<String, Object> snapshot = snapshots.stream()
+            .filter(s -> s.get("snapshot_id").equals(currentSnapshot) == false)
             .findFirst()
             .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshot));
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> hlrc.upgradeJobSnapshot(
-                new UpgradeJobModelSnapshotRequest(JOB_ID, snapshot.getSnapshotId(), null, true),
-                RequestOptions.DEFAULT
-            )
-        );
+        Exception ex = expectThrows(Exception.class, () -> upgradeJobSnapshot(JOB_ID, (String) snapshot.get("snapshot_id"), true));
         assertThat(ex.getMessage(), containsString("All nodes must be the same version"));
     }
 
+    @SuppressWarnings("unchecked")
     private void testSnapshotUpgrade() throws Exception {
-        Job job = getJob(JOB_ID).jobs().get(0);
-        String currentSnapshot = job.getModelSnapshotId();
+        Map<String, Object> jobs = entityAsMap(getJob(JOB_ID));
+        String currentSnapshotId = ((List<String>) XContentMapValues.extractValue("jobs.model_snapshot_id", jobs)).get(0);
 
-        GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
-        assertThat(modelSnapshots.snapshots(), hasSize(2));
-        assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo(UPGRADE_FROM_VERSION.major));
-        assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo(UPGRADE_FROM_VERSION.major));
+        Response getSnapshotsResponse = getModelSnapshots(JOB_ID);
+        List<Map<String, Object>> snapshots = (List<Map<String, Object>>) entityAsMap(getSnapshotsResponse).get("model_snapshots");
+        assertThat(snapshots, hasSize(2));
+        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
+        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
 
-        ModelSnapshot snapshot = modelSnapshots.snapshots()
-            .stream()
-            .filter(s -> s.getSnapshotId().equals(currentSnapshot) == false)
+        Map<String, Object> snapshotToUpgrade = snapshots.stream()
+            .filter(s -> s.get("snapshot_id").equals(currentSnapshotId) == false)
             .findFirst()
-            .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshot));
+            .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshotId));
 
         // Don't wait for completion in the initial upgrade call, but instead poll for status
         // using the stats endpoint - this mimics what the Kibana upgrade assistant does
-        String snapshotToUpgrade = snapshot.getSnapshotId();
-        assertThat(
-            hlrc.upgradeJobSnapshot(new UpgradeJobModelSnapshotRequest(JOB_ID, snapshotToUpgrade, null, false), RequestOptions.DEFAULT)
-                .isCompleted(),
-            is(false)
-        );
+        String snapshotToUpgradeId = (String) snapshotToUpgrade.get("snapshot_id");
+        Map<String, Object> upgradeResponse = entityAsMap(upgradeJobSnapshot(JOB_ID, snapshotToUpgradeId, false));
+        assertFalse((boolean) upgradeResponse.get("completed"));
 
         // Wait for completion by waiting for the persistent task to disappear
         assertBusy(() -> {
             try {
                 Response response = client().performRequest(
-                    new Request("GET", "_ml/anomaly_detectors/" + JOB_ID + "/model_snapshots/" + snapshotToUpgrade + "/_upgrade/_stats")
+                    new Request("GET", "_ml/anomaly_detectors/" + JOB_ID + "/model_snapshots/" + snapshotToUpgradeId + "/_upgrade/_stats")
                 );
                 // Doing this instead of using expectThrows() on the line above means we get better diagnostics if the test fails
                 fail("Upgrade still in progress: " + entityAsMap(response));
@@ -184,96 +143,122 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             }
         }, 30, TimeUnit.SECONDS);
 
-        List<ModelSnapshot> snapshots = getModelSnapshots(job.getId(), snapshotToUpgrade).snapshots();
-        assertThat(snapshots, hasSize(1));
-        snapshot = snapshots.get(0);
-        assertThat(snapshot.getLatestRecordTimeStamp(), equalTo(snapshots.get(0).getLatestRecordTimeStamp()));
+        List<Map<String, Object>> upgradedSnapshot = (List<Map<String, Object>>) entityAsMap(getModelSnapshots(JOB_ID, snapshotToUpgradeId))
+            .get("model_snapshots");
+        assertThat(upgradedSnapshot, hasSize(1));
+        assertThat(upgradedSnapshot.get(0).get("latest_record_time_stamp"), equalTo(snapshotToUpgrade.get("latest_record_time_stamp")));
 
         // Does the snapshot still work?
+        var stats = entityAsMap(getJobStats(JOB_ID));
+        List<Map<String, Object>> jobStats = (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", stats);
         assertThat(
-            hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
-                .jobStats()
-                .get(0)
-                .getDataCounts()
-                .getLatestRecordTimeStamp(),
-            greaterThan(snapshot.getLatestRecordTimeStamp())
+            (long) XContentMapValues.extractValue("data_counts.latest_record_timestamp", jobStats.get(0)),
+            greaterThan((long) snapshotToUpgrade.get("latest_record_time_stamp"))
         );
-        RevertModelSnapshotRequest revertModelSnapshotRequest = new RevertModelSnapshotRequest(JOB_ID, snapshotToUpgrade);
-        revertModelSnapshotRequest.setDeleteInterveningResults(true);
+
+        var revertResponse = entityAsMap(revertModelSnapshot(JOB_ID, snapshotToUpgradeId, true));
+        assertThat((String) XContentMapValues.extractValue("model.snapshot_id", revertResponse), equalTo(snapshotToUpgradeId));
+        assertThat(entityAsMap(openJob(JOB_ID)).get("opened"), is(true));
+
+        stats = entityAsMap(getJobStats(JOB_ID));
+        jobStats = (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", stats);
         assertThat(
-            hlrc.revertModelSnapshot(revertModelSnapshotRequest, RequestOptions.DEFAULT).getModel().getSnapshotId(),
-            equalTo(snapshotToUpgrade)
-        );
-        assertThat(openJob(JOB_ID).isOpened(), is(true));
-        assertThat(
-            hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
-                .jobStats()
-                .get(0)
-                .getDataCounts()
-                .getLatestRecordTimeStamp(),
-            equalTo(snapshot.getLatestRecordTimeStamp())
+            (long) XContentMapValues.extractValue("data_counts.latest_record_timestamp", jobStats.get(0)),
+            equalTo((long) upgradedSnapshot.get(0).get("latest_record_time_stamp"))
         );
         closeJob(JOB_ID);
     }
 
+    @SuppressWarnings("unchecked")
     private void createJobAndSnapshots() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
         long startTime = 1491004800000L;
 
-        PutJobResponse jobResponse = buildAndPutJob(JOB_ID, bucketSpan);
-        Job job = jobResponse.getResponse();
-        openJob(job.getId());
-        DataCounts dataCounts = postData(
-            job.getId(),
-            generateData(startTime, bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0).stream()
-                .collect(Collectors.joining())
-        ).getDataCounts();
-        assertThat(dataCounts.getInvalidDateCount(), equalTo(0L));
-        assertThat(dataCounts.getBucketCount(), greaterThan(0L));
-        final long lastCount = dataCounts.getBucketCount();
-        flushJob(job.getId());
-        closeJob(job.getId());
+        buildAndPutJob(JOB_ID, bucketSpan);
+        openJob(JOB_ID);
+        var dataCounts = entityAsMap(
+            postData(
+                JOB_ID,
+                String.join(
+                    "",
+                    generateData(
+                        startTime,
+                        bucketSpan,
+                        10,
+                        Collections.singletonList("foo"),
+                        (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0
+                    )
+                )
+            )
+        );
+
+        assertThat((Integer) dataCounts.get("invalid_date_count"), equalTo(0));
+        assertThat((Integer) dataCounts.get("bucket_count"), greaterThan(0));
+        final int lastCount = (Integer) dataCounts.get("bucket_count");
+        flushJob(JOB_ID);
+        closeJob(JOB_ID);
 
         // We need to wait a second to ensure the second time around model snapshot will have a different ID (it depends on epoch seconds)
         waitUntil(() -> false, 2, TimeUnit.SECONDS);
 
-        openJob(job.getId());
-        dataCounts = postData(
-            job.getId(),
-            generateData(startTime + 10 * bucketSpan.getMillis(), bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> 10.0)
-                .stream()
-                .collect(Collectors.joining())
-        ).getDataCounts();
-        assertThat(dataCounts.getInvalidDateCount(), equalTo(0L));
-        assertThat(dataCounts.getBucketCount(), greaterThan(lastCount));
-        flushJob(job.getId());
-        closeJob(job.getId());
+        openJob(JOB_ID);
+        dataCounts = entityAsMap(
+            postData(
+                JOB_ID,
+                String.join(
+                    "",
+                    generateData(
+                        startTime + 10 * bucketSpan.getMillis(),
+                        bucketSpan,
+                        10,
+                        Collections.singletonList("foo"),
+                        (bucketIndex, series) -> 10.0
+                    )
+                )
+            )
+        );
+        assertThat((Integer) dataCounts.get("invalid_date_count"), equalTo(0));
+        assertThat((Integer) dataCounts.get("bucket_count"), greaterThan(lastCount));
+        flushJob(JOB_ID);
+        closeJob(JOB_ID);
 
-        GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
-        assertThat(modelSnapshots.snapshots(), hasSize(2));
-        assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo(UPGRADE_FROM_VERSION.major));
-        assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo(UPGRADE_FROM_VERSION.major));
+        var modelSnapshots = entityAsMap(getModelSnapshots(JOB_ID));
+        var snapshots = (List<Map<String, Object>>) modelSnapshots.get("model_snapshots");
+        assertThat(snapshots, hasSize(2));
+        assertThat(Integer.parseInt(snapshots.get(0).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
+        assertThat(Integer.parseInt(snapshots.get(1).get("min_version").toString(), 0, 1, 10), equalTo((int) UPGRADE_FROM_VERSION.major));
     }
 
-    private PutJobResponse buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {
-        Detector.Builder detector = new Detector.Builder("mean", "value");
-        detector.setPartitionFieldName("series");
-        List<Detector> detectors = new ArrayList<>();
-        detectors.add(detector.build());
+    private Response buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {
         boolean isCategorization = randomBoolean();
+        String jobConfig;
+
         if (isCategorization) {
-            detectors.add(new Detector.Builder("count", null).setByFieldName("mlcategory").build());
+            jobConfig = """
+                {
+                    "analysis_config" : {
+                        "bucket_span":""" + "\"" + bucketSpan + "\"," + """
+                        "detectors":[{"function":"mean", "field_name":"value", "partition_field_name":"series"},
+                        {"function":"count", "by_field_name":"mlcategory"}],
+                        "categorization_field_name":"text"
+                    },
+                    "data_description" : {
+                    }
+                }""";
+        } else {
+            jobConfig = """
+                {
+                    "analysis_config" : {
+                        "bucket_span":""" + "\"" + bucketSpan + "\"," + """
+                        "detectors":[{"function":"mean", "field_name":"value", "partition_field_name":"series"}]
+                    },
+                    "data_description" : {
+                    }
+                }""";
         }
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
-        analysisConfig.setBucketSpan(bucketSpan);
-        if (isCategorization) {
-            analysisConfig.setCategorizationFieldName("text");
-        }
-        Job.Builder job = new Job.Builder(jobId);
-        job.setAnalysisConfig(analysisConfig);
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        job.setDataDescription(dataDescription);
-        return putJob(job.build());
+        Request request = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
+        request.setJsonEntity(jobConfig);
+        return client().performRequest(request);
     }
 
     private static List<String> generateData(
@@ -305,19 +290,19 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         return data;
     }
 
-    protected GetJobResponse getJob(String jobId) throws IOException {
-        return hlrc.getJob(new GetJobRequest(jobId), RequestOptions.DEFAULT);
+    protected Response getJob(String jobId) throws IOException {
+        return client().performRequest(new Request("GET", "/_ml/anomaly_detectors/" + jobId));
     }
 
-    protected PutJobResponse putJob(Job job) throws IOException {
-        return hlrc.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+    protected Response getJobStats(String jobId) throws IOException {
+        return client().performRequest(new Request("GET", "/_ml/anomaly_detectors/" + jobId + "/_stats"));
     }
 
-    protected OpenJobResponse openJob(String jobId) throws IOException {
-        return hlrc.openJob(new OpenJobRequest(jobId), RequestOptions.DEFAULT);
+    protected Response openJob(String jobId) throws IOException {
+        return client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_open"));
     }
 
-    protected PostDataResponse postData(String jobId, String data) throws IOException {
+    protected Response postData(String jobId, String data) throws IOException {
         // Post data is deprecated, so a deprecation warning is possible (depending on the old version)
         RequestOptions postDataOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
             if (warnings.isEmpty()) {
@@ -332,25 +317,52 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                         + "in a future major version it will be compulsory to use a datafeed"
                 ) == false;
         }).build();
-        return hlrc.postData(new PostDataRequest(jobId, XContentType.JSON, new BytesArray(data)), postDataOptions);
+
+        Request postDataRequest = new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_data");
+        // Post data is deprecated, so expect a deprecation warning
+        postDataRequest.setOptions(postDataOptions);
+        postDataRequest.setJsonEntity(data);
+        return client().performRequest(postDataRequest);
     }
 
-    protected FlushJobResponse flushJob(String jobId) throws IOException {
-        return hlrc.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
+    protected void flushJob(String jobId) throws IOException {
+        client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_flush"));
     }
 
-    protected CloseJobResponse closeJob(String jobId) throws IOException {
-        return hlrc.closeJob(new CloseJobRequest(jobId), RequestOptions.DEFAULT);
+    private void closeJob(String jobId) throws IOException {
+        Response closeResponse = client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_close"));
+        assertThat(entityAsMap(closeResponse), hasEntry("closed", true));
     }
 
-    protected GetModelSnapshotsResponse getModelSnapshots(String jobId) throws IOException {
+    protected Response getModelSnapshots(String jobId) throws IOException {
         return getModelSnapshots(jobId, null);
     }
 
-    protected GetModelSnapshotsResponse getModelSnapshots(String jobId, String snapshotId) throws IOException {
-        GetModelSnapshotsRequest getModelSnapshotsRequest = new GetModelSnapshotsRequest(jobId);
-        getModelSnapshotsRequest.setSnapshotId(snapshotId);
-        return hlrc.getModelSnapshots(getModelSnapshotsRequest, RequestOptions.DEFAULT);
+    protected Response getModelSnapshots(String jobId, String snapshotId) throws IOException {
+        String url = "_ml/anomaly_detectors/" + jobId + "/model_snapshots/";
+        if (snapshotId != null) {
+            url = url + snapshotId;
+        }
+        return client().performRequest(new Request("GET", url));
+    }
+
+    private Response revertModelSnapshot(String jobId, String snapshotId, boolean deleteIntervening) throws IOException {
+        String url = "_ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_revert";
+
+        if (deleteIntervening) {
+            url = url + "?delete_intervening_results=true";
+        }
+        Request request = new Request("POST", url);
+        return client().performRequest(request);
+    }
+
+    private Response upgradeJobSnapshot(String jobId, String snapshotId, boolean waitForCompletion) throws IOException {
+        String url = "_ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_upgrade";
+        if (waitForCompletion) {
+            url = url + "?wait_for_completion=true";
+        }
+        Request request = new Request("POST", url);
+        return client().performRequest(request);
     }
 
     protected static String createJsonRecord(Map<String, Object> keyValueMap) throws IOException {

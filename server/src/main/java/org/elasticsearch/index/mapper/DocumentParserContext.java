@@ -13,7 +13,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.xcontent.DotExpandingXContentParser;
-import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -89,6 +89,7 @@ public abstract class DocumentParserContext {
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
+    private final DocumentDimensions dimensions;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
@@ -105,6 +106,7 @@ public abstract class DocumentParserContext {
         this.dynamicRuntimeFields = in.dynamicRuntimeFields;
         this.version = in.version;
         this.seqID = in.seqID;
+        this.dimensions = in.dimensions;
     }
 
     protected DocumentParserContext(
@@ -124,6 +126,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
+        this.dimensions = indexSettings.getMode().buildDocumentDimensions();
     }
 
     public final IndexSettings indexSettings() {
@@ -334,6 +337,13 @@ public abstract class DocumentParserContext {
         };
     }
 
+    /**
+     * The collection of dimensions for this document.
+     */
+    public DocumentDimensions getDimensions() {
+        return dimensions;
+    }
+
     public abstract ContentPath path();
 
     public abstract XContentParser parser();
@@ -370,7 +380,7 @@ public abstract class DocumentParserContext {
 
     // XContentParser that wraps an existing parser positioned on a value,
     // and a field name, and returns a stream that looks like { 'field' : 'value' }
-    private static class CopyToParser extends FilterXContentParser {
+    private static class CopyToParser extends FilterXContentParserWrapper {
 
         enum State {
             FIELD,
@@ -390,7 +400,7 @@ public abstract class DocumentParserContext {
         public Token nextToken() throws IOException {
             if (state == State.FIELD) {
                 state = State.VALUE;
-                return in.currentToken();
+                return delegate().currentToken();
             }
             return Token.END_OBJECT;
         }
@@ -400,7 +410,7 @@ public abstract class DocumentParserContext {
             if (state == State.FIELD) {
                 return Token.FIELD_NAME;
             }
-            return in.currentToken();
+            return delegate().currentToken();
         }
 
         @Override

@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -104,8 +103,7 @@ public class JoinHelper {
             private final long term = currentTermSupplier.getAsLong();
 
             @Override
-            public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
-                throws Exception {
+            public ClusterTasksResult<JoinTask> execute(ClusterState currentState, List<JoinTask> joinTasks) {
                 // The current state that MasterService uses might have been updated by a (different) master in a higher term already
                 // Stop processing the current cluster state update, as there's no point in continuing to compute it as
                 // it will later be rejected by Coordinator.publish(...) anyhow
@@ -114,7 +112,7 @@ public class JoinHelper {
                     throw new NotMasterException(
                         "Higher term encountered (current: " + currentState.term() + " > used: " + term + "), there is a newer master"
                     );
-                } else if (currentState.nodes().getMasterNodeId() == null && joiningTasks.stream().anyMatch(Task::isBecomeMasterTask)) {
+                } else if (currentState.nodes().getMasterNodeId() == null && joinTasks.stream().anyMatch(JoinTask::isBecomingMaster)) {
                     assert currentState.term() < term : "there should be at most one become master task per election (= by term)";
                     final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
                         .term(term)
@@ -124,7 +122,7 @@ public class JoinHelper {
                 } else if (currentState.nodes().isLocalNodeElectedMaster()) {
                     assert currentState.term() == term : "term should be stable for the same master";
                 }
-                return super.execute(currentState, joiningTasks);
+                return super.execute(currentState, joinTasks);
             }
 
         };
@@ -293,7 +291,7 @@ public class JoinHelper {
 
             // Typically we're already connected to the destination at this point, the PeerFinder holds a reference to this connection to
             // keep it open, but we need to acquire our own reference to keep the connection alive through the joining process.
-            transportService.connectToNode(destination, new ActionListener<Releasable>() {
+            transportService.connectToNode(destination, new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable connectionReference) {
                     logger.trace("acquired connection for joining join {} with {}", destination, joinRequest);
@@ -361,31 +359,6 @@ public class JoinHelper {
         });
     }
 
-    static class JoinTaskListener implements ClusterStateTaskListener {
-        private final JoinTaskExecutor.Task task;
-        private final ActionListener<Void> joinListener;
-
-        JoinTaskListener(JoinTaskExecutor.Task task, ActionListener<Void> joinListener) {
-            this.task = task;
-            this.joinListener = joinListener;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            joinListener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            joinListener.onResponse(null);
-        }
-
-        @Override
-        public String toString() {
-            return "JoinTaskListener{task=" + task + "}";
-        }
-    }
-
     interface JoinAccumulator {
         void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener);
 
@@ -395,11 +368,7 @@ public class JoinHelper {
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
-            final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(
-                sender,
-                joinReasonService.getJoinReason(sender, Mode.LEADER),
-                joinListener
-            );
+            final JoinTask task = JoinTask.singleNode(sender, joinReasonService.getJoinReason(sender, Mode.LEADER), joinListener);
             assert joinTaskExecutor != null;
             masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
@@ -454,21 +423,20 @@ public class JoinHelper {
             assert closed == false : "CandidateJoinAccumulator closed";
             closed = true;
             if (newMode == Mode.LEADER) {
-                final List<JoinTaskExecutor.Task> pendingAsTasks = new ArrayList<>();
-                joinRequestAccumulator.forEach(
-                    (node, listener) -> pendingAsTasks.add(
-                        new JoinTaskExecutor.Task(node, joinReasonService.getJoinReason(node, Mode.CANDIDATE), listener)
-                    )
-                );
+                final JoinTask joinTask = JoinTask.completingElection(joinRequestAccumulator.entrySet().stream().map(entry -> {
+                    final DiscoveryNode discoveryNode = entry.getKey();
+                    final ActionListener<Void> listener = entry.getValue();
+                    return new JoinTask.NodeJoinTask(
+                        discoveryNode,
+                        joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
+                        listener
+                    );
+                }));
 
-                final String stateUpdateSource = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
-
-                pendingAsTasks.add(JoinTaskExecutor.newBecomeMasterTask());
-                pendingAsTasks.add(JoinTaskExecutor.newFinishElectionTask());
                 joinTaskExecutor = joinTaskExecutorGenerator.get();
-                masterService.submitStateUpdateTasks(
-                    stateUpdateSource,
-                    pendingAsTasks,
+                masterService.submitStateUpdateTask(
+                    "elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)",
+                    joinTask,
                     ClusterStateTaskConfig.build(Priority.URGENT),
                     joinTaskExecutor
                 );

@@ -1,0 +1,5 @@
+pr: 84034
+summary: Use static empty store files metadata
+area: Allocation
+type: enhancement
+issues: []

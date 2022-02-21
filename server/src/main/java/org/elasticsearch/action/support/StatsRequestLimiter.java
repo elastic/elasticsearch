@@ -64,10 +64,10 @@ public class StatsRequestLimiter {
         TriConsumer<Task, Request, ActionListener<Response>> executeAction
     ) {
         StatsHolder statsHolder = stats.computeIfAbsent(task.getAction(), ignored -> new StatsHolder(task.getAction()));
-        if (maxConcurrentStatsRequestsPerNodeSemaphore.tryAcquire()) {
+        if (tryAcquire()) {
             statsHolder.current.inc();
             final Runnable release = new RunOnce(() -> {
-                maxConcurrentStatsRequestsPerNodeSemaphore.release();
+                release();
                 statsHolder.current.dec();
                 statsHolder.completed.inc();
             });

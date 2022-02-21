@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -58,7 +59,6 @@ import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -79,7 +79,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         List<SubQueryAlias> namedQueries = visitList(this, ctx.namedQuery(), SubQueryAlias.class);
 
         // unwrap query (and validate while at it)
-        Map<String, SubQueryAlias> cteRelations = new LinkedHashMap<>(namedQueries.size());
+        Map<String, SubQueryAlias> cteRelations = Maps.newLinkedHashMapWithExpectedSize(namedQueries.size());
         for (SubQueryAlias namedQuery : namedQueries) {
             if (cteRelations.put(namedQuery.alias(), namedQuery) != null) {
                 throw new ParsingException(namedQuery.source(), "Duplicate alias {}", namedQuery.alias());

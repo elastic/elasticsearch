@@ -293,8 +293,8 @@ public class JwtRealmTests extends JwtTestCase {
         final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(algJwkPair.alg())).build();
         final JWSSigner jwsSigner = JwtValidateUtil.createJwsSigner(algJwkPair.jwk());
         final Instant now = Instant.now();
-        final Date past = Date.from(now.minusSeconds(7200));
-        final Date future = Date.from(now.plusSeconds(7200));
+        final Date past = Date.from(now.minusSeconds(86400));
+        final Date future = Date.from(now.plusSeconds(86400));
 
         {   // Verify rejection of JWT auth_time > now
             final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).claim("auth_time", future).build();

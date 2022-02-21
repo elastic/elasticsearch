@@ -76,7 +76,7 @@ public class StatsRequestLimiter {
                 }
             }
         } else {
-            listener.onFailure(new EsRejectedExecutionException("too many bounded diagnostic requests"));
+            listener.onFailure(new EsRejectedExecutionException("too concurrent stats requests"));
             statsHolder.rejected.inc();
         }
     }

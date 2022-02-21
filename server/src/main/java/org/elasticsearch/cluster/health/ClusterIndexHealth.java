@@ -171,13 +171,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
         status = ClusterHealthStatus.readFrom(in);
-
-        int size = in.readVInt();
-        shards = Maps.newMapWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            ClusterShardHealth shardHealth = new ClusterShardHealth(in);
-            shards.put(shardHealth.getShardId(), shardHealth);
-        }
+        shards = in.readMapValues(ClusterShardHealth::new, ClusterShardHealth::getShardId);
     }
 
     /**

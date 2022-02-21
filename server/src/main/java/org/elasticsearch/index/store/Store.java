@@ -779,7 +779,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         public static MetadataSnapshot readFrom(StreamInput in) throws IOException {
-            final Map<String, StoreFileMetadata> metadata = in.readMapFromList(StoreFileMetadata::new, StoreFileMetadata::name);
+            final Map<String, StoreFileMetadata> metadata = in.readMapValues(StoreFileMetadata::new, StoreFileMetadata::name);
             final var commitUserData = in.readMap(StreamInput::readString, StreamInput::readString);
             final var numDocs = in.readLong();
 

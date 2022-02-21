@@ -595,9 +595,9 @@ public class BytesStreamsTests extends ESTestCase {
         }
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeMapAsList(expected, StreamOutput::writeString);
+        out.writeMapValues(expected, StreamOutput::writeString);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final Map<String, String> loaded = in.readMapFromList(StreamInput::readString, value -> "key_" + value);
+        final Map<String, String> loaded = in.readMapValues(StreamInput::readString, value -> "key_" + value);
 
         assertThat(loaded.size(), equalTo(expected.size()));
         assertThat(expected, equalTo(loaded));

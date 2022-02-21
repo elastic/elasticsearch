@@ -656,13 +656,13 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a {@link List} of {@code V}-type and then converts them to a {@code Map} using keyMapper.
+     * Reads a multiple {@code V}-values and then converts them to a {@code Map} using keyMapper.
      *
      * @param valueReader The value reader
      * @param keyMapper function to create a key from a value
      * @return Never {@code null}.
      */
-    public <K, V> Map<K, V> readMapFromList(final Writeable.Reader<V> valueReader, final Function<V, K> keyMapper) throws IOException {
+    public <K, V> Map<K, V> readMapValues(final Writeable.Reader<V> valueReader, final Function<V, K> keyMapper) throws IOException {
         final int size = readArraySize();
         if (size == 0) {
             return Map.of();

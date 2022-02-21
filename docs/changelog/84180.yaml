@@ -1,0 +1,5 @@
+pr: 84180
+summary: Use same system index pattern in restricted names
+area: Authorization
+type: enhancement
+issues: []

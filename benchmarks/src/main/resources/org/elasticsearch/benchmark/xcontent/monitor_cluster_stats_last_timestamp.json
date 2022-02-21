@@ -1,5 +1,4 @@
 {
-  "timestamp" : "2099-10-25T00:00:03.739Z",
   "cluster_uuid" : "R0aKM8oRQs2Wq_x9y1O0Uw",
   "interval_ms" : 10000,
   "type" : "cluster_stats",
@@ -1241,5 +1240,6 @@
         }
       }
     }
-  }
+  },
+  "timestamp" : "2099-10-25T00:00:03.739Z"
 }

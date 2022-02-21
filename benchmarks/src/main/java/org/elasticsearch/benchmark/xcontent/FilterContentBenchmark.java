@@ -52,8 +52,8 @@ public class FilterContentBenchmark {
     @Param({ "cluster_stats", "index_stats", "node_stats" })
     private String type;
 
-    @Param({ "10_field", "half_field", "all_field", "wildcard_field", "10_wildcard_field" })
-    private String fieldCount;
+    @Param({ "timestamp", "10_field", "half_field", "all_field", "wildcard_field", "10_wildcard_field" })
+    private String fieldType;
 
     @Param({ "true" })
     private boolean inclusive;
@@ -81,11 +81,12 @@ public class FilterContentBenchmark {
         Map<String, Object> flattenMap = Maps.flatten(XContentHelper.convertToMap(source, true, XContentType.JSON).v2(), false, true);
         Set<String> keys = flattenMap.keySet();
         AtomicInteger count = new AtomicInteger();
-        return switch (fieldCount) {
+        return switch (fieldType) {
+            case "timestamp" -> Set.of("timestamp");
             case "10_field" -> keys.stream().filter(key -> count.getAndIncrement() % 5 == 0).limit(10).collect(Collectors.toSet());
             case "half_field" -> keys.stream().filter(key -> count.getAndIncrement() % 2 == 0).collect(Collectors.toSet());
             case "all_field" -> new HashSet<>(keys);
-            case "wildcard_field" -> new HashSet<>(Arrays.asList("*stats"));
+            case "wildcard_field" -> Set.of(("*stats")  ;
             case "10_wildcard_field" -> Set.of(
                 "*stats.nodes*",
                 "*stats.ind*",

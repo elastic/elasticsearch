@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -35,6 +36,7 @@ import java.util.List;
  */
 public final class Cursors {
 
+    private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(getNamedWriteables());
     private static final Version VERSION = Version.CURRENT;
 
     private Cursors() {}
@@ -101,13 +103,11 @@ public final class Cursors {
         }
     }
 
-    private static final NamedWriteableRegistry EMPTY_REGISTRY = new NamedWriteableRegistry(List.of());
-
     public static BasicFormatter decodeFormatter(String base64) {
         if (base64.isEmpty()) {
             return null;
         }
-        try (SqlStreamInput in = SqlStreamInput.fromString(base64, EMPTY_REGISTRY, VERSION)) {
+        try (SqlStreamInput in = SqlStreamInput.fromString(base64, WRITEABLE_REGISTRY, VERSION)) {
             return in.readOptionalWriteable(BasicFormatter::new);
         } catch (IOException ex) {
             throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
@@ -118,6 +118,19 @@ public final class Cursors {
      * Read a {@linkplain Cursor} from a string.
      */
     public static Tuple<Cursor, ZoneId> decodeFromStringWithZone(String base64, NamedWriteableRegistry writeableRegistry) {
+        return internalDecodeFromStringWithZone(base64, new NamedWriteableRegistry(List.of()) {
+            @Override
+            public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {
+                try {
+                    return writeableRegistry.getReader(categoryClass, name);
+                } catch (IllegalArgumentException iae) {
+                    return WRITEABLE_REGISTRY.getReader(categoryClass, name);
+                }
+            }
+        });
+    }
+
+    private static Tuple<Cursor, ZoneId> internalDecodeFromStringWithZone(String base64, NamedWriteableRegistry writeableRegistry) {
         if (base64.isEmpty()) {
             return new Tuple<>(Cursor.EMPTY, null);
         }
@@ -126,7 +139,7 @@ public final class Cursors {
                 Cursor cursor = in.readNamedWriteable(Cursor.class);
                 return new Tuple<>(cursor, in.zoneId());
             } else {
-                return decodeFromStringWithZone(in.readString(), writeableRegistry);
+                return internalDecodeFromStringWithZone(in.readString(), writeableRegistry);
             }
         } catch (IOException ex) {
             throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);

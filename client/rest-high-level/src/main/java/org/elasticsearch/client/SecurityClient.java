@@ -8,9 +8,6 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.security.AuthenticateRequest;
-import org.elasticsearch.client.security.AuthenticateResponse;
-import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
@@ -21,8 +18,6 @@ import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
-import org.elasticsearch.client.security.DeleteUserRequest;
-import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
@@ -37,8 +32,6 @@ import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
-import org.elasticsearch.client.security.PutUserRequest;
-import org.elasticsearch.client.security.PutUserResponse;
 
 import java.io.IOException;
 
@@ -65,45 +58,6 @@ public final class SecurityClient {
     }
 
     /**
-     * Create/update a user in the native realm synchronously.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-users.html">
-     * the docs</a> for more.
-     *
-     * @param request the request with the user's information
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the put user call
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public PutUserResponse putUser(PutUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            request,
-            SecurityRequestConverters::putUser,
-            options,
-            PutUserResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Removes user from the native realm synchronously.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-user.html">
-     * the docs</a> for more.
-     * @param request the request with the user to delete
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the delete user call
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public DeleteUserResponse deleteUser(DeleteUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            request,
-            SecurityRequestConverters::deleteUser,
-            options,
-            DeleteUserResponse::fromXContent,
-            singleton(404)
-        );
-    }
-
-    /**
      * Create/Update a role mapping.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role-mapping.html">
      * the docs</a> for more.
@@ -118,24 +72,6 @@ public final class SecurityClient {
             SecurityRequestConverters::putRoleMapping,
             options,
             PutRoleMappingResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Authenticate the current user and return all the information about the authenticated user.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-authenticate.html">
-     * the docs</a> for more.
-     *
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the responsee from the authenticate user call
-     */
-    public AuthenticateResponse authenticate(RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            AuthenticateRequest.INSTANCE,
-            AuthenticateRequest::getRequest,
-            options,
-            AuthenticateResponse::fromXContent,
             emptySet()
         );
     }
@@ -156,26 +92,6 @@ public final class SecurityClient {
             SecurityRequestConverters::clearRealmCache,
             options,
             ClearRealmCacheResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Change the password of a user of a native realm or built-in user synchronously.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-change-password.html">
-     * the docs</a> for more.
-     *
-     * @param request the request with the user's new password
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return {@code true} if the request succeeded (the new password was set)
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public boolean changePassword(ChangePasswordRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequest(
-            request,
-            SecurityRequestConverters::changePassword,
-            options,
-            RestHighLevelClient::convertExistsResponse,
             emptySet()
         );
     }

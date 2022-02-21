@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -37,6 +38,7 @@ import java.util.function.Predicate;
  */
 class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
+    private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
 
     FieldCapabilitiesFetcher(IndicesService indicesService) {
         this.indicesService = indicesService;
@@ -65,17 +67,34 @@ class FieldCapabilitiesFetcher {
             );
 
             if (canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
-                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), Collections.emptyMap(), false);
+                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false);
+            }
+
+            final MappingMetadata mapping = indexService.getMetadata().mapping();
+            final String indexMappingHash = mapping != null ? mapping.getSha256() : null;
+            if (indexMappingHash != null) {
+                final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
+                if (existing != null) {
+                    return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true);
+                }
             }
 
             Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
-
-            return retrieveFieldCaps(shardId.getIndexName(), searchExecutionContext, fieldPatterns, filters, fieldTypes, fieldPredicate);
+            final Map<String, IndexFieldCapabilities> responseMap = retrieveFieldCaps(
+                searchExecutionContext,
+                fieldPatterns,
+                filters,
+                fieldTypes,
+                fieldPredicate
+            );
+            if (indexMappingHash != null) {
+                indexMappingHashToResponses.put(indexMappingHash, responseMap);
+            }
+            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true);
         }
     }
 
-    public static FieldCapabilitiesIndexResponse retrieveFieldCaps(
-        String indexName,
+    static Map<String, IndexFieldCapabilities> retrieveFieldCaps(
         SearchExecutionContext context,
         String[] fieldPatterns,
         String[] filters,
@@ -141,7 +160,7 @@ class FieldCapabilitiesFetcher {
                 }
             }
         }
-        return new FieldCapabilitiesIndexResponse(indexName, responseMap, true);
+        return responseMap;
     }
 
     private static boolean checkIncludeParents(String[] filters) {

@@ -979,4 +979,13 @@ public final class KeywordFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
     }
+
+    @Override
+    public void doValidate(MappingLookup lookup) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
+            throw new IllegalArgumentException(
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
+            );
+        }
+    }
 }

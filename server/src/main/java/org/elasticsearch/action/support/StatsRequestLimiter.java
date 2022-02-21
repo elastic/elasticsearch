@@ -52,11 +52,16 @@ public class StatsRequestLimiter {
         this.maxConcurrentStatsRequestsPerNodeSemaphore.setMaxPermits(maxConcurrentBoundedDiagnosticRequestsPerNode);
     }
 
+    /**
+     * Checks if executing the action will remain within the limits of the max concurrent requests the node can handle. If the limit is
+     * respected the action will be executed otherwise it will throw an EsRejectedExecutionException. The method keeps track of current,
+     * completed and rejected requests per action type.
+     */
     public <Request, Response> void tryToExecute(
         Task task,
         Request request,
         ActionListener<Response> listener,
-        TriConsumer<Task, Request, ActionListener<Response>> execute
+        TriConsumer<Task, Request, ActionListener<Response>> executeAction
     ) {
         StatsHolder statsHolder = stats.computeIfAbsent(task.getAction(), ignored -> new StatsHolder(task.getAction()));
         if (maxConcurrentStatsRequestsPerNodeSemaphore.tryAcquire()) {
@@ -68,7 +73,7 @@ public class StatsRequestLimiter {
             });
             boolean success = false;
             try {
-                execute.apply(task, request, ActionListener.runBefore(listener, release::run));
+                executeAction.apply(task, request, ActionListener.runBefore(listener, release::run));
                 success = true;
             } finally {
                 if (success == false) {

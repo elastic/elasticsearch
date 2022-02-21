@@ -174,7 +174,7 @@ public class FieldFetcher {
                 documentFields.put(field, new DocumentField(field, parsedValues, ignoredValues));
             }
         }
-        collectUnmapped(documentFields, sourceLookup.source(), "", 0);
+        collectUnmapped(documentFields, sourceLookup, "", 0);
         return documentFields;
     }
 

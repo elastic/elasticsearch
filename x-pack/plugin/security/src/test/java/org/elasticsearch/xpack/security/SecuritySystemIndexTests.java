@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 
@@ -18,10 +17,9 @@ import static org.hamcrest.Matchers.is;
 public class SecuritySystemIndexTests extends ESTestCase {
 
     public void testSystemIndexNameIsRestricted() {
-        final SystemIndexDescriptor descriptor = Security.getSecurityMainIndexDescriptor();
         Consumer<String> check = idx -> assertThat(
             "For index [" + idx + "]",
-            descriptor.matchesIndexPattern(idx),
+            Security.SECURITY_MAIN_INDEX_DESCRIPTOR.matchesIndexPattern(idx),
             is(RestrictedIndicesNames.isRestricted(idx))
         );
 

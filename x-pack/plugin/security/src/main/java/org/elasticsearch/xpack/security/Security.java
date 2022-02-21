@@ -1686,7 +1686,7 @@ public class Security extends Plugin
         }
     }
 
-    static SystemIndexDescriptor getSecurityMainIndexDescriptor() {
+    private static SystemIndexDescriptor getSecurityMainIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setMinimumNodeVersion(FLATTENED_FIELD_TYPE_INTRODUCED)
             // This can't just be `.security-*` because that would overlap with the tokens index pattern

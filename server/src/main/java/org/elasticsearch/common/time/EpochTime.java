@@ -114,7 +114,7 @@ class EpochTime {
                     millis += 1;
                 }
                 millis += (nanos / 1_000_000);
-                return Math.abs(millis); // always positive for formatting; sign is handled by NEGATIVE_SIGN_FIELD
+                return -millis; // positive for formatting; sign handled by NEGATIVE_SIGN_FIELD
             }
         }
 

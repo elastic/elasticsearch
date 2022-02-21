@@ -31,7 +31,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.IndexAbstraction.DataStream.TS_EXTRACT_CONFIG;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 @Fork(1)
@@ -55,11 +54,7 @@ public class FilterTimestampBenchmark {
             default -> throw new IllegalArgumentException("Unknown type [" + type + "]");
         };
         source = Streams.readFully(FilterTimestampBenchmark.class.getResourceAsStream(sourceFile));
-        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
-            Set.of("timestamp"),
-            null,
-            false
-        );
+        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.of("timestamp"), null, false);
     }
 
     @Benchmark
@@ -68,21 +63,22 @@ public class FilterTimestampBenchmark {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             switch (parser.nextToken()) {
-                case VALUE_STRING:
+                case VALUE_STRING -> {
                     return parser.text();
-                case VALUE_NUMBER:
+                }
+                case VALUE_NUMBER -> {
                     return String.valueOf(parser.longValue());
-                default:
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        String.format(
-                            Locale.ROOT,
-                            "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
-                            XContentParser.Token.VALUE_STRING,
-                            XContentParser.Token.VALUE_NUMBER,
-                            parser.currentToken()
-                        )
-                    );
+                }
+                default -> throw new ParsingException(
+                    parser.getTokenLocation(),
+                    String.format(
+                        Locale.ROOT,
+                        "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
+                        XContentParser.Token.VALUE_STRING,
+                        XContentParser.Token.VALUE_NUMBER,
+                        parser.currentToken()
+                    )
+                );
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("Error extracting timestamp: " + e.getMessage(), e);

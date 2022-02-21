@@ -86,7 +86,7 @@ public class FilterContentBenchmark {
             case "10_field" -> keys.stream().filter(key -> count.getAndIncrement() % 5 == 0).limit(10).collect(Collectors.toSet());
             case "half_field" -> keys.stream().filter(key -> count.getAndIncrement() % 2 == 0).collect(Collectors.toSet());
             case "all_field" -> new HashSet<>(keys);
-            case "wildcard_field" -> Set.of(("*stats")  ;
+            case "wildcard_field" -> Set.of("*stats");
             case "10_wildcard_field" -> Set.of(
                 "*stats.nodes*",
                 "*stats.ind*",

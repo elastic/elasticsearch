@@ -311,7 +311,7 @@ final class DynamicFieldsBuilder {
         public void newDynamicStringField(DocumentParserContext context, String name) throws IOException {
             createDynamicField(
                 new TextFieldMapper.Builder(name, context.indexAnalyzers()).addMultiField(
-                    new KeywordFieldMapper.Builder("keyword").ignoreAbove(256)
+                    new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
                 ),
                 context
             );
@@ -324,7 +324,8 @@ final class DynamicFieldsBuilder {
                     name,
                     NumberFieldMapper.NumberType.LONG,
                     ScriptCompiler.NONE,
-                    context.indexSettings().getSettings()
+                    context.indexSettings().getSettings(),
+                    context.indexSettings().getIndexVersionCreated()
                 ),
                 context
             );
@@ -340,7 +341,8 @@ final class DynamicFieldsBuilder {
                     name,
                     NumberFieldMapper.NumberType.FLOAT,
                     ScriptCompiler.NONE,
-                    context.indexSettings().getSettings()
+                    context.indexSettings().getSettings(),
+                    context.indexSettings().getIndexVersionCreated()
                 ),
                 context
             );
@@ -348,7 +350,10 @@ final class DynamicFieldsBuilder {
 
         @Override
         public void newDynamicBooleanField(DocumentParserContext context, String name) throws IOException {
-            createDynamicField(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE), context);
+            createDynamicField(
+                new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, context.indexSettings().getIndexVersionCreated()),
+                context
+            );
         }
 
         @Override

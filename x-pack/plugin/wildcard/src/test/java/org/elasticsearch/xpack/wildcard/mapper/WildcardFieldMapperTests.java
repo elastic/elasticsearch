@@ -124,7 +124,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.V_7_9_0);
         wildcardFieldType79 = builder79.build(MapperBuilderContext.ROOT);
 
-        org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
+        org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
+            KEYWORD_FIELD_NAME,
+            Version.CURRENT
+        );
         keywordFieldType = kwBuilder.build(MapperBuilderContext.ROOT);
 
         rewriteDir = newDirectory();

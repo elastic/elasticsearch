@@ -326,7 +326,7 @@ public final class DateFieldMapper extends FieldMapper {
         public DateFieldMapper build(MapperBuilderContext context) {
             DateFieldType ft = new DateFieldType(
                 context.buildFullName(name()),
-                index.getValue(),
+                index.getValue() && indexCreatedVersion.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()),
                 store.getValue(),
                 docValues.getValue(),
                 buildFormatter(),
@@ -630,7 +630,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
-            if (isIndexed() == false && hasDocValues()) {
+            if (isIndexed() == false) {
                 // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
                 return Relation.INTERSECTS;
             }

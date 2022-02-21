@@ -19,7 +19,8 @@ public class SecuritySystemIndexTests extends ESTestCase {
     public void testSystemIndexNameIsRestricted() {
         Consumer<String> check = idx -> assertThat(
             "For index [" + idx + "]",
-            Security.SECURITY_MAIN_INDEX_DESCRIPTOR.matchesIndexPattern(idx),
+            Security.SECURITY_MAIN_INDEX_DESCRIPTOR.matchesIndexPattern(idx)
+                || Security.SECURITY_TOKEN_INDEX_DESCRIPTOR.matchesIndexPattern(idx),
             is(RestrictedIndicesNames.isRestricted(idx))
         );
 
@@ -31,6 +32,10 @@ public class SecuritySystemIndexTests extends ESTestCase {
 
         check.accept(".security-" + randomIntBetween(0, 99) + (randomBoolean() ? "-" : "") + randomAlphaOfLengthBetween(1, 12));
         check.accept(".security-" + randomAlphaOfLengthBetween(1, 12) + (randomBoolean() ? "-" : "") + randomIntBetween(0, 99));
+
+        check.accept(".security-tokens-" + randomAlphaOfLengthBetween(1, 12));
+        check.accept(".security-tokens-" + randomIntBetween(1, 99));
+        check.accept(".security-tokens-" + randomIntBetween(1, 99) + (randomBoolean() ? "-" : "") + randomAlphaOfLengthBetween(1, 12));
 
         check.accept("." + randomAlphaOfLengthBetween(1, 12) + "-security");
     }

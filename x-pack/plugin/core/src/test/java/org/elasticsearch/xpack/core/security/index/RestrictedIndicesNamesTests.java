@@ -18,11 +18,11 @@ public class RestrictedIndicesNamesTests extends ESTestCase {
 
     public void testAsyncSearchNames() {
         testIndex(".async-search", true);
-        testIndex(".async-search-" + randomAlphaOfLengthBetween(1, 8), true);
-        testIndex(".async-search" + randomInt(), true);
-        testIndex("async-search" + randomInt(), false);
-        testIndex(".asynchronous-search" + randomInt(), false);
-        testIndex(".not-async-search" + randomAlphaOfLengthBetween(1, 8), false);
+        testIndex(".async-search" + (randomBoolean() ? "-" : "") + randomAlphaOfLengthBetween(1, 8), true);
+        testIndex(".async-search" + (randomBoolean() ? "-" : "") + randomInt(), true);
+        testIndex("async-search" + (randomBoolean() ? "-" : "") + randomInt(), false);
+        testIndex(".asynchronous-search" + (randomBoolean() ? "-" : "") + randomInt(), false);
+        testIndex(".not-async-search" + (randomBoolean() ? "-" : "") + randomAlphaOfLengthBetween(1, 8), false);
     }
 
     public void testSecurityNames() {
@@ -30,15 +30,17 @@ public class RestrictedIndicesNamesTests extends ESTestCase {
         testIndex(".security-6", true);
         testIndex(".security-7", true);
         testIndex(".security-" + randomIntBetween(0, 999_999), true);
-        testIndex(".security-" + randomIntBetween(0, 99) + "-" + randomAlphaOfLengthBetween(1, 20), true);
+        testIndex(".security-" + randomIntBetween(0, 99) + (randomBoolean() ? "-" : "") + randomAlphaOfLengthBetween(1, 20), true);
 
         testIndex("security", false);
         testIndex("security-6", false);
         testIndex(".not-security-7", false);
         testIndex(".security-", false);
         testIndex(".security-" + randomAlphaOfLengthBetween(1, 10), false);
+        testIndex(".security" + randomAlphaOfLengthBetween(1, 10), false);
         testIndex(".security" + randomIntBetween(1, 9), false);
         testIndex(".security-" + randomAlphaOfLength(1) + randomIntBetween(1, 9), false);
+        testIndex(".security" + randomAlphaOfLength(1) + randomIntBetween(1, 9), false);
     }
 
     private void testIndex(String name, boolean expected) {

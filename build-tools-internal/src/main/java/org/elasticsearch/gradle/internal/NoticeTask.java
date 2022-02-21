@@ -16,6 +16,8 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.SourceDirectorySet;
 import org.gradle.api.internal.file.FileOperations;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
@@ -25,10 +27,10 @@ import org.gradle.initialization.layout.BuildLayout;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -44,23 +46,25 @@ public class NoticeTask extends DefaultTask {
 
     @OutputFile
     private File outputFile;
+
     private FileTree sources;
 
     /**
      * Directories to include notices from
      */
-    private List<File> licensesDirs = new ArrayList<File>();
+    private final ListProperty<File> licensesDirs;
+
     private final FileOperations fileOperations;
+    private ObjectFactory objectFactory;
 
     @Inject
-    public NoticeTask(BuildLayout buildLayout, ProjectLayout projectLayout, FileOperations fileOperations) {
+    public NoticeTask(BuildLayout buildLayout, ProjectLayout projectLayout, FileOperations fileOperations, ObjectFactory objectFactory) {
+        this.objectFactory = objectFactory;
+        this.fileOperations = fileOperations;
         setDescription("Create a notice file from dependencies");
         // Default licenses directory is ${projectDir}/licenses (if it exists)
-        File licensesDir = projectLayout.getProjectDirectory().dir("licenses").getAsFile();
-        if (licensesDir.exists()) {
-            licensesDirs.add(licensesDir);
-        }
-        this.fileOperations = fileOperations;
+        licensesDirs = objectFactory.listProperty(File.class);
+        licensesDirs.add(projectLayout.getProjectDirectory().dir("licenses").getAsFile());
         inputFile = new File(buildLayout.getRootDirectory(), "NOTICE.txt");
         outputFile = projectLayout.getBuildDirectory().dir("notices/" + getName()).get().file("NOTICE.txt").getAsFile();
     }
@@ -164,7 +168,7 @@ public class NoticeTask extends DefaultTask {
     @Optional
     public FileCollection getNoticeFiles() {
         FileTree tree = null;
-        for (File dir : licensesDirs) {
+        for (File dir : existingLicenseDirs()) {
             if (tree == null) {
                 tree = fileOperations.fileTree(dir);
             } else {
@@ -172,6 +176,10 @@ public class NoticeTask extends DefaultTask {
             }
         }
         return tree == null ? null : tree.matching(patternFilterable -> patternFilterable.include("**/*-NOTICE.txt"));
+    }
+
+    private List<File> existingLicenseDirs() {
+        return licensesDirs.get().stream().filter(d -> d.exists()).collect(Collectors.toList());
     }
 
     @InputFiles

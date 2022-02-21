@@ -15,8 +15,10 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.DependencySet;
 import org.gradle.api.artifacts.ModuleVersionIdentifier;
 import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.internal.ConventionTask;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
@@ -49,14 +51,7 @@ import javax.inject.Inject;
  */
 public class DependenciesInfoTask extends ConventionTask {
 
-    private final ProjectLayout projectLayout;
-
-    /**
-     * Directory to read license files
-     */
-    @Optional
-    @InputDirectory
-    private File licensesDir;
+    private final DirectoryProperty licensesDir;
 
     @OutputFile
     private File outputFile;
@@ -79,12 +74,17 @@ public class DependenciesInfoTask extends ConventionTask {
         this.compileOnlyConfiguration = compileOnlyConfiguration;
     }
 
-    public File getLicensesDir() {
+    /**
+     * Directory to read license files
+     */
+    @Optional
+    @InputDirectory
+    public DirectoryProperty getLicensesDir() {
         return licensesDir;
     }
 
     public void setLicensesDir(File licensesDir) {
-        this.licensesDir = licensesDir;
+        this.licensesDir.set(licensesDir);
     }
 
     public File getOutputFile() {
@@ -107,17 +107,15 @@ public class DependenciesInfoTask extends ConventionTask {
     private Configuration compileOnlyConfiguration;
 
     @Inject
-    public DependenciesInfoTask(ProjectLayout pLayout) {
-        this.projectLayout = pLayout;
-        File dir = pLayout.getProjectDirectory().dir("licenses").getAsFile();
-        this.licensesDir = dir.exists() ? dir : null;
-        this.outputFile = pLayout.getBuildDirectory().dir("reports/dependencies").get().file("dependencies.csv").getAsFile();
+    public DependenciesInfoTask(ProjectLayout projectLayout, ObjectFactory objectFactory) {
+        this.licensesDir = objectFactory.directoryProperty();
+        this.licensesDir.set(projectLayout.getProjectDirectory().dir("licenses"));
+        this.outputFile = projectLayout.getBuildDirectory().dir("reports/dependencies").get().file("dependencies.csv").getAsFile();
         setDescription("Create a CSV file with dependencies information.");
     }
 
     @TaskAction
     public void generateDependenciesInfo() throws IOException {
-
         final DependencySet runtimeDependencies = runtimeConfiguration.getAllDependencies();
         // we have to resolve the transitive dependencies and create a group:artifactId:version map
 
@@ -213,8 +211,9 @@ public class DependenciesInfoTask extends ConventionTask {
     }
 
     protected File getDependencyInfoFile(final String group, final String name, final String infoFileSuffix) {
-        java.util.Optional<File> license = licensesDir != null
-            ? Arrays.stream(licensesDir.listFiles((dir, fileName) -> Pattern.matches(".*-" + infoFileSuffix + ".*", fileName)))
+        File licenseDirFile = licensesDir.getAsFile().get();
+        java.util.Optional<File> license = licenseDirFile.exists()
+            ? Arrays.stream(licenseDirFile.listFiles((dir, fileName) -> Pattern.matches(".*-" + infoFileSuffix + ".*", fileName)))
                 .filter(file -> {
                     String prefix = file.getName().split("-" + infoFileSuffix + ".*")[0];
                     return group.contains(prefix) || name.contains(prefix);
@@ -231,7 +230,7 @@ public class DependenciesInfoTask extends ConventionTask {
                     + ":"
                     + name
                     + " in "
-                    + getLicensesDir().getAbsolutePath()
+                    + licenseDirFile.getAbsolutePath()
             )
         );
     }

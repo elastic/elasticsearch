@@ -1175,7 +1175,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private static class MockParserContext extends MappingParserContext {
         MockParserContext() {
-            super(null, null, null, null, null, null, ScriptCompiler.NONE, null, null, null);
+            super(null, null, null, Version.CURRENT, null, null, ScriptCompiler.NONE, null, null, null);
         }
 
         @Override

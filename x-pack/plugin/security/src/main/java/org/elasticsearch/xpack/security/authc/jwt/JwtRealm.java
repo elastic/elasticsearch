@@ -117,7 +117,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final SecureString hmacKeyContents = super.config.getSetting(JwtRealmSettings.HMAC_KEY);
         // HMAC Key vs HMAC JWKSet settings are mutually exclusive
         if (Strings.hasText(hmacJwkSetContents) && Strings.hasText(hmacKeyContents)) {
-            throw new SettingsException("HMAC JWKSet and HMAC Key settings are not allowed at the same time.");
+            throw new SettingsException(
+                "Settings ["
+                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET)
+                    + "] and ["
+                    + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_KEY)
+                    + "] are not allowed at the same time."
+            );
         } else if ((Strings.hasText(hmacJwkSetContents) == false) && (Strings.hasText(hmacKeyContents) == false)) {
             return new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList()); // both empty OK, if PKC JWKSet non-empty
         }

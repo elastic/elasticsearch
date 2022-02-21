@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.core.security.index;
 
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.List;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
@@ -19,6 +22,12 @@ public final class RestrictedIndicesNames {
     public static final String INTERNAL_SECURITY_MAIN_INDEX_6 = ".security-6";
     public static final String INTERNAL_SECURITY_MAIN_INDEX_7 = ".security-7";
     public static final String SECURITY_MAIN_ALIAS = ".security";
+
+    // See o.e.x.security.Security#getSecurityMainIndexDescriptor
+    private static final String SECURITY_INDEX_PREFIX = SECURITY_MAIN_ALIAS + "-";
+    private static final Automaton SECURITY_INDEX_AUTOMATON = Operations.concatenate(
+        List.of(Automata.makeString(SECURITY_INDEX_PREFIX), Automata.makeCharRange('0', '9'), Automata.makeAnyString())
+    );
 
     public static final String INTERNAL_SECURITY_TOKENS_INDEX_7 = ".security-tokens-7";
     public static final String SECURITY_TOKENS_ALIAS = ".security-tokens";
@@ -39,11 +48,31 @@ public final class RestrictedIndicesNames {
     );
 
     public static boolean isRestricted(String concreteIndexName) {
-        return RESTRICTED_NAMES.contains(concreteIndexName) || concreteIndexName.startsWith(ASYNC_SEARCH_PREFIX);
+        return isStaticRestrictedIndex(concreteIndexName)
+            || isAsyncSearchIndex(concreteIndexName)
+            || isAlternativeSecurityIndex(concreteIndexName);
+    }
+
+    private static boolean isStaticRestrictedIndex(String concreteIndexName) {
+        return RESTRICTED_NAMES.contains(concreteIndexName);
+    }
+
+    private static boolean isAsyncSearchIndex(String concreteIndexName) {
+        return concreteIndexName.startsWith(ASYNC_SEARCH_PREFIX);
+    }
+
+    private static boolean isAlternativeSecurityIndex(String concreteIndexName) {
+        if (concreteIndexName.startsWith(SECURITY_INDEX_PREFIX) && concreteIndexName.length() > SECURITY_INDEX_PREFIX.length()) {
+            final char ch = concreteIndexName.charAt(SECURITY_INDEX_PREFIX.length());
+            // Intentionally use ASCII (not unicode) digits because that's what the automaton uses
+            return ch >= '0' && ch <= '9';
+        } else {
+            return false;
+        }
     }
 
     public static final Automaton NAMES_AUTOMATON = Automatons.unionAndMinimize(
-        Arrays.asList(Automatons.patterns(RESTRICTED_NAMES), ASYNC_SEARCH_AUTOMATON)
+        Arrays.asList(Automatons.patterns(RESTRICTED_NAMES), ASYNC_SEARCH_AUTOMATON, SECURITY_INDEX_AUTOMATON)
     );
 
     private RestrictedIndicesNames() {}

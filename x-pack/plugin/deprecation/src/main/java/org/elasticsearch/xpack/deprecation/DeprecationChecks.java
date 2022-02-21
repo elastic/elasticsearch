@@ -241,7 +241,8 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkXpackDataFrameEnabledSetting,
                 NodeDeprecationChecks::checkWatcherHistoryCleanerServiceSetting,
                 NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
-                NodeDeprecationChecks::checkEqlEnabledSetting
+                NodeDeprecationChecks::checkEqlEnabledSetting,
+                NodeDeprecationChecks::checkNodeAttrData
             )
         ).collect(Collectors.toList());
     }
@@ -253,7 +254,8 @@ public class DeprecationChecks {
             (clusterState, indexMetadata) -> IndexDeprecationChecks.chainedMultiFieldsDynamicTemplateCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.boostMappingCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.boostDynamicTemplateCheck(indexMetadata),
-            (clusterState, indexMetadata) -> IndexDeprecationChecks.deprecatedDateTimeFormat(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.deprecatedJodaDateTimeFormat(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.deprecatedCamelCasePattern(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.translogRetentionSettingCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.fieldNamesDisabledCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexDataPath(indexMetadata),

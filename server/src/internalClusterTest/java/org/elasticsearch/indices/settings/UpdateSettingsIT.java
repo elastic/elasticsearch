@@ -811,7 +811,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
     public void testNoopUpdate() {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        final ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
         assertAcked(
             client().admin()
                 .indices()

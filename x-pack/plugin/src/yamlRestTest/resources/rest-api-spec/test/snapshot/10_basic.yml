@@ -31,7 +31,7 @@ setup:
       index:
           index:  test_index
           type:   _doc
-          id:     1
+          id:     "1"
           body:   { foo: bar }
   - do:
       indices.flush:

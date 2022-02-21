@@ -489,6 +489,11 @@ public class GeometryIndexerTests extends ESTestCase {
             expected("POLYGON ((180 29, 180 38, 180 56, 180 53, 178 47, 177 23, 180 29))"),
             actual("POLYGON ((180 38,  180.0 56, 180.0 53, 178 47, 177 23, 180 29, 180 36, 180 37, 180 38))", randomBoolean())
         );
+
+        assertEquals(
+            expected("POLYGON ((-135 85, 135 85, 45 85, -45 85, -135 85))"),
+            actual("POLYGON ((-45 85, -135 85, 135 85, 45 85, -45 85))", randomBoolean())
+        );
     }
 
     public void testInvalidSelfCrossingPolygon() {
@@ -507,6 +512,16 @@ public class GeometryIndexerTests extends ESTestCase {
         polygon = new Polygon(new LinearRing(new double[] { 180, -170, -170, 170, 180 }, new double[] { -10, -5, 15, -15, -10 }));
         geometry = indexer.prepareForIndexing(polygon);
         assertTrue(geometry instanceof MultiPolygon);
+    }
+
+    public void testPolygonAllCollinearPoints() {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 1, -1, 0 }, new double[] { 0, 1, -1, 0 }));
+        Geometry prepared = indexer.prepareForIndexing(polygon);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexer.indexShape(prepared));
+        assertEquals(
+            "Unable to Tessellate shape [[1.0, 1.0] [-1.0, -1.0] [0.0, 0.0] [1.0, 1.0] ]. Possible malformed shape detected.",
+            e.getMessage()
+        );
     }
 
     public void testIssue82840() {

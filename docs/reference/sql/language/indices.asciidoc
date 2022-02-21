@@ -6,7 +6,7 @@
 
 [[sql-index-patterns-multi]]
 [discrete]
-==== {es} multi-index
+==== {es} multi-target syntax
 
 The {es} notation for enumerating, including or excluding <<multi-index,multi-target syntax>>
 is supported _as long_ as it is quoted or escaped as a table identifier.

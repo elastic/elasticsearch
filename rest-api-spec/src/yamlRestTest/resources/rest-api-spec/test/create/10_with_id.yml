@@ -6,7 +6,7 @@
  - do:
       create:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - match:   { _index:   test_1 }
@@ -16,7 +16,7 @@
  - do:
       get:
           index:  test_1
-          id:     1
+          id:     "1"
 
  - match:   { _index:   test_1 }
  - match:   { _id:      "1"}
@@ -27,5 +27,5 @@
       catch:      conflict
       create:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar }

@@ -9,8 +9,13 @@ stored in an index. The `percolate` query itself
 contains the document that will be used as query
 to match with the stored queries.
 
-[discrete]
-=== Sample Usage
+==== Sample usage
+
+TIP: To provide a simple example, this documentation uses one index,
+`my-index-000001`, for both the percolate queries and documents. This setup can
+work well when there are just a few percolate queries registered. For heavier
+usage, we recommend you store queries and documents in separate indices. For
+more details, refer to <<how-it-works>>.
 
 Create an index with two fields:
 
@@ -119,11 +124,6 @@ The above request will yield the following response:
 <2> The `_percolator_document_slot` field indicates which document has matched with this query.
     Useful when percolating multiple document simultaneously.
 
-TIP: To provide a simple example, this documentation uses one index `my-index-00001` for both the percolate queries and documents.
-This set-up can work well when there are just a few percolate queries registered. However, with heavier usage it is recommended
-to store queries and documents in separate indices. Please see <<how-it-works, How it Works Under the Hood>> for more details.
-
-[discrete]
 ==== Parameters
 
 The following parameters are required when percolating a document:
@@ -149,7 +149,6 @@ In that case the `document` parameter can be substituted with the following para
 `preference`:: Optionally, preference to be used to fetch document to percolate.
 `version`:: Optionally, the expected version of the document to be fetched.
 
-[discrete]
 ==== Percolating in a filter context
 
 In case you are not interested in the score, better performance can be expected by wrapping
@@ -184,7 +183,6 @@ should be wrapped in a `constant_score` query or a `bool` query's filter clause.
 
 Note that the `percolate` query never gets cached by the query cache.
 
-[discrete]
 ==== Percolating multiple documents
 
 The `percolate` query can match multiple documents simultaneously with the indexed percolator queries.
@@ -267,14 +265,12 @@ GET /my-index-00001/_search
 <1> The `_percolator_document_slot` indicates that the first, second and last documents specified in the `percolate` query
     are matching with this query.
 
-[discrete]
 ==== Percolating an Existing Document
 
 In order to percolate a newly indexed document, the `percolate` query can be used. Based on the response
 from an index request, the `_id` and other meta information can be used to immediately percolate the newly added
 document.
 
-[discrete]
 ===== Example
 
 Based on the previous example.
@@ -333,14 +329,12 @@ case the search request would fail with a version conflict error.
 
 The search response returned is identical as in the previous example.
 
-[discrete]
 ==== Percolate query and highlighting
 
 The `percolate` query is handled in a special way when it comes to highlighting. The queries hits are used
 to highlight the document that is provided in the `percolate` query. Whereas with regular highlighting the query in
 the search request is used to highlight the hits.
 
-[discrete]
 ===== Example
 
 This example is based on the mapping of the first example.
@@ -561,7 +555,6 @@ The slightly different response:
 <1> The highlight fields have been prefixed with the document slot they belong to,
     in order to know which highlight field belongs to what document.
 
-[discrete]
 ==== Specifying multiple percolate queries
 
 It is possible to specify multiple `percolate` queries in a single search request:
@@ -648,7 +641,6 @@ The above search request returns a response similar to this:
 <1> The `_percolator_document_slot_query1` percolator slot field indicates that these matched slots are from the `percolate`
     query with `_name` parameter set to `query1`.
 
-[discrete]
 [[how-it-works]]
 ==== How it Works Under the Hood
 
@@ -696,6 +688,7 @@ a different index configuration, like the number of primary shards.
 
 [[percolate-query-notes]]
 ==== Notes
+
 ===== Allow expensive queries
 Percolate queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
 is set to false.

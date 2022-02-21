@@ -21,21 +21,21 @@ setup:
   - do:
       index:
         index: test-index
-        id: 1
+        id: "1"
         body:
           my_sparse_vector: {"2": 230.0, "10" : 300.33, "50": -34.8988, "113": 15.555, "4545": -200.0}
 
   - do:
       index:
         index: test-index
-        id: 2
+        id: "2"
         body:
           my_sparse_vector: {"2": -0.5, "10" : 100.0, "50": -13, "113": 14.8, "4545": -156.0}
 
   - do:
       index:
         index: test-index
-        id: 3
+        id: "3"
         body:
           my_sparse_vector: {"2": 0.5, "10" : 111.3, "50": -13.0, "113": 14.8, "4545": -156.0}
 

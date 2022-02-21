@@ -5,7 +5,7 @@
       exists:
         index: test_1
         type:  test
-        id:    1
+        id:    "1"
 
   - is_false: ''
 
@@ -13,7 +13,7 @@
       index:
         index: test_1
         type:  test
-        id:    1
+        id:    "1"
         body:  { "foo": "bar" }
 
   - is_true: ''
@@ -22,7 +22,7 @@
       exists:
         index: test_1
         type:  test
-        id:    1
+        id:    "1"
 
   - is_true: ''
 
@@ -30,7 +30,7 @@
       exists:
         index: test_1
         type: test
-        id: 1
+        id: "1"
         version: 1
 
   - is_true: ''

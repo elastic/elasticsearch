@@ -18,14 +18,14 @@
       index:
           index:   test_1
           type:    test
-          id:      1
+          id:      "1"
           body:    { foo: bar }
 
  - do:
       exists:
           index:    test_1
           type:     test
-          id:       1
+          id:       "1"
           realtime: false
 
  - is_false: ''
@@ -34,7 +34,7 @@
       exists:
           index:    test_1
           type:     test
-          id:       1
+          id:       "1"
           realtime: true
 
  - is_true: ''
@@ -43,7 +43,7 @@
       exists:
           index:    test_1
           type:     test
-          id:       1
+          id:       "1"
           realtime: false
           refresh:  true
 

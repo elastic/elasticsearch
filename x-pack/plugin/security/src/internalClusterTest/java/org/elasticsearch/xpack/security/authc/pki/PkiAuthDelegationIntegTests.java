@@ -14,12 +14,8 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
-import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
-import org.elasticsearch.client.security.PutRoleMappingRequest;
-import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -42,7 +38,6 @@ import java.nio.file.Path;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -328,36 +323,39 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                 )
             )
             .build();
+        final TestSecurityClient securityClient = getSecurityClient(testUserOptions);
+        // put role mappings for delegated PKI
+        String roleMapping = """
+            {
+                "enabled": true,
+                "roles": [ "role_by_delegated_user" ],
+                "rules": {
+                  "field": { "metadata.pki_delegated_by_user": "test_user" }
+                }
+            }
+            """;
+        securityClient.putRoleMapping("role_by_delegated_user", roleMapping);
+
+        roleMapping = """
+            {
+                "enabled": true,
+                "roles": [ "role_by_delegated_realm" ],
+                "rules": {
+                  "field": { "metadata.pki_delegated_by_realm": "file" }
+                }
+            }
+            """;
+        securityClient.putRoleMapping("role_by_delegated_realm", roleMapping);
+
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            // put role mappings for delegated PKI
-            PutRoleMappingRequest request = new PutRoleMappingRequest(
-                "role_by_delegated_user",
-                true,
-                Collections.singletonList("role_by_delegated_user"),
-                Collections.emptyList(),
-                new FieldRoleMapperExpression("metadata.pki_delegated_by_user", "test_user"),
-                null,
-                RefreshPolicy.IMMEDIATE
-            );
-            restClient.security().putRoleMapping(request, testUserOptions);
-            request = new PutRoleMappingRequest(
-                "role_by_delegated_realm",
-                true,
-                Collections.singletonList("role_by_delegated_realm"),
-                Collections.emptyList(),
-                new FieldRoleMapperExpression("metadata.pki_delegated_by_realm", "file"),
-                null,
-                RefreshPolicy.IMMEDIATE
-            );
-            restClient.security().putRoleMapping(request, testUserOptions);
             // delegate
             DelegatePkiAuthenticationResponse delegatePkiResponse = restClient.security()
                 .delegatePkiAuthentication(delegatePkiRequest, testUserOptions);
             // authenticate
-            TestSecurityClient securityClient = getSecurityClient(
+            TestSecurityClient accessTokenClient = getSecurityClient(
                 RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + delegatePkiResponse.getAccessToken()).build()
             );
-            final Map<String, Object> authenticateResponse = securityClient.authenticate();
+            final Map<String, Object> authenticateResponse = accessTokenClient.authenticate();
             assertThat(authenticateResponse, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
 
             final Map<String, Object> metadata = assertMap(authenticateResponse, Fields.METADATA);
@@ -374,20 +372,11 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             assertThat(realm, hasEntry(Fields.REALM_TYPE.getPreferredName(), "pki"));
 
             assertThat(authenticateResponse, hasEntry(Fields.AUTHENTICATION_TYPE.getPreferredName(), "token"));
-
-            // delete role mappings for delegated PKI
-            restClient.security()
-                .deleteRoleMapping(new DeleteRoleMappingRequest("role_by_delegated_user", RefreshPolicy.IMMEDIATE), testUserOptions);
-            restClient.security()
-                .deleteRoleMapping(new DeleteRoleMappingRequest("role_by_delegated_realm", RefreshPolicy.IMMEDIATE), testUserOptions);
         }
-    }
 
-    private Object evaluate(Map<String, Object> map, ParseField... fields) {
-        for (int i = 0; i < fields.length - 1; i++) {
-            map = assertMap(map, fields[i]);
-        }
-        return map.get(fields[fields.length - 1]);
+        // delete role mappings for delegated PKI
+        securityClient.deleteRoleMapping("role_by_delegated_user");
+        securityClient.deleteRoleMapping("role_by_delegated_realm");
     }
 
     public void testIncorrectCertChain() throws Exception {

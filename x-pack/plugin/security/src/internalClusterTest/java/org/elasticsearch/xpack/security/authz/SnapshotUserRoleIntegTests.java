@@ -7,22 +7,19 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
+import org.elasticsearch.test.TestSecurityClient;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -106,21 +103,15 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testSnapshotUserRoleIsReserved() {
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> restClient.security()
-                .putRole(
-                    new PutRoleRequest(Role.builder().name("snapshot_user").build(), RefreshPolicy.IMMEDIATE),
-                    SECURITY_REQUEST_OPTIONS
-                )
+        final TestSecurityClient securityClient = getSecurityClient(SECURITY_REQUEST_OPTIONS);
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> securityClient.putRole(new RoleDescriptor("snapshot_user", new String[] { "all" }, null, new String[] { "*" }))
         );
         assertThat(e.getMessage(), containsString("role [snapshot_user] is reserved and cannot be modified"));
-        e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> restClient.security()
-                .deleteRole(new DeleteRoleRequest("snapshot_user", RefreshPolicy.IMMEDIATE), SECURITY_REQUEST_OPTIONS)
-        );
+
+        e = expectThrows(ResponseException.class, () -> securityClient.deleteRole("snapshot_user"));
         assertThat(e.getMessage(), containsString("role [snapshot_user] is reserved and cannot be deleted"));
     }
 

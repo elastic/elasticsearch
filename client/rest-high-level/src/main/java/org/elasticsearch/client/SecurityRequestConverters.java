@@ -11,19 +11,12 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
-import org.elasticsearch.client.security.DeleteRoleMappingRequest;
-import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
-import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
-import org.elasticsearch.client.security.PutPrivilegesRequest;
-import org.elasticsearch.client.security.PutRoleMappingRequest;
-import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -34,18 +27,6 @@ import static org.elasticsearch.client.RequestConverters.createEntity;
 final class SecurityRequestConverters {
 
     private SecurityRequestConverters() {}
-
-    static Request putRoleMapping(final PutRoleMappingRequest putRoleMappingRequest) throws IOException {
-        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/role_mapping")
-            .addPathPart(putRoleMappingRequest.getName())
-            .build();
-        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(putRoleMappingRequest, REQUEST_BODY_CONTENT_TYPE));
-        final RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(putRoleMappingRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
-        return request;
-    }
 
     static Request clearRealmCache(ClearRealmCacheRequest clearRealmCacheRequest) {
         RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/realm");
@@ -64,37 +45,6 @@ final class SecurityRequestConverters {
         return request;
     }
 
-    static Request deleteRoleMapping(DeleteRoleMappingRequest deleteRoleMappingRequest) {
-        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/role_mapping")
-            .addPathPart(deleteRoleMappingRequest.getName())
-            .build();
-        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        final RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(deleteRoleMappingRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request deleteRole(DeleteRoleRequest deleteRoleRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/role")
-            .addPathPart(deleteRoleRequest.getName())
-            .build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request getRoles(GetRolesRequest getRolesRequest) {
-        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder();
-        builder.addPathPartAsIs("_security/role");
-        if (getRolesRequest.getRoleNames().size() > 0) {
-            builder.addPathPart(Strings.collectionToCommaDelimitedString(getRolesRequest.getRoleNames()));
-        }
-        return new Request(HttpGet.METHOD_NAME, builder.build());
-    }
-
     static Request createToken(CreateTokenRequest createTokenRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_security/oauth2/token");
         request.setEntity(createEntity(createTokenRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -110,27 +60,6 @@ final class SecurityRequestConverters {
     static Request invalidateToken(InvalidateTokenRequest invalidateTokenRequest) throws IOException {
         Request request = new Request(HttpDelete.METHOD_NAME, "/_security/oauth2/token");
         request.setEntity(createEntity(invalidateTokenRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request putPrivileges(final PutPrivilegesRequest putPrivilegesRequest) throws IOException {
-        Request request = new Request(HttpPut.METHOD_NAME, "/_security/privilege");
-        request.setEntity(createEntity(putPrivilegesRequest, REQUEST_BODY_CONTENT_TYPE));
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(putPrivilegesRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request putRole(final PutRoleRequest putRoleRequest) throws IOException {
-        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/role")
-            .addPathPart(putRoleRequest.getRole().getName())
-            .build();
-        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(putRoleRequest, REQUEST_BODY_CONTENT_TYPE));
-        final RequestConverters.Params params = new RequestConverters.Params();
-        params.withRefreshPolicy(putRoleRequest.getRefreshPolicy());
-        request.addParameters(params.asMap());
         return request;
     }
 

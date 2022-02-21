@@ -255,6 +255,18 @@ public class Maps {
         return new HashMap<>(capacity(expectedSize));
     }
 
+    /**
+     * Returns a linked hash map with a capacity sufficient to keep expectedSize elements without being resized.
+     *
+     * @param expectedSize the expected amount of elements in the map
+     * @param <K> the key type
+     * @param <V> the value type
+     * @return a new pre-sized {@link LinkedHashMap}
+     */
+    public static <K, V> LinkedHashMap<K, V> newLinkedHashMapWithExpectedSize(int expectedSize) {
+        return new LinkedHashMap<>(capacity(expectedSize));
+    }
+
     static int capacity(int expectedSize) {
         assert expectedSize >= 0;
         return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);

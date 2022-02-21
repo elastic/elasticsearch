@@ -19,7 +19,6 @@ import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
-import org.gradle.api.internal.artifacts.ArtifactAttributes;
 
 import java.util.Arrays;
 
@@ -40,10 +39,10 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
         project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
             transformSpec.getFrom()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE)
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
                 .attribute(jdkAttribute, true);
             transformSpec.getTo()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
                 .attribute(jdkAttribute, true);
             transformSpec.parameters(parameters -> parameters.setTrimmedPrefixPattern(JDK_TRIMMED_PREFIX));
         });
@@ -51,10 +50,10 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         ArtifactTypeDefinition tarArtifactTypeDefinition = project.getDependencies().getArtifactTypes().maybeCreate("tar.gz");
         project.getDependencies().registerTransform(SymbolicLinkPreservingUntarTransform.class, transformSpec -> {
             transformSpec.getFrom()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, tarArtifactTypeDefinition.getName())
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, tarArtifactTypeDefinition.getName())
                 .attribute(jdkAttribute, true);
             transformSpec.getTo()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
                 .attribute(jdkAttribute, true);
             transformSpec.parameters(parameters -> {
                 parameters.setTrimmedPrefixPattern(JDK_TRIMMED_PREFIX);
@@ -65,7 +64,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         NamedDomainObjectContainer<Jdk> jdksContainer = project.container(Jdk.class, name -> {
             Configuration configuration = project.getConfigurations().create("jdk_" + name);
             configuration.setCanBeConsumed(false);
-            configuration.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+            configuration.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
             configuration.getAttributes().attribute(jdkAttribute, true);
             Jdk jdk = new Jdk(name, configuration, project.getObjects());
             configuration.defaultDependencies(dependencies -> {

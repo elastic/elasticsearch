@@ -30,7 +30,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
@@ -459,7 +458,7 @@ public abstract class MappedFieldType {
 
     protected final void failIfNotIndexedNorDocValuesFallback(SearchExecutionContext context) {
         if (docValues == false
-            && context.indexVersionCreated().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+            && context.indexVersionCreated().isLegacyIndexVersion()) {
             throw new IllegalArgumentException(
                 "Cannot search on field [" + name() + "] of legacy index since it does not have doc values."
             );

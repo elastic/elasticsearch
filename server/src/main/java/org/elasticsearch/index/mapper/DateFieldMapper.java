@@ -326,7 +326,7 @@ public final class DateFieldMapper extends FieldMapper {
         public DateFieldMapper build(MapperBuilderContext context) {
             DateFieldType ft = new DateFieldType(
                 context.buildFullName(name()),
-                index.getValue() && indexCreatedVersion.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()),
+                index.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 store.getValue(),
                 docValues.getValue(),
                 buildFormatter(),

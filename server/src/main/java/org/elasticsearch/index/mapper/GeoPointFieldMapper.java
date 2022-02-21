@@ -149,7 +149,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             }, nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
             GeoPointFieldType ft = new GeoPointFieldType(
                 context.buildFullName(name),
-                indexed.get() && indexCreatedVersion.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()),
+                indexed.get() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.get(),
                 hasDocValues.get(),
                 geoParser,

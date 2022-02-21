@@ -118,7 +118,7 @@ public class BooleanFieldMapper extends FieldMapper {
         public BooleanFieldMapper build(MapperBuilderContext context) {
             MappedFieldType ft = new BooleanFieldType(
                 context.buildFullName(name),
-                indexed.getValue() && indexCreatedVersion.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()),
+                indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.getValue(),
                 docValues.getValue(),
                 nullValue.getValue(),

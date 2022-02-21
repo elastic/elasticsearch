@@ -501,7 +501,7 @@ public final class NodeEnvironment implements Closeable {
 
         logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
 
-        if (metadata.oldestIndexVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+        if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
             throw new IllegalStateException(
                 "cannot upgrade node because incompatible indices created with version ["
                     + metadata.oldestIndexVersion()

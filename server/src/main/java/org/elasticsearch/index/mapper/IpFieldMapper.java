@@ -159,7 +159,7 @@ public class IpFieldMapper extends FieldMapper {
                 name,
                 new IpFieldType(
                     context.buildFullName(name),
-                    indexed.getValue() && indexCreatedVersion.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()),
+                    indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                     stored.getValue(),
                     hasDocValues.getValue(),
                     parseNullValue(),

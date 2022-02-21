@@ -11,7 +11,6 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -69,10 +68,6 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
         License.OperationMode.ENTERPRISE
     );
 
-    public static boolean isArchiveIndex(Version version) {
-        return version.before(Version.CURRENT.minimumIndexCompatibilityVersion());
-    }
-
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
 
     @Override
@@ -120,7 +115,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        if (isArchiveIndex(indexModule.indexSettings().getIndexVersionCreated())) {
+        if (indexModule.indexSettings().getIndexVersionCreated().isLegacyIndexVersion()) {
             indexModule.addIndexEventListener(new IndexEventListener() {
                 @Override
                 public void afterFilesRestoredFromRepository(IndexShard indexShard) {
@@ -135,7 +130,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
     @Override
     public Consumer<IndexMetadata> addPreRestoreCheck() {
         return indexMetadata -> {
-            if (isArchiveIndex(indexMetadata.getCreationVersion())) {
+            if (indexMetadata.getCreationVersion().isLegacyIndexVersion()) {
                 if (ARCHIVE_FEATURE.checkWithoutTracking(getLicenseState()) == false) {
                     throw LicenseUtils.newComplianceException("archive");
                 }

@@ -1236,7 +1236,7 @@ public class NumberFieldMapper extends FieldMapper {
             this(
                 name,
                 builder.type,
-                builder.indexed.getValue() && builder.indexCreatedVersion.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()),
+                builder.indexed.getValue() && builder.indexCreatedVersion.isLegacyIndexVersion() == false,
                 builder.stored.getValue(),
                 builder.hasDocValues.getValue(),
                 builder.coerce.getValue().value(),

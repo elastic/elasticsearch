@@ -303,8 +303,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         ) {
             super(
                 name,
-                fieldType.indexOptions() != IndexOptions.NONE
-                    && builder.indexCreatedVersion.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()),
+                fieldType.indexOptions() != IndexOptions.NONE && builder.indexCreatedVersion.isLegacyIndexVersion() == false,
                 fieldType.stored(),
                 builder.hasDocValues.getValue(),
                 new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, quoteAnalyzer),

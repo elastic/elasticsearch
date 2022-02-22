@@ -25,7 +25,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -300,16 +299,16 @@ public class FeatureMigrationIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     clusterStateUpdated.countDown();
                 }
 
                 @Override
-                public void onFailure(Exception e) {
+                public void onFailure(String source, Exception e) {
                     failure.set(e);
                     clusterStateUpdated.countDown();
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
 
         clusterStateUpdated.await(10, TimeUnit.SECONDS); // Should be basically instantaneous
         if (failure.get() != null) {

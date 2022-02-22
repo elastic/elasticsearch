@@ -124,6 +124,7 @@ public class MetadataIndexStateService {
     private final ThreadPool threadPool;
     private final ActiveShardsObserver activeShardsObserver;
     private final ClusterStateTaskExecutor<OpenIndicesTask> opensExecutor;
+    private final ClusterStateTaskExecutor<AddBlocksToCloseTask> addBlocksToCloseExecutor;
 
     @Inject
     public MetadataIndexStateService(
@@ -144,6 +145,7 @@ public class MetadataIndexStateService {
         this.threadPool = threadPool;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.opensExecutor = new OpenIndicesExecutor();
+        this.addBlocksToCloseExecutor = new AddBlocksToCloseExecutor();
     }
 
     /**
@@ -157,24 +159,16 @@ public class MetadataIndexStateService {
             throw new IllegalArgumentException("Index name is required");
         }
 
+        final Map<Index, ClusterBlock> blockedIndices = new HashMap<>(request.indices().length);
+
         clusterService.submitStateUpdateTask(
             "add-block-index-to-close " + Arrays.toString(request.indices()),
-            new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
-
-                private final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
-
+            new AddBlocksToCloseTask(request, blockedIndices, new ActionListener<>() {
                 @Override
-                public ClusterState execute(final ClusterState currentState) {
-                    return addIndexClosedBlocks(request.indices(), blockedIndices, currentState);
-                }
-
-                @Override
-                public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
-                    if (oldState == newState) {
-                        assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
+                public void onResponse(ClusterState clusterState) {
+                    if (blockedIndices.isEmpty()) {
                         listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
                     } else {
-                        assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)
                             .execute(
                                 new WaitForClosedBlocksApplied(
@@ -224,8 +218,8 @@ public class MetadataIndexStateService {
                                                             shardsAcknowledged -> {
                                                                 if (shardsAcknowledged == false) {
                                                                     logger.debug(
-                                                                        "[{}] indices closed, but the operation timed out while waiting "
-                                                                            + "for enough shards to be started.",
+                                                                        "[{}] indices closed, but the operation timed out while "
+                                                                            + "waiting for enough shards to be started.",
                                                                         Arrays.toString(waitForIndices)
                                                                     );
                                                                 }
@@ -257,8 +251,9 @@ public class MetadataIndexStateService {
                 public void onFailure(final Exception e) {
                     listener.onFailure(e);
                 }
-            },
-            ClusterStateTaskExecutor.unbatched()
+            }),
+            ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
+            this.addBlocksToCloseExecutor
         );
     }
 
@@ -1171,6 +1166,44 @@ public class MetadataIndexStateService {
         @Override
         public TimeValue ackTimeout() {
             return request.ackTimeout();
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "not called";
+        }
+    }
+
+    private class AddBlocksToCloseExecutor implements ClusterStateTaskExecutor<AddBlocksToCloseTask> {
+
+        @Override
+        public ClusterTasksResult<AddBlocksToCloseTask> execute(ClusterState currentState, List<AddBlocksToCloseTask> tasks)
+            throws Exception {
+            ClusterTasksResult.Builder<AddBlocksToCloseTask> builder = ClusterTasksResult.builder();
+            ClusterState state = currentState;
+
+            for (AddBlocksToCloseTask task : tasks) {
+                try {
+                    state = addIndexClosedBlocks(task.request.indices(), task.blockedIndices(), state);
+                    builder.success(task, task.listener());
+                } catch (Exception e) {
+                    builder.failure(task, e);
+                }
+            }
+
+            return builder.build(state);
+        }
+    }
+
+    private record AddBlocksToCloseTask(
+        CloseIndexClusterStateUpdateRequest request,
+        Map<Index, ClusterBlock> blockedIndices,
+        ActionListener<ClusterState> listener
+    ) implements ClusterStateTaskListener {
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
         }
 
         @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -20,6 +21,10 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.hamcrest.core.IsInstanceOf;
@@ -45,6 +50,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -53,11 +59,16 @@ import static org.hamcrest.core.Is.is;
 
 public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
     private DatafeedConfigProvider datafeedConfigProvider;
+    private String dummyAuthenticationHeader;
 
     @Before
     public void createComponents() throws Exception {
-        datafeedConfigProvider = new DatafeedConfigProvider(client(), xContentRegistry());
+        datafeedConfigProvider = new DatafeedConfigProvider(client(), xContentRegistry(), getInstanceFromNode(ClusterService.class));
         waitForMlTemplates();
+        dummyAuthenticationHeader = Authentication.newRealmAuthentication(
+            new User("dummy"),
+            new Authentication.RealmRef("name", "type", "node")
+        ).encode();
     }
 
     public void testCrud() throws InterruptedException {
@@ -94,10 +105,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedId);
         List<String> updateIndices = Collections.singletonList("a-different-index");
         update.setIndices(updateIndices);
-        Map<String, String> updateHeaders = new HashMap<>();
-        // Only security headers are updated, grab the first one
-        String securityHeader = ClientHelper.SECURITY_HEADER_FILTERS.iterator().next();
-        updateHeaders.put(securityHeader, "CHANGED");
+        Map<String, String> updateHeaders = createSecurityHeader();
 
         AtomicReference<DatafeedConfig> configHolder = new AtomicReference<>();
         blockingCall(
@@ -113,7 +121,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         );
         assertNull(exceptionHolder.get());
         assertThat(configHolder.get().getIndices(), equalTo(updateIndices));
-        assertThat(configHolder.get().getHeaders().get(securityHeader), equalTo("CHANGED"));
+        updateHeaders.forEach((key, value) -> assertThat(configHolder.get().getHeaders(), hasEntry(key, value)));
 
         // Read the updated config
         configBuilderHolder.set(null);
@@ -124,7 +132,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         );
         assertNull(exceptionHolder.get());
         assertThat(configBuilderHolder.get().build().getIndices(), equalTo(updateIndices));
-        assertThat(configBuilderHolder.get().build().getHeaders().get(securityHeader), equalTo("CHANGED"));
+        updateHeaders.forEach((key, value) -> assertThat(configHolder.get().getHeaders(), hasEntry(key, value)));
 
         // Delete
         AtomicReference<DeleteResponse> deleteResponseHolder = new AtomicReference<>();
@@ -498,7 +506,11 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         Map<String, String> headers = new HashMap<>();
         // Only security headers are updated, grab the first one
         String securityHeader = ClientHelper.SECURITY_HEADER_FILTERS.iterator().next();
-        headers.put(securityHeader, "SECURITY_");
+        if (Set.of(AuthenticationField.AUTHENTICATION_KEY, SecondaryAuthentication.THREAD_CTX_KEY).contains(securityHeader)) {
+            headers.put(securityHeader, dummyAuthenticationHeader);
+        } else {
+            headers.put(securityHeader, "SECURITY_");
+        }
         return headers;
     }
 

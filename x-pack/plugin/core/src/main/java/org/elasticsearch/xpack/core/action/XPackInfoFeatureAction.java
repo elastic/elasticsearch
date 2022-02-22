@@ -47,6 +47,7 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
     public static final XPackInfoFeatureAction DATA_STREAMS = new XPackInfoFeatureAction(XPackField.DATA_STREAMS);
     public static final XPackInfoFeatureAction DATA_TIERS = new XPackInfoFeatureAction(XPackField.DATA_TIERS);
     public static final XPackInfoFeatureAction AGGREGATE_METRIC = new XPackInfoFeatureAction(XPackField.AGGREGATE_METRIC);
+    public static final XPackInfoFeatureAction ARCHIVE = new XPackInfoFeatureAction(XPackField.ARCHIVE);
 
     public static final List<XPackInfoFeatureAction> ALL;
     static {
@@ -74,7 +75,8 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
                 DATA_STREAMS,
                 SEARCHABLE_SNAPSHOTS,
                 DATA_TIERS,
-                AGGREGATE_METRIC
+                AGGREGATE_METRIC,
+                ARCHIVE
             )
         );
         ALL = Collections.unmodifiableList(actions);

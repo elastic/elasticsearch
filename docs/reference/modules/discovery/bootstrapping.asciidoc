@@ -75,7 +75,7 @@ configuration. If each node name is a fully-qualified domain name such as
 `master-a.example.com` then you must use fully-qualified domain names in the
 `cluster.initial_master_nodes` list too; conversely if your node names are bare
 hostnames (without the `.example.com` suffix) then you must use bare hostnames
-in the `cluster.initial_master_nodes` list. If you use a mix of fully-qualifed
+in the `cluster.initial_master_nodes` list. If you use a mix of fully-qualified
 and bare hostnames, or there is some other mismatch between `node.name` and
 `cluster.initial_master_nodes`, then the cluster will not form successfully and
 you will see log messages like the following.

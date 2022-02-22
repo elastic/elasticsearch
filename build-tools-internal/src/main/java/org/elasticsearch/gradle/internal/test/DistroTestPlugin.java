@@ -35,7 +35,6 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
-import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Specs;
@@ -313,7 +312,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private static Configuration configureExamplePlugin(Project project) {
         Configuration examplePlugin = project.getConfigurations().create(EXAMPLE_PLUGIN_CONFIGURATION);
-        examplePlugin.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
+        examplePlugin.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
         DependencyHandler deps = project.getDependencies();
         deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(Map.of("path", ":plugins:analysis-icu", "configuration", "zip")));
         return examplePlugin;

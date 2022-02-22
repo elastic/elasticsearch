@@ -367,6 +367,7 @@ public class DoSection implements ExecutableSection {
             final String testPath = executionContext.getClientYamlTestCandidate() != null
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
+            checkElasticProductHeader(response.getHeaders("X-elastic-product"));
             checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch (ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
@@ -389,6 +390,31 @@ public class DoSection implements ExecutableSection {
             } else {
                 throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
             }
+        }
+    }
+
+    void checkElasticProductHeader(final List<String> productHeaders) {
+        if (productHeaders.isEmpty()) {
+            fail("Response is missing required X-Elastic-Product response header");
+        }
+        boolean headerPresent = false;
+        final List<String> unexpected = new ArrayList<>();
+        for (String header : productHeaders) {
+            if (header.equals("Elasticsearch")) {
+                headerPresent = true;
+                break;
+            } else {
+                unexpected.add(header);
+            }
+        }
+        if (headerPresent == false) {
+            StringBuilder failureMessage = new StringBuilder();
+            appendBadHeaders(
+                failureMessage,
+                unexpected,
+                "did not get expected product header [Elasticsearch], found header" + (unexpected.size() > 1 ? "s" : "")
+            );
+            fail(failureMessage.toString());
         }
     }
 

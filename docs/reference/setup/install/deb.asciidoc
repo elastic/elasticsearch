@@ -130,7 +130,9 @@ sudo dpkg -i elasticsearch-{version}-amd64.deb
 
 endif::[]
 
-[[deb-security-configuration]]
+// Set a `distro` attribute so we can reuse files containing anchors
+:distro: deb
+[id="deb-security-configuration"]
 include::package-security.asciidoc[]
 
 ifdef::include-xpack[]
@@ -142,7 +144,7 @@ include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
-[[deb-running-systemd]]
+[id="{distro}-running-systemd"]
 include::systemd.asciidoc[]
 
 [[deb-check-running]]

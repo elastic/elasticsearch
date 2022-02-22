@@ -290,14 +290,17 @@ means the document came from the local cluster.
 [[skip-unavailable-clusters]]
 === Skip unavailable clusters
 
-By default, a {ccs} returns an error if a remote cluster in the request is
-unavailable. You can override this default for a specific remote cluster using
-the <<skip-unavailable,`skip_unavailable`>> cluster setting.
+By default, a {ccs} request fails if a remote cluster in the request is
+unavailable. You can the `skip_unavailable` cluster setting to mark a specific
+remote cluster as optional in cross-cluster searches.
 
 If `skip_unavailable` is `true`, a {ccs}:
 
-* Skips the remote cluster if it's unavailable during the search. The response's
-`_cluster.skipped` value contains a count of any skipped clusters.
+* Skips the remote cluster if its nodes are unavailable during the search. The
+response's `_cluster.skipped` value contains a count of any skipped clusters.
+
+* Ignores errors, such as errors related to unavailable shards or indices,
+returned by the remote cluster.
 
 * Ignores the <<search-partial-responses,`allow_partial_search_results`>>
 parameter and the related `search.default_allow_partial_results` cluster setting

@@ -193,7 +193,7 @@ public class FollowersChecker {
             throw new CoordinationStateRejectedException("rejecting " + request + " since local state is " + this);
         }
 
-        transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+        transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws IOException {
                 logger.trace("responding to {} on slow path", request);
@@ -358,7 +358,7 @@ public class FollowersChecker {
         }
 
         void failNode(String reason) {
-            transportService.getThreadPool().generic().execute(new Runnable() {
+            transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new Runnable() {
                 @Override
                 public void run() {
                     synchronized (mutex) {

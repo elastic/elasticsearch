@@ -84,7 +84,7 @@ public class ClusterFormationFailureHelper {
         }
 
         void scheduleNextWarning() {
-            threadPool.scheduleUnlessShuttingDown(clusterFormationWarningTimeout, Names.GENERIC, new AbstractRunnable() {
+            threadPool.scheduleUnlessShuttingDown(clusterFormationWarningTimeout, Names.CLUSTER_COORDINATION, new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("unexpected exception scheduling cluster formation warning", e);

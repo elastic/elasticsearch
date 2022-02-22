@@ -223,14 +223,10 @@ public class GeometryIndexerTests extends ESTestCase {
         assertTrue(geometry instanceof MultiPolygon);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84212")
     public void testPolygonAllCollinearPoints() {
         Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 1, -1, 0 }, new double[] { 0, 1, -1, 0 }));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexer.indexShape(polygon));
-        assertEquals(
-            "Unable to Tessellate shape [[1.0, 1.0] [-1.0, -1.0] [0.0, 0.0] [1.0, 1.0] ]. Possible malformed shape detected.",
-            e.getMessage()
-        );
+        assertEquals("Unable to Tessellate shape. Possible malformed shape detected.", e.getMessage());
     }
 
     private XContentBuilder polygon(Boolean orientation, double... val) throws IOException {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -14,6 +16,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
@@ -25,6 +28,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -106,12 +110,9 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         setupJobAndDatafeed(jobId, datafeedId, endTimeMs);
         // Datafeed should complete and auto-close the job
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse = client(LOCAL_CLUSTER).execute(
-                GetJobsStatsAction.INSTANCE,
-                new GetJobsStatsAction.Request(jobId)
-            ).actionGet();
-            assertThat(statsResponse.getResponse().results().get(0).getState(), is(JobState.CLOSED));
-            assertThat(statsResponse.getResponse().results().get(0).getDataCounts().getProcessedRecordCount(), is(numDocs));
+            JobStats jobStats = getJobStats(jobId);
+            assertThat(jobStats.getState(), is(JobState.CLOSED));
+            assertThat(jobStats.getDataCounts().getProcessedRecordCount(), is(numDocs));
         }, 30, TimeUnit.SECONDS);
         clearSkipUnavailable();
     }
@@ -123,32 +124,34 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         long numDocs = randomIntBetween(32, 2048);
         indexRemoteDocs(numDocs);
         setupJobAndDatafeed(jobId, datafeedId, null);
-        // TODO - remove logging
-        logger.info("before remote disruption starts");
-        NetworkDisruption networkDisruption = new NetworkDisruption(
-            new NetworkDisruption.IsolateAllNodes(Set.of(cluster(REMOTE_CLUSTER).getNodeNames())),
-            NetworkDisruption.DISCONNECT
-        );
-        cluster(REMOTE_CLUSTER).setDisruptionScheme(networkDisruption);
-        networkDisruption.startDisrupting();
-        logger.info("after remote disruption starts");
-        // TODO - change this to wait for the audit message "Datafeed is encountering errors extracting data" to be indexed
-        Thread.sleep(5000);
-        logger.info("before remote disruption ends");
-        networkDisruption.removeAndEnsureHealthy(cluster(REMOTE_CLUSTER));
-        logger.info("after remote disruption ends");
-        // Datafeed should eventually read all the docs
-        assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse = client(LOCAL_CLUSTER).execute(
-                GetJobsStatsAction.INSTANCE,
-                new GetJobsStatsAction.Request(jobId)
-            ).actionGet();
-            assertThat(statsResponse.getResponse().results().get(0).getState(), is(JobState.OPENED));
-            assertThat(statsResponse.getResponse().results().get(0).getDataCounts().getProcessedRecordCount(), is(numDocs));
-        }, 30, TimeUnit.SECONDS);
-        client(LOCAL_CLUSTER).execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).actionGet();
-        client(LOCAL_CLUSTER).execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId)).actionGet();
-        clearSkipUnavailable();
+        try {
+            NetworkDisruption networkDisruption = new NetworkDisruption(
+                new NetworkDisruption.IsolateAllNodes(Set.of(cluster(REMOTE_CLUSTER).getNodeNames())),
+                NetworkDisruption.DISCONNECT
+            );
+            cluster(REMOTE_CLUSTER).setDisruptionScheme(networkDisruption);
+            networkDisruption.startDisrupting();
+            // Wait until the datafeed suffers from the disruption OR processes all the documents.
+            // (Sometimes this test won't actually test the desired functionality, as it's possible
+            // that the datafeed processes all data before the disruption starts.)
+            assertBusy(() -> {
+                if (doesLocalAuditMessageExist("Datafeed is encountering errors extracting data") == false) {
+                    JobStats jobStats = getJobStats(jobId);
+                    assertThat(jobStats.getDataCounts().getProcessedRecordCount(), is(numDocs));
+                }
+            });
+            networkDisruption.removeAndEnsureHealthy(cluster(REMOTE_CLUSTER));
+            // Datafeed should eventually read all the docs
+            assertBusy(() -> {
+                JobStats jobStats = getJobStats(jobId);
+                assertThat(jobStats.getState(), is(JobState.OPENED));
+                assertThat(jobStats.getDataCounts().getProcessedRecordCount(), is(numDocs));
+            }, 30, TimeUnit.SECONDS);
+        } finally {
+            client(LOCAL_CLUSTER).execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).actionGet();
+            client(LOCAL_CLUSTER).execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId)).actionGet();
+            clearSkipUnavailable();
+        }
     }
 
     /**
@@ -162,6 +165,26 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         long twoWeeksAgo = weekAgo - 604800000;
         BaseMlIntegTestCase.indexDocs(client(REMOTE_CLUSTER), logger, DATA_INDEX, numDocs, twoWeeksAgo, weekAgo);
         return weekAgo;
+    }
+
+    private boolean doesLocalAuditMessageExist(String message) {
+        try {
+            SearchResponse response = client(LOCAL_CLUSTER).prepareSearch(".ml-notifications*")
+                .setQuery(new MatchPhraseQueryBuilder("message", message))
+                .execute()
+                .actionGet();
+            return response.getHits().getTotalHits().value > 0;
+        } catch (ElasticsearchException e) {
+            return false;
+        }
+    }
+
+    private JobStats getJobStats(String jobId) {
+        return client(LOCAL_CLUSTER).execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId))
+            .actionGet()
+            .getResponse()
+            .results()
+            .get(0);
     }
 
     /**

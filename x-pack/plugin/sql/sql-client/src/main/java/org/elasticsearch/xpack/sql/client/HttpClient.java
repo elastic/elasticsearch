@@ -100,7 +100,7 @@ public class HttpClient {
     public boolean queryClose(String cursor, Mode mode) throws SQLException {
         SqlClearCursorResponse response = post(
             CoreProtocol.CLEAR_CURSOR_REST_ENDPOINT,
-            new SqlClearCursorRequest(cursor, new RequestInfo(mode)),
+            new SqlClearCursorRequest(cursor, new RequestInfo(mode), cfg.binaryCommunication()),
             Payloads::parseClearCursorResponse
         );
         return response.isSucceeded();

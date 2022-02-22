@@ -11,7 +11,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
@@ -40,7 +39,11 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
             sqlRequest = SqlClearCursorRequest.fromXContent(parser);
         }
 
-        return channel -> client.executeLocally(SqlClearCursorAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
+        return channel -> client.executeLocally(
+            SqlClearCursorAction.INSTANCE,
+            sqlRequest,
+            new SqlClearCursorResponseListener(channel, request, sqlRequest)
+        );
     }
 
     @Override

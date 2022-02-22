@@ -14,14 +14,20 @@ import java.util.Objects;
 public class SqlClearCursorRequest extends AbstractSqlRequest {
 
     private final String cursor;
+    private final boolean binaryCommunication;
 
-    public SqlClearCursorRequest(String cursor, RequestInfo requestInfo) {
+    public SqlClearCursorRequest(String cursor, RequestInfo requestInfo, boolean binaryMode) {
         super(requestInfo);
         this.cursor = cursor;
+        this.binaryCommunication = binaryMode;
     }
 
     public String getCursor() {
         return cursor;
+    }
+
+    public boolean isBinaryCommunication() {
+        return binaryCommunication;
     }
 
     @Override

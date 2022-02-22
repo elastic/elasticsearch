@@ -62,7 +62,8 @@ public class SqlRequestParsersTests extends ESTestCase {
               "cursor": "whatever",
               "mode": "%s",
               "client_id": "bla",
-              "version": "1.2.3"
+              "version": "1.2.3",
+              "binary_format": true
             }""".formatted(randomMode), SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
         assertNull(request.version());

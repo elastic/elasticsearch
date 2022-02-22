@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
@@ -43,6 +44,19 @@ public class SqlMediaTypeParser {
             return XContentType.CBOR;
         } else if (request.hasParam(URL_PARAM_FORMAT)) {
             return validateColumnarRequest(sqlRequest.columnar(), mediaTypeFromParams(request), request);
+        }
+
+        return mediaTypeFromHeaders(request);
+    }
+
+    /*
+     * see getResponseMediaType(RestRequest, SqlQueryRequest)
+     */
+    public static MediaType getResponseMediaType(RestRequest request, SqlClearCursorRequest sqlRequest) {
+        if (Mode.isDedicatedClient(sqlRequest.requestInfo().mode())
+            && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
+            // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
+            return XContentType.CBOR;
         }
 
         return mediaTypeFromHeaders(request);

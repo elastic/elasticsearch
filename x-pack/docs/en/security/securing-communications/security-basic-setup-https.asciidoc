@@ -150,49 +150,7 @@ traffic between your browser and {kib}, and then encrypt traffic between
 {kib} and {es}.
 
 [[encrypt-kibana-elasticsearch]]
-===== Encrypt traffic between {kib} and {es}
 
-When you ran the `elasticsearch-certutil` tool with the `http` option, it
-created a `/kibana` directory containing an `elasticsearch-ca.pem` file. You
-use this file to configure {kib} to trust the {es} CA for the HTTP
-layer.
-
-. Copy the `elasticsearch-ca.pem` file to the {kib} configuration directory,
-as defined by the `$KBN_PATH_CONF` path.
-
-. Open `kibana.yml` and add the following line to specify the location of the
-security certificate for the HTTP layer.
-+
-[source,yaml]
-----
-elasticsearch.ssl.certificateAuthorities: $KBN_PATH_CONF/elasticsearch-ca.pem
-----
-
-. Add the following line to specify the HTTPS URL for your {es}
-cluster.
-+
-[source,yaml]
-----
-elasticsearch.hosts: https://<your_elasticsearch_host>:9200
-----
-
-. Restart {kib}.
-
-.Connect to a secure monitoring cluster
-****
-If the Elastic monitoring features are enabled and you configured a separate
-{es} monitoring cluster, you can also configure {kib} to connect to
-the monitoring cluster via HTTPS. The steps are the same, but each setting is
-prefixed by `monitoring`. For example, `monitoring.ui.elasticsearch.hosts` and
-`monitoring.ui.elasticsearch.ssl.truststore.path`.
-
-NOTE: You must create a separate `elasticsearch-ca.pem` security file for the
-monitoring cluster.
-****
-
-**Next**: <<encrypt-kibana-browser,Encrypt traffic between your browser and {kib}>>
-
-[[encrypt-kibana-browser]]
 ===== Encrypt traffic between your browser and {kib}
 
 You create a server certificate and private key for {kib}. {kib} uses this
@@ -270,6 +228,46 @@ server.ssl.enabled: true
 
 NOTE: After making these changes, you must always access {kib} via HTTPS. For
 example, `https://<your_kibana_host>.com`.
+
+===== Encrypt traffic between {kib} and {es}
+
+When you ran the `elasticsearch-certutil` tool with the `http` option, it
+created a `/kibana` directory containing an `elasticsearch-ca.pem` file. You
+use this file to configure {kib} to trust the {es} CA for the HTTP
+layer.
+
+. Copy the `elasticsearch-ca.pem` file to the {kib} configuration directory,
+as defined by the `$KBN_PATH_CONF` path.
+
+. Open `kibana.yml` and add the following line to specify the location of the
+security certificate for the HTTP layer.
++
+[source,yaml]
+----
+elasticsearch.ssl.certificateAuthorities: $KBN_PATH_CONF/elasticsearch-ca.pem
+----
+
+. Add the following line to specify the HTTPS URL for your {es}
+cluster.
++
+[source,yaml]
+----
+elasticsearch.hosts: https://<your_elasticsearch_host>:9200
+----
+
+. Restart {kib}.
+
+.Connect to a secure monitoring cluster
+****
+If the Elastic monitoring features are enabled and you configured a separate
+{es} monitoring cluster, you can also configure {kib} to connect to
+the monitoring cluster via HTTPS. The steps are the same, but each setting is
+prefixed by `monitoring`. For example, `monitoring.ui.elasticsearch.hosts` and
+`monitoring.ui.elasticsearch.ssl.truststore.path`.
+
+NOTE: You must create a separate `elasticsearch-ca.pem` security file for the
+monitoring cluster.
+****
 
 **Next**: <<configure-beats-security,Configure {beats} security>>
 

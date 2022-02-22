@@ -1072,7 +1072,7 @@ public class MetadataIndexStateService {
                         public void onFailure(Exception e) {
                             task.onFailure(e);
                         }
-                    });
+                    }, task);
                 }
             } catch (Exception e) {
                 for (OpenIndicesTask task : tasks) {

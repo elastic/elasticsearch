@@ -204,10 +204,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         out.writeVInt(numberOfNodes);
         out.writeVInt(numberOfDataNodes);
         out.writeByte(status.value());
-        out.writeVInt(indices.size());
-        for (ClusterIndexHealth indexHealth : this) {
-            indexHealth.writeTo(out);
-        }
+        out.writeMapValues(indices);
         out.writeDouble(activeShardsPercent);
     }
 

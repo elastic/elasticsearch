@@ -396,19 +396,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         out.writeBoolean(exists);
         if (exists) {
             out.writeBytesReference(source);
-            writeFields(out, documentFields);
-            writeFields(out, metaFields);
-        }
-    }
-
-    private void writeFields(StreamOutput out, Map<String, DocumentField> fields) throws IOException {
-        if (fields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(fields.size());
-            for (DocumentField field : fields.values()) {
-                field.writeTo(out);
-            }
+            out.writeMapValues(documentFields);
+            out.writeMapValues(metaFields);
         }
     }
 

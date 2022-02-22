@@ -1126,7 +1126,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
         // we avoid writing duplicate mappings twice
         if (out.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            out.writeCollection(mappingsByHash.values());
+            out.writeMapValues(mappingsByHash);
         }
         out.writeVInt(indices.size());
         final boolean writeMappingsHash = out.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);

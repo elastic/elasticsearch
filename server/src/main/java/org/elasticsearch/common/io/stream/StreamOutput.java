@@ -548,8 +548,15 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes values of a map as a collection
      */
-    public final <K, V> void writeMapValues(final Map<K, V> map, final Writer<V> valueWriter) throws IOException {
+    public final <V> void writeMapValues(final Map<?, V> map, final Writer<V> valueWriter) throws IOException {
         writeCollection(map.values(), valueWriter);
+    }
+
+    /**
+     * Writes values of a map as a collection
+     */
+    public final <V extends Writeable> void writeMapValues(final Map<?, V> map) throws IOException {
+        writeMapValues(map, (o, v) -> v.writeTo(o));
     }
 
     /**

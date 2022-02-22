@@ -14,6 +14,7 @@ import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -605,6 +606,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 doSection.getApiCallSection().getNodeSelector()
             )
         ).thenReturn(mockResponse);
+        when(context.esVersion()).thenReturn(VersionUtils.randomVersion(random()));
         when(mockResponse.getHeaders("X-elastic-product")).thenReturn(List.of("Elasticsearch"));
         doSection.execute(context);
         verify(context).callApi(

@@ -46,7 +46,9 @@ returned by the remote cluster. If `true`, the {ccs} also skips the remote
 cluster if its nodes are unavailable during the search.
 +
 If `false`, the {ccs} fails if the remote cluster returns an error or is
-unavailable. Defaults to `false`. Refer to <<skip-unavailable-clusters>>.
+unavailable. Defaults to `false`.
++
+Refer to <<skip-unavailable-clusters>>.
 
 `seeds`::
     Initial seed transport addresses of the remote cluster when sniff mode is

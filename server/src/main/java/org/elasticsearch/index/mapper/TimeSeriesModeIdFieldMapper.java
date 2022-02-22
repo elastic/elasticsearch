@@ -106,6 +106,9 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
     private static final long SEED = 0;
 
     public void createField(DocumentParserContext context, BytesRef tsid) {
+        if (context.sourceToParse().id() != null) {
+            throw new IllegalStateException("_id is not allowed to have been set by in the request or on the coordinating node");
+        }
         IndexableField[] timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampFields.length == 0) {
             throw new IllegalArgumentException(

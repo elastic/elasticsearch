@@ -10,8 +10,12 @@ package org.elasticsearch.migration;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
+import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
+import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse;
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeAction;
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +35,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This class is for testing that when restarting a node, SystemIndexMigrationTaskState can be read.
@@ -100,6 +105,22 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
                 shutdownCompleted.await(10, TimeUnit.SECONDS);// now we can release the master thread
                 return super.onNodeStopped(nodeName);
             }
+        });
+
+        assertBusy(() -> {
+            // Wait for the node we restarted to completely rejoin the cluster
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            assertThat("expected restarted node to rejoin cluster", clusterState.getNodes().size(), equalTo(2));
+
+            GetFeatureUpgradeStatusResponse statusResponse = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest()
+            ).get();
+            assertThat(
+                "expected migration to fail due to restarting only data node",
+                statusResponse.getUpgradeStatus(),
+                equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR)
+            );
         });
     }
 }

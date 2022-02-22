@@ -10,13 +10,13 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
 === Bug fixes
 
 Aggregations::
-* Fix: backward compatibility with version 7.17.0 {es-pull}83715[#83715]
+* Fix backward compatibility with 7.17.0 {es-pull}83715[#83715]
 
 Distributed::
-* [GCE Discovery] Correcly handle large zones with 500 or more instances {es-pull}83785[#83785] (issue: {es-issue}83783[#83783])
+* Correctly handle large zones with 500 or more instances {es-pull}83785[#83785] (issue: {es-issue}83783[#83783])
 
 ILM+SLM::
-* Do not allow negative age in ILM explain {es-pull}84043[#84043]
+* Do not allow negative age in explain lifecycle API response {es-pull}84043[#84043]
 
 Infra/Core::
 * Copy `trace.id` in threadcontext stash {es-pull}83218[#83218]
@@ -31,7 +31,7 @@ Machine Learning::
 * Retry anomaly detection job recovery during relocation {es-pull}83456[#83456]
 
 Packaging::
-* Add log4j-slf4j-impl to repository-azure {es-pull}83661[#83661] (issue: {es-issue}83652[#83652])
+* Add `log4j-slf4j-impl` to `repository-azure` {es-pull}83661[#83661] (issue: {es-issue}83652[#83652])
 
 Recovery::
 * Add missing `indices.recovery.internal_action_retry_timeout` to list of settings {es-pull}83354[#83354]
@@ -47,7 +47,7 @@ Security::
 * Upgrade jANSI dependency to 2.4.0 {es-pull}83566[#83566]
 
 Snapshot/Restore::
-* Move Get Snapshots Serialization to Management Pool {es-pull}83215[#83215]
+* Move get snapshots serialization to management pool {es-pull}83215[#83215]
 * Preserve context in `snapshotDeletionListeners` {es-pull}84089[#84089] (issue: {es-issue}84036[#84036])
 
 Transform::
@@ -61,7 +61,7 @@ Watcher::
 === Enhancements
 
 Infra/REST API::
-* Update YAML Rest tests to check for product header on all responses {es-pull}83290[#83290]
+* Update YAML REST tests to check for product header on all responses {es-pull}83290[#83290]
 
 Recovery::
 * Adjust `indices.recovery.max_bytes_per_sec` according to external settings {es-pull}82819[#82819]
@@ -75,6 +75,7 @@ Geo::
 
 Packaging::
 * Bump bundled JDK to 17.0.2+8 {es-pull}83243[#83243] (issue: {es-issue}83242[#83242])
+
 
 [[release-notes-8.0.0]]
 == {es} version 8.0.0

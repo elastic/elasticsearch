@@ -11,11 +11,8 @@ import de.thetaphi.forbiddenapis.cli.CliMain;
 
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.OS;
-import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
@@ -23,7 +20,6 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
-import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.CompileClasspath;
@@ -96,6 +92,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private final ProjectLayout projectLayout;
 
+    private FileCollection classpath;
+
+    private FileCollection jarsToScan;
+
+    private FileCollection forbiddenApisClasspath;
+
     @Inject
     public ThirdPartyAuditTask(
         ArchiveOperations archiveOperations,
@@ -118,8 +120,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     @InputFiles
     @PathSensitive(PathSensitivity.NAME_ONLY)
-    public Configuration getForbiddenAPIsConfiguration() {
-        return getProject().getConfigurations().getByName("forbiddenApisCliJar");
+    public FileCollection getForbiddenAPIsClasspath() {
+        return forbiddenApisClasspath;
+    }
+
+    public void setForbiddenAPIsClasspath(FileCollection forbiddenApisClasspath) {
+        this.forbiddenApisClasspath = forbiddenApisClasspath;
     }
 
     @InputFile
@@ -201,18 +207,13 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     @Classpath
     @SkipWhenEmpty
-    public Set<File> getJarsToScan() {
-        // These are SelfResolvingDependency, and some of them backed by file collections, like the Gradle API files,
-        // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
-        // err on the side of scanning these to make sure we don't miss anything
-        Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() != null && dep.getGroup().startsWith("org.elasticsearch") == false;
-        Set<File> jars = getRuntimeConfiguration().getResolvedConfiguration().getFiles(reallyThirdParty);
-        return jars;
+    public FileCollection getJarsToScan() {
+        return jarsToScan;
     }
 
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
-        Set<File> jars = getJarsToScan();
+        Set<File> jars = jarsToScan.getFiles();
         extractJars(jars, getJarExpandDir());
         final String forbiddenApisOutput = runForbiddenAPIsCli();
         final Set<String> missingClasses = new TreeSet<>();
@@ -356,11 +357,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             if (javaHome != null) {
                 spec.setExecutable(javaHome + "/bin/java");
             }
-            spec.classpath(
-                getForbiddenAPIsConfiguration(),
-                getRuntimeConfiguration(),
-                getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
-            );
+            spec.classpath(forbiddenApisClasspath, classpath);
             spec.jvmArgs("-Xmx1g");
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
@@ -386,11 +383,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
         ExecResult execResult = execOperations.javaexec(spec -> {
-            spec.classpath(
-                jdkJarHellClasspath,
-                getRuntimeConfiguration(),
-                getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
-            );
+            spec.classpath(jdkJarHellClasspath, classpath);
 
             spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
@@ -410,11 +403,11 @@ public class ThirdPartyAuditTask extends DefaultTask {
         return new TreeSet<>(Arrays.asList(jdkJarHellCheckList.split("\\r?\\n")));
     }
 
-    private Configuration getRuntimeConfiguration() {
-        Configuration runtime = getProject().getConfigurations().findByName("runtimeClasspath");
-        if (runtime == null) {
-            return getProject().getConfigurations().getByName("testCompileClasspath");
-        }
-        return runtime;
+    public void setClasspath(FileCollection classpath) {
+        this.classpath = classpath;
+    }
+
+    public void setJarsToScan(FileCollection jarsToScan) {
+        this.jarsToScan = jarsToScan;
     }
 }

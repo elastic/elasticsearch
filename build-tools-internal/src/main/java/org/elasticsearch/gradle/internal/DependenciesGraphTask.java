@@ -30,6 +30,8 @@ import java.util.Set;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.util.GradleUtils.projectPath;
+
 /**
  * A task to generate a dependency graph of our runtime dependencies and push that via
  * an API call to a given endpoint of a SCA tool/service.
@@ -110,7 +112,7 @@ public class DependenciesGraphTask extends DefaultTask {
         }
         // We add one package and one node for each dependency, it suffices to check packages.
         if (packages.size() > 0) {
-            final String projectName = "elastic/elasticsearch" + projectPath();
+            final String projectName = "elastic/elasticsearch" + projectPath(getPath());
             final String output = """
                 {
                   "depGraph": {
@@ -147,7 +149,4 @@ public class DependenciesGraphTask extends DefaultTask {
         }
     }
 
-    private String projectPath() {
-        return getPath().lastIndexOf(':') == 0 ? ":" : getPath().substring(0, getPath().lastIndexOf(':'));
-    }
 }

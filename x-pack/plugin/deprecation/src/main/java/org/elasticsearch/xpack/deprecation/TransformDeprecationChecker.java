@@ -15,6 +15,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
@@ -74,57 +75,63 @@ public class TransformDeprecationChecker implements DeprecationChecker {
         request.setPageParams(page);
         request.setAllowNoResources(true);
 
-        components.client().execute(GetTransformAction.INSTANCE, request, ActionListener.wrap(getTransformResponse -> {
-            final int numberOfTransforms = getTransformResponse.getTransformConfigurations().size();
-            Runnable processNextPage = () -> {
-                if (getTransformResponse.getCount() >= (page.getFrom() + page.getSize())) {
-                    PageParams nextPage = new PageParams(page.getFrom() + page.getSize(), PageParams.DEFAULT_SIZE);
-                    recursiveGetTransformsAndCollectDeprecations(components, issues, nextPage, listener);
-                } else {
-                    listener.onResponse(new ArrayList<>(issues));
-                }
-            };
-            if (numberOfTransforms == 0) {
-                processNextPage.run();
-            }
-            final CountDown numberOfResponsesToProcess = new CountDown(numberOfTransforms);
-            for (TransformConfig config : getTransformResponse.getTransformConfigurations()) {
-                issues.addAll(config.checkForDeprecations(components.xContentRegistry()));
-
-                ValidateTransformAction.Request validateTransformRequest = new ValidateTransformAction.Request(
-                    config,
-                    false,
-                    TimeValue.timeValueSeconds(30)
-                );
-                ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
-                    validateTransformResponse -> {
-                        List<String> warningHeaders = components.client()
-                            .threadPool()
-                            .getThreadContext()
-                            .getResponseHeaders()
-                            .get("Warning");
-                        if (warningHeaders != null) {
-                            issues.addAll(
-                                warningHeaders.stream()
-                                    .map(warningHeader -> createDeprecationIssue(config.getId(), warningHeader))
-                                    .collect(toList())
-                            );
-                        }
-                        if (numberOfResponsesToProcess.countDown()) {
-                            processNextPage.run();
-                        }
-                    },
-                    e -> {
-                        logger.warn("An exception occurred while gathering deprecation warnings for transform", e);
-                        if (numberOfResponsesToProcess.countDown()) {
-                            processNextPage.run();
-                        }
+        ClientHelper.executeAsyncWithOrigin(
+            components.client(),
+            ClientHelper.DEPRECATION_ORIGIN,
+            GetTransformAction.INSTANCE,
+            request,
+            ActionListener.wrap(getTransformResponse -> {
+                final int numberOfTransforms = getTransformResponse.getTransformConfigurations().size();
+                Runnable processNextPage = () -> {
+                    if (getTransformResponse.getCount() >= (page.getFrom() + page.getSize())) {
+                        PageParams nextPage = new PageParams(page.getFrom() + page.getSize(), PageParams.DEFAULT_SIZE);
+                        recursiveGetTransformsAndCollectDeprecations(components, issues, nextPage, listener);
+                    } else {
+                        listener.onResponse(new ArrayList<>(issues));
                     }
-                );
+                };
+                if (numberOfTransforms == 0) {
+                    processNextPage.run();
+                }
+                final CountDown numberOfResponsesToProcess = new CountDown(numberOfTransforms);
+                for (TransformConfig config : getTransformResponse.getTransformConfigurations()) {
+                    issues.addAll(config.checkForDeprecations(components.xContentRegistry()));
 
-                components.client().execute(ValidateTransformAction.INSTANCE, validateTransformRequest, validateTransformListener);
-            }
-        }, listener::onFailure));
+                    ValidateTransformAction.Request validateTransformRequest = new ValidateTransformAction.Request(
+                        config,
+                        false,
+                        TimeValue.timeValueSeconds(30)
+                    );
+                    ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
+                        validateTransformResponse -> {
+                            List<String> warningHeaders = components.client()
+                                .threadPool()
+                                .getThreadContext()
+                                .getResponseHeaders()
+                                .get("Warning");
+                            if (warningHeaders != null) {
+                                issues.addAll(
+                                    warningHeaders.stream()
+                                        .map(warningHeader -> createDeprecationIssue(config.getId(), warningHeader))
+                                        .collect(toList())
+                                );
+                            }
+                            if (numberOfResponsesToProcess.countDown()) {
+                                processNextPage.run();
+                            }
+                        },
+                        e -> {
+                            logger.warn("An exception occurred while gathering deprecation warnings for transform", e);
+                            if (numberOfResponsesToProcess.countDown()) {
+                                processNextPage.run();
+                            }
+                        }
+                    );
+
+                    components.client().execute(ValidateTransformAction.INSTANCE, validateTransformRequest, validateTransformListener);
+                }
+            }, listener::onFailure)
+        );
     }
 
     private static DeprecationIssue createDeprecationIssue(String transformId, String warningHeader) {

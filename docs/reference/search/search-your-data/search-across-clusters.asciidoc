@@ -288,11 +288,11 @@ means the document came from the local cluster.
 
 [discrete]
 [[skip-unavailable-clusters]]
-=== Skip unavailable clusters
+=== Optional remote clusters
 
-By default, a {ccs} request fails if a remote cluster in the request is
-unavailable. Use the <<skip-unavailable,`skip_unavailable`>> cluster setting to
-mark a specific remote cluster as optional in cross-cluster searches.
+By default, a {ccs} fails if a remote cluster in the request returns an
+error or is unavailable. Use the <<skip-unavailable,`skip_unavailable`>> cluster
+setting to mark a specific remote cluster as optional for {ccs}.
 
 If `skip_unavailable` is `true`, a {ccs}:
 
@@ -300,7 +300,9 @@ If `skip_unavailable` is `true`, a {ccs}:
 response's `_cluster.skipped` value contains a count of any skipped clusters.
 
 * Ignores errors, such as errors related to unavailable shards or indices,
-returned by the remote cluster.
+returned by the remote cluster. This can include errors related to search
+parameters such as <<api-multi-index,`allow_no_indices`>> and
+<<api-multi-index,`ignore_unavailable`>>.
 
 * Ignores the <<search-partial-responses,`allow_partial_search_results`>>
 parameter and the related `search.default_allow_partial_results` cluster setting

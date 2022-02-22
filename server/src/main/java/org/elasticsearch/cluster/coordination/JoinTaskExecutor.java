@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -81,6 +82,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
         final boolean enforceVersionBarrier = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
         // processing any joins
         Map<String, String> joiniedNodeNameIds = new HashMap<>();
+        DesiredNodesMetadata desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(currentState);
+        DesiredNodesMetadata.Builder desiredNodesBuilder = new DesiredNodesMetadata.Builder(desiredNodesMetadata);
+        boolean desiredNodesChanged = false;
         for (final JoinTask joinTask : joinTasks) {
             final List<Runnable> onTaskSuccess = new ArrayList<>(joinTask.nodeCount());
             for (final JoinTask.NodeJoinTask nodeJoinTask : joinTask.nodeJoinTasks()) {
@@ -98,6 +102,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
                         nodesBuilder.add(node);
                         nodesChanged = true;
+                        desiredNodesChanged |= desiredNodesBuilder.markDesiredNodeAsMemberIfPresent(node);
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
                         if (node.isMasterNode()) {
@@ -132,6 +137,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 ActionListener.wrap(r -> logger.trace("post-join reroute completed"), e -> logger.debug("post-join reroute failed", e))
             );
 
+            Metadata.Builder newMetadata = Metadata.builder(currentState.metadata());
+            if (desiredNodesChanged) {
+                newMetadata.putCustom(DesiredNodesMetadata.TYPE, desiredNodesBuilder.build());
+            }
+
             if (joiniedNodeNameIds.isEmpty() == false) {
                 Set<CoordinationMetadata.VotingConfigExclusion> currentVotingConfigExclusions = currentState.getVotingConfigExclusions();
                 Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusions = currentVotingConfigExclusions.stream()
@@ -151,16 +161,16 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder(currentState.coordinationMetadata())
                         .clearVotingConfigExclusions();
                     newVotingConfigExclusions.forEach(coordMetadataBuilder::addVotingConfigExclusion);
-                    Metadata newMetadata = Metadata.builder(currentState.metadata())
-                        .coordinationMetadata(coordMetadataBuilder.build())
-                        .build();
+                    newMetadata.coordinationMetadata(coordMetadataBuilder.build());
                     return results.build(
                         allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).metadata(newMetadata).build())
                     );
                 }
             }
 
-            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build());
+            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(
+                newState.nodes(nodesBuilder).metadata(newMetadata).build()
+            );
             assert enforceVersionBarrier == false
                 || updatedState.nodes().getMinNodeVersion().onOrAfter(currentState.nodes().getMinNodeVersion())
                 : "min node version decreased from ["

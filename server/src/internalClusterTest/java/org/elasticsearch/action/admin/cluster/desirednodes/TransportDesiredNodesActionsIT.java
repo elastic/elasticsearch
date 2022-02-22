@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
@@ -32,16 +33,20 @@ import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -280,7 +285,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(state);
+        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
         final DesiredNodes latestProposedDesiredNodes = proposedDesiredNodes.get(proposedDesiredNodes.size() - 1);
         assertThat(latestDesiredNodes, equalTo(latestProposedDesiredNodes));
     }
@@ -308,7 +313,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(state);
+        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
         assertThat(latestDesiredNodes, is(nullValue()));
     }
 
@@ -328,19 +333,108 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
     }
 
-    public void testEmptyExternalIDIsInvalid() {
-        final Consumer<Settings.Builder> settingsConsumer = (settings) -> settings.put(NODE_EXTERNAL_ID_SETTING.getKey(), "    ");
+    public void testDesiredNodesMembershipIsUpdated() throws Exception {
+        final List<String> currentNodeMembersExternalIds = randomList(1, 4, UUIDs::randomBase64UUID);
+        final List<String> futureNodeMembersExternalIds = randomList(1, 4, UUIDs::randomBase64UUID);
+
+        for (String nodeExternalId : currentNodeMembersExternalIds) {
+            internalCluster().startDataOnlyNode(Settings.builder().put(NODE_EXTERNAL_ID_SETTING.getKey(), nodeExternalId).build());
+        }
+
         final DesiredNodes desiredNodes = new DesiredNodes(
             UUIDs.randomBase64UUID(),
             randomIntBetween(1, 20),
-            randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, settingsConsumer))
+            Stream.concat(currentNodeMembersExternalIds.stream(), futureNodeMembersExternalIds.stream())
+                .map(externalId -> randomDesiredNode(Version.CURRENT, settings -> {
+                    settings.remove(NODE_NAME_SETTING.getKey());
+                    settings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
+                }))
+                .toList()
+        );
+        updateDesiredNodes(desiredNodes);
+
+        {
+            final var latestDesiredNodes = getLatestDesiredNodes();
+            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
+            final var members = desiredNodesMetadata.getClusterMembers();
+            final var notClusterMembers = desiredNodesMetadata.getNotClusterMembers();
+
+            for (String nodeExternalId : currentNodeMembersExternalIds) {
+                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
+                assertThat(desiredNode, is(not(nullValue())));
+                assertThat(members.contains(desiredNode), is(equalTo(true)));
+                assertThat(notClusterMembers.contains(desiredNode), is(equalTo(false)));
+            }
+
+            for (String nodeExternalId : futureNodeMembersExternalIds) {
+                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
+                assertThat(desiredNode, is(not(nullValue())));
+                assertThat(members.contains(desiredNode), is(equalTo(false)));
+                assertThat(notClusterMembers.contains(desiredNode), is(equalTo(true)));
+            }
+        }
+
+        String latestStartedNode = null;
+        for (String nodeExternalId : futureNodeMembersExternalIds) {
+            latestStartedNode = internalCluster().startDataOnlyNode(
+                Settings.builder().put(NODE_EXTERNAL_ID_SETTING.getKey(), nodeExternalId).build()
+            );
+        }
+
+        {
+            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
+            final var members = desiredNodesMetadata.getClusterMembers();
+            assertThat(desiredNodesMetadata.getNotClusterMembers(), is(empty()));
+
+            for (String nodeExternalId : Iterables.concat(currentNodeMembersExternalIds, futureNodeMembersExternalIds)) {
+                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
+                assertThat(desiredNode, is(not(nullValue())));
+                assertThat(members.contains(desiredNode), is(equalTo(true)));
+            }
+        }
+
+        assertTrue(internalCluster().stopNode(latestStartedNode));
+
+        {
+            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
+            final var members = desiredNodesMetadata.getClusterMembers();
+            assertThat(desiredNodesMetadata.getNotClusterMembers(), is(empty()));
+
+            for (String nodeExternalId : Iterables.concat(currentNodeMembersExternalIds, futureNodeMembersExternalIds)) {
+                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
+                assertThat(desiredNode, is(not(nullValue())));
+                assertThat(members.contains(desiredNode), is(equalTo(true)));
+            }
+        }
+
+        final DesiredNodes updatedDesiredNodes = new DesiredNodes(
+            desiredNodes.historyID(),
+            desiredNodes.version() + 1,
+            desiredNodes.nodes()
         );
 
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
-        assertThat(exception.getMessage(), containsString("Nodes with ids"));
-        assertThat(exception.getMessage(), containsString("contain invalid settings"));
-        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(exception.getSuppressed()[0].getMessage(), containsString("[node.external_id] is missing or empty"));
+        updateDesiredNodes(updatedDesiredNodes);
+
+        // Ensure that nodes that are in the desired nodes state and were considered as member
+        // at some point, are considered members after they leave (it might be a temporary issue)
+        {
+            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+            final var clusterState = client().admin().cluster().prepareState().get().getState();
+            final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
+            final var members = desiredNodesMetadata.getClusterMembers();
+            assertThat(desiredNodesMetadata.getNotClusterMembers(), is(empty()));
+
+            for (String nodeExternalId : Iterables.concat(currentNodeMembersExternalIds, futureNodeMembersExternalIds)) {
+                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
+                assertThat(desiredNode, is(not(nullValue())));
+                assertThat(members.contains(desiredNode), is(equalTo(true)));
+            }
+        }
     }
 
     private void deleteDesiredNodes() {

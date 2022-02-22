@@ -8,9 +8,11 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -21,6 +23,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 
 import static java.lang.String.format;
@@ -76,6 +79,10 @@ public record DesiredNodes(String historyID, long version, List<DesiredNode> nod
         return builder;
     }
 
+    public static DesiredNodes latestFromClusterState(ClusterState state) {
+        return DesiredNodesMetadata.fromClusterState(state).getLatestDesiredNodes();
+    }
+
     public boolean isSupersededBy(DesiredNodes otherDesiredNodes) {
         return historyID.equals(otherDesiredNodes.historyID) == false || version < otherDesiredNodes.version;
     }
@@ -86,6 +93,16 @@ public record DesiredNodes(String historyID, long version, List<DesiredNode> nod
 
     public boolean hasSameHistoryId(DesiredNodes other) {
         return historyID.equals(other.historyID);
+    }
+
+    @Nullable
+    public DesiredNode find(String externalId) {
+        for (DesiredNode desiredNode : nodes) {
+            if (Objects.equals(desiredNode.externalId(), externalId)) {
+                return desiredNode;
+            }
+        }
+        return null;
     }
 
     private static void checkForDuplicatedExternalIDs(List<DesiredNode> nodes) {

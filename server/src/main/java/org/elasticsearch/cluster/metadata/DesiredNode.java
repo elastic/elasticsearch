@@ -23,6 +23,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.Set;
 
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
@@ -30,7 +32,13 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 public record DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version)
     implements
         Writeable,
-        ToXContentObject {
+        ToXContentObject,
+        Comparable<DesiredNode> {
+
+    private static final Comparator<DesiredNode> COMPARATOR = Comparator.comparing(
+        DesiredNode::externalId,
+        Comparator.nullsLast(Comparator.naturalOrder())
+    );
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");
@@ -127,5 +135,14 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
 
     public boolean hasMasterRole() {
         return NODE_ROLES_SETTING.get(settings).contains(DiscoveryNodeRole.MASTER_ROLE);
+    }
+
+    public Set<DiscoveryNodeRole> getRoles() {
+        return Set.copyOf(NODE_ROLES_SETTING.get(settings));
+    }
+
+    @Override
+    public int compareTo(DesiredNode o) {
+        return COMPARATOR.compare(this, o);
     }
 }

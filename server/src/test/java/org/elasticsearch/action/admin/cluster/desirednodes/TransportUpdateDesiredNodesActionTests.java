@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -23,16 +24,26 @@ import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequestSerializationTests.randomUpdateDesiredNodesRequest;
 import static org.elasticsearch.cluster.metadata.DesiredNodesMetadataSerializationTests.randomDesiredNodesMetadata;
+import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -150,7 +161,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         assertThat(desiredNodes, is(notNullValue()));
         assertThat(desiredNodes.historyID(), is(equalTo(request.getHistoryID())));
         assertThat(desiredNodes.version(), is(equalTo(request.getVersion())));
-        assertThat(desiredNodes.nodes(), is(equalTo(request.getNodes())));
+        assertThat(desiredNodes.nodes(), contains(request.getNodes().toArray()));
     }
 
     public void testUpdatesAreIdempotent() {
@@ -163,7 +174,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version(),
-            latestDesiredNodes.nodes()
+            List.copyOf(latestDesiredNodes.nodes())
         );
 
         final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
@@ -203,7 +214,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version() - 1,
-            latestDesiredNodes.nodes()
+            List.copyOf(latestDesiredNodes.nodes())
         );
 
         VersionConflictException exception = expectThrows(
@@ -211,5 +222,45 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request)
         );
         assertThat(exception.getMessage(), containsString("has been superseded by version"));
+    }
+
+    public void testUpdateDesiredNodesKeepsTrackOfMembership() {
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+
+        final DiscoveryNode masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final String knownNodeName = "name";
+        final DiscoveryNode actualNode = new DiscoveryNode(
+            knownNodeName,
+            UUIDs.base64UUID(),
+            knownNodeName,
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.copyOf(NODE_ROLES_SETTING.get(Settings.EMPTY)),
+            Version.CURRENT
+        );
+
+        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
+            .metadata(metadataBuilder)
+            .nodes(
+                DiscoveryNodes.builder().add(masterNode).add(actualNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId())
+            )
+            .build();
+
+        final DesiredNode desiredNode = randomDesiredNode(Version.CURRENT, settings -> {
+            settings.remove(Node.NODE_NAME_SETTING.getKey());
+            settings.put(Node.NODE_EXTERNAL_ID_SETTING.getKey(), knownNodeName);
+        });
+        final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            UUIDs.randomBase64UUID(),
+            randomLongBetween(0, Long.MAX_VALUE - 1000),
+            List.of(desiredNode)
+        );
+
+        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
+        final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
+        assertThat(desiredNodesMetadata, is(notNullValue()));
+        assertThat(desiredNodesMetadata.getClusterMembers(), contains(desiredNode));
+        assertThat(desiredNodesMetadata.getNotClusterMembers(), is(empty()));
     }
 }

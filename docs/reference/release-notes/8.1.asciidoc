@@ -188,7 +188,7 @@ Infra/Core::
 
 Infra/REST API::
 * Allow for customised content-type validation {es-pull}80906[#80906] (issue: {es-issue}80482[#80482])
-* Update YAML Rest tests to check for product header on all responses {es-pull}83290[#83290]
+* Update YAML REST tests to check for product header on all responses {es-pull}83290[#83290]
 
 Infra/Scripting::
 * Add '$' syntax as a shortcut for 'field' in Painless {es-pull}80518[#80518]

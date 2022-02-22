@@ -96,7 +96,7 @@ public class PublicationTransportHandler {
 
         transportService.registerRequestHandler(
             PUBLISH_STATE_ACTION_NAME,
-            ThreadPool.Names.COORDINATION,
+            ThreadPool.Names.CLUSTER_COORDINATION,
             false,
             false,
             BytesTransportRequest::new,
@@ -105,7 +105,7 @@ public class PublicationTransportHandler {
 
         transportService.registerRequestHandler(
             COMMIT_STATE_ACTION_NAME,
-            ThreadPool.Names.COORDINATION,
+            ThreadPool.Names.CLUSTER_COORDINATION,
             false,
             false,
             ApplyCommitRequest::new,
@@ -383,7 +383,7 @@ public class PublicationTransportHandler {
                 COMMIT_STATE_ACTION_NAME,
                 applyCommitRequest,
                 STATE_REQUEST_OPTIONS,
-                new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.COORDINATION)
+                new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.CLUSTER_COORDINATION)
             );
         }
 
@@ -459,7 +459,7 @@ public class PublicationTransportHandler {
                     new ActionListenerResponseHandler<>(
                         ActionListener.runAfter(listener, bytes::decRef),
                         PublishWithJoinResponse::new,
-                        ThreadPool.Names.COORDINATION
+                        ThreadPool.Names.CLUSTER_COORDINATION
                     )
                 );
             } catch (Exception e) {

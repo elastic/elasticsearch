@@ -212,7 +212,7 @@ public class ElectionSchedulerFactory {
             };
 
             logger.debug("scheduling {}", runnable);
-            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), Names.COORDINATION, runnable);
+            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), Names.CLUSTER_COORDINATION, runnable);
         }
 
         @Override

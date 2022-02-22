@@ -635,7 +635,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
                 logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
                 listener.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
-            }), i -> Empty.INSTANCE, Names.COORDINATION)
+            }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
         );
     }
 
@@ -651,7 +651,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     e
                 );
                 listener.onFailure(new IllegalStateException("failure when sending a join ping request to node", e));
-            }), i -> Empty.INSTANCE, Names.COORDINATION)
+            }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
         );
     }
 
@@ -1583,7 +1583,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 public String toString() {
                     return "scheduled timeout for " + CoordinatorPublication.this;
                 }
-            }, publishTimeout, Names.COORDINATION);
+            }, publishTimeout, Names.CLUSTER_COORDINATION);
 
             this.infoTimeoutHandler = transportService.getThreadPool().schedule(new Runnable() {
                 @Override
@@ -1597,7 +1597,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 public String toString() {
                     return "scheduled timeout for reporting on " + CoordinatorPublication.this;
                 }
-            }, publishInfoTimeout, Names.COORDINATION);
+            }, publishInfoTimeout, Names.CLUSTER_COORDINATION);
         }
 
         private void removePublicationAndPossiblyBecomeCandidate(String reason) {

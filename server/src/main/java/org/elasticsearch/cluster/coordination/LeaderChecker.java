@@ -331,7 +331,7 @@ public class LeaderChecker {
 
         void leaderFailed(MessageSupplier messageSupplier, Exception e) {
             if (isClosed.compareAndSet(false, true)) {
-                transportService.getThreadPool().executor(Names.COORDINATION).execute(new Runnable() {
+                transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new Runnable() {
                     @Override
                     public void run() {
                         leaderFailureListener.onLeaderFailure(messageSupplier, e);

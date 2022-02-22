@@ -454,9 +454,9 @@ public class ProfileService {
                 profileDocument.uid(),
                 wrapProfileDocumentWithoutApplicationData(profileDocument),
                 RefreshPolicy.WAIT_UNTIL,
-                -1,
-                -1
-            ).retryOnConflict(10),  // TODO: find a way to avoid retry
+                versionedDocument.primaryTerm,
+                versionedDocument.seqNo
+            ),
             listener.map(
                 updateResponse -> new VersionedDocument(profileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
                     .toProfile(Set.of())

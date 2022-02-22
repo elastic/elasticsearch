@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
@@ -247,7 +248,15 @@ public class ProfileDomainSingleNodeTests extends AbstractProfileSingleNodeTestC
                 try {
                     latch.await();
                     profileService.createNewProfile(subject, profileDocument1, future);
-                    assertThat(future.actionGet().uid(), equalTo(profileDocument1.uid()));
+                    try {
+                        assertThat(future.actionGet().uid(), equalTo(profileDocument1.uid()));
+                    } catch (VersionConflictEngineException e) {
+                        // Updating existing profile can error with version conflict. This is the current way
+                        // of handling racing in updating existing profile.
+                        // For this test, it is acceptable to either get the same profile document
+                        // or getting a version conflict for optimistic control (NOT document already exists)
+                        assertThat(e.getMessage(), containsString("version conflict, required seqNo"));
+                    }
                 } catch (Exception e) {
                     logger.error(e);
                     assert false : "caught error when creating new profile: " + e;
@@ -260,6 +269,7 @@ public class ProfileDomainSingleNodeTests extends AbstractProfileSingleNodeTestC
             thread.join();
         }
 
+        // The profile is created afterwards
         final Profile profile1 = getProfile(profileDocument1.uid(), Set.of());
         assertThat(profile1.uid(), equalTo(profileDocument1.uid()));
         assertThat(profile1.user().username(), equalTo(profileDocument1.user().username()));

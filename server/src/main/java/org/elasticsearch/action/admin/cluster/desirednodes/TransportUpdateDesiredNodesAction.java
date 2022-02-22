@@ -74,8 +74,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ActionListener<UpdateDesiredNodesResponse> listener
     ) throws Exception {
         try {
-            DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
-            settingsValidator.validate(proposedDesiredNodes);
+            settingsValidator.validate(request.getNodes());
 
             clusterService.submitStateUpdateTask(
                 "update-desired-nodes",
@@ -85,8 +84,8 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         final ClusterState updatedState = updateDesiredNodes(currentState, request);
-                        final DesiredNodes previousDesiredNodes = DesiredNodesMetadata.latestFromClusterState(currentState);
-                        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(updatedState);
+                        final DesiredNodes previousDesiredNodes = DesiredNodes.latestFromClusterState(currentState);
+                        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(updatedState);
                         replacedExistingHistoryId = previousDesiredNodes != null
                             && previousDesiredNodes.hasSameHistoryId(latestDesiredNodes) == false;
                         return updatedState;
@@ -110,9 +109,9 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     }
 
     static ClusterState updateDesiredNodes(ClusterState currentState, UpdateDesiredNodesRequest request) {
-        DesiredNodesMetadata desiredNodesMetadata = currentState.metadata().custom(DesiredNodesMetadata.TYPE, DesiredNodesMetadata.EMPTY);
-        DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
-        DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
+        final DesiredNodesMetadata desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(currentState);
+        final DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
+        final DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
 
         if (latestDesiredNodes != null) {
             if (latestDesiredNodes.equals(proposedDesiredNodes)) {

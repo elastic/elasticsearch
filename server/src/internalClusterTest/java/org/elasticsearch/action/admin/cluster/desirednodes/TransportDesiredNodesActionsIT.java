@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
+import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
@@ -27,6 +28,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -37,7 +39,6 @@ import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesi
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
-import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,10 +65,16 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
     public void testUpdateDesiredNodesIsIdempotent() {
         final DesiredNodes desiredNodes = putRandomDesiredNodes();
-        updateDesiredNodes(desiredNodes);
+
+        final List<DesiredNode> desiredNodesList = new ArrayList<>(desiredNodes.nodes());
+        if (randomBoolean()) {
+            Collections.shuffle(desiredNodesList, random());
+        }
+
+        updateDesiredNodes(new DesiredNodes(desiredNodes.historyID(), desiredNodes.version(), desiredNodesList));
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
+        final DesiredNodesMetadata metadata = DesiredNodesMetadata.fromClusterState(state);
         assertThat(metadata, is(notNullValue()));
         final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
         assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
@@ -247,10 +254,9 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
             assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
             assertThat(latestDesiredNodes.nodes().isEmpty(), is(equalTo(false)));
-            assertThat(
-                latestDesiredNodes.nodes().get(0).settings().get(NODE_PROCESSORS_SETTING.getKey()),
-                is(equalTo(Integer.toString(numProcessors)))
-            );
+            for (DesiredNode desiredNode : latestDesiredNodes.nodes()) {
+                assertThat(desiredNode.settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo(Integer.toString(numProcessors))));
+            }
         }
     }
 
@@ -263,7 +269,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
                 desiredNodes.historyID(),
                 desiredNodes.version(),
-                desiredNodes.nodes()
+                List.copyOf(desiredNodes.nodes())
             );
             // Use the master client to ensure the same updates ordering as in proposedDesiredNodesList
             updateDesiredNodesFutures.add(internalCluster().masterClient().execute(UpdateDesiredNodesAction.INSTANCE, request));
@@ -280,7 +286,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(state);
+        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
         final DesiredNodes latestProposedDesiredNodes = proposedDesiredNodes.get(proposedDesiredNodes.size() - 1);
         assertThat(latestDesiredNodes, equalTo(latestProposedDesiredNodes));
     }
@@ -308,7 +314,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(state);
+        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
         assertThat(latestDesiredNodes, is(nullValue()));
     }
 
@@ -326,21 +332,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         deleteDesiredNodes();
 
         expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
-    }
-
-    public void testEmptyExternalIDIsInvalid() {
-        final Consumer<Settings.Builder> settingsConsumer = (settings) -> settings.put(NODE_EXTERNAL_ID_SETTING.getKey(), "    ");
-        final DesiredNodes desiredNodes = new DesiredNodes(
-            UUIDs.randomBase64UUID(),
-            randomIntBetween(1, 20),
-            randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, settingsConsumer))
-        );
-
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
-        assertThat(exception.getMessage(), containsString("Nodes with ids"));
-        assertThat(exception.getMessage(), containsString("contain invalid settings"));
-        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(exception.getSuppressed()[0].getMessage(), containsString("[node.external_id] is missing or empty"));
     }
 
     private void deleteDesiredNodes() {
@@ -364,7 +355,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             desiredNodes.historyID(),
             desiredNodes.version(),
-            desiredNodes.nodes()
+            List.copyOf(desiredNodes.nodes())
         );
         return client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet();
     }

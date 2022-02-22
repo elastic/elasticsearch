@@ -27,7 +27,11 @@ have doc values enabled.
 Query performance on doc values is much slower than on index structures, but
 offers an interesting tradeoff between disk usage and query performance for
 fields that are only rarely queried and where query performance is not as
-important. Doc-value-only fields can be configured as follows:
+important. This makes doc-value-only fields a good fit for fields that are
+not expected to be normally used for filtering, for example gauges or
+counters on metric data.
+
+Doc-value-only fields can be configured as follows:
 
 [source,console]
 --------------------------------------------------
@@ -36,10 +40,10 @@ PUT my-index-000001
   "mappings": {
     "properties": {
       "status_code": { <1>
-        "type":  "keyword"
+        "type":  "long"
       },
       "session_id": { <2>
-        "type":  "keyword",
+        "type":  "long",
         "index": false
       }
     }
@@ -47,9 +51,9 @@ PUT my-index-000001
 }
 --------------------------------------------------
 
-<1> The `status_code` field is a regular keyword field.
+<1> The `status_code` field is a regular long field.
 <2> The `session_id` field has `index` disabled, and is therefore a
-    doc-value-only keyword field.
+    doc-value-only long field.
 
 ==== Disabling doc values
 

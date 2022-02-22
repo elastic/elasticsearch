@@ -153,20 +153,19 @@ public class MetadataIndexStateService {
      * to be terminated and finally closes the indices by moving their state to CLOSE.
      */
     public void closeIndices(final CloseIndexClusterStateUpdateRequest request, final ActionListener<CloseIndexResponse> listener) {
-        final Index[] concreteIndices = request.indices();
-        if (concreteIndices == null || concreteIndices.length == 0) {
+        if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
 
         clusterService.submitStateUpdateTask(
-            "add-block-index-to-close " + Arrays.toString(concreteIndices),
+            "add-block-index-to-close " + Arrays.toString(request.indices()),
             new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
 
                 private final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
-                    return addIndexClosedBlocks(concreteIndices, blockedIndices, currentState);
+                    return addIndexClosedBlocks(request.indices(), blockedIndices, currentState);
                 }
 
                 @Override

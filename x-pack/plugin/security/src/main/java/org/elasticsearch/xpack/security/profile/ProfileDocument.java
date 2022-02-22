@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.security.profile;
 
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -22,8 +22,11 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -95,7 +98,8 @@ public record ProfileDocument(
     }
 
     static ProfileDocument fromSubject(Subject subject) {
-        final String uid = "u_" + UUIDs.randomBase64UUID();
+        final String baseUid = computeBaseUidForSubject(subject);
+        final String uid = baseUid + "_0"; // Initial differentiator is 0
         final User subjectUser = subject.getUser();
         return new ProfileDocument(
             uid,
@@ -113,6 +117,25 @@ public record ProfileDocument(
             Map.of(),
             null
         );
+    }
+
+    static String computeBaseUidForSubject(Subject subject) {
+        final MessageDigest digest = MessageDigests.md5();
+        digest.update(subject.getUser().principal().getBytes(StandardCharsets.UTF_8));
+        if (subject.getRealm().getDomain() != null) {
+            subject.getRealm().getDomain().realms().forEach(realmIdentifier -> {
+                digest.update(realmIdentifier.getType().getBytes(StandardCharsets.UTF_8));
+                if (false == realmIdentifier.isFileOrNative()) {
+                    digest.update(realmIdentifier.getName().getBytes(StandardCharsets.UTF_8));
+                }
+            });
+        } else {
+            digest.update(subject.getRealm().getType().getBytes(StandardCharsets.UTF_8));
+            if (false == subject.getRealm().isFileOrNative()) {
+                digest.update(subject.getRealm().getName().getBytes(StandardCharsets.UTF_8));
+            }
+        }
+        return "u_" + Base64.getUrlEncoder().withoutPadding().encodeToString(digest.digest());
     }
 
     public static ProfileDocument fromXContent(XContentParser parser) {

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -128,7 +130,7 @@ public class ProfileService {
 
         getVersionedDocument(subject, ActionListener.wrap(versionedDocument -> {
             if (versionedDocument == null) {
-                createNewProfile(subject, listener);
+                createNewProfile(subject, ProfileDocument.fromSubject(subject), listener);
             } else {
                 updateProfileForActivate(subject, versionedDocument, listener);
 
@@ -325,13 +327,17 @@ public class ProfileService {
         });
     }
 
-    private void createNewProfile(Subject subject, ActionListener<Profile> listener) throws IOException {
-        final ProfileDocument profileDocument = ProfileDocument.fromSubject(subject);
+    // Package private for testing
+    void createNewProfile(Subject subject, ProfileDocument profileDocument, ActionListener<Profile> listener) throws IOException {
+        // When the code reaches here, we are sure no existing profile matches the subject's username and realm info
+        // We go ahead to create the new profile document. If there is another concurrent creation request, it should
+        // attempt to create a doc with the same ID and cause version conflict which is handled.
         final String docId = uidToDocId(profileDocument.uid());
         final BulkRequest bulkRequest = toSingleItemBulkRequest(
             client.prepareIndex(SECURITY_PROFILE_ALIAS)
                 .setId(docId)
                 .setSource(wrapProfileDocument(profileDocument))
+                .setOpType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                 .request()
         );
@@ -344,16 +350,99 @@ public class ProfileService {
                 bulkRequest,
                 TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
                     assert docId.equals(indexResponse.getId());
-                    // TODO: replace with actual domain information
                     final VersionedDocument versionedDocument = new VersionedDocument(
                         profileDocument,
                         indexResponse.getPrimaryTerm(),
                         indexResponse.getSeqNo()
                     );
                     listener.onResponse(versionedDocument.toProfile(Set.of()));
-                }, listener::onFailure))
+                }, e -> {
+                    if (e instanceof VersionConflictEngineException) {
+                        // Document already exists with the specified ID, get the document with the ID
+                        // and check whether it is the right profile
+                        getVersionedDocument(profileDocument.uid(), ActionListener.wrap(versionedDocument -> {
+                            if (isTheRightProfileDocument(subject, versionedDocument.doc)) {
+                                // The profile document is a match, still need to update it with current auth info before return
+                                // listener.onResponse(versionedDocument.toProfile(Set.of()));
+                                updateProfileForActivate(subject, versionedDocument, listener);
+                            } else {
+                                // The profile document is NOT a match, this means either genuine hash collision or profile document
+                                // was manually updated, e.g. realm or user rename etc. So we attempt to differentiate from the
+                                // existing profile document by increase the differentiator number by 1.
+                                incrementDifferentiatorAndCreateNewProfile(subject, profileDocument, listener);
+                            }
+                        }, listener::onFailure));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }))
             )
         );
+    }
+
+    private void incrementDifferentiatorAndCreateNewProfile(
+        Subject subject,
+        ProfileDocument profileDocument,
+        ActionListener<Profile> listener
+    ) throws IOException {
+        final String profileUid = profileDocument.uid();
+        final int index = profileUid.lastIndexOf("_");
+        if (index == -1) {
+            listener.onFailure(new ElasticsearchException("profile uid [{}] does not contain any underscore character", profileUid));
+            return;
+        }
+        final String differentiator = profileUid.substring(index + 1);
+        if (differentiator.isBlank()) {
+            listener.onFailure(new ElasticsearchException("profile uid [{}] does not contain a differentiator", profileUid));
+            return;
+        }
+        final int differentiatorNumber;
+        try {
+            differentiatorNumber = Integer.parseInt(differentiator);
+        } catch (NumberFormatException e) {
+            listener.onFailure(new ElasticsearchException("profile uid [{}] differentiator is not a number", e, profileUid));
+            return;
+        }
+        // TODO: temporary to prevent infinite recursion
+        if (differentiatorNumber > 99) {
+            listener.onFailure(new ElasticsearchException("profile uid [{}] differentiator number is too high (>99)", profileUid));
+            return;
+        }
+        createNewProfile(
+            subject,
+            new ProfileDocument(
+                profileUid.substring(0, index + 1) + (differentiatorNumber + 1),
+                profileDocument.enabled(),
+                profileDocument.lastSynchronized(),
+                profileDocument.user(),
+                profileDocument.access(),
+                profileDocument.applicationData()
+            ),
+            listener
+        );
+    }
+
+    private boolean isTheRightProfileDocument(Subject subject, ProfileDocument doc) {
+        if (false == subject.getUser().principal().equals(doc.user().username())) {
+            return false;
+        }
+        final Authentication.RealmRef subjectRealm = subject.getRealm();
+        final Authentication.RealmRef docRealm = doc.user().realm();
+        if (subjectRealm.getType().equals(docRealm.getType())
+            && (subjectRealm.isFileOrNative() || subjectRealm.getName().equals(docRealm.getName()))) {
+            return true;
+        }
+        if (subjectRealm.getDomain() == null) {
+            return false;
+        }
+
+        return subjectRealm.getDomain()
+            .realms()
+            .stream()
+            .anyMatch(
+                realmIdentifier -> realmIdentifier.getType().equals(docRealm.getType())
+                    && (realmIdentifier.isFileOrNative() || realmIdentifier.getName().equals(docRealm.getName()))
+            );
     }
 
     private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)
@@ -365,9 +454,9 @@ public class ProfileService {
                 profileDocument.uid(),
                 wrapProfileDocumentWithoutApplicationData(profileDocument),
                 RefreshPolicy.WAIT_UNTIL,
-                versionedDocument.primaryTerm,
-                versionedDocument.seqNo
-            ),
+                -1,
+                -1
+            ).retryOnConflict(10),  // TODO: find a way to avoid retry
             listener.map(
                 updateResponse -> new VersionedDocument(profileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
                     .toProfile(Set.of())

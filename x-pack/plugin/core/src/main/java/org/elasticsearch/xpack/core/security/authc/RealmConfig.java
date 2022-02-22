@@ -17,6 +17,8 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -209,6 +211,10 @@ public class RealmConfig {
 
         public String getName() {
             return name;
+        }
+
+        public boolean isFileOrNative() {
+            return FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type);
         }
 
         @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -210,6 +211,58 @@ public class ProfileDomainSingleNodeTests extends AbstractProfileSingleNodeTestC
         final PlainActionFuture<ProfileService.VersionedDocument> future3 = new PlainActionFuture<>();
         profileService.getVersionedDocument(subject3, future3);
         assertThat(future3.actionGet(), nullValue());
+    }
+
+    public void testConcurrentCreationOfNewProfiles() throws InterruptedException {
+        // The profile index may or may not exist
+        if (randomBoolean()) {
+            indexDocument();
+        }
+
+        final ProfileService profileService = node().injector().getInstance(ProfileService.class);
+        final String domainName = randomAlphaOfLengthBetween(3, 8);
+        final RealmDomain realmDomain = randomFrom(
+            new RealmDomain(
+                domainName,
+                Set.of(new RealmConfig.RealmIdentifier("file", "file"), new RealmConfig.RealmIdentifier("native", "index"))
+            ),
+            null
+        );
+        final RealmConfig.RealmIdentifier realmIdentifier = realmDomain == null
+            ? new RealmConfig.RealmIdentifier("file", "file")
+            : randomFrom(realmDomain.realms());
+        final Authentication authentication = Authentication.newRealmAuthentication(
+            new User(randomAlphaOfLengthBetween(5, 12)),
+            new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), randomAlphaOfLengthBetween(3, 8), realmDomain)
+        );
+        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        final ProfileDocument profileDocument1 = ProfileDocument.fromSubject(subject);
+
+        // All the same user, should create a single profile
+        final Thread[] threads = new Thread[randomIntBetween(5, 10)];
+        final CountDownLatch latch = new CountDownLatch(1);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                final PlainActionFuture<Profile> future = new PlainActionFuture<>();
+                try {
+                    latch.await();
+                    profileService.createNewProfile(subject, profileDocument1, future);
+                    assertThat(future.actionGet().uid(), equalTo(profileDocument1.uid()));
+                } catch (Exception e) {
+                    logger.error(e);
+                    assert false : "caught error when creating new profile: " + e;
+                }
+            });
+            threads[i].start();
+        }
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        final Profile profile1 = getProfile(profileDocument1.uid(), Set.of());
+        assertThat(profile1.uid(), equalTo(profileDocument1.uid()));
+        assertThat(profile1.user().username(), equalTo(profileDocument1.user().username()));
     }
 
     private String indexDocument() {

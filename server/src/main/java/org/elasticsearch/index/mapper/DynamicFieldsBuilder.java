@@ -48,20 +48,22 @@ final class DynamicFieldsBuilder {
         if (token == XContentParser.Token.VALUE_STRING) {
             String text = context.parser().text();
 
-            boolean parseableAsLong = false;
+            boolean parseableAsLong;
             try {
                 Long.parseLong(text);
                 parseableAsLong = true;
             } catch (NumberFormatException e) {
                 // not a long number
+                parseableAsLong = false;
             }
 
-            boolean parseableAsDouble = false;
+            boolean parseableAsDouble;
             try {
                 Double.parseDouble(text);
                 parseableAsDouble = true;
             } catch (NumberFormatException e) {
                 // not a double number
+                parseableAsDouble = false;
             }
 
             if (parseableAsLong && context.root().numericDetection()) {

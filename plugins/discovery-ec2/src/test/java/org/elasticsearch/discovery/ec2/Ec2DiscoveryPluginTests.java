@@ -15,30 +15,32 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.services.ec2.AbstractAmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2;
+import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class Ec2DiscoveryPluginTests extends ESTestCase {
 
-    private Settings getNodeAttributes(Settings settings, String url) {
+    private Settings getNodeAttributes(Settings settings, String url, String tokenUrl) {
         final Settings realSettings = Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), true).put(settings).build();
-        return Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(realSettings, url);
+        return Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(realSettings, url, tokenUrl);
     }
 
-    private void assertNodeAttributes(Settings settings, String url, String expected) {
-        final Settings additional = getNodeAttributes(settings, url);
+    private void assertNodeAttributes(Settings settings, String url, String tokenUrl, String expected) {
+        final Settings additional = getNodeAttributes(settings, url, tokenUrl);
         if (expected == null) {
             assertTrue(additional.isEmpty());
         } else {
@@ -48,34 +50,61 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
 
     public void testNodeAttributesDisabled() {
         final Settings settings = Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), false).build();
-        assertNodeAttributes(settings, "bogus", null);
+        assertNodeAttributes(settings, "bogus", "", null);
     }
 
     public void testNodeAttributes() throws Exception {
-        final Path zoneUrl = createTempFile();
-        Files.write(zoneUrl, Arrays.asList("us-east-1c"));
-        assertNodeAttributes(Settings.EMPTY, zoneUrl.toUri().toURL().toString(), "us-east-1c");
+        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.createContext("/metadata", exchange -> {
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        });
+        httpServer.start();
+        try {
+            assertNodeAttributes(Settings.EMPTY, metadataUri(httpServer), "", "us-east-1c");
+        } finally {
+            httpServer.stop(0);
+        }
     }
 
     public void testNodeAttributesBogusUrl() {
-        final UncheckedIOException e = expectThrows(UncheckedIOException.class, () -> getNodeAttributes(Settings.EMPTY, "bogus"));
+        final UncheckedIOException e = expectThrows(UncheckedIOException.class, () -> getNodeAttributes(Settings.EMPTY, "bogus", ""));
         assertNotNull(e.getCause());
         final String msg = e.getCause().getMessage();
         assertTrue(msg, msg.contains("no protocol: bogus"));
     }
 
     public void testNodeAttributesEmpty() throws Exception {
-        final Path zoneUrl = createTempFile();
+        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.createContext("/metadata", exchange -> {
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        httpServer.start();
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> getNodeAttributes(Settings.EMPTY, zoneUrl.toUri().toURL().toString())
+            () -> getNodeAttributes(Settings.EMPTY, metadataUri(httpServer), "")
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("no ec2 metadata returned"));
+        try {
+            assertTrue(e.getMessage(), e.getMessage().contains("no ec2 metadata returned"));
+        } finally {
+            httpServer.stop(0);
+        }
     }
 
     public void testNodeAttributesErrorLenient() throws Exception {
-        final Path dne = createTempDir().resolve("dne");
-        assertNodeAttributes(Settings.EMPTY, dne.toUri().toURL().toString(), null);
+        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.createContext("/metadata", exchange -> {
+            exchange.sendResponseHeaders(404, -1);
+            exchange.close();
+        });
+        httpServer.start();
+        try {
+            assertNodeAttributes(Settings.EMPTY, metadataUri(httpServer), "", null);
+        } finally {
+            httpServer.stop(0);
+        }
     }
 
     public void testDefaultEndpoint() throws IOException {
@@ -205,5 +234,9 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
 
         @Override
         public void shutdown() {}
+    }
+
+    private static String metadataUri(HttpServer httpServer) {
+        return "http://" + httpServer.getAddress().getHostString() + ":" + httpServer.getAddress().getPort() + "/metadata";
     }
 }

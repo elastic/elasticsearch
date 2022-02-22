@@ -14,6 +14,7 @@ import com.amazonaws.util.json.Jackson;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -30,8 +31,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -39,6 +40,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
@@ -122,25 +124,27 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         // Adds a node attribute for the ec2 availability zone
         final String azMetadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService()
             + "/latest/meta-data/placement/availability-zone";
-        builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl));
+        String azMetadataTokenUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/api/token";
+        builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl, azMetadataTokenUrl));
         return builder.build();
     }
 
     // pkg private for testing
     @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
-    static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl) {
+    static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl, String azMetadataTokenUrl) {
         if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
             return Settings.EMPTY;
         }
         final Settings.Builder attrs = Settings.builder();
 
         final URL url;
-        final URLConnection urlConnection;
+        final HttpURLConnection urlConnection;
         try {
             url = new URL(azMetadataUrl);
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
-            urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
+            urlConnection = SocketAccess.doPrivilegedIOException(() -> (HttpURLConnection) url.openConnection());
             urlConnection.setConnectTimeout(2000);
+            getToken(azMetadataTokenUrl).ifPresent(v -> urlConnection.setRequestProperty("X-aws-ec2-metadata-token", v));
         } catch (final IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
             throw new UncheckedIOException(e);
@@ -163,6 +167,32 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         }
 
         return attrs.build();
+    }
+
+    private static Optional<String> getToken(String azMetadataTokenUrl) {
+        if (Strings.isNullOrEmpty(azMetadataTokenUrl)) {
+            return Optional.empty();
+        }
+        HttpURLConnection tokenUrlConnection;
+        try {
+            tokenUrlConnection = SocketAccess.doPrivilegedIOException(
+                () -> (HttpURLConnection) new URL(azMetadataTokenUrl).openConnection()
+            );
+            tokenUrlConnection.setConnectTimeout(2000);
+            tokenUrlConnection.setRequestProperty("X-aws-ec2-metadata-token-ttl-seconds", "60");
+        } catch (IOException e) {
+            logger.warn("Unable to access the IMDSv2 URI: " + azMetadataTokenUrl, e);
+            return Optional.empty();
+        }
+        try (
+            var in = SocketAccess.doPrivilegedIOException(tokenUrlConnection::getInputStream);
+            var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
+        ) {
+            return Optional.ofNullable(reader.readLine()).filter(s -> !s.isBlank());
+        } catch (IOException e) {
+            logger.warn("Unable to get a session token from IMDSv2 URI: " + azMetadataTokenUrl, e);
+            return Optional.empty();
+        }
     }
 
     @Override

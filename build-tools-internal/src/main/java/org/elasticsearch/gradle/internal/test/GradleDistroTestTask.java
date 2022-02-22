@@ -30,13 +30,17 @@ public class GradleDistroTestTask extends VagrantShellTask {
 
     private String taskName;
     private String testClass;
+
     private List<String> extraArgs = new ArrayList<>();
 
     private final ProjectLayout projectLayout;
     private final BuildLayout buildLayout;
 
+    private String logLevel;
+
     @Inject
     public GradleDistroTestTask(BuildLayout buildLayout, ProjectLayout projectLayout) {
+        super(buildLayout);
         this.buildLayout = buildLayout;
         this.projectLayout = projectLayout;
     }
@@ -64,6 +68,10 @@ public class GradleDistroTestTask extends VagrantShellTask {
         this.extraArgs.add(arg);
     }
 
+    public void setLogLevel(String logLevel) {
+        this.logLevel = logLevel;
+    }
+
     @Override
     protected List<String> getWindowsScript() {
         return getScript(true);
@@ -87,7 +95,7 @@ public class GradleDistroTestTask extends VagrantShellTask {
         );
         line.append(" -S");
         line.append(" --parallel");
-        line.append(" -D'org.gradle.logging.level'=" + getProject().getGradle().getStartParameter().getLogLevel());
+        line.append(" -D'org.gradle.logging.level'=" + logLevel);
         if (testClass != null) {
             line.append(" --tests=");
             line.append(testClass);

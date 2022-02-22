@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiFeatureMigrationIT extends FeatureMigrationIT {
+public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -70,7 +70,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(FeatureMigrationIT.TestPlugin.class);
+        plugins.add(TestPlugin.class);
         plugins.add(SecondPlugin.class);
         plugins.add(ReindexPlugin.class);
         return plugins;

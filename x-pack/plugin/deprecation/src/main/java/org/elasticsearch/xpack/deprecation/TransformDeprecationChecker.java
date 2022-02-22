@@ -137,7 +137,7 @@ public class TransformDeprecationChecker implements DeprecationChecker {
     private static DeprecationIssue createDeprecationIssue(String transformId, String warningHeader) {
         return new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            HeaderWarning.extractWarningValueFromWarningHeader(warningHeader, true),
+            "Transform [" + transformId + "]: " + HeaderWarning.extractWarningValueFromWarningHeader(warningHeader, true),
             TransformDeprecations.PAINLESS_BREAKING_CHANGES_URL,
             null,
             false,

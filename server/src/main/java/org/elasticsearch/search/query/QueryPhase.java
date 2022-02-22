@@ -267,5 +267,5 @@ public class QueryPhase {
         return true;
     }
 
-    static class TimeExceededException extends RuntimeException {}
+    public static class TimeExceededException extends RuntimeException {}
 }

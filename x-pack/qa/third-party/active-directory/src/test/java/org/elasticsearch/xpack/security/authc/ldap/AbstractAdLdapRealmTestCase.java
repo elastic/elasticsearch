@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -34,7 +35,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -176,7 +176,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         if (content.isEmpty()) {
             return;
         }
-        Map<String, ActionFuture<PutRoleMappingResponse>> futures = new LinkedHashMap<>(content.size());
+        Map<String, ActionFuture<PutRoleMappingResponse>> futures = Maps.newLinkedHashMapWithExpectedSize(content.size());
         for (int i = 0; i < content.size(); i++) {
             final String name = "external_" + i;
             final PutRoleMappingRequestBuilder builder = new PutRoleMappingRequestBuilder(client()).source(

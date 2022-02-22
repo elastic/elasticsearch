@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -99,7 +100,8 @@ public final class IndexPrivilege extends Privilege {
         GetDataStreamAction.NAME,
         ResolveIndexAction.NAME,
         FieldCapabilitiesAction.NAME + "*",
-        GetRollupIndexCapsAction.NAME + "*"
+        GetRollupIndexCapsAction.NAME + "*",
+        GetCheckpointAction.NAME + "*" // transform internal action
     );
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(
         PutFollowAction.NAME,

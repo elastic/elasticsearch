@@ -214,7 +214,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             if (nodeLoad.getFreeMemory() >= requiredMemory) {
                 assignmentIter.remove();
                 // Remove and add to the priority queue to make sure the biggest node with availability is first
-                mostFreeMemoryFirst.add(mostFreeMemoryFirst.poll().incNumAssignedJobs().incAssignedJobMemory(requiredMemory));
+                mostFreeMemoryFirst.add(mostFreeMemoryFirst.poll().incNumAssignedJobs().incAssignedAnomalyDetectorMemory(requiredMemory));
             }
         }
         List<NodeLoad> adjustedLoads = mostFreeMemoryFirst.stream().map(NodeLoad.Builder::build).collect(Collectors.toList());

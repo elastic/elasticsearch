@@ -79,7 +79,7 @@ public class SystemIndexMigrationIT extends FeatureMigrationIT {
             }
 
         };
-        final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, masterName);
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.addListener(clusterStateListener);
 
         // create task by calling API

@@ -1,0 +1,5 @@
+pr: 84180
+summary: Unify index name pattern between security system-index and RBAC restricted names
+area: Authorization
+type: enhancement
+issues: []

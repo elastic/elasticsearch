@@ -293,7 +293,14 @@ public class SearchCancellationIT extends ESIntegTestCase {
                 bulkRequestBuilder.add(
                     client().prepareIndex("test")
                         .setOpType(DocWriteRequest.OpType.CREATE)
-                        .setSource("@timestamp", now + (long) i * numberOfDocsPerRefresh + j, "val", (double) j, "dim", String.valueOf(j))
+                        .setSource(
+                            "@timestamp",
+                            now + (long) i * numberOfDocsPerRefresh + j,
+                            "val",
+                            (double) j,
+                            "dim",
+                            String.valueOf(j % 100)
+                        )
                 );
             }
             assertNoFailures(bulkRequestBuilder.get());

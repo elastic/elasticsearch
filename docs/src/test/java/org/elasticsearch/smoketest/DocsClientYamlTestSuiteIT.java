@@ -14,8 +14,8 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;

@@ -11,7 +11,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.sandbox.search.DocValuesNumbersQuery;
-import org.apache.lucene.search.AssertingQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -25,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.search.AssertingQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 

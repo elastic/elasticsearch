@@ -11,7 +11,6 @@ package org.elasticsearch.common.lucene.search.function;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.AssertingScorer;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -20,7 +19,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.search.AssertingScorer;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

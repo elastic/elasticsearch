@@ -8,9 +8,9 @@
 
 package org.elasticsearch.gateway;
 
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;

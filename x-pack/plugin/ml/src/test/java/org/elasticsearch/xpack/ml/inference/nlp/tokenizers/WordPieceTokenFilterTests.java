@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

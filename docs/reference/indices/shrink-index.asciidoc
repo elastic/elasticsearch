@@ -31,7 +31,7 @@ POST /my-index-000001/_shrink/shrunk-my-index-000001
 * Before you can shrink an index:
 
 ** The index must be read-only.
-** All primary shards for the index must reside on the same node.
+** A copy of every shard in the index must reside on the same node.
 ** The index must have a `green` <<cluster-health,health status>>.
 
 To make shard allocation easier, we recommend you also remove the index's

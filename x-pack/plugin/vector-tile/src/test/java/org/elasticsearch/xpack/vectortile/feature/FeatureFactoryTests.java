@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.vectortile.feature;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;

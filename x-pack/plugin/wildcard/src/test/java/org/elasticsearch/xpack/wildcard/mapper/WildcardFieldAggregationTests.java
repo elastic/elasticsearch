@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperBuilderContext;

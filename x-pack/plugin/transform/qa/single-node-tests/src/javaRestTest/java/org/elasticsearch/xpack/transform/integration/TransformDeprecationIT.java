@@ -64,6 +64,7 @@ public class TransformDeprecationIT extends TransformRestTestCase {
         }
         {
             Request deprecationInfoRequest = new Request("GET", "_migration/deprecations");
+            deprecationInfoRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
             Response deprecationInfoResponse = client().performRequest(deprecationInfoRequest);
             assertThat(
                 EntityUtils.toString(deprecationInfoResponse.getEntity()),

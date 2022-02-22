@@ -92,6 +92,7 @@ public class TransformDeprecationChecker implements DeprecationChecker {
                 };
                 if (numberOfTransforms == 0) {
                     processNextPage.run();
+                    return;
                 }
                 final CountDown numberOfResponsesToProcess = new CountDown(numberOfTransforms);
                 for (TransformConfig config : getTransformResponse.getTransformConfigurations()) {

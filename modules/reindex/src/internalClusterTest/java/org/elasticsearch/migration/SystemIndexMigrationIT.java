@@ -33,7 +33,7 @@ import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_I
 /**
  * This class is for testing that when restarting a node, SystemIndexMigrationTaskState can be read.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public class SystemIndexMigrationIT extends FeatureMigrationIT {
     private static Logger logger = LogManager.getLogger(SystemIndexMigrationIT.class);
 
@@ -59,8 +59,9 @@ public class SystemIndexMigrationIT extends FeatureMigrationIT {
         CyclicBarrier shutdownCompleted = new CyclicBarrier(2);
         AtomicBoolean hasBlocked = new AtomicBoolean();
 
+        internalCluster().setBootstrapMasterNodeIndex(0);
         final String masterName = internalCluster().startMasterOnlyNode();
-        final String dataNodeName = internalCluster().startDataOnlyNode();
+        final String masterAndDataNode = internalCluster().startNode();
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
 
         final ClusterStateListener clusterStateListener = event -> {
@@ -88,7 +89,7 @@ public class SystemIndexMigrationIT extends FeatureMigrationIT {
 
         taskCreated.await(10, TimeUnit.SECONDS); // waiting when the task is created
 
-        internalCluster().restartNode(dataNodeName, new InternalTestCluster.RestartCallback() {
+        internalCluster().restartNode(masterAndDataNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 shutdownCompleted.await(10, TimeUnit.SECONDS);// now we can release the master thread

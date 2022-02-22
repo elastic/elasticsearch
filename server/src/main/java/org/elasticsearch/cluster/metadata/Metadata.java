@@ -2119,7 +2119,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
             if (context != XContentContext.API && metadata.persistentSettings().isEmpty() == false) {
                 builder.startObject("settings");
-                metadata.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+                metadata.persistentSettings().toXContent(builder, Settings.FLAT_SETTINGS_TRUE);
                 builder.endObject();
             }
 

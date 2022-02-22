@@ -430,48 +430,76 @@ public class JwtRealmTests extends JwtTestCase {
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
                 String.join(",", jwtIssuer.getAllAlgorithms())
             )
-            .put(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_CLOCK_SKEW),
-                randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(1, 5) + randomFrom("s", "m", "h")
-            )
-            .put(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.PKC_JWKSET_PATH),
-                saveJwkSetToTempFile(jwtIssuer.getJwkSetPkc(), true)
-            )
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_AUDIENCES), randomFrom(jwtIssuer.audiences))
-            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE), clientAuthenticationType)
             .put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()),
                 randomBoolean() ? "sub" : authcRealmName + "_sub"
-            )
-            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()), "^(.*)$")
-            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.POPULATE_USER_METADATA), randomBoolean())
-            .put(
-                RealmSettings.getFullSettingKey(authcRealmName, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
-                String.join(",", authzRealmNames)
             );
+        if ((JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET.equals(clientAuthenticationType) == false) || (randomBoolean())) {
+            // always set "None", optionally set "SharedSecret" or let it get picked by default
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
+                clientAuthenticationType
+            );
+        }
         if (randomBoolean()) {
+            // optionally allow default, or set -1 disabled or non-zero for enabled
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_CLOCK_SKEW),
+                randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(1, 5) + randomFrom("s", "m", "h")
+            );
+        }
+        if ((jwtIssuer.getJwkSetPkc() != null) || (randomBoolean())) {
+            // always set non-empty JWKSet, or optionally set null if empty
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.PKC_JWKSET_PATH),
+                saveJwkSetToTempFile(jwtIssuer.getJwkSetPkc(), true)
+            );
+        }
+        if (randomBoolean()) {
+            // principal claim name is required, but principal claim pattern is optional
+            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()), "^(.*)$");
+        }
+        if (randomBoolean()) {
+            // groups claim name is optional
             authcSettings.put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_GROUPS.getClaim()),
                 authcRealmName + "_groups"
             );
-            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_GROUPS.getPattern()), "^(.*)$");
+            if (randomBoolean()) {
+                // if groups claim name is set, groups claim pattern is optional
+                authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_GROUPS.getPattern()), "^(.*)$");
+            }
+        }
+        if (randomBoolean()) {
+            // allow default to be picked, or explicitly set true or false
+            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.POPULATE_USER_METADATA), randomBoolean());
+        }
+        if ((authzRealmNames.length != 0) || (randomBoolean())) {
+            // always set non-empty list, otherwise leave it out or optionally set value to an empty list
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
+                String.join(",", authzRealmNames)
+            );
         }
         // JWT authc realm secure settings
         final MockSecureSettings secureSettings = new MockSecureSettings();
         if (jwtIssuer.algAndJwksHmac.isEmpty() == false) {
+            // always set if non-empty
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.HMAC_JWKSET),
                 JwtUtil.serializeJwkSet(jwtIssuer.getJwkSetHmac(), false)
             );
         }
         if (jwtIssuer.algAndJwkHmacOidc != null) {
+            // always set if non-empty
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.HMAC_KEY),
                 new String(jwtIssuer.algAndJwkHmacOidc.jwk().toOctetSequenceKey().toByteArray(), StandardCharsets.UTF_8)
             );
         }
         if (clientAuthenticationType.equals(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET)) {
+            // always set if type is "SharedSecret"
             final String clientAuthenticationSharedSecret = Base64.getUrlEncoder().encodeToString(randomByteArrayOfLength(32));
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),

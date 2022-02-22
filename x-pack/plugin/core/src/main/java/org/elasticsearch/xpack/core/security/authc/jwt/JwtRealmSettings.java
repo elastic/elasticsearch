@@ -6,17 +6,24 @@
  */
 package org.elasticsearch.xpack.core.security.authc.jwt;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -80,7 +87,7 @@ public class JwtRealmSettings {
      * @return All secure and non-secure settings.
      */
     public static Set<Setting.AffixSetting<?>> getSettings() {
-        final Set<Setting.AffixSetting<?>> set = Sets.newHashSet();
+        final Set<Setting.AffixSetting<?>> set = new LinkedHashSet<>();
         set.addAll(JwtRealmSettings.getNonSecureSettings());
         set.addAll(JwtRealmSettings.getSecureSettings());
         return set;
@@ -91,7 +98,7 @@ public class JwtRealmSettings {
      * @return All non-secure settings.
      */
     public static Set<Setting.AffixSetting<?>> getNonSecureSettings() {
-        final Set<Setting.AffixSetting<?>> set = Sets.newHashSet();
+        final Set<Setting.AffixSetting<?>> set = new LinkedHashSet<>();
         // Standard realm settings: order, enabled
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         // JWT Issuer settings
@@ -131,8 +138,8 @@ public class JwtRealmSettings {
      * Get all secure settings.
      * @return All secure settings.
      */
-    public static List<Setting.AffixSetting<SecureString>> getSecureSettings() {
-        return List.of(HMAC_JWKSET, HMAC_KEY, CLIENT_AUTHENTICATION_SHARED_SECRET);
+    public static Set<Setting.AffixSetting<SecureString>> getSecureSettings() {
+        return new LinkedHashSet<>(List.of(HMAC_JWKSET, HMAC_KEY, CLIENT_AUTHENTICATION_SHARED_SECRET));
     }
 
     // JWT issuer settings
@@ -270,6 +277,17 @@ public class JwtRealmSettings {
         }
         for (final String value : values) {
             verifyNonNullNotEmpty(key, value, allowedValues);
+        }
+    }
+
+    public static String toYaml(final Settings settings) {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.YAML.xContent())) {
+            builder.startObject();
+            settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

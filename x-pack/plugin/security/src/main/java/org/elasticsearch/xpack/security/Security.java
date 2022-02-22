@@ -409,6 +409,11 @@ public class Security extends Plugin
         "oidc",
         License.OperationMode.PLATINUM
     );
+    public static final LicensedFeature.Persistent JWT_REALM_FEATURE = LicensedFeature.persistent(
+        REALMS_FEATURE_FAMILY,
+        "jwt",
+        License.OperationMode.PLATINUM
+    );
     public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE = LicensedFeature.persistent(
         REALMS_FEATURE_FAMILY,
         "kerberos",

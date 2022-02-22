@@ -182,6 +182,7 @@ public enum IndexMode {
 
         @Override
         public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            // We don't support field data on TSDB's _id
             return TimeSeriesModeIdFieldMapper.INSTANCE;
         }
 

@@ -291,8 +291,8 @@ means the document came from the local cluster.
 === Skip unavailable clusters
 
 By default, a {ccs} request fails if a remote cluster in the request is
-unavailable. You can the `skip_unavailable` cluster setting to mark a specific
-remote cluster as optional in cross-cluster searches.
+unavailable. Use the <<skip-unavailable,`skip_unavailable`>> cluster setting to
+mark a specific remote cluster as optional in cross-cluster searches.
 
 If `skip_unavailable` is `true`, a {ccs}:
 

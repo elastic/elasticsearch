@@ -84,6 +84,9 @@ public class ClientYamlTestClient implements Closeable {
         this.clientBuilderWithSniffedNodes = clientBuilderWithSniffedNodes;
     }
 
+    /**
+     * @return the version of the oldest node in the cluster
+     */
     public Version getEsVersion() {
         return esVersion;
     }

@@ -135,8 +135,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
-import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.tests.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -1558,6 +1558,9 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, DATA_NODE_PREDICATE);
     }
 
+    /**
+     * Return the instance of the given class &gt;T&lt; from the elected master node. See also {@link #getAnyMasterNodeInstance}.
+     */
     public synchronized <T> T getCurrentMasterNodeInstance(Class<T> clazz) {
         return getInstance(clazz, new NodeNamePredicate(getMasterName()));
     }
@@ -1590,7 +1593,11 @@ public final class InternalTestCluster extends TestCluster {
         return getInstance(clazz, DATA_NODE_PREDICATE);
     }
 
-    public <T> T getMasterNodeInstance(Class<T> clazz) {
+    /**
+     * Return the instance of the given class &gt;T&lt; from any of the master-eligible nodes (not necessarily the elected master). See
+     * also {@link #getCurrentMasterNodeInstance}.
+     */
+    public <T> T getAnyMasterNodeInstance(Class<T> clazz) {
         return getInstance(clazz, MASTER_NODE_PREDICATE);
     }
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SimpleFeatureFactory;
 import org.elasticsearch.script.ScriptCompiler;

@@ -16,7 +16,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -1625,6 +1625,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value).build()
             : Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+    }
+
+    /** Sets cluster persistent settings **/
+    public void updateClusterSettings(Settings.Builder persistentSettings) {
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(persistentSettings).get());
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {

@@ -1,0 +1,7 @@
+pr: 83494
+summary: Group field caps response by index mapping hash
+area: Search
+type: enhancement
+issues:
+ - 78665
+ - 82879

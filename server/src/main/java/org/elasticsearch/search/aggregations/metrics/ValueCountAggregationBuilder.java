@@ -70,6 +70,11 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
         return new ValueCountAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Read from a stream.
      */
@@ -111,5 +116,10 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

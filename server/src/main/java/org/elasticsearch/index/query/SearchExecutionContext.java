@@ -374,6 +374,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mapperService.isMetadataField(field);
     }
 
+    public boolean isMultiField(String field) {
+        return mapperService.isMultiField(field);
+    }
+
     public Set<String> sourcePath(String fullName) {
         return mappingLookup.sourcePaths(fullName);
     }

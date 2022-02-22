@@ -31,6 +31,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -65,7 +66,9 @@ public class RepositoriesServiceTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -93,7 +96,8 @@ public class RepositoriesServiceTests extends ESTestCase {
             transportService,
             typesRegistry,
             typesRegistry,
-            threadPool
+            threadPool,
+            List.of()
         );
         repositoriesService.start();
     }

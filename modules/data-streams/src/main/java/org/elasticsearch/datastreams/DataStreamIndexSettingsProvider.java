@@ -31,13 +31,21 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         String dataStreamName,
         IndexMode templateIndexMode,
         Metadata metadata,
-        long resolvedAt,
+        Instant resolvedAt,
         Settings allSettings
     ) {
         if (dataStreamName != null) {
             DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+            // First backing index is created and then data stream is rolled over (in a single cluster state update).
+            // So at this point we can't check index_mode==time_series,
+            // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
+            boolean migrating = dataStream != null
+                && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
+                && templateIndexMode == IndexMode.TIME_SERIES;
             IndexMode indexMode;
-            if (dataStream != null) {
+            if (migrating) {
+                indexMode = IndexMode.TIME_SERIES;
+            } else if (dataStream != null) {
                 indexMode = dataStream.getIndexMode();
             } else {
                 indexMode = templateIndexMode;
@@ -48,9 +56,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
                 if (indexMode == IndexMode.TIME_SERIES) {
                     TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(allSettings);
-                    Instant start;
-                    if (dataStream == null) {
-                        start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());
+                    final Instant start;
+                    final Instant end;
+                    if (dataStream == null || migrating) {
+                        start = resolvedAt.minusMillis(lookAheadTime.getMillis());
+                        end = resolvedAt.plusMillis(lookAheadTime.getMillis());
                     } else {
                         IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
                         if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
@@ -64,9 +74,14 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             );
                         }
                         start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
+                        if (start.isAfter(resolvedAt)) {
+                            end = start.plusMillis(lookAheadTime.getMillis());
+                        } else {
+                            end = resolvedAt.plusMillis(lookAheadTime.getMillis());
+                        }
                     }
+                    assert start.isBefore(end) : "data stream backing index's start time is not before end time";
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
-                    Instant end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
                 }
                 return builder.build();

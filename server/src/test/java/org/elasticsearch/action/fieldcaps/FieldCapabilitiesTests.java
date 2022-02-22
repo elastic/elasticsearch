@@ -9,6 +9,8 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -16,9 +18,15 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCapabilities> {
@@ -156,6 +164,140 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertNull(cap2.nonDimensionIndices());
             assertEquals(Map.of("foo", Set.of("bar", "quux")), cap2.meta());
         }
+    }
+
+    public void testRandomBuilder() {
+        List<String> indices = IntStream.range(0, randomIntBetween(1, 50))
+            .mapToObj(n -> String.format(Locale.ROOT, "index_%2d", n))
+            .toList();
+        Set<String> searchableIndices = new HashSet<>(randomSubsetOf(indices));
+        Set<String> aggregatableIndices = new HashSet<>(randomSubsetOf(indices));
+        Set<String> dimensionIndices = new HashSet<>(randomSubsetOf(indices));
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
+        for (String index : indices) {
+            builder.add(
+                index,
+                randomBoolean(),
+                searchableIndices.contains(index),
+                aggregatableIndices.contains(index),
+                dimensionIndices.contains(index),
+                null,
+                Map.of()
+            );
+        }
+        FieldCapabilities fieldCaps = builder.build(randomBoolean());
+        // search
+        if (searchableIndices.isEmpty()) {
+            assertFalse(fieldCaps.isSearchable());
+            assertNull(fieldCaps.nonSearchableIndices());
+        } else if (searchableIndices.size() == indices.size()) {
+            assertTrue(fieldCaps.isSearchable());
+            assertNull(fieldCaps.nonSearchableIndices());
+        } else {
+            assertFalse(fieldCaps.isSearchable());
+            assertThat(
+                Sets.newHashSet(fieldCaps.nonSearchableIndices()),
+                equalTo(Sets.difference(Sets.newHashSet(indices), searchableIndices))
+            );
+        }
+        // aggregate
+        if (aggregatableIndices.isEmpty()) {
+            assertFalse(fieldCaps.isAggregatable());
+            assertNull(fieldCaps.nonAggregatableIndices());
+        } else if (aggregatableIndices.size() == indices.size()) {
+            assertTrue(fieldCaps.isAggregatable());
+            assertNull(fieldCaps.nonAggregatableIndices());
+        } else {
+            assertFalse(fieldCaps.isAggregatable());
+            assertThat(
+                Sets.newHashSet(fieldCaps.nonAggregatableIndices()),
+                equalTo(Sets.difference(Sets.newHashSet(indices), aggregatableIndices))
+            );
+        }
+        // dimension
+        if (dimensionIndices.isEmpty()) {
+            assertFalse(fieldCaps.isDimension());
+            assertNull(fieldCaps.nonDimensionIndices());
+        } else if (dimensionIndices.size() == indices.size()) {
+            assertTrue(fieldCaps.isDimension());
+            assertNull(fieldCaps.nonDimensionIndices());
+        } else {
+            assertFalse(fieldCaps.isDimension());
+            assertThat(
+                Sets.newHashSet(fieldCaps.nonDimensionIndices()),
+                equalTo(Sets.difference(Sets.newHashSet(indices), dimensionIndices))
+            );
+        }
+    }
+
+    public void testBuilderSingleMetricType() {
+        List<String> indices = IntStream.range(0, randomIntBetween(1, 50))
+            .mapToObj(n -> String.format(Locale.ROOT, "index_%2d", n))
+            .toList();
+        TimeSeriesParams.MetricType metric = randomBoolean() ? null : randomFrom(TimeSeriesParams.MetricType.values());
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
+        for (String index : indices) {
+            builder.add(index, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), metric, Map.of());
+        }
+        FieldCapabilities fieldCaps = builder.build(randomBoolean());
+        assertThat(fieldCaps.getMetricType(), equalTo(metric));
+        assertNull(fieldCaps.metricConflictsIndices());
+    }
+
+    public void testBuilderMixedMetricType() {
+        List<String> indices = IntStream.range(0, randomIntBetween(1, 50))
+            .mapToObj(n -> String.format(Locale.ROOT, "index_%2d", n))
+            .toList();
+        Map<String, TimeSeriesParams.MetricType> metricTypes = new HashMap<>();
+        for (String index : indices) {
+            if (randomBoolean()) {
+                metricTypes.put(index, randomFrom(TimeSeriesParams.MetricType.values()));
+            }
+        }
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
+        for (String index : indices) {
+            builder.add(index, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), metricTypes.get(index), Map.of());
+        }
+        FieldCapabilities fieldCaps = builder.build(randomBoolean());
+        if (metricTypes.isEmpty()) {
+            assertNull(fieldCaps.getMetricType());
+            assertNull(fieldCaps.metricConflictsIndices());
+        } else if (metricTypes.size() == indices.size() && metricTypes.values().size() == 1) {
+            assertThat(fieldCaps.getMetricType(), equalTo(Iterables.get(metricTypes.values(), 0)));
+            assertNull(fieldCaps.metricConflictsIndices());
+        } else {
+            assertNull(fieldCaps.getMetricType());
+            assertThat(fieldCaps.metricConflictsIndices(), equalTo(indices.toArray(String[]::new)));
+        }
+    }
+
+    public void testOutOfOrderIndices() {
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
+        int numIndex = randomIntBetween(1, 5);
+        for (int i = 1; i <= numIndex; i++) {
+            builder.add(
+                "index-" + i,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomFrom(TimeSeriesParams.MetricType.values()),
+                Map.of()
+            );
+        }
+        final String outOfOrderIndex = randomBoolean() ? "abc" : "index-" + randomIntBetween(1, numIndex);
+        AssertionError error = expectThrows(AssertionError.class, () -> {
+            builder.add(
+                outOfOrderIndex,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomFrom(TimeSeriesParams.MetricType.values()),
+                Map.of()
+            );
+        });
+        assertThat(error.getMessage(), containsString("indices aren't sorted"));
     }
 
     static FieldCapabilities randomFieldCaps(String fieldName) {

@@ -49,7 +49,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.To
  *     </li>
  * </ol>
  *
- * In case you need to mute any of the tests, mute all tests by adding {@link org.apache.lucene.util.LuceneTestCase.AwaitsFix}
+ * In case you need to mute any of the tests, mute all tests by adding {@link org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix}
  * on the class level.
  */
 public class DateTimeToCharProcessorTests extends ESTestCase {

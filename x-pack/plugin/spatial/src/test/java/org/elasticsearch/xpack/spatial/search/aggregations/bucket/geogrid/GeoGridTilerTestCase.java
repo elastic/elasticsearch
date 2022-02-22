@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -145,6 +145,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         assertThat(numBuckets, equalTo(expected));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84152")
     public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
         for (int i = 0; i < 1000; i++) {
             int precision = randomIntBetween(0, 3);

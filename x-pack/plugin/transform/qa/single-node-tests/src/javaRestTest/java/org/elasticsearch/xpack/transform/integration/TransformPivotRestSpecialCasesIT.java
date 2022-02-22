@@ -248,8 +248,8 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         String indexName = "special_pivot_bucket_selector_reviews";
         createReviewsIndex(indexName, 1000, 327, "date", false, 5, "affiliate_id");
 
-        verifyDestIndexHitsCount(indexName, "special_pivot_bucket_selector-10", 10, 14);
-        verifyDestIndexHitsCount(indexName, "special_pivot_bucket_selector-10000", 10000, 14);
+        verifyDestIndexHitsCount(indexName, "special_pivot_bucket_selector-10", 10, 41);
+        verifyDestIndexHitsCount(indexName, "special_pivot_bucket_selector-10000", 10000, 41);
     }
 
     private void verifyDestIndexHitsCount(String sourceIndex, String transformId, int maxPageSearchSize, long expectedDestIndexCount)

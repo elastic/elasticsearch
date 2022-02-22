@@ -10,24 +10,16 @@ package org.elasticsearch.xpack.transform.integration;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.indices.CreateIndexResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
@@ -39,26 +31,25 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.transform.integration.TransformRestTestCase.REVIEWS_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @SuppressWarnings("removal")
-public class TransformProgressIT extends ESRestTestCase {
+public class TransformProgressIT extends TransformSingleNodeTestCase {
+    private static final String REVIEWS_INDEX_NAME = "reviews";
+
     protected void createReviewsIndex(int userWithMissingBuckets) throws Exception {
         final int numDocs = 1000;
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
 
         // create mapping
         try (XContentBuilder builder = jsonBuilder()) {
@@ -83,8 +74,8 @@ public class TransformProgressIT extends ESRestTestCase {
                     .endObject();
             }
             builder.endObject();
-            CreateIndexResponse response = restClient.indices()
-                .create(new CreateIndexRequest(REVIEWS_INDEX_NAME).mapping(builder), RequestOptions.DEFAULT);
+
+            var response = client().admin().indices().prepareCreate(REVIEWS_INDEX_NAME).setMapping(builder).get();
             assertThat(response.isAcknowledged(), is(true));
         }
 
@@ -120,15 +111,15 @@ public class TransformProgressIT extends ESRestTestCase {
             bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
 
             if (i % 50 == 0) {
-                BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
+                BulkResponse response = client().bulk(bulk).actionGet();
                 assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
                 bulk = new BulkRequest(REVIEWS_INDEX_NAME);
                 day += 1;
             }
         }
-        BulkResponse bulkResponse = restClient.bulk(bulk, RequestOptions.DEFAULT);
+        BulkResponse bulkResponse = client().bulk(bulk).actionGet();
         assertFalse(bulkResponse.hasFailures());
-        restClient.indices().refresh(new RefreshRequest(REVIEWS_INDEX_NAME), RequestOptions.DEFAULT);
+        client().admin().indices().prepareRefresh(REVIEWS_INDEX_NAME).get();
     }
 
     public void testGetProgress() throws Exception {
@@ -214,14 +205,8 @@ public class TransformProgressIT extends ESRestTestCase {
             assertThat(progress.getPercentComplete(), equalTo(100.0));
         }
 
-        deleteIndex(REVIEWS_INDEX_NAME);
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        final String token = "Basic "
-            + Base64.getEncoder().encodeToString(("x_pack_rest_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        var ackResponse = client().admin().indices().prepareDelete(REVIEWS_INDEX_NAME).get();
+        assertTrue(ackResponse.isAcknowledged());
     }
 
     private TransformProgress getProgress(Function function, SearchRequest searchRequest) throws Exception {
@@ -229,14 +214,11 @@ public class TransformProgressIT extends ESRestTestCase {
         final AtomicReference<TransformProgress> progressHolder = new AtomicReference<>();
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            SearchResponse response = restClient.search(searchRequest, RequestOptions.DEFAULT);
-
-            function.getInitialProgressFromResponse(
-                response,
-                new LatchedActionListener<>(ActionListener.wrap(progressHolder::set, e -> { exceptionHolder.set(e); }), latch)
-            );
-        }
+        SearchResponse response = client().search(searchRequest).actionGet();
+        function.getInitialProgressFromResponse(
+            response,
+            new LatchedActionListener<>(ActionListener.wrap(progressHolder::set, exceptionHolder::set), latch)
+        );
 
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
         if (exceptionHolder.get() != null) {
@@ -244,12 +226,6 @@ public class TransformProgressIT extends ESRestTestCase {
         }
 
         return progressHolder.get();
-    }
-
-    private class TestRestHighLevelClient extends RestHighLevelClient {
-        TestRestHighLevelClient() {
-            super(client(), restClient -> {}, Collections.emptyList());
-        }
     }
 
     private static SearchRequest getProgressQuery(Function function, String[] source, QueryBuilder query) {

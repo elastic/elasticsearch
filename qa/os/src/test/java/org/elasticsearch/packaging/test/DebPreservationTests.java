@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Packages.JournaldWrapper;
 import org.junit.BeforeClass;
 
 import java.nio.file.Paths;
@@ -24,6 +25,8 @@ import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.packageStatus;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeTrue;
 
@@ -89,5 +92,32 @@ public class DebPreservationTests extends PackagingTestCase {
         assertPathsDoNotExist(installation.config, installation.envFile, SYSVINIT_SCRIPT);
 
         assertThat(packageStatus(distribution()).exitCode, is(1));
+    }
+
+    /**
+     * Check that restarting on upgrade doesn't run into a problem where the keystore
+     * upgrade is attempted as the wrong user i.e. the restart happens at the correct
+     * point. See #82433.
+     */
+    public void test40RestartOnUpgrade() throws Exception {
+        assertRemoved(distribution());
+        installation = installPackage(sh, distribution());
+        assertInstalled(distribution());
+
+        // Ensure ES is started
+        sh.run("systemctl daemon-reload");
+        sh.run("systemctl enable elasticsearch.service");
+        sh.run("systemctl start elasticsearch.service");
+
+        final JournaldWrapper journaldWrapper = new JournaldWrapper(sh);
+        sh.getEnv().put("RESTART_ON_UPGRADE", "true");
+        installation = installPackage(sh, distribution());
+        final String logs = journaldWrapper.getLogs().stdout;
+
+        assertThat(
+            "Upgrade failed because the keystore couldn't be written",
+            logs,
+            not(containsString("java.nio.file.AccessDeniedException: /etc/elasticsearch/elasticsearch.keystore.tmp"))
+        );
     }
 }

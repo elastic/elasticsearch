@@ -75,7 +75,26 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
         echo "### You can start elasticsearch service by executing"
         echo " sudo /etc/init.d/elasticsearch start"
     fi
-elif [ "$RESTART_ON_UPGRADE" = "true" ]; then
+fi
+
+# the equivalent code for rpm is in posttrans
+if [ "$PACKAGE" = "deb" ]; then
+    if [ ! -f "${ES_PATH_CONF}"/elasticsearch.keystore ]; then
+        /usr/share/elasticsearch/bin/elasticsearch-keystore create
+        chown root:elasticsearch "${ES_PATH_CONF}"/elasticsearch.keystore
+        chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
+        md5sum "${ES_PATH_CONF}"/elasticsearch.keystore > "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
+    else
+        if /usr/share/elasticsearch/bin/elasticsearch-keystore has-passwd --silent ; then
+          echo "### Warning: unable to upgrade encrypted keystore" 1>&2
+          echo " Please run elasticsearch-keystore upgrade and enter password" 1>&2
+        else
+          /usr/share/elasticsearch/bin/elasticsearch-keystore upgrade
+        fi
+    fi
+fi
+
+if [ "$RESTART_ON_UPGRADE" = "true" ]; then
 
     echo -n "Restarting elasticsearch service..."
     if command -v systemctl >/dev/null; then
@@ -98,23 +117,6 @@ elif [ "$RESTART_ON_UPGRADE" = "true" ]; then
         /etc/rc.d/init.d/elasticsearch restart || true
     fi
     echo " OK"
-fi
-
-# the equivalent code for rpm is in posttrans
-if [ "$PACKAGE" = "deb" ]; then
-    if [ ! -f "${ES_PATH_CONF}"/elasticsearch.keystore ]; then
-        /usr/share/elasticsearch/bin/elasticsearch-keystore create
-        chown root:elasticsearch "${ES_PATH_CONF}"/elasticsearch.keystore
-        chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
-        md5sum "${ES_PATH_CONF}"/elasticsearch.keystore > "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
-    else
-        if /usr/share/elasticsearch/bin/elasticsearch-keystore has-passwd --silent ; then
-          echo "### Warning: unable to upgrade encrypted keystore" 1>&2
-          echo " Please run elasticsearch-keystore upgrade and enter password" 1>&2
-        else
-          /usr/share/elasticsearch/bin/elasticsearch-keystore upgrade
-        fi
-    fi
 fi
 
 @scripts.footer@

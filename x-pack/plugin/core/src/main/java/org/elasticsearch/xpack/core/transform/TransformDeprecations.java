@@ -15,6 +15,8 @@ public class TransformDeprecations {
 
     public static final String AGGS_BREAKING_CHANGES_URL = "https://ela.st/es-deprecation-8-transform-aggregation-options";
 
+    public static final String PAINLESS_BREAKING_CHANGES_URL = "https://ela.st/es-deprecation-8-transform-painless-options";
+
     public static final String ACTION_UPGRADE_TRANSFORMS_API =
         "This transform configuration uses obsolete syntax which will be unsupported after the next upgrade. "
             + "Use [/_transform/_upgrade] to upgrade all transforms to the latest format.";

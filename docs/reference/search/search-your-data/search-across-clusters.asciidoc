@@ -299,8 +299,8 @@ If `skip_unavailable` is `true`, a {ccs}:
 * Skips the remote cluster if its nodes are unavailable during the search. The
 response's `_cluster.skipped` value contains a count of any skipped clusters.
 
-* Ignores errors, such as errors related to unavailable shards or indices,
-returned by the remote cluster. This can include errors related to search
+* Ignores errors returned by the remote cluster, such as errors related to
+unavailable shards or indices. This can include errors related to search
 parameters such as <<api-multi-index,`allow_no_indices`>> and
 <<api-multi-index,`ignore_unavailable`>>.
 

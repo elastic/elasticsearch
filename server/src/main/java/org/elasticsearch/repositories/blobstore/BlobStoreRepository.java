@@ -3475,8 +3475,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 };
                 final String partName = fileInfo.partName(i);
-                logger.trace(() -> new ParameterizedMessage("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path()));
+                logger.trace("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path());
+                final long startMS = threadPool.relativeTimeInMillis();
                 shardContainer.writeBlob(partName, inputStream, partBytes, false);
+                logger.trace(
+                    "[{}] Writing [{}] of size [{}b] to [{}] took [{}ms]",
+                    metadata.name(),
+                    partName,
+                    partBytes,
+                    shardContainer.path(),
+                    threadPool.relativeTimeInMillis() - startMS
+                );
             }
             Store.verify(indexInput);
             snapshotStatus.addProcessedFile(fileInfo.length());

@@ -238,6 +238,268 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-  policies: {}
+  "policies" : {
+    "hot_content" : {
+      "required_capacity" : {
+        "node" : {
+          "storage" : 1162133568
+        },
+        "total" : {
+          "storage" : 193273528320
+        }
+      },
+      "current_capacity" : {
+        "node" : {
+          "storage" : 193273528320,
+          "memory" : 4294967296
+        },
+        "total" : {
+          "storage" : 193273528320,
+          "memory" : 4294967296
+        }
+      },
+      "current_nodes" : [
+        {
+          "name" : "instance-0000000006"
+        }
+      ],
+      "deciders" : {
+        "proactive_storage" : {
+          "required_capacity" : {
+            "node" : {
+              "storage" : 1162133568
+            },
+            "total" : {
+              "storage" : 193273528320
+            }
+          },
+          "reason_summary" : "storage ok",
+          "reason_details" : {
+            "reason" : "storage ok",
+            "unassigned" : 0,
+            "assigned" : 0,
+            "forecasted" : 0,
+            "forecast_window" : "30m"
+          }
+        },
+        "reactive_storage" : {
+          "required_capacity" : {
+            "node" : {
+              "storage" : 1162133568
+            },
+            "total" : {
+              "storage" : 193273528320
+            }
+          },
+          "reason_summary" : "storage ok",   <1>
+          "reason_details" : {
+            "reason" : "storage ok",         
+            "unassigned" : 0,
+            "assigned" : 0
+          }
+        }
+      }
+    },
+    "warm" : {
+      "required_capacity" : {
+        "node" : {
+          "storage" : 0
+        },
+        "total" : {
+          "storage" : 0
+        }
+      },
+      "current_capacity" : {
+        "node" : {
+          "storage" : 0,
+          "memory" : 0
+        },
+        "total" : {
+          "storage" : 0,
+          "memory" : 0
+        }
+      },
+      "current_nodes" : [ ],
+      "deciders" : {
+        "reactive_storage" : {
+          "required_capacity" : {
+            "node" : {
+              "storage" : 0
+            },
+            "total" : {
+              "storage" : 0
+            }
+          },
+          "reason_summary" : "storage ok",
+          "reason_details" : {
+            "reason" : "storage ok",
+            "unassigned" : 0,
+            "assigned" : 0
+          }
+        }
+      }
+    },
+    "cold" : {
+      "required_capacity" : {
+        "node" : {
+          "storage" : 0
+        },
+        "total" : {
+          "storage" : 0
+        }
+      },
+      "current_capacity" : {
+        "node" : {
+          "storage" : 0,
+          "memory" : 0
+        },
+        "total" : {
+          "storage" : 0,
+          "memory" : 0
+        }
+      },
+      "current_nodes" : [ ],
+      "deciders" : {
+        "reactive_storage" : {
+          "required_capacity" : {
+            "node" : {
+              "storage" : 0
+            },
+            "total" : {
+              "storage" : 0
+            }
+          },
+          "reason_summary" : "storage ok",  
+          "reason_details" : {
+            "reason" : "storage ok",        
+            "unassigned" : 0,               
+            "assigned" : 0
+          }
+        }
+      }
+    },
+    "frozen" : {
+      "required_capacity" : {
+        "total" : {
+          "storage" : 0,
+          "memory" : 0
+        }
+      },
+      "current_capacity" : {
+        "node" : {
+          "storage" : 0,
+          "memory" : 0
+        },
+        "total" : {
+          "storage" : 0,
+          "memory" : 0
+        }
+      },
+      "current_nodes" : [ ],
+      "deciders" : {
+        "frozen_existence" : {
+          "required_capacity" : {
+            "total" : {
+              "storage" : 0,
+              "memory" : 0
+            }
+          },
+          "reason_summary" : "indices []",
+          "reason_details" : {
+            "indices" : [ ]
+          }
+        },
+        "frozen_shards" : {
+          "required_capacity" : {
+            "total" : {
+              "memory" : 0
+            }
+          },
+          "reason_summary" : "shard count [0]",
+          "reason_details" : {
+            "shards" : 0
+          }
+        },
+        "frozen_storage" : {
+          "required_capacity" : {
+            "total" : {
+              "storage" : 0
+            }
+          },
+          "reason_summary" : "total data set size [0]",
+          "reason_details" : {
+            "total_data_set_size" : 0
+          }
+        }
+      }
+    },
+    "ml" : {
+      "required_capacity" : {
+        "node" : {
+          "storage" : 0,
+          "memory" : 0
+        },
+        "total" : {
+          "storage" : 0,
+          "memory" : 0
+        }
+      },
+      "current_capacity" : {
+        "node" : {
+          "storage" : 0,
+          "memory" : 0
+        },
+        "total" : {
+          "storage" : 0,
+          "memory" : 0
+        }
+      },
+      "current_nodes" : [ ],
+      "deciders" : {
+        "ml" : {
+          "required_capacity" : {
+            "node" : {
+              "storage" : 0,
+              "memory" : 0
+            },
+            "total" : {
+              "storage" : 0,
+              "memory" : 0
+            }
+          },
+          "reason_summary" : "Requesting scale down as tier and/or node size could be smaller",
+          "reason_details" : {
+            "waiting_analytics_jobs" : [ ],
+            "waiting_anomaly_jobs" : [ ],
+            "waiting_models" : [ ],
+            "configuration" : { },
+            "perceived_current_capacity" : {
+              "node" : {
+                "memory" : 0
+              },
+              "total" : {
+                "memory" : 0
+              }
+            },
+            "required_capacity" : {
+              "node" : {
+                "storage" : 0,
+                "memory" : 0
+              },
+              "total" : {
+                "storage" : 0,
+                "memory" : 0
+              }
+            },
+            "reason" : "Requesting scale down as tier and/or node size could be smaller"
+          }
+        }
+      }
+    }
+  }
 }
+----
+<1> One possible reason showing "current capacity not available".  It could 
+mean required capacity is not available, or cluster may have the setting
+`"use_disk_threshold"` set to `false`.
 --------------------------------------------------

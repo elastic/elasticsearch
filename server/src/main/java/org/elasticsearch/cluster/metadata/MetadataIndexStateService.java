@@ -911,9 +911,8 @@ public class MetadataIndexStateService {
             throw new IllegalArgumentException("Index name is required");
         }
 
-        final String indicesAsString = Arrays.toString(request.indices());
         clusterService.submitStateUpdateTask(
-            "open-indices " + indicesAsString,
+            "open-indices " + Arrays.toString(request.indices()),
             new OpenIndicesTask(request, listener),
             ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
             this.opensExecutor

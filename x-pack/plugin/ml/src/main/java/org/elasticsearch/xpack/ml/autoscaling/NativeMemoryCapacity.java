@@ -42,7 +42,13 @@ public class NativeMemoryCapacity {
         this.jvmSize = null;
     }
 
-    NativeMemoryCapacity merge(NativeMemoryCapacity nativeMemoryCapacity) {
+    /**
+     * Merges the passed capacity with the current one. A new instance is created and returned
+     * @param nativeMemoryCapacity the capacity to merge with
+     * @return a new instance with the merged capacity values
+     */
+    NativeMemoryCapacity merge(final NativeMemoryCapacity nativeMemoryCapacity) {
+        if (this == nativeMemoryCapacity) return this;
         long tier = this.tierMlNativeMemoryRequirement + nativeMemoryCapacity.tierMlNativeMemoryRequirement;
         long node = Math.max(nativeMemoryCapacity.nodeMlNativeMemoryRequirement, this.nodeMlNativeMemoryRequirement);
         // If the new node size is bigger, we have no way of knowing if the JVM size would stay the same

@@ -10,7 +10,7 @@ package org.elasticsearch.cli;
 
 import joptsimple.OptionSet;
 
-import org.apache.lucene.util.TestRuleRestoreSystemProperties;
+import org.apache.lucene.tests.util.TestRuleRestoreSystemProperties;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;

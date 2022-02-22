@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;

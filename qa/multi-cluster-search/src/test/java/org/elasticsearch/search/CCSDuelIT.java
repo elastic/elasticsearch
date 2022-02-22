@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;

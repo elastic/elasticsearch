@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene54;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.index.BaseDocValuesFormatTestCase;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 
 public class Lucene54DocValuesFormatTests extends BaseDocValuesFormatTestCase {
 

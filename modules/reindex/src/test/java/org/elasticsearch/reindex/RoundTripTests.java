@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 /**

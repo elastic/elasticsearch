@@ -21,7 +21,7 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin implement
             .register("testingConventions", TestingConventionsTasks.class);
         testingConventions.configure(t -> {
             TestingConventionRule testsRule = t.getNaming().maybeCreate("Tests");
-            testsRule.baseClass("org.apache.lucene.util.LuceneTestCase");
+            testsRule.baseClass("org.apache.lucene.tests.util.LuceneTestCase");
             TestingConventionRule itRule = t.getNaming().maybeCreate("IT");
             itRule.baseClass("org.elasticsearch.test.ESIntegTestCase");
             itRule.baseClass("org.elasticsearch.test.rest.ESRestTestCase");

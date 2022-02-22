@@ -194,7 +194,7 @@ public class RestoreServiceTests extends ESTestCase {
 
         var exception = expectThrows(
             SnapshotRestoreException.class,
-            () -> RestoreService.validateSnapshotRestorable(request, repository, snapshotInfo)
+            () -> RestoreService.validateSnapshotRestorable(request, repository, snapshotInfo, List.of())
         );
         assertThat(
             exception.getMessage(),

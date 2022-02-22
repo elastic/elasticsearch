@@ -53,7 +53,7 @@ PUT my-index-000001
 
 <1> The `status_code` field is a regular long field.
 <2> The `session_id` field has `index` disabled, and is therefore a
-    doc-value-only long field.
+    doc-value-only long field as doc values are enabled by default.
 
 ==== Disabling doc values
 

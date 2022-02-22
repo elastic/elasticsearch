@@ -32,12 +32,17 @@ public class RestrictedIndicesNamesTests extends ESTestCase {
         testIndex(".security-" + randomIntBetween(0, 999_999), true);
         testIndex(".security-" + randomIntBetween(0, 99) + (randomBoolean() ? "-" : "") + randomAlphaOfLengthBetween(1, 20), true);
 
+        testIndex(".security-tokens-7", true);
+        testIndex(".security-tokens-" + randomIntBetween(0, 99) + (randomBoolean() ? "-" : "") + randomAlphaOfLengthBetween(1, 20), true);
+
         testIndex("security", false);
         testIndex("security-6", false);
         testIndex(".not-security-7", false);
         testIndex(".security-", false);
-        testIndex(".security-" + randomAlphaOfLengthBetween(1, 10), false);
+        testIndex(".security-" + randomAlphaOfLengthBetween(1, 3), false);
+        testIndex(".security-tokens-" + randomAlphaOfLengthBetween(1, 3), false);
         testIndex(".security" + randomAlphaOfLengthBetween(1, 10), false);
+        testIndex(".security-tokens" + randomAlphaOfLengthBetween(1, 10), false);
         testIndex(".security" + randomIntBetween(1, 9), false);
         testIndex(".security-" + randomAlphaOfLength(1) + randomIntBetween(1, 9), false);
         testIndex(".security" + randomAlphaOfLength(1) + randomIntBetween(1, 9), false);

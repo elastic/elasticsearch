@@ -41,13 +41,8 @@ by the configured remote cluster alias.
 
 [[skip-unavailable]]
 `skip_unavailable`::
-(Boolean, <<dynamic-cluster-setting,Dynamic>>) If `true`, a {ccs} ignores errors
-returned by the remote cluster. If `true`, the {ccs} also skips the remote
-cluster if its nodes are unavailable during the search.
-+
-If `false`, the {ccs} fails if the remote cluster returns an error or is
-unavailable. Defaults to `false`.
-+
+Whether a {ccs} skips the cluster if its nodes are unavailable during the
+search. If `true`, a {ccs} also ignores errors returned by the remote cluster.
 Refer to <<skip-unavailable-clusters>>.
 
 `seeds`::

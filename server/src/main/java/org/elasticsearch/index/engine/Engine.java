@@ -362,7 +362,6 @@ public abstract class Engine implements Closeable {
         private long took;
 
         protected Result(Operation.TYPE operationType, Exception failure, long version, long term, long seqNo, String id) {
-            assert id != null;
             this.operationType = operationType;
             this.failure = Objects.requireNonNull(failure);
             this.version = version;
@@ -374,7 +373,6 @@ public abstract class Engine implements Closeable {
         }
 
         protected Result(Operation.TYPE operationType, long version, long term, long seqNo, String id) {
-            assert id != null;
             this.operationType = operationType;
             this.version = version;
             this.seqNo = seqNo;
@@ -386,7 +384,6 @@ public abstract class Engine implements Closeable {
         }
 
         protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate, String id) {
-            assert id != null;
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = UNASSIGNED_SEQ_NO;
@@ -528,6 +525,11 @@ public abstract class Engine implements Closeable {
         public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found, String id) {
             super(Operation.TYPE.DELETE, failure, version, term, seqNo, id);
             this.found = found;
+        }
+
+        public DeleteResult(Mapping requiredMappingUpdate, String id) {
+            super(Operation.TYPE.DELETE, requiredMappingUpdate, id);
+            this.found = false;
         }
 
         public boolean isFound() {

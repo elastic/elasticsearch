@@ -363,7 +363,6 @@ public class ProfileService {
                         getVersionedDocument(profileDocument.uid(), ActionListener.wrap(versionedDocument -> {
                             if (isTheRightProfileDocument(subject, versionedDocument.doc)) {
                                 // The profile document is a match, still need to update it with current auth info before return
-                                // listener.onResponse(versionedDocument.toProfile(Set.of()));
                                 updateProfileForActivate(subject, versionedDocument, listener);
                             } else {
                                 // The profile document is NOT a match, this means either genuine hash collision or profile document

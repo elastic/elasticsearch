@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
@@ -61,7 +62,6 @@ public class ShardsAllocationHealthIndicatorService implements HealthIndicatorSe
     public HealthIndicatorResult calculate() {
 
         var state = clusterService.state();
-
         var status = new ShardAllocationStatus();
 
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
@@ -78,13 +78,19 @@ public class ShardsAllocationHealthIndicatorService implements HealthIndicatorSe
 
     private static class ShardAllocationCounts {
         private int unassigned = 0;
+        private int unassigned_restarting = 0;
         private int initializing = 0;
         private int started = 0;
         private int relocating = 0;
 
         public void increment(ShardRouting routing) {
             switch (routing.state()) {
-                case UNASSIGNED -> unassigned++;
+                case UNASSIGNED -> {
+                    unassigned++;
+                    if (routing.unassignedInfo() != null && routing.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_RESTARTING) {
+                        unassigned_restarting++;
+                    }
+                }
                 case INITIALIZING -> initializing++;
                 case STARTED -> started++;
                 case RELOCATING -> relocating++;
@@ -105,7 +111,13 @@ public class ShardsAllocationHealthIndicatorService implements HealthIndicatorSe
         }
 
         public HealthStatus getStatus() {
-            return primaries.unassigned > 0 ? RED : replicas.unassigned > 0 ? YELLOW : GREEN;
+            if (primaries.unassigned > 0) {
+                return RED;
+            } else if (replicas.unassigned > replicas.unassigned_restarting) {
+                return YELLOW;
+            } else {
+                return GREEN;
+            }
         }
 
         public String getSummary() {

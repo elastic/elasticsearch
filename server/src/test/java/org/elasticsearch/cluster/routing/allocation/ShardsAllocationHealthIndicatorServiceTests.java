@@ -34,8 +34,9 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAllocationHealthIndicatorService.NAME;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAllocationHealthIndicatorServiceTests.ShardState.STARTED;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAllocationHealthIndicatorServiceTests.ShardState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAllocationHealthIndicatorServiceTests.ShardState.AVAILABLE;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAllocationHealthIndicatorServiceTests.ShardState.RESTARTING;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAllocationHealthIndicatorServiceTests.ShardState.UNAVAILABLE;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -49,8 +50,8 @@ import static org.mockito.Mockito.when;
 public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
 
     public void testShouldBeGreenWhenAllPrimariesAndReplicasAreStarted() {
-        var replicatedIndices = randomList(1, 10, indexGenerator("replicated-index-", STARTED, STARTED));
-        var unreplicatedIndices = randomList(1, 10, indexGenerator("unreplicated-index-", STARTED));
+        var replicatedIndices = randomList(1, 10, indexGenerator("replicated-index-", AVAILABLE, AVAILABLE));
+        var unreplicatedIndices = randomList(1, 10, indexGenerator("unreplicated-index-", AVAILABLE));
         var clusterState = createClusterStateWith(concatLists(replicatedIndices, unreplicatedIndices));
         var service = createAllocationHealthIndicatorService(clusterState);
 
@@ -61,22 +62,10 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has no unassigned shards.",
                     Map.of(
-                        "unassigned_primaries",
-                        0,
-                        "initializing_primaries",
-                        0,
                         "started_primaries",
                         replicatedIndices.size() + unreplicatedIndices.size(),
-                        "relocating_primaries",
-                        0,
-                        "unassigned_replicas",
-                        0,
-                        "initializing_replicas",
-                        0,
                         "started_replicas",
-                        replicatedIndices.size(),
-                        "relocating_replicas",
-                        0
+                        replicatedIndices.size()
                     )
                 )
             )
@@ -84,8 +73,10 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeYellowWhenThereAreUnassignedReplicas() {
-        var greenIndices = randomList(1, 10, indexGenerator("green-index-", STARTED, STARTED));
-        var yellowIndex = index("yellow-index-", STARTED, UNASSIGNED);
+        var availableReplicas = randomList(0, 5, () -> AVAILABLE);
+        var unavailableReplicas = randomList(1, 5, () -> UNAVAILABLE);
+        var yellowIndex = index("yellow-index-", AVAILABLE, concatLists(availableReplicas, unavailableReplicas).toArray(ShardState[]::new));
+        var greenIndices = randomList(1, 10, indexGenerator("green-index-", AVAILABLE, AVAILABLE));
         var clusterState = createClusterStateWith(appendToCopy(greenIndices, yellowIndex));
         var service = createAllocationHealthIndicatorService(clusterState);
 
@@ -94,24 +85,16 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     YELLOW,
-                    "This cluster has 1 unassigned replica.",
+                    unavailableReplicas.size() > 1
+                        ? "This cluster has " + unavailableReplicas.size() + " unassigned replicas."
+                        : "This cluster has 1 unassigned replica.",
                     Map.of(
-                        "unassigned_primaries",
-                        0,
-                        "initializing_primaries",
-                        0,
                         "started_primaries",
                         greenIndices.size() + 1,
-                        "relocating_primaries",
-                        0,
                         "unassigned_replicas",
-                        1,
-                        "initializing_replicas",
-                        0,
+                        unavailableReplicas.size(),
                         "started_replicas",
-                        greenIndices.size(),
-                        "relocating_replicas",
-                        0
+                        greenIndices.size() + availableReplicas.size()
                     )
                 )
             )
@@ -119,8 +102,8 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeRedWhenThereAreUnassignedPrimaries() {
-        var greenIndices = randomList(1, 10, indexGenerator("green-index-", STARTED, STARTED));
-        var redIndex = index("red-index-", UNASSIGNED);
+        var greenIndices = randomList(1, 10, indexGenerator("green-index-", AVAILABLE, AVAILABLE));
+        var redIndex = index("red-index-", UNAVAILABLE);
         var clusterState = createClusterStateWith(appendToCopy(greenIndices, redIndex));
         var service = createAllocationHealthIndicatorService(clusterState);
 
@@ -130,31 +113,50 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unassigned primary.",
-                    Map.of(
-                        "unassigned_primaries",
-                        1,
-                        "initializing_primaries",
-                        0,
-                        "started_primaries",
-                        greenIndices.size(),
-                        "relocating_primaries",
-                        0,
-                        "unassigned_replicas",
-                        0,
-                        "initializing_replicas",
-                        0,
-                        "started_replicas",
-                        greenIndices.size(),
-                        "relocating_replicas",
-                        0
-                    )
+                    Map.of("unassigned_primaries", 1, "started_primaries", greenIndices.size(), "started_replicas", greenIndices.size())
+                )
+            )
+        );
+    }
+
+    public void testShouldBeGreenWhenThereAreRestartingReplicas() {
+        var greenIndices = randomList(1, 10, indexGenerator("green-index-", AVAILABLE, AVAILABLE));
+        var restartingIndex = index("restarting-index-", AVAILABLE, RESTARTING);
+        var clusterState = createClusterStateWith(appendToCopy(greenIndices, restartingIndex));
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(),
+            equalTo(
+                createExpectedResult(
+                    GREEN,
+                    "This cluster has 1 unassigned replica.",
+                    Map.of("started_primaries", greenIndices.size() + 1, "unassigned_replicas", 1, "started_replicas", greenIndices.size())
+                )
+            )
+        );
+    }
+
+    public void testShouldBeRedWhenThereAreRestartingPrimaries() {
+        var greenIndices = randomList(1, 10, indexGenerator("green-index-", AVAILABLE, AVAILABLE));
+        var restartingIndex = index("restarting-index-", RESTARTING);
+        var clusterState = createClusterStateWith(appendToCopy(greenIndices, restartingIndex));
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(),
+            equalTo(
+                createExpectedResult(
+                    RED,
+                    "This cluster has 1 unassigned primary.",
+                    Map.of("unassigned_primaries", 1, "started_primaries", greenIndices.size(), "started_replicas", greenIndices.size())
                 )
             )
         );
     }
 
     private HealthIndicatorResult createExpectedResult(HealthStatus status, String summary, Map<String, Object> details) {
-        return new HealthIndicatorResult(NAME, DATA, status, summary, new SimpleHealthIndicatorDetails(details));
+        return new HealthIndicatorResult(NAME, DATA, status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)));
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexes) {
@@ -171,6 +173,27 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
     private static Supplier<IndexRoutingTable> indexGenerator(String prefix, ShardState primaryState, ShardState... replicaStates) {
         var index = new AtomicInteger(0);
         return () -> index(prefix + index.incrementAndGet(), primaryState, replicaStates);
+    }
+
+    private static Map<String, Object> addDefaults(Map<String, Object> override) {
+        return Map.of(
+            "unassigned_primaries",
+            override.getOrDefault("unassigned_primaries", 0),
+            "initializing_primaries",
+            override.getOrDefault("initializing_primaries", 0),
+            "started_primaries",
+            override.getOrDefault("started_primaries", 0),
+            "relocating_primaries",
+            override.getOrDefault("relocating_primaries", 0),
+            "unassigned_replicas",
+            override.getOrDefault("unassigned_replicas", 0),
+            "initializing_replicas",
+            override.getOrDefault("initializing_replicas", 0),
+            "started_replicas",
+            override.getOrDefault("started_replicas", 0),
+            "relocating_replicas",
+            override.getOrDefault("relocating_replicas", 0)
+        );
     }
 
     private static IndexRoutingTable index(String name, ShardState primaryState, ShardState... replicaStates) {
@@ -192,12 +215,12 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
         );
-        if (state == UNASSIGNED) {
+        if (state == UNAVAILABLE) {
             return routing;
         }
         routing = routing.initialize(UUID.randomUUID().toString(), null, 0);
         routing = routing.moveToStarted();
-        if (state == STARTED) {
+        if (state == AVAILABLE) {
             return routing;
         }
         routing = routing.moveToUnassigned(
@@ -214,13 +237,18 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
                 UUID.randomUUID().toString()
             )
         );
+        if (state == RESTARTING) {
+            return routing;
+        }
 
         throw new AssertionError("Unexpected state [" + state + "]");
     }
 
     public enum ShardState {
-        UNASSIGNED,
-        STARTED
+
+        UNAVAILABLE,
+        AVAILABLE,
+        RESTARTING
     }
 
     private static ShardsAllocationHealthIndicatorService createAllocationHealthIndicatorService(ClusterState clusterState) {

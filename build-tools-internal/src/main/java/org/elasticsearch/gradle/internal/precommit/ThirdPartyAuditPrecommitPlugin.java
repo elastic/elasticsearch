@@ -46,9 +46,12 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
             t.copy("forbidden/third-party-audit.txt");
         });
         TaskProvider<ThirdPartyAuditTask> audit = project.getTasks().register("thirdPartyAudit", ThirdPartyAuditTask.class);
-        audit.configure(t -> {
+        // usually only one task is created. but this construct makes our integTests easier to setup
+        project.getTasks().withType(ThirdPartyAuditTask.class).configureEach(t -> {
             Configuration runtimeConfiguration = getRuntimeConfiguration(project);
-            t.setClasspath(runtimeConfiguration);
+            Configuration compileOnly = project.getConfigurations()
+                    .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+            t.setClasspath(runtimeConfiguration.plus(compileOnly));
             t.setJarsToScan(runtimeConfiguration.fileCollection(dep -> {
                 // These are SelfResolvingDependency, and some of them backed by file collections, like the Gradle API files,
                 // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
@@ -59,9 +62,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
             t.setJavaHome(Jvm.current().getJavaHome().getPath());
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
             t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());
-            Configuration compileOnly = project.getConfigurations()
-                .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
-            t.setJdkJarHellClasspath(jdkJarHellConfig.plus(compileOnly));
+            t.setJdkJarHellClasspath(jdkJarHellConfig);
             t.setForbiddenAPIsClasspath(project.getConfigurations().getByName("forbiddenApisCliJar").plus(compileOnly));
         });
         return audit;

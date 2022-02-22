@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.deprecation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -28,7 +28,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CountDownLatch;
 
 import static java.util.stream.Collectors.toList;
 
@@ -76,7 +75,19 @@ public class TransformDeprecationChecker implements DeprecationChecker {
         request.setAllowNoResources(true);
 
         components.client().execute(GetTransformAction.INSTANCE, request, ActionListener.wrap(getTransformResponse -> {
-            CountDownLatch latch = new CountDownLatch(getTransformResponse.getTransformConfigurations().size());
+            final int numberOfTransforms = getTransformResponse.getTransformConfigurations().size();
+            Runnable processNextPage = () -> {
+                if (getTransformResponse.getCount() >= (page.getFrom() + page.getSize())) {
+                    PageParams nextPage = new PageParams(page.getFrom() + page.getSize(), PageParams.DEFAULT_SIZE);
+                    recursiveGetTransformsAndCollectDeprecations(components, issues, nextPage, listener);
+                } else {
+                    listener.onResponse(new ArrayList<>(issues));
+                }
+            };
+            if (numberOfTransforms == 0) {
+                processNextPage.run();
+            }
+            final CountDown numberOfResponsesToProcess = new CountDown(numberOfTransforms);
             for (TransformConfig config : getTransformResponse.getTransformConfigurations()) {
                 issues.addAll(config.checkForDeprecations(components.xContentRegistry()));
 
@@ -85,8 +96,8 @@ public class TransformDeprecationChecker implements DeprecationChecker {
                     false,
                     TimeValue.timeValueSeconds(30)
                 );
-                ActionListener<ValidateTransformAction.Response> validateTransformListener = new LatchedActionListener<>(
-                    ActionListener.wrap(validateTransformResponse -> {
+                ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
+                    validateTransformResponse -> {
                         List<String> warningHeaders = components.client()
                             .threadPool()
                             .getThreadContext()
@@ -99,20 +110,20 @@ public class TransformDeprecationChecker implements DeprecationChecker {
                                     .collect(toList())
                             );
                         }
-                    }, e -> { logger.warn("An exception occurred while gathering deprecation warnings for transform", e); }),
-                    latch
+                        if (numberOfResponsesToProcess.countDown()) {
+                            processNextPage.run();
+                        }
+                    },
+                    e -> {
+                        logger.warn("An exception occurred while gathering deprecation warnings for transform", e);
+                        if (numberOfResponsesToProcess.countDown()) {
+                            processNextPage.run();
+                        }
+                    }
                 );
+
                 components.client().execute(ValidateTransformAction.INSTANCE, validateTransformRequest, validateTransformListener);
             }
-            latch.await();
-
-            if (getTransformResponse.getCount() >= (page.getFrom() + page.getSize())) {
-                PageParams nextPage = new PageParams(page.getFrom() + page.getSize(), PageParams.DEFAULT_SIZE);
-                recursiveGetTransformsAndCollectDeprecations(components, issues, nextPage, listener);
-            } else {
-                listener.onResponse(new ArrayList<>(issues));
-            }
-
         }, listener::onFailure));
     }
 

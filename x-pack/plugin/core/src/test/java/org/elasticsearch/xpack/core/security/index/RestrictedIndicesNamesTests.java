@@ -36,9 +36,14 @@ public class RestrictedIndicesNamesTests extends ESTestCase {
         testIndex(".security-tokens-" + randomIntBetween(0, 99) + (randomBoolean() ? "-" : "") + randomAlphaOfLengthBetween(1, 20), true);
 
         testIndex("security", false);
+        testIndex(randomAlphaOfLength(1) + "security", false);
         testIndex("security-6", false);
+        testIndex("@security-6", false);
         testIndex(".not-security-7", false);
         testIndex(".security-", false);
+        testIndex("security-tokens", false);
+        testIndex("security-tokens-7", false);
+        testIndex("_security-tokens", false);
         testIndex(".security-" + randomAlphaOfLengthBetween(1, 3), false);
         testIndex(".security-tokens-" + randomAlphaOfLengthBetween(1, 3), false);
         testIndex(".security" + randomAlphaOfLengthBetween(1, 10), false);

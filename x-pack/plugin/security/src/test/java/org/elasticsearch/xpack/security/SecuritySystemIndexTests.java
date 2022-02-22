@@ -38,5 +38,10 @@ public class SecuritySystemIndexTests extends ESTestCase {
         check.accept(".security-tokens-" + randomIntBetween(1, 99) + (randomBoolean() ? "-" : "") + randomAlphaOfLengthBetween(1, 12));
 
         check.accept("." + randomAlphaOfLengthBetween(1, 12) + "-security");
+
+        check.accept(randomAlphaOfLengthBetween(1, 3) + "security");
+        check.accept(randomAlphaOfLengthBetween(1, 3) + ".security");
+        check.accept(randomAlphaOfLengthBetween(1, 3) + ".security-6");
+        check.accept(randomAlphaOfLengthBetween(1, 3) + "security-tokens-7");
     }
 }

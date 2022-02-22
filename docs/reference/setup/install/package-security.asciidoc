@@ -63,4 +63,4 @@ the new node for the first time.
 +
 {es} is now configured to join the existing cluster.
 
-. Start your new node as described in the "Running Elasticsearch with `systemd`" section below
+. <<{distro}-running-systemd, Start your new node using `systemd`>>.

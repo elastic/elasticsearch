@@ -21,11 +21,14 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 /**
  * A mapper for the _id field. It does nothing since _id is neither indexed nor
@@ -92,6 +95,11 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
                 return Uid.encodeId(idObject.toString());
             }).toArray(BytesRef[]::new);
             return new TermInSetQuery(name(), bytesRefs);
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            throw new IllegalArgumentException("Fielddata is not supported on [_id] field in [time_series] indices");
         }
     }
 

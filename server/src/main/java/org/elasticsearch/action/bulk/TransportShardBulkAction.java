@@ -339,6 +339,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     );
             } catch (Exception e) {
                 logger.info(() -> new ParameterizedMessage("{} mapping update rejected by primary", primary.shardId()), e);
+                assert result.getId() != null;
                 onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
                 return true;
             }
@@ -377,6 +378,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version, String id) {
+        assert id != null;
         return isDelete ? primary.getFailedDeleteResult(e, version, id) : primary.getFailedIndexResult(e, version, id);
     }
 

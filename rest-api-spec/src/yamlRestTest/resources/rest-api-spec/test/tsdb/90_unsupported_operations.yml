@@ -203,3 +203,33 @@ alias with search_routing:
         body:
           search_routing: foo
 
+---
+sort by _id:
+  - skip:
+      version: " - 8.1.99"
+      reason: error message changed in 8.2
+
+  - do:
+      catch: /Fielddata is not supported on \[_id\] field in \[time_series\] indices/
+      search:
+        index: test
+        body:
+          size: 1
+          sort: _id
+
+---
+aggregate on _id:
+  - skip:
+      version: " - 8.1.99"
+      reason: error message changed in 8.2
+
+  - do:
+      catch: /Fielddata is not supported on \[_id\] field in \[time_series\] indices/
+      search:
+        index: test
+        body:
+          size: 1
+          aggs: 
+            id:
+              terms:
+                field: _id

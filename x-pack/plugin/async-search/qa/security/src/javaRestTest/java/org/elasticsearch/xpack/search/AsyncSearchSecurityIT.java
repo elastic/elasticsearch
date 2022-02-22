@@ -204,7 +204,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         try {
             final Request request = new Request("POST", "/_async_search");
             setRunAsHeader(request, authorizedUser);
-            request.addParameter("wait_for_completion_timeout", "true");
+            request.addParameter("wait_for_completion_timeout", "10m");
             request.addParameter("keep_on_completion", "true");
             if (randomBoolean()) {
                 request.addParameter("index", "index-" + authorizedUser);
@@ -221,10 +221,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             request.setJsonEntity(Strings.toString(requestBody));
             final ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(
-                exc.getMessage(),
-                containsString("[indices] cannot be used with point in time. Do not specify any index with point in time.")
-            );
+            assertThat(exc.getMessage(), containsString("[indices] cannot be used with point in time"));
         } finally {
             closePointInTime(pitId, authorizedUser);
         }

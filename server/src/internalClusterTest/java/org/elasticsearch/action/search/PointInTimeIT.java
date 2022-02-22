@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -418,7 +419,7 @@ public class PointInTimeIT extends ESIntegTestCase {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private void assertPagination(PointInTimeBuilder pit, int expectedNumDocs, int size, SortBuilder<?>... sorts) throws Exception {
         Set<String> seen = new HashSet<>();
-        SearchRequestBuilder builder = client().prepareSearch().setSize(size).setPointInTime(pit);
+        SearchRequestBuilder builder = client().prepareSearch().setPreference(null).setSize(size).setPointInTime(pit);
         for (SortBuilder<?> sort : sorts) {
             builder.addSort(sort);
         }
@@ -463,6 +464,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             assertThat(last.getSortValues().length, equalTo(expectedSorts.size()));
             lastSortValues = last.getSortValues();
             searchRequest.source().searchAfter(last.getSortValues());
+            searchRequest.indices(Strings.EMPTY_ARRAY);
             response = client().search(searchRequest).get();
         }
         assertThat(seen.size(), equalTo(expectedNumDocs));

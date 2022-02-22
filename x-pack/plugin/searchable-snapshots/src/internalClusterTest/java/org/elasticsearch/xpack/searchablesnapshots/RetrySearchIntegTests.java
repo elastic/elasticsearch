@@ -148,11 +148,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         ).keepAlive(TimeValue.timeValueMinutes(2));
         final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openRequest).actionGet().getPointInTimeId();
         try {
-            SearchResponse resp = client().prepareSearch()
-                .setIndices(indexName)
-                .setPreference(null)
-                .setPointInTime(new PointInTimeBuilder(pitId))
-                .get();
+            SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
             assertNoFailures(resp);
             assertThat(resp.pointInTimeId(), equalTo(pitId));
             assertHitCount(resp, docCount);
@@ -163,7 +159,6 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             }
             ensureGreen(indexName);
             resp = client().prepareSearch()
-                .setIndices(indexName)
                 .setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setPreference(null)

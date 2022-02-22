@@ -226,10 +226,11 @@ public class SearchSliceIT extends ESIntegTestCase {
         for (int id = 0; id < numSlice; id++) {
             int numSliceResults = 0;
 
-            SearchRequestBuilder request = client().prepareSearch("test")
+            SearchRequestBuilder request = client().prepareSearch()
                 .slice(new SliceBuilder(sliceField, id, numSlice))
                 .setPointInTime(new PointInTimeBuilder(pointInTimeId))
                 .addSort(SortBuilders.fieldSort(sortField))
+                .setPreference(null)
                 .setSize(randomIntBetween(10, 100));
 
             SearchResponse searchResponse = request.get();
@@ -248,6 +249,7 @@ public class SearchSliceIT extends ESIntegTestCase {
                 }
 
                 Object[] sortValues = searchResponse.getHits().getHits()[numHits - 1].getSortValues();
+                request.setIndices(Strings.EMPTY_ARRAY);
                 searchResponse = request.searchAfter(sortValues).get();
             }
             assertThat(numSliceResults, equalTo(expectedSliceResults));

@@ -246,18 +246,13 @@ public class FrozenIndexIT extends ESIntegTestCase {
         ).keepAlive(TimeValue.timeValueMinutes(2));
         final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
         try {
-            SearchResponse resp = client().prepareSearch()
-                .setIndices(indexName)
-                .setPreference(null)
-                .setPointInTime(new PointInTimeBuilder(pitId))
-                .get();
+            SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
             assertNoFailures(resp);
             assertThat(resp.pointInTimeId(), equalTo(pitId));
             assertHitCount(resp, numDocs);
             internalCluster().restartNode(assignedNode);
             ensureGreen(indexName);
             resp = client().prepareSearch()
-                .setIndices(indexName)
                 .setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setPreference(null)

@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -416,6 +417,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
         PointInTimeBuilder pit = namedPits.get(namedSearchRequest.v1());
         if (pit != null) {
+            searchRequest.indices(Strings.EMPTY_ARRAY);
             searchRequest.source().pointInTimeBuilder(pit);
             listener.onResponse(namedSearchRequest);
             return;
@@ -433,6 +435,7 @@ class ClientTransformIndexer extends TransformIndexer {
             ActionListener.wrap(response -> {
                 PointInTimeBuilder newPit = new PointInTimeBuilder(response.getPointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
                 namedPits.put(namedSearchRequest.v1(), newPit);
+                searchRequest.indices(Strings.EMPTY_ARRAY);
                 searchRequest.source().pointInTimeBuilder(newPit);
                 pitCheckpoint = getNextCheckpoint().getCheckpoint();
                 logger.trace(
@@ -474,7 +477,7 @@ class ClientTransformIndexer extends TransformIndexer {
         String name = namedSearchRequest.v1();
         SearchRequest searchRequest = namedSearchRequest.v2();
         // We want to treat a request to search 0 indices as a request to do nothing, not a request to search all indices
-        if (searchRequest.indices().length == 0) {
+        if (searchRequest.pointInTimeBuilder() == null && searchRequest.indices().length == 0) {
             logger.debug("[{}] Search request [{}] optimized to noop; searchRequest [{}]", getJobId(), name, searchRequest);
             listener.onResponse(null);
             return;

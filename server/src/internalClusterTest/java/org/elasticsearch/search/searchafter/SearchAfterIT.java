@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -471,7 +472,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
             pitID = client().execute(OpenPointInTimeAction.INSTANCE, openPITRequest).actionGet().getPointInTimeId();
-            SearchRequest searchRequest = new SearchRequest("test").source(
+            SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitID).setKeepAlive(TimeValue.timeValueMinutes(5)))
                     .sort("timestamp")
             );
@@ -493,6 +494,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                     assertNotNull(after);
                     assertThat("Sorted by timestamp and pit tier breaker", after, arrayWithSize(2));
                     searchRequest.source().searchAfter(after);
+                    searchRequest.indices(Strings.EMPTY_ARRAY);
                     resp = client().search(searchRequest).actionGet();
                 } while (resp.getHits().getHits().length > 0);
                 assertThat(foundHits, equalTo(timestamps.size()));
@@ -505,7 +507,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
             pitID = client().execute(OpenPointInTimeAction.INSTANCE, openPITRequest).actionGet().getPointInTimeId();
-            SearchRequest searchRequest = new SearchRequest("test").source(
+            SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitID).setKeepAlive(TimeValue.timeValueMinutes(5)))
                     .sort(SortBuilders.pitTiebreaker())
             );
@@ -526,6 +528,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                     assertNotNull(after);
                     assertThat("sorted by pit tie breaker", after, arrayWithSize(1));
                     searchRequest.source().searchAfter(after);
+                    searchRequest.indices(Strings.EMPTY_ARRAY);
                     resp = client().search(searchRequest).actionGet();
                 } while (resp.getHits().getHits().length > 0);
                 Collections.sort(foundSeqNos);

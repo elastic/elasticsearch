@@ -17,11 +17,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -34,7 +36,7 @@ import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_I
  * This class is for testing that when restarting a node, SystemIndexMigrationTaskState can be read.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
-public class SystemIndexMigrationIT extends FeatureMigrationIT {
+public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
     private static Logger logger = LogManager.getLogger(SystemIndexMigrationIT.class);
 
     @Override
@@ -50,7 +52,10 @@ public class SystemIndexMigrationIT extends FeatureMigrationIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return new ArrayList<>(super.nodePlugins());
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestPlugin.class);
+        plugins.add(ReindexPlugin.class);
+        return plugins;
     }
 
     public void testSystemIndexMigrationCanBeInterruptedWithShutdown() throws Exception {

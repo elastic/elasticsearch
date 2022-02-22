@@ -126,12 +126,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
                         int docCount = pointValues.getDocCount();
                         valuesMap.put(info.name, new PointValues() {
                             @Override
-                            public void intersect(IntersectVisitor visitor) {
-                                throw new UnsupportedOperationException();
-                            }
-
-                            @Override
-                            public long estimatePointCount(IntersectVisitor visitor) {
+                            public PointTree getPointTree() {
                                 throw new UnsupportedOperationException();
                             }
 

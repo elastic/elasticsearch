@@ -1893,7 +1893,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             c -> c.apply(nodeSettings, null, clusterState, licenseState)
         );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
-        Map<String, Object> meta = buildMetaObjectForRemovableSettings(subSetting1Key2, subSetting2Key2);
+        Map<String, Object> meta = null;
         assertThat(
             issues,
             hasItem(

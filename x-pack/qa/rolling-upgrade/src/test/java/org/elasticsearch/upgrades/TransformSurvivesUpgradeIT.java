@@ -149,30 +149,26 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         return """
             {
               "source": {
-                "index":"""
-                + "\"" + CONTINUOUS_TRANSFORM_SOURCE + "\"" +
-            """
-              },
-              "pivot": {
-                "group_by": {
-                  "user_id": {
-                    "terms": {
-                      "field": "user_id"
-                    }
-                  }
-                },
-                "aggregations": {
-                  "stars": {
-                    "avg": {
-                      "field": "stars"
-                    }
+                "index":""" + "\"" + CONTINUOUS_TRANSFORM_SOURCE + "\"" + """
+            },
+            "pivot": {
+              "group_by": {
+                "user_id": {
+                  "terms": {
+                    "field": "user_id"
                   }
                 }
               },
-              "dest": {
-                "index":"""
-        + "\"" + CONTINUOUS_TRANSFORM_ID + "_idx" + "\"" +
-            """
+              "aggregations": {
+                "stars": {
+                  "avg": {
+                    "field": "stars"
+                  }
+                }
+              }
+            },
+            "dest": {
+              "index":""" + "\"" + CONTINUOUS_TRANSFORM_ID + "_idx" + "\"" + """
               },
               "frequency": "1s",
               "sync": {

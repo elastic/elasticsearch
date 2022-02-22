@@ -533,13 +533,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
                     prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
                     docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
-                    docWriteRequest.process();
 
                     final Index concreteIndex = docWriteRequest.getConcreteWriteIndex(ia, metadata);
                     if (addFailureIfIndexIsClosed(docWriteRequest, concreteIndex, i, metadata)) {
                         continue;
                     }
                     IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
+                    docWriteRequest.process(indexRouting);
                     int shardId = docWriteRequest.route(indexRouting);
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                         new ShardId(concreteIndex, shardId),

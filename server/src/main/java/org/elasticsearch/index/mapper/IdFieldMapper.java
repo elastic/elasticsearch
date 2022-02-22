@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 /**
@@ -28,5 +29,13 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     @Override
     protected final String contentType() {
         return CONTENT_TYPE;
+    }
+
+    /**
+     * Create a {@link Field} to store the provided {@code _id} that "stores"
+     * the {@code _id} so it can be fetched easily from the index.
+     */
+    public static Field standardIdField(String id) {
+        return new Field(NAME, Uid.encodeId(id), StandardIdFieldMapper.Defaults.FIELD_TYPE);
     }
 }

@@ -286,9 +286,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 context.markAsCompleted(context.getExecutionResult());
                 return true;
             }
-            DocWriteRequest<?> translated = updateResult.action();
-            translated.process();
-            context.setRequestToExecute(translated);
+            context.setRequestToExecute(updateResult.action());
         } else {
             context.setRequestToExecute(context.getCurrent());
             updateResult = null;

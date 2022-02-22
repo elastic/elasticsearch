@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParsingException;
@@ -63,6 +64,8 @@ public abstract class IndexRouting {
         this.routingNumShards = metadata.getRoutingNumShards();
         this.routingFactor = metadata.getRoutingFactor();
     }
+
+    public abstract void process(IndexRequest indexRequest);
 
     /**
      * Called when indexing a document to generate the shard id that should contain
@@ -135,7 +138,22 @@ public abstract class IndexRouting {
         protected abstract int shardId(String id, @Nullable String routing);
 
         @Override
+        public void process(IndexRequest indexRequest) {
+            if ("".equals(indexRequest.id())) {
+                throw new IllegalArgumentException("if _id is specified it must not be empty");
+            }
+
+            // generate id if not already provided
+            if (indexRequest.id() == null) {
+                indexRequest.autoGenerateId();
+            }
+        }
+
+        @Override
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
+            if (id == null) {
+                throw new IllegalStateException("id is required and should have been set by process");
+            }
             checkRoutingRequired(id, routing);
             return shardId(id, routing);
         }
@@ -224,6 +242,13 @@ public abstract class IndexRouting {
             }
             this.routingPaths = metadata.getRoutingPaths();
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
+        }
+
+        @Override
+        public void process(IndexRequest indexRequest) {
+            if (indexRequest.id() != null) {
+                throw new IllegalArgumentException("_id may not be specified for index [" + indexName + "]");
+            }
         }
 
         @Override

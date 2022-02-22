@@ -53,10 +53,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.StandardIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -467,7 +467,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     private Engine.Index getIndex(String id) {
         final LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", "test", Field.Store.YES));
-        final Field idField = StandardIdFieldMapper.idField(id);  // TODO tsdbid field could be different.
+        final Field idField = IdFieldMapper.standardIdField(id);  // TODO tsdbid field could be different.
         final Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
         final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(idField);

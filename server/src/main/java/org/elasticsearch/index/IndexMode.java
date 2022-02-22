@@ -101,11 +101,6 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean calculatesIdFromSource() {
-            return false;
-        }
-
-        @Override
         public DocumentDimensions buildDocumentDimensions() {
             return new DocumentDimensions.OnlySingleValueAllowed();
         }
@@ -184,11 +179,6 @@ public enum IndexMode {
         public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
             // We don't support field data on TSDB's _id
             return TimeSeriesModeIdFieldMapper.INSTANCE;
-        }
-
-        @Override
-        public boolean calculatesIdFromSource() {
-            return true;
         }
 
         @Override
@@ -290,8 +280,6 @@ public enum IndexMode {
      * field mappers for the index.
      */
     public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
-
-    public abstract boolean calculatesIdFromSource();
 
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.

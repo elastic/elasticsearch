@@ -52,10 +52,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.StandardIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.LocalCheckpointTrackerTests;
@@ -3336,7 +3336,7 @@ public class TranslogTests extends ESTestCase {
         seqID.seqNo.setLongValue(randomSeqNum);
         seqID.seqNoDocValue.setLongValue(randomSeqNum);
         seqID.primaryTerm.setLongValue(randomPrimaryTerm);
-        Field idField = StandardIdFieldMapper.idField("1"); // TODO figure out what to do about tsdbid. It could be different.
+        Field idField = IdFieldMapper.standardIdField("1");
         Field versionField = new NumericDocValuesField("_version", 1);
         LuceneDocument document = new LuceneDocument();
         document.add(new TextField("value", "test", Field.Store.YES));

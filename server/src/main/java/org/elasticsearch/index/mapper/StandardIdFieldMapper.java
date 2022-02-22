@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -264,11 +263,10 @@ public class StandardIdFieldMapper extends IdFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) {
+        if (context.sourceToParse().id() == null) {
+            throw new IllegalStateException("_id should have been set on the coordinating node");
+        }
         context.id(context.sourceToParse().id());
-        context.doc().add(idField(context.id()));
-    }
-
-    public static Field idField(String id) {
-        return new Field(NAME, Uid.encodeId(id), Defaults.FIELD_TYPE);
+        context.doc().add(standardIdField(context.id()));
     }
 }

@@ -36,17 +36,13 @@ import java.util.function.Supplier;
  * queries.
  */
 public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
-    public static class Defaults {
-
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setStored(true);  // TODO reconstruct the id on fetch from tsid and timestamp
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
+    private static final FieldType FIELD_TYPE = new FieldType();
+    static {
+        FIELD_TYPE.setTokenized(false);
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+        FIELD_TYPE.setStored(true);  // TODO reconstruct the id on fetch from tsid and timestamp
+        FIELD_TYPE.setOmitNorms(true);
+        FIELD_TYPE.freeze();
     }
 
     public static final TimeSeriesModeIdFieldMapper INSTANCE = new TimeSeriesModeIdFieldMapper();
@@ -143,6 +139,6 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
             || context.id().equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
-        context.doc().add(new Field(NAME, uidEncoded, Defaults.FIELD_TYPE));
+        context.doc().add(new Field(NAME, uidEncoded, FIELD_TYPE));
     }
 }

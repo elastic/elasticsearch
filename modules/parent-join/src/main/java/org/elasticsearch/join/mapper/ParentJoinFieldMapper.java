@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -73,11 +72,10 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     private static void checkIndexCompatibility(IndexSettings settings, String name) {
         String indexName = settings.getIndex().getName();
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
-            throw new IllegalStateException("cannot create join field [" + name + "] for the partitioned index " + "[" + indexName + "]");
+            throw new IllegalStateException("cannot create join field [" + name + "] for the partitioned index [" + indexName + "]");
         }
-        IndexMode mode = settings.getMode();
-        if (mode.calculatesIdFromSource()) {
-            throw new IllegalStateException("cannot create join field [" + name + "] for the index [" + indexName + "] in [" + mode + "]");
+        if (settings.getIndexMetadata().getRoutingPaths().isEmpty() == false) {
+            throw new IllegalStateException("cannot create join field [" + name + "] for the index [" + indexName + "] with routing_path");
         }
     }
 
@@ -145,7 +143,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> {
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
         checkIndexCompatibility(c.getIndexSettings(), n);
         return new Builder(n);
     });

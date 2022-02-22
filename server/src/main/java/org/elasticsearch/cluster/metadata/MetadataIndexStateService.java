@@ -117,6 +117,9 @@ public class MetadataIndexStateService {
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
+    private final IndexMetadataVerifier indexMetadataVerifier;
+    private final IndicesService indicesService;
+    private final ShardLimitValidator shardLimitValidator;
     private final NodeClient client;
     private final ThreadPool threadPool;
     private final ActiveShardsObserver activeShardsObserver;
@@ -134,10 +137,13 @@ public class MetadataIndexStateService {
     ) {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
+        this.indexMetadataVerifier = indexMetadataVerifier;
+        this.indicesService = indicesService;
+        this.shardLimitValidator = shardLimitValidator;
         this.client = client;
         this.threadPool = threadPool;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
-        this.opensExecutor = new OpenIndicesExecutor(allocationService, indexMetadataVerifier, indicesService, shardLimitValidator);
+        this.opensExecutor = new OpenIndicesExecutor();
     }
 
     /**
@@ -1023,24 +1029,7 @@ public class MetadataIndexStateService {
         );
     }
 
-    private static class OpenIndicesExecutor implements ClusterStateTaskExecutor<OpenIndicesTask> {
-
-        private final AllocationService allocationService;
-        private final IndexMetadataVerifier indexMetadataVerifier;
-        private final IndicesService indicesService;
-        private final ShardLimitValidator shardLimitValidator;
-
-        OpenIndicesExecutor(
-            AllocationService allocationService,
-            IndexMetadataVerifier indexMetadataVerifier,
-            IndicesService indicesService,
-            ShardLimitValidator shardLimitValidator
-        ) {
-            this.allocationService = allocationService;
-            this.indexMetadataVerifier = indexMetadataVerifier;
-            this.indicesService = indicesService;
-            this.shardLimitValidator = shardLimitValidator;
-        }
+    private class OpenIndicesExecutor implements ClusterStateTaskExecutor<OpenIndicesTask> {
 
         @Override
         public ClusterTasksResult<OpenIndicesTask> execute(ClusterState currentState, List<OpenIndicesTask> tasks) throws Exception {

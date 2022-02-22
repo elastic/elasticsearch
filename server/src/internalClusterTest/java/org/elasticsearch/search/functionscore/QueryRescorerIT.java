@@ -9,7 +9,7 @@
 package org.elasticsearch.search.functionscore;
 
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;

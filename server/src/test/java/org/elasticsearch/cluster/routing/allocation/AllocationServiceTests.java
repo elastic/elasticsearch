@@ -278,25 +278,15 @@ public class AllocationServiceTests extends ESTestCase {
             equalTo(UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY)
         );
         assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(), equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
-        assertThat(
-            shardAllocationDecision.getAllocateDecision().getExplanation(),
-            equalTo(
-                "cannot allocate because a previous copy of "
-                    + "the primary shard existed but can no longer be found on the nodes in the cluster"
-            )
-        );
+        assertThat(shardAllocationDecision.getAllocateDecision().getExplanation(), equalTo(Explanations.Allocation.NO_COPIES));
 
         for (NodeAllocationResult nodeAllocationResult : shardAllocationDecision.getAllocateDecision().nodeDecisions) {
             assertThat(nodeAllocationResult.getNodeDecision(), equalTo(AllocationDecision.NO));
             assertThat(nodeAllocationResult.getCanAllocateDecision().type(), equalTo(Decision.Type.NO));
             assertThat(nodeAllocationResult.getCanAllocateDecision().label(), equalTo("allocator_plugin"));
-            assertThat(
-                nodeAllocationResult.getCanAllocateDecision().getExplanation(),
-                equalTo(
-                    "finding the previous copies of this shard requires an allocator called [unknown] but that allocator "
-                        + "was not found; perhaps the corresponding plugin is not installed"
-                )
-            );
+            assertThat(nodeAllocationResult.getCanAllocateDecision().getExplanation(), equalTo("""
+                finding the previous copies of this shard requires an allocator called [unknown] but that allocator was not found; \
+                perhaps the corresponding plugin is not installed"""));
         }
     }
 

@@ -169,7 +169,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         for (int i = 0; i < sortFields.length; i++) {
             final SortField sortField = sortFields[i];
             // use topNGroups + 1 so we have a spare slot to use for comparing (tracked by this.spareSlot):
-            comparators[i] = sortField.getComparator(topNGroups + 1, i);
+            comparators[i] = sortField.getComparator(topNGroups + 1, false);
             reversed[i] = sortField.getReverse() ? -1 : 1;
         }
         if (after != null) {

@@ -177,19 +177,19 @@ public class MetadataIndexStateService {
                 try {
                     final Map<Index, ClusterBlock> blockedIndices = new HashMap<>(task.request.indices().length);
                     state = addIndexClosedBlocks(task.request.indices(), blockedIndices, state);
-                    builder.success(task, task.listener.delegateFailure((l1, clusterState) -> {
+                    builder.success(task, task.listener.delegateFailure((delegate1, clusterState) -> {
                         if (blockedIndices.isEmpty()) {
-                            task.listener.onResponse(new CloseIndexResponse(true, false, List.of()));
+                            delegate1.onResponse(new CloseIndexResponse(true, false, List.of()));
                         } else {
                             threadPool.executor(ThreadPool.Names.MANAGEMENT)
                                 .execute(
                                     new WaitForClosedBlocksApplied(
                                         blockedIndices,
                                         task.request,
-                                        task.listener.delegateFailure((l2, verifyResults) -> {
+                                        delegate1.delegateFailure((delegate2, verifyResults) -> {
                                             clusterService.submitStateUpdateTask(
                                                 "close-indices",
-                                                new CloseIndicesTask(task.request, blockedIndices, verifyResults, task.listener),
+                                                new CloseIndicesTask(task.request, blockedIndices, verifyResults, delegate2),
                                                 ClusterStateTaskConfig.build(Priority.URGENT),
                                                 closesExecutor
                                             );
@@ -240,7 +240,7 @@ public class MetadataIndexStateService {
                     final List<IndexResult> indices = closingResult.v2();
                     assert indices.size() == task.verifyResults.size();
 
-                    builder.success(task, task.listener.delegateFailure((l, clusterState) -> {
+                    builder.success(task, task.listener.delegateFailure((delegate, clusterState) -> {
                         final boolean acknowledged = indices.stream().noneMatch(IndexResult::hasFailures);
                         final String[] waitForIndices = indices.stream()
                             .filter(result -> result.hasFailures() == false)
@@ -265,12 +265,12 @@ public class MetadataIndexStateService {
                                     // so we maintain a kind of coherency by overriding the shardsAcknowledged value
                                     // (see ShardsAcknowledgedResponse constructor)
                                     boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
-                                    task.listener.onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
+                                    delegate.onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
                                 },
-                                task.listener::onFailure
+                                delegate::onFailure
                             );
                         } else {
-                            task.listener.onResponse(new CloseIndexResponse(acknowledged, false, indices));
+                            delegate.onResponse(new CloseIndexResponse(acknowledged, false, indices));
                         }
                     }));
                 } catch (Exception e) {

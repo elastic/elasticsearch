@@ -89,9 +89,6 @@ import java.util.SortedMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.singleton;
-import static java.util.Collections.unmodifiableMap;
-
 /**
  * Service responsible for submitting open/close index requests as well as for adding index blocks
  */
@@ -183,7 +180,7 @@ public class MetadataIndexStateService {
                     state = addIndexClosedBlocks(task.request.indices(), blockedIndices, state);
                     builder.success(task, task.listener.delegateFailure((l1, clusterState) -> {
                         if (blockedIndices.isEmpty()) {
-                            task.listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
+                            task.listener.onResponse(new CloseIndexResponse(true, false, List.of()));
                         } else {
                             threadPool.executor(ThreadPool.Names.MANAGEMENT)
                                 .execute(
@@ -407,7 +404,7 @@ public class MetadataIndexStateService {
         }
 
         if (indicesToAddBlock.isEmpty()) {
-            return Tuple.tuple(currentState, Collections.emptyMap());
+            return Tuple.tuple(currentState, Map.of());
         }
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
@@ -509,7 +506,7 @@ public class MetadataIndexStateService {
                 public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
                     if (oldState == newState) {
                         assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
-                        listener.onResponse(new AddIndexBlockResponse(true, false, Collections.emptyList()));
+                        listener.onResponse(new AddIndexBlockResponse(true, false, List.of()));
                     } else {
                         assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)
@@ -607,7 +604,7 @@ public class MetadataIndexStateService {
                 waitForShardsReadyForClosing(index, block, state, response -> {
                     results.put(index, response);
                     if (countDown.countDown()) {
-                        listener.onResponse(unmodifiableMap(results));
+                        listener.onResponse(Map.copyOf(results));
                     }
                 });
             });
@@ -739,7 +736,7 @@ public class MetadataIndexStateService {
                 waitForShardsReady(index, block, state, response -> {
                     results.put(index, response);
                     if (countDown.countDown()) {
-                        listener.onResponse(unmodifiableMap(results));
+                        listener.onResponse(Map.copyOf(results));
                     }
                 });
             });
@@ -871,7 +868,7 @@ public class MetadataIndexStateService {
                 }
 
                 // Check if index closing conflicts with any running restores
-                Set<Index> restoringIndices = RestoreService.restoringIndices(currentState, singleton(index));
+                Set<Index> restoringIndices = RestoreService.restoringIndices(currentState, Set.of(index));
                 if (restoringIndices.isEmpty() == false) {
                     closingResults.put(
                         result.getKey(),
@@ -887,7 +884,7 @@ public class MetadataIndexStateService {
                 }
 
                 // Check if index closing conflicts with any running snapshots
-                Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, singleton(index));
+                Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, Set.of(index));
                 if (snapshottingIndices.isEmpty() == false) {
                     closingResults.put(
                         result.getKey(),

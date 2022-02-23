@@ -117,6 +117,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         clearSkipUnavailable();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84268")
     public void testDatafeedWithCcsRemoteUnavailable() throws Exception {
         setSkipUnavailable(randomBoolean());
         String jobId = "ccs-unavailable-job";

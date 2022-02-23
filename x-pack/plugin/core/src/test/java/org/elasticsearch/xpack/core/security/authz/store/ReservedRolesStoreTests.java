@@ -901,17 +901,38 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
             final boolean isAlsoAutoCreateOsqueryManagerIndex = indexName.startsWith(".logs-osquery_manager.actions-");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(isAlsoAutoCreateOsqueryManagerIndex));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(isAlsoAutoCreateOsqueryManagerIndex));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(isAlsoAutoCreateOsqueryManagerIndex));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction),
+                is(isAlsoAutoCreateOsqueryManagerIndex)
+            );
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction),
+                is(false)
+            );
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction),
+                is(isAlsoAutoCreateOsqueryManagerIndex)
+            );
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction),
+                is(isAlsoAutoCreateOsqueryManagerIndex)
+            );
 
             // Osquery manager actions data streams also have read access, all others should not.
             final boolean isAlsoReadOsqueryManagerIndex = indexName.startsWith(".logs-osquery_manager.actions-")
                 || indexName.startsWith(".logs-osquery_manager.action.responses-");
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(isAlsoReadOsqueryManagerIndex));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(isAlsoReadOsqueryManagerIndex));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(isAlsoReadOsqueryManagerIndex));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction),
+                is(isAlsoReadOsqueryManagerIndex)
+            );
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction),
+                is(isAlsoReadOsqueryManagerIndex)
+            );
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction),
+                is(isAlsoReadOsqueryManagerIndex)
+            );
         });
 
         // 4. Transform for endpoint package

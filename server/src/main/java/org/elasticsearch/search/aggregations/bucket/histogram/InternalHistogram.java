@@ -169,11 +169,8 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            EmptyBucketInfo that = (EmptyBucketInfo) obj;
-            return interval == that.interval
+            return obj instanceof EmptyBucketInfo that
+                && interval == that.interval
                 && offset == that.offset
                 && minBound == that.minBound
                 && maxBound == that.maxBound
@@ -506,11 +503,9 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalHistogram that = (InternalHistogram) obj;
-        return Objects.equals(buckets, that.buckets)
+        return obj instanceof InternalHistogram that
+            && super.equals(obj)
+            && Objects.equals(buckets, that.buckets)
             && Objects.equals(emptyBucketInfo, that.emptyBucketInfo)
             && Objects.equals(format, that.format)
             && Objects.equals(keyed, that.keyed)

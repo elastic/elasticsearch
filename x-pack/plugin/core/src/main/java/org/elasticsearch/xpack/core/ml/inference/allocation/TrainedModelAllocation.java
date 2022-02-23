@@ -148,9 +148,8 @@ public class TrainedModelAllocation implements SimpleDiffable<TrainedModelAlloca
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TrainedModelAllocation that = (TrainedModelAllocation) o;
-        return Objects.equals(nodeRoutingTable, that.nodeRoutingTable)
+        return o instanceof TrainedModelAllocation that
+            && Objects.equals(nodeRoutingTable, that.nodeRoutingTable)
             && Objects.equals(taskParams, that.taskParams)
             && Objects.equals(reason, that.reason)
             && Objects.equals(allocationState, that.allocationState)

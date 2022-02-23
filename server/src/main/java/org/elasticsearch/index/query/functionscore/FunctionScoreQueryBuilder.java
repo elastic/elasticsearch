@@ -382,11 +382,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            FilterFunctionBuilder that = (FilterFunctionBuilder) obj;
-            return Objects.equals(this.filter, that.filter) && Objects.equals(this.scoreFunction, that.scoreFunction);
+            return obj instanceof FilterFunctionBuilder that
+                && Objects.equals(this.filter, that.filter)
+                && Objects.equals(this.scoreFunction, that.scoreFunction);
         }
 
         public FilterFunctionBuilder rewrite(QueryRewriteContext context) throws IOException {

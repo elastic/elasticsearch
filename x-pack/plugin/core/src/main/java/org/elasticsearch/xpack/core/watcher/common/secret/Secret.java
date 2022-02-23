@@ -33,11 +33,7 @@ public class Secret {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Secret secret = (Secret) o;
-
-        return Arrays.equals(text, secret.text);
+        return o instanceof Secret secret && Arrays.equals(text, secret.text);
     }
 
     @Override

@@ -163,9 +163,8 @@ public class RestoreInfo implements ToXContentObject, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RestoreInfo that = (RestoreInfo) o;
-        return totalShards == that.totalShards
+        return o instanceof RestoreInfo that
+            && totalShards == that.totalShards
             && successfulShards == that.successfulShards
             && Objects.equals(name, that.name)
             && Objects.equals(indices, that.indices);

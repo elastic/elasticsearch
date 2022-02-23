@@ -183,9 +183,8 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        PainlessContextInfo that = (PainlessContextInfo) o;
-        return Objects.equals(name, that.name)
+        return o instanceof PainlessContextInfo that
+            && Objects.equals(name, that.name)
             && Objects.equals(classes, that.classes)
             && Objects.equals(importedMethods, that.importedMethods)
             && Objects.equals(classBindings, that.classBindings)

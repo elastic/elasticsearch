@@ -55,11 +55,7 @@ public class TransformInput implements Input {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        TransformInput that = (TransformInput) o;
-
-        return Objects.equals(transform, that.transform);
+        return o instanceof TransformInput that && Objects.equals(transform, that.transform);
     }
 
     static class Result extends Input.Result {

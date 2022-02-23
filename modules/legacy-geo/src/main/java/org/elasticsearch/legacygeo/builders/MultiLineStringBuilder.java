@@ -163,10 +163,6 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasti
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        MultiLineStringBuilder other = (MultiLineStringBuilder) obj;
-        return Objects.equals(lines, other.lines);
+        return obj instanceof MultiLineStringBuilder other && Objects.equals(lines, other.lines);
     }
 }

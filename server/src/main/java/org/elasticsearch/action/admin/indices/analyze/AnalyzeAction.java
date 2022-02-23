@@ -348,11 +348,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Response that = (Response) o;
-            return Objects.equals(detail, that.detail) && Objects.equals(tokens, that.tokens);
+            return o instanceof Response that && Objects.equals(detail, that.detail) && Objects.equals(tokens, that.tokens);
         }
 
         @Override
@@ -393,11 +389,8 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            AnalyzeToken that = (AnalyzeToken) o;
-            return startOffset == that.startOffset
+            return o instanceof AnalyzeToken that
+                && startOffset == that.startOffset
                 && endOffset == that.endOffset
                 && position == that.position
                 && positionLength == that.positionLength
@@ -587,11 +580,8 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            DetailAnalyzeResponse that = (DetailAnalyzeResponse) o;
-            return customAnalyzer == that.customAnalyzer
+            return o instanceof DetailAnalyzeResponse that
+                && customAnalyzer == that.customAnalyzer
                 && Objects.equals(analyzer, that.analyzer)
                 && Arrays.equals(charfilters, that.charfilters)
                 && Objects.equals(tokenizer, that.tokenizer)
@@ -678,11 +668,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            AnalyzeTokenList that = (AnalyzeTokenList) o;
-            return Objects.equals(name, that.name) && Arrays.equals(tokens, that.tokens);
+            return o instanceof AnalyzeTokenList that && Objects.equals(name, that.name) && Arrays.equals(tokens, that.tokens);
         }
 
         @Override
@@ -785,11 +771,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            CharFilteredText that = (CharFilteredText) o;
-            return Objects.equals(name, that.name) && Arrays.equals(texts, that.texts);
+            return o instanceof CharFilteredText that && Objects.equals(name, that.name) && Arrays.equals(texts, that.texts);
         }
 
         @Override

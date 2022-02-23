@@ -43,13 +43,7 @@ public class EmptyExecutable implements Executable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        EmptyExecutable other = (EmptyExecutable) obj;
-        return Objects.equals(resultType, other.resultType) && Objects.equals(output, other.output);
+        return obj instanceof EmptyExecutable other && Objects.equals(resultType, other.resultType) && Objects.equals(output, other.output);
     }
 
     @Override

@@ -78,11 +78,7 @@ public final class LimitedRole implements Role {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        LimitedRole that = (LimitedRole) o;
-        return baseRole.equals(that.baseRole) && this.limitedByRole.equals(that.limitedByRole);
+        return o instanceof LimitedRole that && baseRole.equals(that.baseRole) && this.limitedByRole.equals(that.limitedByRole);
     }
 
     @Override

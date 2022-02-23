@@ -84,9 +84,8 @@ public class OneHotEncodingSize implements PreprocessorSize {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        OneHotEncodingSize that = (OneHotEncodingSize) o;
-        return fieldLength == that.fieldLength
+        return o instanceof OneHotEncodingSize that
+            && fieldLength == that.fieldLength
             && Arrays.equals(featureNameLengths, that.featureNameLengths)
             && Arrays.equals(fieldValueLengths, that.fieldValueLengths);
     }

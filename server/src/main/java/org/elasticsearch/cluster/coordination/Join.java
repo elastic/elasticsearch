@@ -102,15 +102,12 @@ public class Join implements Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Join join = (Join) o;
-
-        if (sourceNode.equals(join.sourceNode) == false) return false;
-        if (targetNode.equals(join.targetNode) == false) return false;
-        if (lastAcceptedVersion != join.lastAcceptedVersion) return false;
-        if (term != join.term) return false;
-        return lastAcceptedTerm == join.lastAcceptedTerm;
+        return o instanceof Join join
+            && sourceNode.equals(join.sourceNode)
+            && targetNode.equals(join.targetNode)
+            && lastAcceptedVersion == join.lastAcceptedVersion
+            && term == join.term
+            && lastAcceptedTerm == join.lastAcceptedTerm;
     }
 
     @Override

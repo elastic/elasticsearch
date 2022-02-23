@@ -321,11 +321,8 @@ public interface DocValueFormat extends NamedWriteable {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            DateTime that = (DateTime) o;
-            return formatter.equals(that.formatter)
+            return o instanceof DateTime that
+                && formatter.equals(that.formatter)
                 && timeZone.equals(that.timeZone)
                 && resolution == that.resolution
                 && formatSortValues == that.formatSortValues;
@@ -579,11 +576,7 @@ public interface DocValueFormat extends NamedWriteable {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Decimal that = (Decimal) o;
-            return Objects.equals(pattern, that.pattern);
+            return o instanceof Decimal that && Objects.equals(pattern, that.pattern);
         }
 
         @Override

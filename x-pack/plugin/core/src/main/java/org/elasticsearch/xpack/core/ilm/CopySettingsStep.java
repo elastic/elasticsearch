@@ -100,14 +100,10 @@ public class CopySettingsStep extends ClusterStateActionStep {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (super.equals(o) == false) {
-            return false;
-        }
-        CopySettingsStep that = (CopySettingsStep) o;
-        return Objects.equals(settingsKeys, that.settingsKeys) && Objects.equals(indexPrefix, that.indexPrefix);
+        return o instanceof CopySettingsStep that
+            && super.equals(o)
+            && Objects.equals(settingsKeys, that.settingsKeys)
+            && Objects.equals(indexPrefix, that.indexPrefix);
     }
 
     @Override

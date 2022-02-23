@@ -561,11 +561,8 @@ public final class RepositoryData {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        RepositoryData that = (RepositoryData) obj;
-        return snapshotIds.equals(that.snapshotIds)
+        return obj instanceof RepositoryData that
+            && snapshotIds.equals(that.snapshotIds)
             && snapshotsDetails.equals(that.snapshotsDetails)
             && indices.equals(that.indices)
             && indexSnapshots.equals(that.indexSnapshots)
@@ -1100,9 +1097,8 @@ public final class RepositoryData {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            SnapshotDetails that = (SnapshotDetails) o;
-            return startTimeMillis == that.startTimeMillis
+            return o instanceof SnapshotDetails that
+                && startTimeMillis == that.startTimeMillis
                 && endTimeMillis == that.endTimeMillis
                 && snapshotState == that.snapshotState
                 && Objects.equals(version, that.version)

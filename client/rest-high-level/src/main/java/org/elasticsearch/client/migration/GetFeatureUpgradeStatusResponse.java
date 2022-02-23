@@ -144,9 +144,8 @@ public class GetFeatureUpgradeStatusResponse {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FeatureUpgradeStatus that = (FeatureUpgradeStatus) o;
-            return Objects.equals(featureName, that.featureName)
+            return o instanceof FeatureUpgradeStatus that
+                && Objects.equals(featureName, that.featureName)
                 && Objects.equals(minimumIndexVersion, that.minimumIndexVersion)
                 && Objects.equals(upgradeStatus, that.upgradeStatus)
                 && Objects.equals(indexVersions, that.indexVersions);
@@ -204,9 +203,7 @@ public class GetFeatureUpgradeStatusResponse {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IndexVersion that = (IndexVersion) o;
-            return Objects.equals(indexName, that.indexName) && Objects.equals(version, that.version);
+            return o instanceof IndexVersion that && Objects.equals(indexName, that.indexName) && Objects.equals(version, that.version);
         }
 
         @Override

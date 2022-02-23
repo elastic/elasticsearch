@@ -120,9 +120,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            GetComposableIndexTemplateAction.Response that = (GetComposableIndexTemplateAction.Response) o;
-            return Objects.equals(indexTemplates, that.indexTemplates);
+            return o instanceof GetComposableIndexTemplateAction.Response that && Objects.equals(indexTemplates, that.indexTemplates);
         }
 
         @Override

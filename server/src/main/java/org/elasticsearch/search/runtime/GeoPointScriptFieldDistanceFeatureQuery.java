@@ -216,11 +216,11 @@ public final class GeoPointScriptFieldDistanceFeatureQuery extends AbstractScrip
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        GeoPointScriptFieldDistanceFeatureQuery other = (GeoPointScriptFieldDistanceFeatureQuery) obj;
-        return originLon == other.originLon && originLat == other.originLat && pivotDistance == other.pivotDistance;
+        return super.equals(obj)
+            && obj instanceof GeoPointScriptFieldDistanceFeatureQuery other
+            && originLon == other.originLon
+            && originLat == other.originLat
+            && pivotDistance == other.pivotDistance;
     }
 
     @Override

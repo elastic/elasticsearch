@@ -159,10 +159,9 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        FieldAndFormat other = (FieldAndFormat) obj;
-        return field.equals(other.field) && Objects.equals(format, other.format) && Objects.equals(includeUnmapped, other.includeUnmapped);
+        return obj instanceof FieldAndFormat other
+            && field.equals(other.field)
+            && Objects.equals(format, other.format)
+            && Objects.equals(includeUnmapped, other.includeUnmapped);
     }
 }

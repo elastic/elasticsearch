@@ -164,10 +164,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        ReverseNestedAggregationBuilder other = (ReverseNestedAggregationBuilder) obj;
-        return Objects.equals(path, other.path);
+        return obj instanceof ReverseNestedAggregationBuilder other && super.equals(obj) && Objects.equals(path, other.path);
     }
 
     @Override

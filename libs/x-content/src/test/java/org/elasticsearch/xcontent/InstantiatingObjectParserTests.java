@@ -52,9 +52,7 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NoAnnotations that = (NoAnnotations) o;
-            return a == that.a && c == that.c && Objects.equals(b, that.b);
+            return o instanceof NoAnnotations that && a == that.a && c == that.c && Objects.equals(b, that.b);
         }
 
         @Override
@@ -123,9 +121,7 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            LonelyArgument that = (LonelyArgument) o;
-            return a == that.a && Objects.equals(b, that.b);
+            return o instanceof LonelyArgument that && a == that.a && Objects.equals(b, that.b);
         }
 
         @Override
@@ -184,9 +180,7 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Annotations that = (Annotations) o;
-            return a == that.a && c == that.c && Objects.equals(b, that.b);
+            return o instanceof Annotations that && a == that.a && c == that.c && Objects.equals(b, that.b);
         }
 
         @Override
@@ -278,9 +272,7 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ContextArgument that = (ContextArgument) o;
-            return a == that.a && c == that.c && Objects.equals(b, that.b);
+            return o instanceof ContextArgument that && a == that.a && c == that.c && Objects.equals(b, that.b);
         }
 
         @Override

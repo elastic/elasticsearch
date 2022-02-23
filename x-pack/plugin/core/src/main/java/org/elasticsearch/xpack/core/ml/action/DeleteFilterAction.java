@@ -64,11 +64,7 @@ public class DeleteFilterAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Request other = (Request) obj;
-            return Objects.equals(filterId, other.filterId);
+            return obj instanceof Request other && Objects.equals(filterId, other.filterId);
         }
     }
 }

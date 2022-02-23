@@ -158,9 +158,8 @@ public record SslConfiguration(
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        final SslConfiguration that = (SslConfiguration) o;
-        return Objects.equals(this.trustConfig, that.trustConfig)
+        return o instanceof SslConfiguration that
+            && Objects.equals(this.trustConfig, that.trustConfig)
             && Objects.equals(this.keyConfig, that.keyConfig)
             && this.verificationMode == that.verificationMode
             && this.clientAuth == that.clientAuth

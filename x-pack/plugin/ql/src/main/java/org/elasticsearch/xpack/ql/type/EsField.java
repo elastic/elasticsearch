@@ -102,11 +102,8 @@ public class EsField {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        EsField field = (EsField) o;
-        return aggregatable == field.aggregatable
+        return o instanceof EsField field
+            && aggregatable == field.aggregatable
             && isAlias == field.isAlias
             && esDataType == field.esDataType
             && Objects.equals(name, field.name)

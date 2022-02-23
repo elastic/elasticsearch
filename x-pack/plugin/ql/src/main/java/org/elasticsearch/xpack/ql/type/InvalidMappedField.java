@@ -42,12 +42,7 @@ public class InvalidMappedField extends EsField {
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            InvalidMappedField other = (InvalidMappedField) obj;
-            return Objects.equals(errorMessage, other.errorMessage);
-        }
-
-        return false;
+        return super.equals(obj) && obj instanceof InvalidMappedField other && Objects.equals(errorMessage, other.errorMessage);
     }
 
     @Override

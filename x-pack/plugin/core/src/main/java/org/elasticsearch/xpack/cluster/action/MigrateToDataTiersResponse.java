@@ -166,11 +166,8 @@ public class MigrateToDataTiersResponse extends ActionResponse implements ToXCon
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        MigrateToDataTiersResponse that = (MigrateToDataTiersResponse) o;
-        return dryRun == that.dryRun
+        return o instanceof MigrateToDataTiersResponse that
+            && dryRun == that.dryRun
             && Objects.equals(removedIndexTemplateName, that.removedIndexTemplateName)
             && Objects.equals(migratedPolicies, that.migratedPolicies)
             && Objects.equals(migratedIndices, that.migratedIndices)

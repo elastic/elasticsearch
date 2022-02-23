@@ -358,9 +358,8 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        LangIdentNeuralNetwork that = (LangIdentNeuralNetwork) o;
-        return Objects.equals(embeddedVectorFeatureName, that.embeddedVectorFeatureName)
+        return o instanceof LangIdentNeuralNetwork that
+            && Objects.equals(embeddedVectorFeatureName, that.embeddedVectorFeatureName)
             && Objects.equals(hiddenLayer, that.hiddenLayer)
             && Objects.equals(softmaxLayer, that.softmaxLayer);
     }

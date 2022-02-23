@@ -175,10 +175,10 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        PercentilesBucketPipelineAggregationBuilder other = (PercentilesBucketPipelineAggregationBuilder) obj;
-        return Objects.deepEquals(percents, other.percents) && Objects.equals(keyed, other.keyed);
+        return obj instanceof PercentilesBucketPipelineAggregationBuilder other
+            && super.equals(obj)
+            && Objects.deepEquals(percents, other.percents)
+            && Objects.equals(keyed, other.keyed);
     }
 
     @Override

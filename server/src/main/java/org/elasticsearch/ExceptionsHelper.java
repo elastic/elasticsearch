@@ -308,11 +308,8 @@ public final class ExceptionsHelper {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            GroupBy groupBy = (GroupBy) o;
-            return Objects.equals(reason, groupBy.reason)
+            return o instanceof GroupBy groupBy
+                && Objects.equals(reason, groupBy.reason)
                 && Objects.equals(index, groupBy.index)
                 && Objects.equals(causeType, groupBy.causeType);
         }

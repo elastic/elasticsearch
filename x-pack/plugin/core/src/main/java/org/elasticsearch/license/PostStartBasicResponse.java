@@ -146,11 +146,9 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        PostStartBasicResponse that = (PostStartBasicResponse) o;
-
-        return status == that.status
+        return o instanceof PostStartBasicResponse that
+            && super.equals(o)
+            && status == that.status
             && ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages)
             && Objects.equals(acknowledgeMessage, that.acknowledgeMessage);
     }

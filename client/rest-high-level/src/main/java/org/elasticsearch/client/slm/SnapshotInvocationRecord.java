@@ -77,9 +77,8 @@ public class SnapshotInvocationRecord implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SnapshotInvocationRecord that = (SnapshotInvocationRecord) o;
-        return getTimestamp() == that.getTimestamp()
+        return o instanceof SnapshotInvocationRecord that
+            && getTimestamp() == that.getTimestamp()
             && Objects.equals(getSnapshotName(), that.getSnapshotName())
             && Objects.equals(getDetails(), that.getDetails());
     }

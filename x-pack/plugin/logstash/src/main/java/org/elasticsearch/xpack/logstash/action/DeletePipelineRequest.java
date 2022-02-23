@@ -46,9 +46,7 @@ public class DeletePipelineRequest extends ActionRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DeletePipelineRequest that = (DeletePipelineRequest) o;
-        return Objects.equals(id, that.id);
+        return o instanceof DeletePipelineRequest that && Objects.equals(id, that.id);
     }
 
     @Override

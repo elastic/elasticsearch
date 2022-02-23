@@ -55,11 +55,9 @@ public class GetAliasesResponse extends ActionResponse {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        GetAliasesResponse that = (GetAliasesResponse) o;
-        return Objects.equals(aliases, that.aliases) && Objects.equals(dataStreamAliases, that.dataStreamAliases);
+        return o instanceof GetAliasesResponse that
+            && Objects.equals(aliases, that.aliases)
+            && Objects.equals(dataStreamAliases, that.dataStreamAliases);
     }
 
     @Override

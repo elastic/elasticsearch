@@ -319,9 +319,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Version version = (Version) o;
-            return primaryTerm == version.primaryTerm && seqNo == version.seqNo;
+            return o instanceof Version version && primaryTerm == version.primaryTerm && seqNo == version.seqNo;
         }
 
         @Override

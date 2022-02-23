@@ -111,11 +111,7 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Info info = (Info) o;
-            return Objects.equals(message, info.message);
+            return o instanceof Info info && Objects.equals(message, info.message);
         }
 
         @Override

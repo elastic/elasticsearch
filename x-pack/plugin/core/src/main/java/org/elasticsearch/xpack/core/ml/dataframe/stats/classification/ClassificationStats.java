@@ -143,9 +143,8 @@ public class ClassificationStats implements AnalysisStats {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ClassificationStats that = (ClassificationStats) o;
-        return Objects.equals(jobId, that.jobId)
+        return o instanceof ClassificationStats that
+            && Objects.equals(jobId, that.jobId)
             && Objects.equals(timestamp, that.timestamp)
             && iteration == that.iteration
             && Objects.equals(hyperparameters, that.hyperparameters)

@@ -83,9 +83,8 @@ public class TargetMeanEncodingSize implements PreprocessorSize {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TargetMeanEncodingSize that = (TargetMeanEncodingSize) o;
-        return fieldLength == that.fieldLength
+        return o instanceof TargetMeanEncodingSize that
+            && fieldLength == that.fieldLength
             && featureNameLength == that.featureNameLength
             && Arrays.equals(fieldValueLengths, that.fieldValueLengths);
     }

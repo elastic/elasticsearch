@@ -42,15 +42,13 @@ public final class SimilarityProvider {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SimilarityProvider that = (SimilarityProvider) o;
         /**
          * We check <code>name</code> only because the <code>similarity</code> is
          * re-created for each new instance and they don't implement equals.
          * This is not entirely correct though but we only use equality checks
          * for similarities inside the same index and names are unique in this case.
          **/
-        return Objects.equals(name, that.name);
+        return o instanceof SimilarityProvider that && Objects.equals(name, that.name);
     }
 
     @Override

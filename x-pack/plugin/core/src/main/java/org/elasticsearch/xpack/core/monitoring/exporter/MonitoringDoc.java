@@ -85,11 +85,8 @@ public abstract class MonitoringDoc implements ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        MonitoringDoc that = (MonitoringDoc) o;
-        return timestamp == that.timestamp
+        return o instanceof MonitoringDoc that
+            && timestamp == that.timestamp
             && intervalMillis == that.intervalMillis
             && Objects.equals(cluster, that.cluster)
             && Objects.equals(node, that.node)
@@ -223,11 +220,8 @@ public abstract class MonitoringDoc implements ToXContentObject {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Node node = (Node) o;
-            return Objects.equals(uuid, node.uuid)
+            return o instanceof Node node
+                && Objects.equals(uuid, node.uuid)
                 && Objects.equals(host, node.host)
                 && Objects.equals(transportAddress, node.transportAddress)
                 && Objects.equals(ip, node.ip)

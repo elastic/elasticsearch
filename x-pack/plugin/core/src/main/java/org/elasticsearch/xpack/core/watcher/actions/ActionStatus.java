@@ -71,11 +71,8 @@ public class ActionStatus implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ActionStatus that = (ActionStatus) o;
-
-        return Objects.equals(ackStatus, that.ackStatus)
+        return o instanceof ActionStatus that
+            && Objects.equals(ackStatus, that.ackStatus)
             && Objects.equals(lastExecution, that.lastExecution)
             && Objects.equals(lastSuccessfulExecution, that.lastSuccessfulExecution)
             && Objects.equals(lastThrottle, that.lastThrottle);
@@ -246,11 +243,9 @@ public class ActionStatus implements ToXContentObject {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            AckStatus ackStatus = (AckStatus) o;
-
-            return Objects.equals(timestamp, ackStatus.timestamp) && Objects.equals(state, ackStatus.state);
+            return o instanceof AckStatus ackStatus
+                && Objects.equals(timestamp, ackStatus.timestamp)
+                && Objects.equals(state, ackStatus.state);
         }
 
         @Override

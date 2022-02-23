@@ -209,9 +209,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            HnswIndexOptions that = (HnswIndexOptions) o;
-            return m == that.m && efConstruction == that.efConstruction;
+            return o instanceof HnswIndexOptions that && m == that.m && efConstruction == that.efConstruction;
         }
 
         @Override

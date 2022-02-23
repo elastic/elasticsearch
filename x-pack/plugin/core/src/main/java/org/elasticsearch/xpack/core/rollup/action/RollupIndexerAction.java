@@ -147,9 +147,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return created == response.created;
+            return o instanceof Response response && created == response.created;
         }
 
         @Override

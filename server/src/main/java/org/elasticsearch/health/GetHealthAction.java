@@ -98,11 +98,10 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Response response = (Response) o;
-            return clusterName.equals(response.clusterName) && status == response.status && components.equals(response.components);
+            return o instanceof Response response
+                && clusterName.equals(response.clusterName)
+                && status == response.status
+                && components.equals(response.components);
         }
 
         @Override

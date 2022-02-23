@@ -184,9 +184,8 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Ensemble that = (Ensemble) o;
-        return Objects.equals(featureNames, that.featureNames)
+        return o instanceof Ensemble that
+            && Objects.equals(featureNames, that.featureNames)
             && Objects.equals(models, that.models)
             && Objects.equals(targetType, that.targetType)
             && Objects.equals(classificationLabels, that.classificationLabels)

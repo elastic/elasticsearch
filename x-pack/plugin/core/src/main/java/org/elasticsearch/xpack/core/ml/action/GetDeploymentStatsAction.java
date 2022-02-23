@@ -76,9 +76,9 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(deploymentId, request.deploymentId) && Objects.equals(expandedIds, request.expandedIds);
+            return o instanceof Request request
+                && Objects.equals(deploymentId, request.deploymentId)
+                && Objects.equals(expandedIds, request.expandedIds);
         }
 
         @Override
@@ -130,10 +130,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (super.equals(o) == false) return false;
-            Response response = (Response) o;
-            return Objects.equals(stats, response.stats);
+            return o instanceof Response response && super.equals(o) && Objects.equals(stats, response.stats);
         }
 
         @Override

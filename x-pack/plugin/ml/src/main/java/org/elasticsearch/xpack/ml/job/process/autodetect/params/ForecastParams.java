@@ -94,11 +94,8 @@ public class ForecastParams {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        ForecastParams other = (ForecastParams) obj;
-        return Objects.equals(forecastId, other.forecastId)
+        return obj instanceof ForecastParams other
+            && Objects.equals(forecastId, other.forecastId)
             && Objects.equals(createTime, other.createTime)
             && Objects.equals(duration, other.duration)
             && Objects.equals(expiresIn, other.expiresIn)

@@ -119,10 +119,8 @@ public class DiskUsage implements ToXContentFragment, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        DiskUsage other = (DiskUsage) o;
-        return Objects.equals(nodeId, other.nodeId)
+        return o instanceof DiskUsage other
+            && Objects.equals(nodeId, other.nodeId)
             && Objects.equals(nodeName, other.nodeName)
             && Objects.equals(totalBytes, other.totalBytes)
             && Objects.equals(freeBytes, other.freeBytes);

@@ -128,11 +128,8 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        DataStreamsStatsResponse that = (DataStreamsStatsResponse) obj;
-        return dataStreamCount == that.dataStreamCount
+        return obj instanceof DataStreamsStatsResponse that
+            && dataStreamCount == that.dataStreamCount
             && backingIndices == that.backingIndices
             && Objects.equals(totalStoreSize, that.totalStoreSize)
             && Objects.equals(dataStreams, that.dataStreams);
@@ -192,11 +189,8 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            DataStreamStats that = (DataStreamStats) obj;
-            return backingIndices == that.backingIndices
+            return obj instanceof DataStreamStats that
+                && backingIndices == that.backingIndices
                 && maximumTimestamp == that.maximumTimestamp
                 && Objects.equals(dataStream, that.dataStream)
                 && Objects.equals(storeSize, that.storeSize);

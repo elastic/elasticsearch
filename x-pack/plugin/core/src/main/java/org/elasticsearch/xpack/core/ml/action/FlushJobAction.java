@@ -157,11 +157,8 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId)
+            return obj instanceof Request other
+                && Objects.equals(jobId, other.jobId)
                 && calcInterim == other.calcInterim
                 && waitForNormalization == other.waitForNormalization
                 && Objects.equals(start, other.start)
@@ -245,9 +242,9 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return flushed == response.flushed && Objects.equals(lastFinalizedBucketEnd, response.lastFinalizedBucketEnd);
+            return o instanceof Response response
+                && flushed == response.flushed
+                && Objects.equals(lastFinalizedBucketEnd, response.lastFinalizedBucketEnd);
         }
 
         @Override

@@ -66,10 +66,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Vocabulary that = (Vocabulary) o;
-        return Objects.equals(vocab, that.vocab) && Objects.equals(modelId, that.modelId);
+        return o instanceof Vocabulary that && Objects.equals(vocab, that.vocab) && Objects.equals(modelId, that.modelId);
     }
 
     @Override

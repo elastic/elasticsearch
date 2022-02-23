@@ -182,11 +182,8 @@ public class DocumentField implements Writeable, Iterable<Object> {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        DocumentField objects = (DocumentField) o;
-        return Objects.equals(name, objects.name)
+        return o instanceof DocumentField objects
+            && Objects.equals(name, objects.name)
             && Objects.equals(values, objects.values)
             && Objects.equals(ignoredValues, objects.ignoredValues)
             && Objects.equals(lookupFields, objects.lookupFields);

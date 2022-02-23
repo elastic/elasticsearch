@@ -683,9 +683,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DataStream that = (DataStream) o;
-        return name.equals(that.name)
+        return o instanceof DataStream that
+            && name.equals(that.name)
             && timeStampField.equals(that.timeStampField)
             && indices.equals(that.indices)
             && generation == that.generation
@@ -750,9 +749,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TimestampField that = (TimestampField) o;
-            return name.equals(that.name);
+            return o instanceof TimestampField that && name.equals(that.name);
         }
 
         @Override

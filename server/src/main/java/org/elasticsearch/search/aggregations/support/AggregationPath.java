@@ -108,10 +108,7 @@ public class AggregationPath {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            PathElement token = (PathElement) o;
-            return Objects.equals(key, token.key) && Objects.equals(name, token.name);
+            return o instanceof PathElement token && Objects.equals(key, token.key) && Objects.equals(name, token.name);
         }
 
         @Override
@@ -208,11 +205,7 @@ public class AggregationPath {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        AggregationPath other = (AggregationPath) obj;
-        return pathElements.equals(other.pathElements);
+        return obj instanceof AggregationPath other && pathElements.equals(other.pathElements);
     }
 
     @Override

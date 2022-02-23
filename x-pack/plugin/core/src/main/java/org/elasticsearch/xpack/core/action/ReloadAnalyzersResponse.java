@@ -129,11 +129,7 @@ public class ReloadAnalyzersResponse extends BroadcastResponse {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        ReloadAnalyzersResponse that = (ReloadAnalyzersResponse) o;
-        return Objects.equals(reloadDetails, that.reloadDetails);
+        return o instanceof ReloadAnalyzersResponse that && Objects.equals(reloadDetails, that.reloadDetails);
     }
 
     @Override
@@ -189,11 +185,8 @@ public class ReloadAnalyzersResponse extends BroadcastResponse {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            ReloadDetails that = (ReloadDetails) o;
-            return Objects.equals(indexName, that.indexName)
+            return o instanceof ReloadDetails that
+                && Objects.equals(indexName, that.indexName)
                 && Objects.equals(reloadedIndicesNodes, that.reloadedIndicesNodes)
                 && Objects.equals(reloadedAnalyzers, that.reloadedAnalyzers);
         }

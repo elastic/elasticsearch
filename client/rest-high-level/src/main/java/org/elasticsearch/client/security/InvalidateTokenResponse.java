@@ -85,9 +85,8 @@ public final class InvalidateTokenResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        InvalidateTokenResponse that = (InvalidateTokenResponse) o;
-        return invalidatedTokens == that.invalidatedTokens
+        return o instanceof InvalidateTokenResponse that
+            && invalidatedTokens == that.invalidatedTokens
             && previouslyInvalidatedTokens == that.previouslyInvalidatedTokens
             && Objects.equals(errors, that.errors);
     }

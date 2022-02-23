@@ -106,9 +106,8 @@ public class GeoIpStatsResponse implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GeoIpStatsResponse that = (GeoIpStatsResponse) o;
-        return successfulDownloads == that.successfulDownloads
+        return o instanceof GeoIpStatsResponse that
+            && successfulDownloads == that.successfulDownloads
             && failedDownloads == that.failedDownloads
             && totalDownloadTime == that.totalDownloadTime
             && databasesCount == that.databasesCount
@@ -184,9 +183,7 @@ public class GeoIpStatsResponse implements ToXContentObject {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NodeInfo nodeInfo = (NodeInfo) o;
-            return filesInTemp.equals(nodeInfo.filesInTemp) && databases.equals(nodeInfo.databases);
+            return o instanceof NodeInfo nodeInfo && filesInTemp.equals(nodeInfo.filesInTemp) && databases.equals(nodeInfo.databases);
         }
 
         @Override
@@ -227,9 +224,7 @@ public class GeoIpStatsResponse implements ToXContentObject {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DatabaseInfo that = (DatabaseInfo) o;
-            return name.equals(that.name);
+            return o instanceof DatabaseInfo that && name.equals(that.name);
         }
 
         @Override

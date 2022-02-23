@@ -93,11 +93,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        RecoverySource that = (RecoverySource) o;
-
-        return getType() == that.getType();
+        return o instanceof RecoverySource that && getType() == that.getType();
     }
 
     @Override
@@ -276,12 +272,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            SnapshotRecoverySource that = (SnapshotRecoverySource) o;
-            return restoreUUID.equals(that.restoreUUID)
+            return o instanceof SnapshotRecoverySource that
+                && restoreUUID.equals(that.restoreUUID)
                 && snapshot.equals(that.snapshot)
                 && index.equals(that.index)
                 && version.equals(that.version);

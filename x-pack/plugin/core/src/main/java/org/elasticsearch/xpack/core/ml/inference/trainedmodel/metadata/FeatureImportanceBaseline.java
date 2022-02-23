@@ -83,9 +83,9 @@ public class FeatureImportanceBaseline implements ToXContentObject, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        FeatureImportanceBaseline that = (FeatureImportanceBaseline) o;
-        return Objects.equals(that.baseline, baseline) && Objects.equals(classBaselines, that.classBaselines);
+        return o instanceof FeatureImportanceBaseline that
+            && Objects.equals(that.baseline, baseline)
+            && Objects.equals(classBaselines, that.classBaselines);
     }
 
     public Map<String, Object> asMap() {
@@ -170,9 +170,7 @@ public class FeatureImportanceBaseline implements ToXContentObject, Writeable {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ClassBaseline that = (ClassBaseline) o;
-            return Objects.equals(that.className, className) && Objects.equals(baseline, that.baseline);
+            return o instanceof ClassBaseline that && Objects.equals(that.className, className) && Objects.equals(baseline, that.baseline);
         }
 
         @Override

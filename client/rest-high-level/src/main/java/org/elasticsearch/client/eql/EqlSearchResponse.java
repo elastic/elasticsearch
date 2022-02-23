@@ -123,11 +123,8 @@ public class EqlSearchResponse {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        EqlSearchResponse that = (EqlSearchResponse) o;
-        return Objects.equals(hits, that.hits)
+        return o instanceof EqlSearchResponse that
+            && Objects.equals(hits, that.hits)
             && Objects.equals(tookInMillis, that.tookInMillis)
             && Objects.equals(isTimeout, that.isTimeout);
     }
@@ -289,11 +286,7 @@ public class EqlSearchResponse {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Sequence that = (Sequence) o;
-            return Objects.equals(joinKeys, that.joinKeys) && Objects.equals(events, that.events);
+            return o instanceof Sequence that && Objects.equals(joinKeys, that.joinKeys) && Objects.equals(events, that.events);
         }
     }
 
@@ -371,11 +364,8 @@ public class EqlSearchResponse {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Hits that = (Hits) o;
-            return Objects.equals(events, that.events)
+            return o instanceof Hits that
+                && Objects.equals(events, that.events)
                 && Objects.equals(sequences, that.sequences)
                 && Objects.equals(totalHits, that.totalHits);
         }

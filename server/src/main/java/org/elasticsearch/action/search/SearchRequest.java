@@ -785,11 +785,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SearchRequest that = (SearchRequest) o;
-        return searchType == that.searchType
+        return o instanceof SearchRequest that
+            && searchType == that.searchType
             && Arrays.equals(indices, that.indices)
             && Objects.equals(routing, that.routing)
             && Objects.equals(preference, that.preference)

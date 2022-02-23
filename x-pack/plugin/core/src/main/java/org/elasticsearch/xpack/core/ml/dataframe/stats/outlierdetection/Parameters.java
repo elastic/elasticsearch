@@ -108,10 +108,8 @@ public class Parameters implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Parameters that = (Parameters) o;
-        return nNeighbors == that.nNeighbors
+        return o instanceof Parameters that
+            && nNeighbors == that.nNeighbors
             && Objects.equals(method, that.method)
             && computeFeatureInfluence == that.computeFeatureInfluence
             && featureInfluenceThreshold == that.featureInfluenceThreshold

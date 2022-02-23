@@ -96,13 +96,9 @@ public class EsQueryExec extends LeafExec {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        EsQueryExec other = (EsQueryExec) obj;
-        return Objects.equals(queryContainer, other.queryContainer) && Objects.equals(output, other.output);
+        return obj instanceof EsQueryExec other
+            && Objects.equals(queryContainer, other.queryContainer)
+            && Objects.equals(output, other.output);
     }
 
     @Override

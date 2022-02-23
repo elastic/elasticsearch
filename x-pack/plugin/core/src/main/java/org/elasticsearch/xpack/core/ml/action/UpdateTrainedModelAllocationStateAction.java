@@ -73,9 +73,8 @@ public class UpdateTrainedModelAllocationStateAction extends ActionType<Acknowle
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(nodeId, request.nodeId)
+            return o instanceof Request request
+                && Objects.equals(nodeId, request.nodeId)
                 && Objects.equals(modelId, request.modelId)
                 && Objects.equals(routingState, request.routingState);
         }

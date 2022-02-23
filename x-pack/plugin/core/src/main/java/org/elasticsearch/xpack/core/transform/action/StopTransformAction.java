@@ -230,9 +230,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return acknowledged == response.acknowledged;
+            return o instanceof Response response && acknowledged == response.acknowledged;
         }
 
         @Override

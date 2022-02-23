@@ -93,9 +93,8 @@ public class DataCounts implements ToXContentObject, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DataCounts that = (DataCounts) o;
-        return Objects.equals(jobId, that.jobId)
+        return o instanceof DataCounts that
+            && Objects.equals(jobId, that.jobId)
             && trainingDocsCount == that.trainingDocsCount
             && testDocsCount == that.testDocsCount
             && skippedDocsCount == that.skippedDocsCount;

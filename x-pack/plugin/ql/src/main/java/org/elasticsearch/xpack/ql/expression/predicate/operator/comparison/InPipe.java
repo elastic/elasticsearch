@@ -42,13 +42,7 @@ public class InPipe extends MultiPipe {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        InPipe other = (InPipe) obj;
-        return Objects.equals(children(), other.children());
+        return obj instanceof InPipe other && Objects.equals(children(), other.children());
     }
 
     @Override

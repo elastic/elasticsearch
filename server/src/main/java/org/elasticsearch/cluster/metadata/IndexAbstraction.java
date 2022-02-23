@@ -202,9 +202,8 @@ public interface IndexAbstraction {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ConcreteIndex that = (ConcreteIndex) o;
-            return isHidden == that.isHidden
+            return o instanceof ConcreteIndex that
+                && isHidden == that.isHidden
                 && isSystem == that.isSystem
                 && concreteIndexName.equals(that.concreteIndexName)
                 && Objects.equals(aliases, that.aliases)
@@ -314,9 +313,8 @@ public interface IndexAbstraction {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Alias alias = (Alias) o;
-            return isHidden == alias.isHidden
+            return o instanceof Alias alias
+                && isHidden == alias.isHidden
                 && isSystem == alias.isSystem
                 && dataStreamAlias == alias.dataStreamAlias
                 && aliasName.equals(alias.aliasName)
@@ -465,9 +463,9 @@ public interface IndexAbstraction {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DataStream that = (DataStream) o;
-            return dataStream.equals(that.dataStream) && Objects.equals(referencedByDataStreamAliases, that.referencedByDataStreamAliases);
+            return o instanceof DataStream that
+                && dataStream.equals(that.dataStream)
+                && Objects.equals(referencedByDataStreamAliases, that.referencedByDataStreamAliases);
         }
 
         @Override

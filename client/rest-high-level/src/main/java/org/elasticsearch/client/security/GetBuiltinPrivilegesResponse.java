@@ -47,9 +47,9 @@ public final class GetBuiltinPrivilegesResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetBuiltinPrivilegesResponse that = (GetBuiltinPrivilegesResponse) o;
-        return Objects.equals(this.clusterPrivileges, that.clusterPrivileges) && Objects.equals(this.indexPrivileges, that.indexPrivileges);
+        return o instanceof GetBuiltinPrivilegesResponse that
+            && Objects.equals(this.clusterPrivileges, that.clusterPrivileges)
+            && Objects.equals(this.indexPrivileges, that.indexPrivileges);
     }
 
     @Override

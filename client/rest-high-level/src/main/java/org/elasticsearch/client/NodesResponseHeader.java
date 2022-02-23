@@ -112,11 +112,11 @@ public final class NodesResponseHeader {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        NodesResponseHeader that = (NodesResponseHeader) o;
-        return total == that.total && successful == that.successful && failed == that.failed && Objects.equals(failures, that.failures);
+        return o instanceof NodesResponseHeader that
+            && total == that.total
+            && successful == that.successful
+            && failed == that.failed
+            && Objects.equals(failures, that.failures);
     }
 
     @Override

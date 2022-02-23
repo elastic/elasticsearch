@@ -76,11 +76,7 @@ public class Index implements Writeable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        Index index1 = (Index) o;
-        return uuid.equals(index1.uuid) && name.equals(index1.name); // allow for _na_ uuid
+        return o instanceof Index index1 && uuid.equals(index1.uuid) && name.equals(index1.name); // allow for _na_ uuid
     }
 
     @Override

@@ -127,11 +127,8 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            AggregatedDanglingIndexInfo that = (AggregatedDanglingIndexInfo) o;
-            return creationDateMillis == that.creationDateMillis
+            return o instanceof AggregatedDanglingIndexInfo that
+                && creationDateMillis == that.creationDateMillis
                 && indexUUID.equals(that.indexUUID)
                 && indexName.equals(that.indexName)
                 && nodeIds.equals(that.nodeIds);

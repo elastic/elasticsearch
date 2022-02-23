@@ -105,11 +105,8 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        CopyExecutionStateStep that = (CopyExecutionStateStep) o;
-        return super.equals(o)
+        return o instanceof CopyExecutionStateStep that
+            && super.equals(o)
             && Objects.equals(targetIndexNameSupplier, that.targetIndexNameSupplier)
             && Objects.equals(targetNextStepKey, that.targetNextStepKey);
     }

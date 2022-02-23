@@ -235,11 +235,9 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalStats other = (InternalStats) obj;
-        return count == other.count
+        return obj instanceof InternalStats other
+            && super.equals(obj)
+            && count == other.count
             && Double.compare(min, other.min) == 0
             && Double.compare(max, other.max) == 0
             && Double.compare(sum, other.sum) == 0;

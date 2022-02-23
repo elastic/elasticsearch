@@ -196,11 +196,8 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Indices that = (Indices) o;
-
-            return this.indices.equals(that.indices)
+            return o instanceof Indices that
+                && this.indices.equals(that.indices)
                 && this.privileges.equals(that.privileges)
                 && this.fieldSecurity.equals(that.fieldSecurity)
                 && this.queries.equals(that.queries)

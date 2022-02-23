@@ -51,9 +51,7 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse implements T
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        MonitoringMigrateAlertsResponse response = (MonitoringMigrateAlertsResponse) o;
-        return Objects.equals(exporters, response.exporters);
+        return o instanceof MonitoringMigrateAlertsResponse response && Objects.equals(exporters, response.exporters);
     }
 
     @Override
@@ -131,9 +129,10 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse implements T
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ExporterMigrationResult that = (ExporterMigrationResult) o;
-            return migrationComplete == that.migrationComplete && Objects.equals(name, that.name) && Objects.equals(type, that.type);
+            return o instanceof ExporterMigrationResult that
+                && migrationComplete == that.migrationComplete
+                && Objects.equals(name, that.name)
+                && Objects.equals(type, that.type);
         }
 
         @Override

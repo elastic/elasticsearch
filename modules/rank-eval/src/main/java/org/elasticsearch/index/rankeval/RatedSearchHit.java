@@ -94,11 +94,7 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        RatedSearchHit other = (RatedSearchHit) obj;
-        return Objects.equals(rating, other.rating) && Objects.equals(searchHit, other.searchHit);
+        return obj instanceof RatedSearchHit other && Objects.equals(rating, other.rating) && Objects.equals(searchHit, other.searchHit);
     }
 
     @Override

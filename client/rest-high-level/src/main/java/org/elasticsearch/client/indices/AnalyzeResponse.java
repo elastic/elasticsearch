@@ -38,9 +38,8 @@ public class AnalyzeResponse {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AnalyzeResponse.AnalyzeToken that = (AnalyzeResponse.AnalyzeToken) o;
-            return startOffset == that.startOffset
+            return o instanceof AnalyzeResponse.AnalyzeToken that
+                && startOffset == that.startOffset
                 && endOffset == that.endOffset
                 && position == that.position
                 && positionLength == that.positionLength
@@ -164,9 +163,7 @@ public class AnalyzeResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AnalyzeResponse that = (AnalyzeResponse) o;
-        return Objects.equals(detail, that.detail) && Objects.equals(tokens, that.tokens);
+        return o instanceof AnalyzeResponse that && Objects.equals(detail, that.detail) && Objects.equals(tokens, that.tokens);
     }
 
     @Override

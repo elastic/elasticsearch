@@ -76,13 +76,10 @@ public class AcknowledgedTasksResponse {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        AcknowledgedTasksResponse other = (AcknowledgedTasksResponse) obj;
-        return acknowledged == other.acknowledged && taskFailures.equals(other.taskFailures) && nodeFailures.equals(other.nodeFailures);
+        return obj instanceof AcknowledgedTasksResponse other
+            && acknowledged == other.acknowledged
+            && taskFailures.equals(other.taskFailures)
+            && nodeFailures.equals(other.nodeFailures);
     }
 
     @Override

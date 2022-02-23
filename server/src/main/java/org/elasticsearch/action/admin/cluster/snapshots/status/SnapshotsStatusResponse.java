@@ -86,9 +86,7 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        return Objects.equals(snapshots, ((SnapshotsStatusResponse) o).snapshots);
+        return o instanceof SnapshotsStatusResponse that && Objects.equals(snapshots, that.snapshots);
     }
 
     @Override

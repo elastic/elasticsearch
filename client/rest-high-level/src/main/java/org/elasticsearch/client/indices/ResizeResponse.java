@@ -55,10 +55,7 @@ public class ResizeResponse extends ShardsAcknowledgedResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        ResizeResponse that = (ResizeResponse) o;
-        return Objects.equals(index, that.index);
+        return o instanceof ResizeResponse that && super.equals(o) && Objects.equals(index, that.index);
     }
 
     @Override

@@ -69,9 +69,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            StringWrapper that = (StringWrapper) o;
-            return Objects.equals(name, that.name);
+            return o instanceof StringWrapper that && Objects.equals(name, that.name);
         }
 
         @Override

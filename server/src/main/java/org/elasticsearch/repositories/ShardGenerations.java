@@ -150,11 +150,7 @@ public final class ShardGenerations {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final ShardGenerations that = (ShardGenerations) o;
-        return shardGenerations.equals(that.shardGenerations);
+        return o instanceof ShardGenerations that && shardGenerations.equals(that.shardGenerations);
     }
 
     @Override

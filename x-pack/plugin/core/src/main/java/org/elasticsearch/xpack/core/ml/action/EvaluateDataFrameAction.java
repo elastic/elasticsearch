@@ -169,9 +169,8 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request that = (Request) o;
-            return Arrays.equals(indices, that.indices)
+            return o instanceof Request that
+                && Arrays.equals(indices, that.indices)
                 && Objects.equals(queryProvider, that.queryProvider)
                 && Objects.equals(evaluation, that.evaluation);
         }

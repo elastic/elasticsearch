@@ -298,9 +298,9 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            VotingConfigExclusion that = (VotingConfigExclusion) o;
-            return Objects.equals(nodeId, that.nodeId) && Objects.equals(nodeName, that.nodeName);
+            return o instanceof VotingConfigExclusion that
+                && Objects.equals(nodeId, that.nodeId)
+                && Objects.equals(nodeName, that.nodeName);
         }
 
         @Override
@@ -367,9 +367,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            VotingConfiguration that = (VotingConfiguration) o;
-            return Objects.equals(nodeIds, that.nodeIds);
+            return o instanceof VotingConfiguration that && Objects.equals(nodeIds, that.nodeIds);
         }
 
         @Override

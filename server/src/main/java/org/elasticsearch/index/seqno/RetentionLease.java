@@ -178,9 +178,8 @@ public final class RetentionLease implements ToXContentObject, Writeable {
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        final RetentionLease that = (RetentionLease) o;
-        return Objects.equals(id, that.id)
+        return o instanceof RetentionLease that
+            && Objects.equals(id, that.id)
             && retainingSequenceNumber == that.retainingSequenceNumber
             && timestamp == that.timestamp
             && Objects.equals(source, that.source);

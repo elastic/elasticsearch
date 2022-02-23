@@ -33,11 +33,7 @@ public class DeleteLifecyclePolicyRequest extends TimedRequest {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        DeleteLifecyclePolicyRequest that = (DeleteLifecyclePolicyRequest) o;
-        return Objects.equals(getLifecyclePolicy(), that.getLifecyclePolicy());
+        return o instanceof DeleteLifecyclePolicyRequest that && Objects.equals(getLifecyclePolicy(), that.getLifecyclePolicy());
     }
 
     @Override

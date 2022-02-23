@@ -61,13 +61,7 @@ public class HitExtractorProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        HitExtractorProcessor other = (HitExtractorProcessor) obj;
-        return Objects.equals(extractor, other.extractor);
+        return obj instanceof HitExtractorProcessor other && Objects.equals(extractor, other.extractor);
     }
 
     @Override

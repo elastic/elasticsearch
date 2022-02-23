@@ -57,9 +57,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
             public boolean equals(Object obj) {
                 if (this == obj) return true;
-                if (obj == null || getClass() != obj.getClass()) return false;
-                BucketBounds that = (BucketBounds) obj;
-                return min == that.min && max == that.max;
+                return obj instanceof BucketBounds that && min == that.min && max == that.max;
             }
 
             @Override
@@ -209,11 +207,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            EmptyBucketInfo that = (EmptyBucketInfo) obj;
-            return Objects.equals(subAggregations, that.subAggregations);
+            return obj instanceof EmptyBucketInfo that && Objects.equals(subAggregations, that.subAggregations);
         }
 
         @Override
@@ -576,11 +570,9 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalVariableWidthHistogram that = (InternalVariableWidthHistogram) obj;
-        return Objects.equals(buckets, that.buckets)
+        return obj instanceof InternalVariableWidthHistogram that
+            && super.equals(obj)
+            && Objects.equals(buckets, that.buckets)
             && Objects.equals(format, that.format)
             && Objects.equals(emptyBucketInfo, that.emptyBucketInfo);
     }

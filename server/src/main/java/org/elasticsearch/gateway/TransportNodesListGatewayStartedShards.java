@@ -356,13 +356,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
-
-            return primary == that.primary
+            return o instanceof NodeGatewayStartedShards that
+                && primary == that.primary
                 && Objects.equals(allocationId, that.allocationId)
                 && Objects.equals(storeException, that.storeException);
         }

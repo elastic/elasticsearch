@@ -60,11 +60,10 @@ public abstract class GroupingFunction extends Function {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        GroupingFunction other = (GroupingFunction) obj;
-        return Objects.equals(other.field(), field()) && Objects.equals(other.parameters(), parameters());
+        return super.equals(obj)
+            && obj instanceof GroupingFunction other
+            && Objects.equals(other.field(), field())
+            && Objects.equals(other.parameters(), parameters());
     }
 
     @Override

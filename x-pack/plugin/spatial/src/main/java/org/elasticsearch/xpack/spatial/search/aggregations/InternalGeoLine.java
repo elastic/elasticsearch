@@ -202,11 +202,9 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalGeoLine that = (InternalGeoLine) obj;
-        return super.equals(obj)
+        return obj instanceof InternalGeoLine that
+            && super.equals(obj)
+            && super.equals(obj)
             && Arrays.equals(line, that.line)
             && Arrays.equals(sortVals, that.sortVals)
             && Objects.equals(complete, that.complete)

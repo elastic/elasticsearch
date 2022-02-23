@@ -80,9 +80,7 @@ public class ValidationLoss implements ToXContentObject, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ValidationLoss that = (ValidationLoss) o;
-        return Objects.equals(lossType, that.lossType) && Objects.equals(foldValues, that.foldValues);
+        return o instanceof ValidationLoss that && Objects.equals(lossType, that.lossType) && Objects.equals(foldValues, that.foldValues);
     }
 
     @Override

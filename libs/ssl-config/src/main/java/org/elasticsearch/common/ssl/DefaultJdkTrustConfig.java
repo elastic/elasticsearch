@@ -116,11 +116,7 @@ public final class DefaultJdkTrustConfig implements SslTrustConfig {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final DefaultJdkTrustConfig that = (DefaultJdkTrustConfig) o;
-        return Arrays.equals(this.trustStorePassword, that.trustStorePassword);
+        return o instanceof DefaultJdkTrustConfig that && Arrays.equals(this.trustStorePassword, that.trustStorePassword);
     }
 
     @Override

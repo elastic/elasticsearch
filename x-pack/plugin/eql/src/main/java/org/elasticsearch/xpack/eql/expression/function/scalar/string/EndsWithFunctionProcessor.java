@@ -85,13 +85,8 @@ public class EndsWithFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        EndsWithFunctionProcessor other = (EndsWithFunctionProcessor) obj;
-        return Objects.equals(input(), other.input())
+        return obj instanceof EndsWithFunctionProcessor other
+            && Objects.equals(input(), other.input())
             && Objects.equals(pattern(), other.pattern())
             && Objects.equals(isCaseInsensitive(), other.isCaseInsensitive());
     }

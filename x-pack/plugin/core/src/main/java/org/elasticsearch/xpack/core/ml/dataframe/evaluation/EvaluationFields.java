@@ -127,9 +127,8 @@ public final class EvaluationFields {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        EvaluationFields that = (EvaluationFields) o;
-        return Objects.equals(that.actualField, this.actualField)
+        return o instanceof EvaluationFields that
+            && Objects.equals(that.actualField, this.actualField)
             && Objects.equals(that.predictedField, this.predictedField)
             && Objects.equals(that.topClassesField, this.topClassesField)
             && Objects.equals(that.predictedClassField, this.predictedClassField)

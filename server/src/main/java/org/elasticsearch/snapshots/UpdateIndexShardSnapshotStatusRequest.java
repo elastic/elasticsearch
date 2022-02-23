@@ -76,11 +76,10 @@ public class UpdateIndexShardSnapshotStatusRequest extends MasterNodeRequest<Upd
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final UpdateIndexShardSnapshotStatusRequest that = (UpdateIndexShardSnapshotStatusRequest) o;
-        return snapshot.equals(that.snapshot) && shardId.equals(that.shardId) && status.equals(that.status);
+        return o instanceof UpdateIndexShardSnapshotStatusRequest that
+            && snapshot.equals(that.snapshot)
+            && shardId.equals(that.shardId)
+            && status.equals(that.status);
     }
 
     @Override

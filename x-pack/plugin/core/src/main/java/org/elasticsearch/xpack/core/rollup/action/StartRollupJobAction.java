@@ -130,9 +130,7 @@ public class StartRollupJobAction extends ActionType<StartRollupJobAction.Respon
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return started == response.started;
+            return o instanceof Response response && started == response.started;
         }
 
         @Override

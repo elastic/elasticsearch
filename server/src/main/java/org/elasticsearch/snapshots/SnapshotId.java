@@ -82,11 +82,7 @@ public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXC
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final SnapshotId that = (SnapshotId) o;
-        return name.equals(that.name) && uuid.equals(that.uuid);
+        return o instanceof SnapshotId that && name.equals(that.name) && uuid.equals(that.uuid);
     }
 
     @Override

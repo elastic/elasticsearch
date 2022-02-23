@@ -170,16 +170,13 @@ public class RepositoryMetadata implements Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        RepositoryMetadata that = (RepositoryMetadata) o;
-
-        if (name.equals(that.name) == false) return false;
-        if (uuid.equals(that.uuid) == false) return false;
-        if (type.equals(that.type) == false) return false;
-        if (generation != that.generation) return false;
-        if (pendingGeneration != that.pendingGeneration) return false;
-        return settings.equals(that.settings);
+        return o instanceof RepositoryMetadata that
+            && name.equals(that.name)
+            && uuid.equals(that.uuid)
+            && type.equals(that.type)
+            && generation == that.generation
+            && pendingGeneration == that.pendingGeneration
+            && settings.equals(that.settings);
     }
 
     @Override

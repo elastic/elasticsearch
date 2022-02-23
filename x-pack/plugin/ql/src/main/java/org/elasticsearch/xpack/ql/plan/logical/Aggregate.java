@@ -66,13 +66,8 @@ public class Aggregate extends UnaryPlan {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Aggregate other = (Aggregate) obj;
-        return Objects.equals(groupings, other.groupings)
+        return obj instanceof Aggregate other
+            && Objects.equals(groupings, other.groupings)
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child());
     }

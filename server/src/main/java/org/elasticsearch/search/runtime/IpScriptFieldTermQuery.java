@@ -49,11 +49,7 @@ public class IpScriptFieldTermQuery extends AbstractIpScriptFieldQuery {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        IpScriptFieldTermQuery other = (IpScriptFieldTermQuery) obj;
-        return term.bytesEquals(other.term);
+        return super.equals(obj) && obj instanceof IpScriptFieldTermQuery other && term.bytesEquals(other.term);
     }
 
     InetAddress address() {

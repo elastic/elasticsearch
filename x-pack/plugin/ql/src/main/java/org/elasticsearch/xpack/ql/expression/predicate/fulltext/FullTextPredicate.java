@@ -78,12 +78,6 @@ public abstract class FullTextPredicate extends Expression {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        FullTextPredicate other = (FullTextPredicate) obj;
-        return Objects.equals(query, other.query) && Objects.equals(options, other.options);
+        return obj instanceof FullTextPredicate other && Objects.equals(query, other.query) && Objects.equals(options, other.options);
     }
 }

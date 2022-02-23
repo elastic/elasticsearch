@@ -959,20 +959,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            Location location = (Location) o;
-
-            if (generation != location.generation) {
-                return false;
-            }
-            if (translogLocation != location.translogLocation) {
-                return false;
-            }
-            return size == location.size;
-
+            return o instanceof Location location
+                && generation == location.generation
+                && translogLocation == location.translogLocation
+                && size == location.size;
         }
 
         @Override
@@ -1431,13 +1421,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            Delete delete = (Delete) o;
-
-            return id.equals(delete.id) && seqNo == delete.seqNo && primaryTerm == delete.primaryTerm && version == delete.version;
+            return o instanceof Delete delete
+                && id.equals(delete.id)
+                && seqNo == delete.seqNo
+                && primaryTerm == delete.primaryTerm
+                && version == delete.version;
         }
 
         @Override
@@ -1516,11 +1504,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            final NoOp that = (NoOp) obj;
-            return seqNo == that.seqNo && primaryTerm == that.primaryTerm && reason.equals(that.reason);
+            return obj instanceof NoOp that && seqNo == that.seqNo && primaryTerm == that.primaryTerm && reason.equals(that.reason);
         }
 
         @Override

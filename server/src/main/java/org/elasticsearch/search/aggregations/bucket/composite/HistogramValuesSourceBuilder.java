@@ -135,10 +135,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        HistogramValuesSourceBuilder other = (HistogramValuesSourceBuilder) obj;
-        return Objects.equals(interval, other.interval);
+        return obj instanceof HistogramValuesSourceBuilder other && super.equals(obj) && Objects.equals(interval, other.interval);
     }
 
     @Override

@@ -59,13 +59,10 @@ abstract class TermVersionRequest extends TransportRequest implements Writeable 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        TermVersionRequest versionTerm = (TermVersionRequest) o;
-
-        if (term != versionTerm.term) return false;
-        if (version != versionTerm.version) return false;
-        return sourceNode.equals(versionTerm.sourceNode);
+        return o instanceof TermVersionRequest versionTerm
+            && term == versionTerm.term
+            && version == versionTerm.version
+            && sourceNode.equals(versionTerm.sourceNode);
     }
 
     @Override

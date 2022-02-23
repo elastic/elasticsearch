@@ -46,12 +46,6 @@ public class EsIndex {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        EsIndex other = (EsIndex) obj;
-        return Objects.equals(name, other.name) && mapping == other.mapping;
+        return obj instanceof EsIndex other && Objects.equals(name, other.name) && mapping == other.mapping;
     }
 }

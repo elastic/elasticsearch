@@ -110,13 +110,10 @@ public class ReplicationGroup {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ReplicationGroup that = (ReplicationGroup) o;
-
-        if (routingTable.equals(that.routingTable) == false) return false;
-        if (inSyncAllocationIds.equals(that.inSyncAllocationIds) == false) return false;
-        return trackedAllocationIds.equals(that.trackedAllocationIds);
+        return o instanceof ReplicationGroup that
+            && routingTable.equals(that.routingTable) != false
+            && inSyncAllocationIds.equals(that.inSyncAllocationIds) != false
+            && trackedAllocationIds.equals(that.trackedAllocationIds);
     }
 
     @Override

@@ -120,10 +120,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        FilterAggregationBuilder other = (FilterAggregationBuilder) obj;
-        return Objects.equals(filter, other.filter);
+        return obj instanceof FilterAggregationBuilder other && super.equals(obj) && Objects.equals(filter, other.filter);
     }
 
     @Override

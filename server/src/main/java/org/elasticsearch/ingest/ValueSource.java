@@ -99,11 +99,7 @@ public interface ValueSource {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            MapValue mapValue = (MapValue) o;
-            return map.equals(mapValue.map);
-
+            return o instanceof MapValue mapValue && map.equals(mapValue.map);
         }
 
         @Override
@@ -132,11 +128,7 @@ public interface ValueSource {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            ListValue listValue = (ListValue) o;
-            return values.equals(listValue.values);
-
+            return o instanceof ListValue listValue && values.equals(listValue.values);
         }
 
         @Override
@@ -161,10 +153,7 @@ public interface ValueSource {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            ObjectValue objectValue = (ObjectValue) o;
-            return Objects.equals(value, objectValue.value);
+            return o instanceof ObjectValue objectValue && Objects.equals(value, objectValue.value);
         }
 
         @Override
@@ -189,10 +178,7 @@ public interface ValueSource {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            ByteValue objectValue = (ByteValue) o;
-            return Arrays.equals(value, objectValue.value);
+            return o instanceof ByteValue objectValue && Arrays.equals(value, objectValue.value);
         }
 
         @Override
@@ -218,10 +204,7 @@ public interface ValueSource {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            TemplatedValue templatedValue = (TemplatedValue) o;
-            return Objects.equals(template, templatedValue.template);
+            return o instanceof TemplatedValue templatedValue && Objects.equals(template, templatedValue.template);
         }
 
         @Override

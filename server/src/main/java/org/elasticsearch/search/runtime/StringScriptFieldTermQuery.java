@@ -66,11 +66,10 @@ public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        StringScriptFieldTermQuery other = (StringScriptFieldTermQuery) obj;
-        return term.equals(other.term) && caseInsensitive == other.caseInsensitive;
+        return super.equals(obj)
+            && obj instanceof StringScriptFieldTermQuery other
+            && term.equals(other.term)
+            && caseInsensitive == other.caseInsensitive;
     }
 
     String term() {

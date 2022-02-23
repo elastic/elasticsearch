@@ -132,10 +132,7 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        SamplerAggregationBuilder other = (SamplerAggregationBuilder) obj;
-        return Objects.equals(shardSize, other.shardSize);
+        return obj instanceof SamplerAggregationBuilder other && super.equals(obj) && Objects.equals(shardSize, other.shardSize);
     }
 
     @Override

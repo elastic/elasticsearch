@@ -39,11 +39,7 @@ public class WebhookAction implements Action {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        WebhookAction action = (WebhookAction) o;
-
-        return requestTemplate.equals(action.requestTemplate);
+        return o instanceof WebhookAction action && requestTemplate.equals(action.requestTemplate);
     }
 
     @Override

@@ -147,9 +147,7 @@ public class OutlierDetection implements Evaluation {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        OutlierDetection that = (OutlierDetection) o;
-        return Objects.equals(fields, that.fields) && Objects.equals(metrics, that.metrics);
+        return o instanceof OutlierDetection that && Objects.equals(fields, that.fields) && Objects.equals(metrics, that.metrics);
     }
 
     @Override

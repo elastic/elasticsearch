@@ -397,13 +397,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        PluginInfo that = (PluginInfo) o;
-
-        if (name.equals(that.name) == false) return false;
         // TODO: since the plugins are unique by their directory name, this should only be a name check, version should not matter?
-        return Objects.equals(version, that.version);
+        return o instanceof PluginInfo that && name.equals(that.name) && Objects.equals(version, that.version);
     }
 
     @Override

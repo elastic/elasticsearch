@@ -48,6 +48,8 @@ public abstract class CaseInsensitiveScalarFunction extends ScalarFunction {
 
     @Override
     public boolean equals(Object other) {
-        return super.equals(other) && Objects.equals(((CaseInsensitiveScalarFunction) other).caseInsensitive, caseInsensitive);
+        return other instanceof CaseInsensitiveScalarFunction that
+            && super.equals(other)
+            && Objects.equals(that.caseInsensitive, caseInsensitive);
     }
 }

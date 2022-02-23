@@ -124,12 +124,8 @@ public class BulkStats implements Writeable, ToXContentFragment {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        final BulkStats that = (BulkStats) o;
-        return Objects.equals(this.totalOperations, that.totalOperations)
+        return o instanceof BulkStats that
+            && Objects.equals(this.totalOperations, that.totalOperations)
             && Objects.equals(this.totalTimeInMillis, that.totalTimeInMillis)
             && Objects.equals(this.totalSizeInBytes, that.totalSizeInBytes)
             && Objects.equals(this.avgTimeInMillis, that.avgTimeInMillis)

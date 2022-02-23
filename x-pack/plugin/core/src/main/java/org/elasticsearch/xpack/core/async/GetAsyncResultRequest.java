@@ -83,9 +83,8 @@ public class GetAsyncResultRequest extends ActionRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetAsyncResultRequest request = (GetAsyncResultRequest) o;
-        return Objects.equals(id, request.id)
+        return o instanceof GetAsyncResultRequest request
+            && Objects.equals(id, request.id)
             && waitForCompletionTimeout.equals(request.waitForCompletionTimeout)
             && keepAlive.equals(request.keepAlive);
     }

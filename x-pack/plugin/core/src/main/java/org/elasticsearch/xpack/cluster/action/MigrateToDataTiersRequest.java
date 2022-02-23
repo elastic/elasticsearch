@@ -103,11 +103,8 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        MigrateToDataTiersRequest that = (MigrateToDataTiersRequest) o;
-        return dryRun == that.dryRun
+        return o instanceof MigrateToDataTiersRequest that
+            && dryRun == that.dryRun
             && Objects.equals(nodeAttributeName, that.nodeAttributeName)
             && Objects.equals(legacyTemplateToDelete, that.legacyTemplateToDelete);
     }

@@ -136,9 +136,7 @@ public class PutSamlServiceProviderRequest extends ActionRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        final PutSamlServiceProviderRequest that = (PutSamlServiceProviderRequest) o;
-        return Objects.equals(document, that.document);
+        return o instanceof PutSamlServiceProviderRequest that && Objects.equals(document, that.document);
     }
 
     @Override

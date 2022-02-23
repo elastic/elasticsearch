@@ -100,9 +100,8 @@ public class FlushJobParams {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        FlushJobParams that = (FlushJobParams) o;
-        return calcInterim == that.calcInterim
+        return o instanceof FlushJobParams that
+            && calcInterim == that.calcInterim
             && Objects.equals(timeRange, that.timeRange)
             && Objects.equals(advanceTimeSeconds, that.advanceTimeSeconds)
             && Objects.equals(skipTimeSeconds, that.skipTimeSeconds);

@@ -143,9 +143,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response that = (Response) o;
-            return Objects.equals(getNodes(), that.getNodes()) && Objects.equals(failures(), that.failures());
+            return o instanceof Response that && Objects.equals(getNodes(), that.getNodes()) && Objects.equals(failures(), that.failures());
         }
 
         @Override
@@ -216,9 +214,8 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NodeResponse that = (NodeResponse) o;
-            return stats.equals(that.stats)
+            return o instanceof NodeResponse that
+                && stats.equals(that.stats)
                 && databases.equals(that.databases)
                 && filesInTemp.equals(that.filesInTemp)
                 && Objects.equals(configDatabases, that.configDatabases);

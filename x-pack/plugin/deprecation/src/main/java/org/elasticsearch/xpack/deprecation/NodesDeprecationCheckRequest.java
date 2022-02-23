@@ -39,10 +39,6 @@ public class NodesDeprecationCheckRequest extends BaseNodesRequest<NodesDeprecat
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        NodesDeprecationCheckRequest that = (NodesDeprecationCheckRequest) obj;
-        return Arrays.equals(this.nodesIds(), that.nodesIds());
+        return obj instanceof NodesDeprecationCheckRequest that && Arrays.equals(this.nodesIds(), that.nodesIds());
     }
 }

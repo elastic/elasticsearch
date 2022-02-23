@@ -60,12 +60,6 @@ public class LocalExec extends LeafExec {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        LocalExec other = (LocalExec) obj;
-        return Objects.equals(executable, other.executable);
+        return obj instanceof LocalExec other && Objects.equals(executable, other.executable);
     }
 }

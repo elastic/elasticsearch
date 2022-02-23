@@ -58,12 +58,7 @@ public final class AnyExpression implements RoleMapperExpression {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        final AnyExpression that = (AnyExpression) o;
-        return this.elements.equals(that.elements);
+        return o instanceof AnyExpression that && this.elements.equals(that.elements);
     }
 
     @Override

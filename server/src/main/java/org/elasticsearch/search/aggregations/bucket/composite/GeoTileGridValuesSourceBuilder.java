@@ -180,10 +180,10 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        GeoTileGridValuesSourceBuilder other = (GeoTileGridValuesSourceBuilder) obj;
-        return Objects.equals(precision, other.precision) && Objects.equals(geoBoundingBox, other.geoBoundingBox);
+        return obj instanceof GeoTileGridValuesSourceBuilder other
+            && super.equals(obj)
+            && Objects.equals(precision, other.precision)
+            && Objects.equals(geoBoundingBox, other.geoBoundingBox);
     }
 
     @Override

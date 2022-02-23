@@ -36,9 +36,7 @@ public class DeleteServiceAccountTokenResponse extends ActionResponse implements
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DeleteServiceAccountTokenResponse that = (DeleteServiceAccountTokenResponse) o;
-        return found == that.found;
+        return o instanceof DeleteServiceAccountTokenResponse that && found == that.found;
     }
 
     @Override

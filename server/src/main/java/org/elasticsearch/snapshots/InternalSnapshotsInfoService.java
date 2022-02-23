@@ -367,11 +367,10 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            final SnapshotShard that = (SnapshotShard) o;
-            return shardId.equals(that.shardId) && snapshot.equals(that.snapshot) && index.equals(that.index);
+            return o instanceof SnapshotShard that
+                && shardId.equals(that.shardId)
+                && snapshot.equals(that.snapshot)
+                && index.equals(that.index);
         }
 
         @Override

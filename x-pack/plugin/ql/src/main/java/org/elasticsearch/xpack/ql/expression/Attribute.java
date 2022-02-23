@@ -148,12 +148,10 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            Attribute other = (Attribute) obj;
-            return Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
-        }
-
-        return false;
+        return obj instanceof Attribute other
+            && super.equals(obj)
+            && Objects.equals(qualifier, other.qualifier)
+            && Objects.equals(nullability, other.nullability);
     }
 
     @Override

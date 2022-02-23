@@ -73,11 +73,12 @@ public class ClusterStateResponse extends ActionResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ClusterStateResponse response = (ClusterStateResponse) o;
-        return waitForTimedOut == response.waitForTimedOut && Objects.equals(clusterName, response.clusterName) &&
-        // Best effort. Only compare cluster state version and master node id,
-        // because cluster state doesn't implement equals()
+        return o instanceof ClusterStateResponse response
+            && waitForTimedOut == response.waitForTimedOut
+            && Objects.equals(clusterName, response.clusterName)
+            &&
+            // Best effort. Only compare cluster state version and master node id,
+            // because cluster state doesn't implement equals()
             Objects.equals(getVersion(clusterState), getVersion(response.clusterState))
             && Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState));
     }

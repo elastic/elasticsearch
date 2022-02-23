@@ -824,12 +824,9 @@ public final class IngestDocument {
         if (obj == this) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        IngestDocument other = (IngestDocument) obj;
-        return Objects.equals(sourceAndMetadata, other.sourceAndMetadata) && Objects.equals(ingestMetadata, other.ingestMetadata);
+        return obj instanceof IngestDocument other
+            && Objects.equals(sourceAndMetadata, other.sourceAndMetadata)
+            && Objects.equals(ingestMetadata, other.ingestMetadata);
     }
 
     @Override

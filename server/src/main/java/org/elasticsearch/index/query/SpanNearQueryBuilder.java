@@ -413,11 +413,9 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            SpanGapQueryBuilder other = (SpanGapQueryBuilder) obj;
-            return Objects.equals(fieldName, other.fieldName) && Objects.equals(width, other.width);
+            return obj instanceof SpanGapQueryBuilder other
+                && Objects.equals(fieldName, other.fieldName)
+                && Objects.equals(width, other.width);
         }
 
         @Override

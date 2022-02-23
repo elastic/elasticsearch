@@ -509,11 +509,8 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        DirectCandidateGeneratorBuilder other = (DirectCandidateGeneratorBuilder) obj;
-        return Objects.equals(field, other.field)
+        return obj instanceof DirectCandidateGeneratorBuilder other
+            && Objects.equals(field, other.field)
             && Objects.equals(preFilter, other.preFilter)
             && Objects.equals(postFilter, other.postFilter)
             && Objects.equals(suggestMode, other.suggestMode)

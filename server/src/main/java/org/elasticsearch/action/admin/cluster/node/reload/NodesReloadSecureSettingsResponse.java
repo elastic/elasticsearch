@@ -116,11 +116,8 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            final NodesReloadSecureSettingsResponse.NodeResponse that = (NodesReloadSecureSettingsResponse.NodeResponse) o;
-            return reloadException != null ? reloadException.equals(that.reloadException) : that.reloadException == null;
+            return o instanceof NodesReloadSecureSettingsResponse.NodeResponse that
+                && (reloadException != null ? reloadException.equals(that.reloadException) : that.reloadException == null);
         }
 
         @Override

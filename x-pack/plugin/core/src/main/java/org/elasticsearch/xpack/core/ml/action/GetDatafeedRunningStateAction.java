@@ -102,9 +102,8 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                RunningState that = (RunningState) o;
-                return realTimeConfigured == that.realTimeConfigured
+                return o instanceof RunningState that
+                    && realTimeConfigured == that.realTimeConfigured
                     && realTimeRunning == that.realTimeRunning
                     && Objects.equals(searchInterval, that.searchInterval);
             }
@@ -178,9 +177,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(this.datafeedRunningState, response.datafeedRunningState);
+            return o instanceof Response response && Objects.equals(this.datafeedRunningState, response.datafeedRunningState);
         }
 
         @Override

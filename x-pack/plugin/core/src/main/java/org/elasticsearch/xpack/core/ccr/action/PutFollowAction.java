@@ -216,9 +216,8 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(remoteCluster, request.remoteCluster)
+            return o instanceof Request request
+                && Objects.equals(remoteCluster, request.remoteCluster)
                 && Objects.equals(leaderIndex, request.leaderIndex)
                 && Objects.equals(followerIndex, request.followerIndex)
                 && Objects.equals(parameters, request.parameters)
@@ -294,9 +293,8 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return followIndexCreated == response.followIndexCreated
+            return o instanceof Response response
+                && followIndexCreated == response.followIndexCreated
                 && followIndexShardsAcked == response.followIndexShardsAcked
                 && indexFollowingStarted == response.indexFollowingStarted;
         }

@@ -194,10 +194,6 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        GeometryCollectionBuilder other = (GeometryCollectionBuilder) obj;
-        return Objects.equals(shapes, other.shapes);
+        return obj instanceof GeometryCollectionBuilder other && Objects.equals(shapes, other.shapes);
     }
 }

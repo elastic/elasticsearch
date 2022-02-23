@@ -57,9 +57,7 @@ public class GetServiceAccountResponse extends ActionResponse implements ToXCont
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetServiceAccountResponse that = (GetServiceAccountResponse) o;
-        return Arrays.equals(serviceAccountInfos, that.serviceAccountInfos);
+        return o instanceof GetServiceAccountResponse that && Arrays.equals(serviceAccountInfos, that.serviceAccountInfos);
     }
 
     @Override

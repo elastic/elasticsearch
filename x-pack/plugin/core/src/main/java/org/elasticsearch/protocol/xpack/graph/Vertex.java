@@ -226,11 +226,7 @@ public class Vertex implements ToXContentFragment {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            VertexId vertexId = (VertexId) o;
-            return Objects.equals(field, vertexId.field) && Objects.equals(term, vertexId.term);
+            return o instanceof VertexId vertexId && Objects.equals(field, vertexId.field) && Objects.equals(term, vertexId.term);
         }
 
         @Override

@@ -119,11 +119,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
                 return true;
             }
 
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Response response = (Response) obj;
-            return acknowledged == response.acknowledged;
+            return obj instanceof Response response && acknowledged == response.acknowledged;
         }
 
         @Override

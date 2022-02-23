@@ -108,11 +108,8 @@ public class MonitoringBulkDoc implements Writeable {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        MonitoringBulkDoc that = (MonitoringBulkDoc) o;
-        return timestamp == that.timestamp
+        return o instanceof MonitoringBulkDoc that
+            && timestamp == that.timestamp
             && intervalMillis == that.intervalMillis
             && system == that.system
             && Objects.equals(type, that.type)

@@ -63,9 +63,7 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(name, request.name);
+            return o instanceof Request request && Objects.equals(name, request.name);
         }
 
         @Override
@@ -122,9 +120,7 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(autoFollowPatterns, response.autoFollowPatterns);
+            return o instanceof Response response && Objects.equals(autoFollowPatterns, response.autoFollowPatterns);
         }
 
         @Override

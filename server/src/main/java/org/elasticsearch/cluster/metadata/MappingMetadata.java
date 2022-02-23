@@ -170,15 +170,10 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        MappingMetadata that = (MappingMetadata) o;
-
-        if (Objects.equals(this.routingRequired, that.routingRequired) == false) return false;
-        if (source.equals(that.source) == false) return false;
-        if (type.equals(that.type) == false) return false;
-
-        return true;
+        return o instanceof MappingMetadata that
+            && Objects.equals(this.routingRequired, that.routingRequired)
+            && source.equals(that.source)
+            && type.equals(that.type);
     }
 
     @Override

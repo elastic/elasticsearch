@@ -217,11 +217,8 @@ public class HttpRequest implements ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        HttpRequest that = (HttpRequest) o;
-        return port == that.port
+        return o instanceof HttpRequest that
+            && port == that.port
             && Objects.equals(host, that.host)
             && scheme == that.scheme
             && method == that.method

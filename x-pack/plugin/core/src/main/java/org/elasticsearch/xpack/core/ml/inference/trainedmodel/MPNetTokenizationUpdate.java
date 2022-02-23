@@ -99,9 +99,7 @@ public class MPNetTokenizationUpdate implements TokenizationUpdate {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        MPNetTokenizationUpdate that = (MPNetTokenizationUpdate) o;
-        return truncate == that.truncate;
+        return o instanceof MPNetTokenizationUpdate that && truncate == that.truncate;
     }
 
     @Override

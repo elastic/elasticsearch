@@ -56,13 +56,7 @@ public class UnplannedExec extends LeafExec implements Unexecutable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        UnplannedExec other = (UnplannedExec) obj;
-        return Objects.equals(plan, other.plan);
+        return obj instanceof UnplannedExec other && Objects.equals(plan, other.plan);
     }
 
     @Override

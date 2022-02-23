@@ -80,9 +80,8 @@ public final class RepositoryStatsSnapshot implements Writeable, ToXContentObjec
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RepositoryStatsSnapshot that = (RepositoryStatsSnapshot) o;
-        return repositoryInfo.equals(that.repositoryInfo)
+        return o instanceof RepositoryStatsSnapshot that
+            && repositoryInfo.equals(that.repositoryInfo)
             && repositoryStats.equals(that.repositoryStats)
             && clusterVersion == that.clusterVersion
             && archived == that.archived;

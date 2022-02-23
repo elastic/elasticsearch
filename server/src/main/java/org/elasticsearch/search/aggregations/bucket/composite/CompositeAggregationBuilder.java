@@ -283,10 +283,11 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        CompositeAggregationBuilder other = (CompositeAggregationBuilder) obj;
-        return size == other.size && Objects.equals(sources, other.sources) && Objects.equals(after, other.after);
+        return obj instanceof CompositeAggregationBuilder other
+            && super.equals(obj)
+            && size == other.size
+            && Objects.equals(sources, other.sources)
+            && Objects.equals(after, other.after);
     }
 
     @Override

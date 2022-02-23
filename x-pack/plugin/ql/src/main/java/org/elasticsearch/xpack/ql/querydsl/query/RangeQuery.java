@@ -99,13 +99,8 @@ public class RangeQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        RangeQuery other = (RangeQuery) obj;
-        return Objects.equals(field, other.field)
+        return obj instanceof RangeQuery other
+            && Objects.equals(field, other.field)
             && Objects.equals(includeLower, other.includeLower)
             && Objects.equals(includeUpper, other.includeUpper)
             && Objects.equals(lower, other.lower)

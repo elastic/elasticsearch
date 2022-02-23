@@ -213,9 +213,8 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AutoFollowStats that = (AutoFollowStats) o;
-        return numberOfFailedFollowIndices == that.numberOfFailedFollowIndices
+        return o instanceof AutoFollowStats that
+            && numberOfFailedFollowIndices == that.numberOfFailedFollowIndices
             && numberOfFailedRemoteClusterStateRequests == that.numberOfFailedRemoteClusterStateRequests
             && numberOfSuccessfulFollowIndices == that.numberOfSuccessfulFollowIndices
             &&
@@ -301,9 +300,9 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AutoFollowedCluster that = (AutoFollowedCluster) o;
-            return timeSinceLastCheckMillis == that.timeSinceLastCheckMillis && lastSeenMetadataVersion == that.lastSeenMetadataVersion;
+            return o instanceof AutoFollowedCluster that
+                && timeSinceLastCheckMillis == that.timeSinceLastCheckMillis
+                && lastSeenMetadataVersion == that.lastSeenMetadataVersion;
         }
 
         @Override

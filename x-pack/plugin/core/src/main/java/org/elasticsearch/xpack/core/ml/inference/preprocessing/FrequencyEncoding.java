@@ -177,9 +177,8 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        FrequencyEncoding that = (FrequencyEncoding) o;
-        return Objects.equals(field, that.field)
+        return o instanceof FrequencyEncoding that
+            && Objects.equals(field, that.field)
             && Objects.equals(featureName, that.featureName)
             && Objects.equals(frequencyMap, that.frequencyMap)
             && Objects.equals(custom, that.custom);

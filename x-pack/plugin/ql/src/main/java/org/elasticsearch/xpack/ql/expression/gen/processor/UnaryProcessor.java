@@ -48,13 +48,7 @@ public abstract class UnaryProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        UnaryProcessor other = (UnaryProcessor) obj;
-        return Objects.equals(child, other.child);
+        return obj instanceof UnaryProcessor other && Objects.equals(child, other.child);
     }
 
     @Override

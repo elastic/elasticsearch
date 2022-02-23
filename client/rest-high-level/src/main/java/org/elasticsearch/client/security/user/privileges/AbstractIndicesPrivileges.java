@@ -182,11 +182,9 @@ public abstract class AbstractIndicesPrivileges {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            final FieldSecurity that = (FieldSecurity) o;
-            return Objects.equals(this.grantedFields, that.grantedFields) && Objects.equals(this.deniedFields, that.deniedFields);
+            return o instanceof FieldSecurity that
+                && Objects.equals(this.grantedFields, that.grantedFields)
+                && Objects.equals(this.deniedFields, that.deniedFields);
         }
 
         @Override

@@ -78,13 +78,11 @@ public class Circle implements Geometry {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Circle circle = (Circle) o;
-        if (Double.compare(circle.y, y) != 0) return false;
-        if (Double.compare(circle.x, x) != 0) return false;
-        if (Double.compare(circle.radiusMeters, radiusMeters) != 0) return false;
-        return (Double.compare(circle.z, z) == 0);
+        return o instanceof Circle circle
+            && Double.compare(circle.y, y) == 0
+            && Double.compare(circle.x, x) == 0
+            && Double.compare(circle.radiusMeters, radiusMeters) == 0
+            && (Double.compare(circle.z, z) == 0);
     }
 
     @Override

@@ -61,13 +61,7 @@ public class BucketExtractorProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        BucketExtractorProcessor other = (BucketExtractorProcessor) obj;
-        return Objects.equals(extractor, other.extractor);
+        return obj instanceof BucketExtractorProcessor other && Objects.equals(extractor, other.extractor);
     }
 
     @Override

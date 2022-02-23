@@ -37,11 +37,7 @@ public class ScriptTransform implements Transform {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ScriptTransform that = (ScriptTransform) o;
-
-        return script.equals(that.script);
+        return o instanceof ScriptTransform that && script.equals(that.script);
     }
 
     @Override

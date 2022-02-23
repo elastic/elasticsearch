@@ -98,11 +98,8 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final HasPrivilegesResponse response = (HasPrivilegesResponse) o;
-        return completeMatch == response.completeMatch
+        return o instanceof HasPrivilegesResponse response
+            && completeMatch == response.completeMatch
             && Objects.equals(username, response.username)
             && Objects.equals(cluster, response.cluster)
             && Objects.equals(index, response.index)

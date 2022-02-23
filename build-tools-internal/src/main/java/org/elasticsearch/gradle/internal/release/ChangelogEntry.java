@@ -122,11 +122,8 @@ public class ChangelogEntry {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        ChangelogEntry that = (ChangelogEntry) o;
-        return Objects.equals(pr, that.pr)
+        return o instanceof ChangelogEntry that
+            && Objects.equals(pr, that.pr)
             && Objects.equals(issues, that.issues)
             && Objects.equals(area, that.area)
             && Objects.equals(type, that.type)
@@ -194,11 +191,8 @@ public class ChangelogEntry {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Highlight highlight = (Highlight) o;
-            return Objects.equals(notable, highlight.notable)
+            return o instanceof Highlight highlight
+                && Objects.equals(notable, highlight.notable)
                 && Objects.equals(title, highlight.title)
                 && Objects.equals(body, highlight.body);
         }
@@ -283,11 +277,8 @@ public class ChangelogEntry {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            CompatibilityChange breaking = (CompatibilityChange) o;
-            return notable == breaking.isNotable()
+            return o instanceof CompatibilityChange breaking
+                && notable == breaking.isNotable()
                 && Objects.equals(area, breaking.getArea())
                 && Objects.equals(title, breaking.getTitle())
                 && Objects.equals(details, breaking.getDetails())

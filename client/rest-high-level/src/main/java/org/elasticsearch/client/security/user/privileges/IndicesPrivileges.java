@@ -111,11 +111,8 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        IndicesPrivileges that = (IndicesPrivileges) o;
-        return indices.equals(that.indices)
+        return o instanceof IndicesPrivileges that
+            && indices.equals(that.indices)
             && privileges.equals(that.privileges)
             && allowRestrictedIndices == that.allowRestrictedIndices
             && Objects.equals(this.fieldSecurity, that.fieldSecurity)

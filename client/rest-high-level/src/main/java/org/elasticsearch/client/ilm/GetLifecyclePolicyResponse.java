@@ -68,9 +68,7 @@ public class GetLifecyclePolicyResponse implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetLifecyclePolicyResponse that = (GetLifecyclePolicyResponse) o;
-        return Objects.equals(getPolicies(), that.getPolicies());
+        return o instanceof GetLifecyclePolicyResponse that && Objects.equals(getPolicies(), that.getPolicies());
     }
 
     @Override

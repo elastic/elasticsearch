@@ -170,9 +170,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        VerifyRepositoryResponse that = (VerifyRepositoryResponse) o;
-        return Objects.equals(nodes, that.nodes);
+        return o instanceof VerifyRepositoryResponse that && Objects.equals(nodes, that.nodes);
     }
 
     @Override

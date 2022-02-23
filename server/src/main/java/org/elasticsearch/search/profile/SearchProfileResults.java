@@ -88,11 +88,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        SearchProfileResults other = (SearchProfileResults) obj;
-        return shardResults.equals(other.shardResults);
+        return obj instanceof SearchProfileResults other && shardResults.equals(other.shardResults);
     }
 
     @Override

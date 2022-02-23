@@ -151,10 +151,9 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        MedianAbsoluteDeviationAggregationBuilder other = (MedianAbsoluteDeviationAggregationBuilder) obj;
-        return Objects.equals(compression, other.compression);
+        return obj instanceof MedianAbsoluteDeviationAggregationBuilder other
+            && super.equals(obj)
+            && Objects.equals(compression, other.compression);
     }
 
     @Override

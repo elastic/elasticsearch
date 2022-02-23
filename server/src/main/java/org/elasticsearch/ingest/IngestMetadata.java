@@ -163,11 +163,7 @@ public final class IngestMetadata implements Metadata.Custom {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        IngestMetadata that = (IngestMetadata) o;
-
-        return pipelines.equals(that.pipelines);
+        return o instanceof IngestMetadata that && pipelines.equals(that.pipelines);
 
     }
 

@@ -100,9 +100,7 @@ public class FileOperatorUsersStore {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            OperatorUsersDescriptor that = (OperatorUsersDescriptor) o;
-            return groups.equals(that.groups);
+            return o instanceof OperatorUsersDescriptor that && groups.equals(that.groups);
         }
 
         @Override
@@ -190,9 +188,8 @@ public class FileOperatorUsersStore {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Group group = (Group) o;
-            return usernames.equals(group.usernames)
+            return o instanceof Group group
+                && usernames.equals(group.usernames)
                 && Objects.equals(realmName, group.realmName)
                 && realmType.equals(group.realmType)
                 && authenticationType == group.authenticationType;

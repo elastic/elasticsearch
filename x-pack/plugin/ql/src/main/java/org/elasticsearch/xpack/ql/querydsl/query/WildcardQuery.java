@@ -59,13 +59,8 @@ public class WildcardQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        WildcardQuery other = (WildcardQuery) obj;
-        return Objects.equals(field, other.field)
+        return obj instanceof WildcardQuery other
+            && Objects.equals(field, other.field)
             && Objects.equals(query, other.query)
             && Objects.equals(caseInsensitive, other.caseInsensitive);
     }

@@ -161,9 +161,9 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj) == false) return false;
-        InternalTopMetrics other = (InternalTopMetrics) obj;
-        return sortOrder.equals(other.sortOrder)
+        return super.equals(obj)
+            && obj instanceof InternalTopMetrics other
+            && sortOrder.equals(other.sortOrder)
             && metricNames.equals(other.metricNames)
             && size == other.size
             && topMetrics.equals(other.topMetrics);

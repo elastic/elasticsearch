@@ -155,11 +155,8 @@ public final class PemKeyConfig implements SslKeyConfig {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final PemKeyConfig that = (PemKeyConfig) o;
-        return Objects.equals(this.certificate, that.certificate)
+        return o instanceof PemKeyConfig that
+            && Objects.equals(this.certificate, that.certificate)
             && Objects.equals(this.key, that.key)
             && Arrays.equals(this.keyPassword, that.keyPassword);
     }

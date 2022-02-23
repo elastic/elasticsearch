@@ -96,12 +96,9 @@ public class SubstringFunctionPipe extends Pipe {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        SubstringFunctionPipe other = (SubstringFunctionPipe) obj;
-        return Objects.equals(input(), other.input()) && Objects.equals(start(), other.start()) && Objects.equals(end(), other.end());
+        return obj instanceof SubstringFunctionPipe other
+            && Objects.equals(input(), other.input())
+            && Objects.equals(start(), other.start())
+            && Objects.equals(end(), other.end());
     }
 }

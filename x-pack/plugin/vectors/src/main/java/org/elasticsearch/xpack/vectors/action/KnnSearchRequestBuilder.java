@@ -243,9 +243,8 @@ class KnnSearchRequestBuilder {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            KnnSearch that = (KnnSearch) o;
-            return k == that.k
+            return o instanceof KnnSearch that
+                && k == that.k
                 && numCands == that.numCands
                 && Objects.equals(field, that.field)
                 && Arrays.equals(queryVector, that.queryVector);

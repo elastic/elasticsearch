@@ -51,13 +51,7 @@ abstract class VersionValue implements Accountable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        VersionValue that = (VersionValue) o;
-
-        if (version != that.version) return false;
-        if (seqNo != that.seqNo) return false;
-        return term == that.term;
+        return o instanceof VersionValue that && version == that.version && seqNo == that.seqNo && term == that.term;
     }
 
     @Override

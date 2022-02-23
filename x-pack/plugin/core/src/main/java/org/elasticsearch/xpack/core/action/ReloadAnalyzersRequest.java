@@ -34,11 +34,9 @@ public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequ
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        ReloadAnalyzersRequest that = (ReloadAnalyzersRequest) o;
-        return Objects.equals(indicesOptions(), that.indicesOptions()) && Arrays.equals(indices, that.indices);
+        return o instanceof ReloadAnalyzersRequest that
+            && Objects.equals(indicesOptions(), that.indicesOptions())
+            && Arrays.equals(indices, that.indices);
     }
 
     @Override

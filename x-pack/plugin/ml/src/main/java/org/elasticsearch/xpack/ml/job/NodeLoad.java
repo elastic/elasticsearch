@@ -160,9 +160,8 @@ public class NodeLoad {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        NodeLoad nodeLoad = (NodeLoad) o;
-        return maxMemory == nodeLoad.maxMemory
+        return o instanceof NodeLoad nodeLoad
+            && maxMemory == nodeLoad.maxMemory
             && maxJobs == nodeLoad.maxJobs
             && useMemory == nodeLoad.useMemory
             && numAssignedJobs == nodeLoad.numAssignedJobs

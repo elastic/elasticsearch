@@ -79,13 +79,9 @@ public class StringContainsFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        StringContainsFunctionProcessor other = (StringContainsFunctionProcessor) obj;
-        return Objects.equals(string(), other.string()) && Objects.equals(substring(), other.substring());
+        return obj instanceof StringContainsFunctionProcessor other
+            && Objects.equals(string(), other.string())
+            && Objects.equals(substring(), other.substring());
     }
 
     @Override

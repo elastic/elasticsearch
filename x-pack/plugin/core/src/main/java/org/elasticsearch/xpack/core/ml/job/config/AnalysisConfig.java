@@ -408,9 +408,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AnalysisConfig that = (AnalysisConfig) o;
-        return Objects.equals(latency, that.latency)
+        return o instanceof AnalysisConfig that
+            && Objects.equals(latency, that.latency)
             && Objects.equals(bucketSpan, that.bucketSpan)
             && Objects.equals(categorizationFieldName, that.categorizationFieldName)
             && Objects.equals(categorizationFilters, that.categorizationFilters)

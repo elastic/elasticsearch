@@ -88,11 +88,9 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        LicensesMetadata that = (LicensesMetadata) o;
-
-        return Objects.equals(license, that.license) && Objects.equals(trialVersion, that.trialVersion);
+        return o instanceof LicensesMetadata that
+            && Objects.equals(license, that.license)
+            && Objects.equals(trialVersion, that.trialVersion);
     }
 
     @Override

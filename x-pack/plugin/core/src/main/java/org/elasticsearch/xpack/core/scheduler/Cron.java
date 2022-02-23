@@ -743,11 +743,7 @@ public class Cron implements ToXContentFragment {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        final Cron other = (Cron) obj;
-        return Objects.equals(this.expression, other.expression);
+        return obj instanceof final Cron other && Objects.equals(this.expression, other.expression);
     }
 
     /**

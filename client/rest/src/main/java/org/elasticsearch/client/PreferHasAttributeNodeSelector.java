@@ -85,9 +85,6 @@ public final class PreferHasAttributeNodeSelector implements NodeSelector {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
         PreferHasAttributeNodeSelector that = (PreferHasAttributeNodeSelector) o;
         return Objects.equals(key, that.key) && Objects.equals(value, that.value);
     }

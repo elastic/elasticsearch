@@ -164,11 +164,8 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        DeprecationIssue that = (DeprecationIssue) o;
-        return Objects.equals(level, that.level)
+        return o instanceof DeprecationIssue that
+            && Objects.equals(level, that.level)
             && Objects.equals(message, that.message)
             && Objects.equals(url, that.url)
             && Objects.equals(details, that.details)

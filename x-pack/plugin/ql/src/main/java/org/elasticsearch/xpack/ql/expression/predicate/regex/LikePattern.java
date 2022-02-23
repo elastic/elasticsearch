@@ -84,12 +84,6 @@ public class LikePattern extends AbstractStringPattern {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        LikePattern other = (LikePattern) obj;
-        return Objects.equals(pattern, other.pattern) && escape == other.escape;
+        return obj instanceof LikePattern other && Objects.equals(pattern, other.pattern) && escape == other.escape;
     }
 }

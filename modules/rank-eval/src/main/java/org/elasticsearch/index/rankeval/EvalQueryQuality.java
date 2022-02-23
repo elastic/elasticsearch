@@ -150,11 +150,8 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        EvalQueryQuality other = (EvalQueryQuality) obj;
-        return Objects.equals(queryId, other.queryId)
+        return obj instanceof EvalQueryQuality other
+            && Objects.equals(queryId, other.queryId)
             && Objects.equals(metricScore, other.metricScore)
             && Objects.equals(ratedHits, other.ratedHits)
             && Objects.equals(optionalMetricDetails, other.optionalMetricDetails);

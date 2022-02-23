@@ -238,10 +238,7 @@ public abstract class WatchRecord implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        WatchRecord entry = (WatchRecord) o;
-        return Objects.equals(id, entry.id);
+        return o instanceof WatchRecord entry && Objects.equals(id, entry.id);
     }
 
     @Override

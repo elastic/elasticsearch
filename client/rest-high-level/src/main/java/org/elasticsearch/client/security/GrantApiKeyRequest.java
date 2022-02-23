@@ -93,11 +93,8 @@ public final class GrantApiKeyRequest implements Validatable, ToXContentObject {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Grant grant = (Grant) o;
-            return grantType.equals(grant.grantType)
+            return o instanceof Grant grant
+                && grantType.equals(grant.grantType)
                 && Objects.equals(username, grant.username)
                 && Arrays.equals(password, grant.password)
                 && Objects.equals(accessToken, grant.accessToken);
@@ -137,11 +134,9 @@ public final class GrantApiKeyRequest implements Validatable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final GrantApiKeyRequest that = (GrantApiKeyRequest) o;
-        return Objects.equals(this.grant, that.grant) && Objects.equals(this.apiKeyRequest, that.apiKeyRequest);
+        return o instanceof GrantApiKeyRequest that
+            && Objects.equals(this.grant, that.grant)
+            && Objects.equals(this.apiKeyRequest, that.apiKeyRequest);
     }
 
     @Override

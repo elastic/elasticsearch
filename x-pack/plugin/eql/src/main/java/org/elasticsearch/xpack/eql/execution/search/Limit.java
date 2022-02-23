@@ -54,13 +54,7 @@ public class Limit {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Limit other = (Limit) obj;
-        return Objects.equals(limit, other.limit) && Objects.equals(offset, other.offset);
+        return obj instanceof Limit other && Objects.equals(limit, other.limit) && Objects.equals(offset, other.offset);
     }
 
     /**

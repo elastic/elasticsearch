@@ -71,11 +71,7 @@ public class InProcessor implements Processor {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        InProcessor that = (InProcessor) o;
-        return Objects.equals(processsors, that.processsors);
+        return o instanceof InProcessor that && Objects.equals(processsors, that.processsors);
     }
 
     @Override

@@ -322,11 +322,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            ScriptLongValueSource that = (ScriptLongValueSource) obj;
-            return Objects.equals(script, that.script);
+            return obj instanceof ScriptLongValueSource that && Objects.equals(script, that.script);
         }
 
         @Override
@@ -381,9 +377,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FieldValuesSource that = (FieldValuesSource) o;
-            return Objects.equals(fieldName, that.fieldName);
+            return o instanceof FieldValuesSource that && Objects.equals(fieldName, that.fieldName);
         }
 
         @Override

@@ -287,9 +287,8 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                MlMemoryStats that = (MlMemoryStats) o;
-                return Objects.equals(getNode(), that.getNode())
+                return o instanceof MlMemoryStats that
+                    && Objects.equals(getNode(), that.getNode())
                     && Objects.equals(memTotal, that.memTotal)
                     && Objects.equals(memAdjustedTotal, that.memAdjustedTotal)
                     && Objects.equals(mlMax, that.mlMax)

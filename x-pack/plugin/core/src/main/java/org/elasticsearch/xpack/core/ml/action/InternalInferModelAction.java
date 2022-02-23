@@ -106,9 +106,8 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            InternalInferModelAction.Request that = (InternalInferModelAction.Request) o;
-            return Objects.equals(modelId, that.modelId)
+            return o instanceof InternalInferModelAction.Request that
+                && Objects.equals(modelId, that.modelId)
                 && Objects.equals(update, that.update)
                 && Objects.equals(previouslyLicensed, that.previouslyLicensed)
                 && Objects.equals(objectsToInfer, that.objectsToInfer);
@@ -163,9 +162,8 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            InternalInferModelAction.Response that = (InternalInferModelAction.Response) o;
-            return isLicensed == that.isLicensed
+            return o instanceof InternalInferModelAction.Response that
+                && isLicensed == that.isLicensed
                 && Objects.equals(inferenceResults, that.inferenceResults)
                 && Objects.equals(modelId, that.modelId);
         }

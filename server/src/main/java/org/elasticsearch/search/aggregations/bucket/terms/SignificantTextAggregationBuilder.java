@@ -376,10 +376,9 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        SignificantTextAggregationBuilder other = (SignificantTextAggregationBuilder) obj;
-        return Objects.equals(bucketCountThresholds, other.bucketCountThresholds)
+        return obj instanceof SignificantTextAggregationBuilder other
+            && super.equals(obj)
+            && Objects.equals(bucketCountThresholds, other.bucketCountThresholds)
             && Objects.equals(fieldName, other.fieldName)
             && Arrays.equals(sourceFieldNames, other.sourceFieldNames)
             && filterDuplicateText == other.filterDuplicateText

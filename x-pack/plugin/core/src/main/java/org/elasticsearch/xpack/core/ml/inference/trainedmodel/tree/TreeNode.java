@@ -212,9 +212,8 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TreeNode that = (TreeNode) o;
-        return Objects.equals(operator, that.operator)
+        return o instanceof TreeNode that
+            && Objects.equals(operator, that.operator)
             && Objects.equals(threshold, that.threshold)
             && Objects.equals(splitFeature, that.splitFeature)
             && Objects.equals(nodeIndex, that.nodeIndex)

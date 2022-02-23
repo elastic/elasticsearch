@@ -179,13 +179,8 @@ public class Range extends ScalarFunction {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Range other = (Range) obj;
-        return Objects.equals(includeLower, other.includeLower)
+        return obj instanceof Range other
+            && Objects.equals(includeLower, other.includeLower)
             && Objects.equals(includeUpper, other.includeUpper)
             && Objects.equals(value, other.value)
             && Objects.equals(lower, other.lower)

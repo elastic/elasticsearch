@@ -69,9 +69,7 @@ public class AutoscalingPolicyMetadata implements SimpleDiffable<AutoscalingPoli
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        final AutoscalingPolicyMetadata that = (AutoscalingPolicyMetadata) o;
-        return policy.equals(that.policy);
+        return o instanceof AutoscalingPolicyMetadata that && policy.equals(that.policy);
     }
 
     @Override

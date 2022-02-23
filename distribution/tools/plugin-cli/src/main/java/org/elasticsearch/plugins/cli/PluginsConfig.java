@@ -124,11 +124,7 @@ public class PluginsConfig {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        PluginsConfig that = (PluginsConfig) o;
-        return plugins.equals(that.plugins) && Objects.equals(proxy, that.proxy);
+        return o instanceof PluginsConfig that && plugins.equals(that.plugins) && Objects.equals(proxy, that.proxy);
     }
 
     @Override

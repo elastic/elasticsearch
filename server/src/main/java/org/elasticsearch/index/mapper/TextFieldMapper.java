@@ -130,9 +130,7 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            PrefixConfig that = (PrefixConfig) o;
-            return minChars == that.minChars && maxChars == that.maxChars;
+            return o instanceof PrefixConfig that && minChars == that.minChars && maxChars == that.maxChars;
         }
 
         @Override
@@ -180,9 +178,8 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FielddataFrequencyFilter that = (FielddataFrequencyFilter) o;
-            return Double.compare(that.minFreq, minFreq) == 0
+            return o instanceof FielddataFrequencyFilter that
+                && Double.compare(that.minFreq, minFreq) == 0
                 && Double.compare(that.maxFreq, maxFreq) == 0
                 && minSegmentSize == that.minSegmentSize;
         }

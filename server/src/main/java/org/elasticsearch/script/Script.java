@@ -705,11 +705,8 @@ public final class Script implements ToXContentObject, Writeable {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        Script script = (Script) o;
-        return type == script.type
+        return o instanceof Script script
+            && type == script.type
             && Objects.equals(lang, script.lang)
             && Objects.equals(idOrCode, script.idOrCode)
             && Objects.equals(options, script.options)

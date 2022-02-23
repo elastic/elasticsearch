@@ -119,12 +119,8 @@ public class CIDRMatchFunctionPipe extends Pipe {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        CIDRMatchFunctionPipe other = (CIDRMatchFunctionPipe) obj;
-        return Objects.equals(input(), other.input()) && Objects.equals(addresses(), other.addresses());
+        return obj instanceof CIDRMatchFunctionPipe other
+            && Objects.equals(input(), other.input())
+            && Objects.equals(addresses(), other.addresses());
     }
 }

@@ -67,10 +67,8 @@ public class SentEvent implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        SentEvent sentEvent = (SentEvent) o;
-        return Objects.equals(event, sentEvent.event)
+        return o instanceof SentEvent sentEvent
+            && Objects.equals(event, sentEvent.event)
             && Objects.equals(request, sentEvent.request)
             && Objects.equals(failureReason, sentEvent.failureReason);
     }

@@ -96,9 +96,7 @@ final class GeoIpCache {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            CacheKey cacheKey = (CacheKey) o;
-            return Objects.equals(ip, cacheKey.ip) && Objects.equals(databasePath, cacheKey.databasePath);
+            return o instanceof CacheKey cacheKey && Objects.equals(ip, cacheKey.ip) && Objects.equals(databasePath, cacheKey.databasePath);
         }
 
         // generated

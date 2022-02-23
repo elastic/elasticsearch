@@ -75,11 +75,7 @@ public final class IndexId implements Writeable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        IndexId that = (IndexId) o;
-        return Objects.equals(name, that.name) && Objects.equals(id, that.id);
+        return o instanceof IndexId that && Objects.equals(name, that.name) && Objects.equals(id, that.id);
     }
 
     @Override

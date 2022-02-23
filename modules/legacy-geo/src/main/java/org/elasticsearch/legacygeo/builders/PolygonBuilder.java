@@ -840,10 +840,9 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        PolygonBuilder other = (PolygonBuilder) obj;
-        return Objects.equals(shell, other.shell) && Objects.equals(holes, other.holes) && Objects.equals(orientation, other.orientation);
+        return obj instanceof PolygonBuilder other
+            && Objects.equals(shell, other.shell)
+            && Objects.equals(holes, other.holes)
+            && Objects.equals(orientation, other.orientation);
     }
 }

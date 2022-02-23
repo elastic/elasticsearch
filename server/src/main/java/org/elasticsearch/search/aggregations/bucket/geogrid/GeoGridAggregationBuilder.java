@@ -235,10 +235,9 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        GeoGridAggregationBuilder other = (GeoGridAggregationBuilder) obj;
-        return precision == other.precision
+        return obj instanceof GeoGridAggregationBuilder other
+            && super.equals(obj)
+            && precision == other.precision
             && requiredSize == other.requiredSize
             && shardSize == other.shardSize
             && Objects.equals(geoBoundingBox, other.geoBoundingBox);

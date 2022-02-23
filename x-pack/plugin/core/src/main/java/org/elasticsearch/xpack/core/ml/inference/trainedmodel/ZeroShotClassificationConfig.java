@@ -202,10 +202,8 @@ public class ZeroShotClassificationConfig implements NlpConfig {
     @Override
     public boolean equals(Object o) {
         if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ZeroShotClassificationConfig that = (ZeroShotClassificationConfig) o;
-        return Objects.equals(vocabularyConfig, that.vocabularyConfig)
+        return o instanceof ZeroShotClassificationConfig that
+            && Objects.equals(vocabularyConfig, that.vocabularyConfig)
             && Objects.equals(tokenization, that.tokenization)
             && Objects.equals(isMultiLabel, that.isMultiLabel)
             && Objects.equals(hypothesisTemplate, that.hypothesisTemplate)

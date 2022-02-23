@@ -86,10 +86,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-
-        PercentilesConfig other = (PercentilesConfig) obj;
-        return method.equals(other.getMethod());
+        return obj instanceof PercentilesConfig other && method.equals(other.getMethod());
     }
 
     @Override
@@ -180,11 +177,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         @Override
         public boolean equals(Object obj) {
             if (this == obj) return true;
-            if (obj == null || getClass() != obj.getClass()) return false;
-            if (super.equals(obj) == false) return false;
-
-            TDigest other = (TDigest) obj;
-            return compression == other.getCompression();
+            return obj instanceof TDigest other && super.equals(obj) && compression == other.getCompression();
         }
 
         @Override
@@ -286,11 +279,9 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         @Override
         public boolean equals(Object obj) {
             if (this == obj) return true;
-            if (obj == null || getClass() != obj.getClass()) return false;
-            if (super.equals(obj) == false) return false;
-
-            Hdr other = (Hdr) obj;
-            return numberOfSignificantValueDigits == other.getNumberOfSignificantValueDigits();
+            return obj instanceof Hdr other
+                && super.equals(obj)
+                && numberOfSignificantValueDigits == other.getNumberOfSignificantValueDigits();
         }
 
         @Override

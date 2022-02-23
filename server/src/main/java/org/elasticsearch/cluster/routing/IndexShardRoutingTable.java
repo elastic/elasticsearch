@@ -491,14 +491,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        IndexShardRoutingTable that = (IndexShardRoutingTable) o;
-
-        if (shardId.equals(that.shardId) == false) return false;
-        if (shards.equals(that.shards) == false) return false;
-
-        return true;
+        return o instanceof IndexShardRoutingTable that && shardId.equals(that.shardId) && shards.equals(that.shards);
     }
 
     @Override

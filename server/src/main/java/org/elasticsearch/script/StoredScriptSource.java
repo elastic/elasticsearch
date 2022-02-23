@@ -361,11 +361,10 @@ public class StoredScriptSource implements SimpleDiffable<StoredScriptSource>, W
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        StoredScriptSource that = (StoredScriptSource) o;
-
-        return Objects.equals(lang, that.lang) && Objects.equals(source, that.source) && Objects.equals(options, that.options);
+        return o instanceof StoredScriptSource that
+            && Objects.equals(lang, that.lang)
+            && Objects.equals(source, that.source)
+            && Objects.equals(options, that.options);
     }
 
     @Override

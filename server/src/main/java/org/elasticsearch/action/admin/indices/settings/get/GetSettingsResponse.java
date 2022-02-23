@@ -200,9 +200,9 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetSettingsResponse that = (GetSettingsResponse) o;
-        return Objects.equals(indexToSettings, that.indexToSettings) && Objects.equals(indexToDefaultSettings, that.indexToDefaultSettings);
+        return o instanceof GetSettingsResponse that
+            && Objects.equals(indexToSettings, that.indexToSettings)
+            && Objects.equals(indexToDefaultSettings, that.indexToDefaultSettings);
     }
 
     @Override

@@ -49,9 +49,7 @@ public class PutLifecyclePolicyRequest extends TimedRequest implements ToXConten
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        PutLifecyclePolicyRequest that = (PutLifecyclePolicyRequest) o;
-        return Objects.equals(getLifecyclePolicy(), that.getLifecyclePolicy());
+        return o instanceof PutLifecyclePolicyRequest that && Objects.equals(getLifecyclePolicy(), that.getLifecyclePolicy());
     }
 
     @Override

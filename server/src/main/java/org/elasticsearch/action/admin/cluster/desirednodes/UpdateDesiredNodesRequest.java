@@ -83,9 +83,10 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        UpdateDesiredNodesRequest that = (UpdateDesiredNodesRequest) o;
-        return version == that.version && Objects.equals(historyID, that.historyID) && Objects.equals(nodes, that.nodes);
+        return o instanceof UpdateDesiredNodesRequest that
+            && version == that.version
+            && Objects.equals(historyID, that.historyID)
+            && Objects.equals(nodes, that.nodes);
     }
 
     @Override

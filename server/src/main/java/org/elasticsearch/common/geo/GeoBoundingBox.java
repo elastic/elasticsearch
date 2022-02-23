@@ -144,9 +144,7 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GeoBoundingBox that = (GeoBoundingBox) o;
-        return topLeft.equals(that.topLeft) && bottomRight.equals(that.bottomRight);
+        return o instanceof GeoBoundingBox that && topLeft.equals(that.topLeft) && bottomRight.equals(that.bottomRight);
     }
 
     @Override

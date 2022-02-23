@@ -69,9 +69,8 @@ public class ModelMetadata implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ModelMetadata that = (ModelMetadata) o;
-        return Objects.equals(featureImportances, that.featureImportances)
+        return o instanceof ModelMetadata that
+            && Objects.equals(featureImportances, that.featureImportances)
             && Objects.equals(featureImportanceBaseline, that.featureImportanceBaseline)
             && Objects.equals(hyperparameters, that.hyperparameters);
     }

@@ -160,11 +160,9 @@ public class MeanReciprocalRank implements EvaluationMetric {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        MeanReciprocalRank other = (MeanReciprocalRank) obj;
-        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold) && Objects.equals(k, other.k);
+        return obj instanceof MeanReciprocalRank other
+            && Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold)
+            && Objects.equals(k, other.k);
     }
 
     @Override
@@ -232,11 +230,7 @@ public class MeanReciprocalRank implements EvaluationMetric {
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            MeanReciprocalRank.Detail other = (MeanReciprocalRank.Detail) obj;
-            return Objects.equals(firstRelevantRank, other.firstRelevantRank);
+            return obj instanceof MeanReciprocalRank.Detail other && Objects.equals(firstRelevantRank, other.firstRelevantRank);
         }
 
         @Override

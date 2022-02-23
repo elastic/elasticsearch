@@ -162,9 +162,7 @@ public class BuildTests extends ESTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            WriteableBuild that = (WriteableBuild) o;
-            return build.equals(that.build);
+            return o instanceof WriteableBuild that && build.equals(that.build);
         }
 
         @Override

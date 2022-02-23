@@ -252,10 +252,9 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        ArrayValuesSourceAggregationBuilder<?> other = (ArrayValuesSourceAggregationBuilder<?>) obj;
-        return Objects.equals(fields, other.fields)
+        return obj instanceof ArrayValuesSourceAggregationBuilder<?> other
+            && super.equals(obj)
+            && Objects.equals(fields, other.fields)
             && Objects.equals(format, other.format)
             && Objects.equals(missing, other.missing)
             && Objects.equals(userValueTypeHint, other.userValueTypeHint);

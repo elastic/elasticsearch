@@ -56,9 +56,7 @@ public class PeersRequest extends TransportRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        PeersRequest that = (PeersRequest) o;
-        return Objects.equals(sourceNode, that.sourceNode) && Objects.equals(knownPeers, that.knownPeers);
+        return o instanceof PeersRequest that && Objects.equals(sourceNode, that.sourceNode) && Objects.equals(knownPeers, that.knownPeers);
     }
 
     @Override

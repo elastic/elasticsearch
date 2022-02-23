@@ -65,11 +65,7 @@ public class TemplateRoleName implements ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final TemplateRoleName that = (TemplateRoleName) o;
-        return Objects.equals(this.template, that.template) && this.format == that.format;
+        return o instanceof TemplateRoleName that && Objects.equals(this.template, that.template) && this.format == that.format;
     }
 
     @Override

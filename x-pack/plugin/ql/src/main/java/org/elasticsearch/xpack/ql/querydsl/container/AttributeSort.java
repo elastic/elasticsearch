@@ -33,13 +33,8 @@ public class AttributeSort extends Sort {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        AttributeSort other = (AttributeSort) obj;
-        return Objects.equals(direction(), other.direction())
+        return obj instanceof AttributeSort other
+            && Objects.equals(direction(), other.direction())
             && Objects.equals(missing(), other.missing())
             && Objects.equals(attribute, other.attribute);
     }

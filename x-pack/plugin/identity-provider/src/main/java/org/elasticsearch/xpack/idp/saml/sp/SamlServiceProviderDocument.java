@@ -68,9 +68,9 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            final Privileges that = (Privileges) o;
-            return Objects.equals(resource, that.resource) && Objects.equals(rolePatterns, that.rolePatterns);
+            return o instanceof Privileges that
+                && Objects.equals(resource, that.resource)
+                && Objects.equals(rolePatterns, that.rolePatterns);
         }
 
         @Override
@@ -107,9 +107,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            final AttributeNames that = (AttributeNames) o;
-            return Objects.equals(principal, that.principal)
+            return o instanceof AttributeNames that
+                && Objects.equals(principal, that.principal)
                 && Objects.equals(email, that.email)
                 && Objects.equals(name, that.name)
                 && Objects.equals(roles, that.roles);
@@ -205,9 +204,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            final Certificates that = (Certificates) o;
-            return Objects.equals(serviceProviderSigning, that.serviceProviderSigning)
+            return o instanceof Certificates that
+                && Objects.equals(serviceProviderSigning, that.serviceProviderSigning)
                 && Objects.equals(identityProviderSigning, that.identityProviderSigning)
                 && Objects.equals(identityProviderMetadataSigning, that.identityProviderMetadataSigning);
         }
@@ -357,9 +355,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        final SamlServiceProviderDocument that = (SamlServiceProviderDocument) o;
-        return Objects.equals(docId, that.docId)
+        return o instanceof SamlServiceProviderDocument that
+            && Objects.equals(docId, that.docId)
             && Objects.equals(name, that.name)
             && Objects.equals(entityId, that.entityId)
             && Objects.equals(acs, that.acs)

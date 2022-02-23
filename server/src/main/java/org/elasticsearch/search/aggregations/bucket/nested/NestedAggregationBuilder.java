@@ -143,10 +143,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        NestedAggregationBuilder other = (NestedAggregationBuilder) obj;
-        return Objects.equals(path, other.path);
+        return obj instanceof NestedAggregationBuilder other && super.equals(obj) && Objects.equals(path, other.path);
     }
 
     @Override

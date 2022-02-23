@@ -138,11 +138,10 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
                 return true;
             }
 
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return this.updated == other.updated && this.noAction == other.noAction && this.needsUpdate == other.needsUpdate;
+            return obj instanceof Response other
+                && this.updated == other.updated
+                && this.noAction == other.noAction
+                && this.needsUpdate == other.needsUpdate;
         }
 
         @Override

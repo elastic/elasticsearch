@@ -62,9 +62,8 @@ public class DetailAnalyzeResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DetailAnalyzeResponse that = (DetailAnalyzeResponse) o;
-        return customAnalyzer == that.customAnalyzer
+        return o instanceof DetailAnalyzeResponse that
+            && customAnalyzer == that.customAnalyzer
             && Objects.equals(analyzer, that.analyzer)
             && Arrays.equals(charfilters, that.charfilters)
             && Objects.equals(tokenizer, that.tokenizer)
@@ -111,9 +110,7 @@ public class DetailAnalyzeResponse {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AnalyzeTokenList that = (AnalyzeTokenList) o;
-            return Objects.equals(name, that.name) && Arrays.equals(tokens, that.tokens);
+            return o instanceof AnalyzeTokenList that && Objects.equals(name, that.name) && Arrays.equals(tokens, that.tokens);
         }
 
         @Override
@@ -194,9 +191,7 @@ public class DetailAnalyzeResponse {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            CharFilteredText that = (CharFilteredText) o;
-            return Objects.equals(name, that.name) && Arrays.equals(texts, that.texts);
+            return o instanceof CharFilteredText that && Objects.equals(name, that.name) && Arrays.equals(texts, that.texts);
         }
 
         @Override

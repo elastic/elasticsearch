@@ -99,11 +99,10 @@ public abstract class HttpResource {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            ResourcePublishResult that = (ResourcePublishResult) o;
-            return success == that.success && Objects.equals(reason, that.reason) && resourceState == that.resourceState;
+            return o instanceof ResourcePublishResult that
+                && success == that.success
+                && Objects.equals(reason, that.reason)
+                && resourceState == that.resourceState;
         }
 
         @Override

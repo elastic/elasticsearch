@@ -141,9 +141,9 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TextEmbeddingConfigUpdate that = (TextEmbeddingConfigUpdate) o;
-        return Objects.equals(resultsField, that.resultsField) && Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
+        return o instanceof TextEmbeddingConfigUpdate that
+            && Objects.equals(resultsField, that.resultsField)
+            && Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
     }
 
     @Override

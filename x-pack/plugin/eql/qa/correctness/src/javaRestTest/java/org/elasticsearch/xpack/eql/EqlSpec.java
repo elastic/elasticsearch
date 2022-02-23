@@ -89,11 +89,7 @@ public class EqlSpec {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        EqlSpec eqlSpec = (EqlSpec) o;
-        return queryNo == eqlSpec.queryNo;
+        return o instanceof EqlSpec eqlSpec && queryNo == eqlSpec.queryNo;
     }
 
     @Override

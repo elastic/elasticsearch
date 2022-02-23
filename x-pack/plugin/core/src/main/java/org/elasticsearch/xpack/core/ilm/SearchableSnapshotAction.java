@@ -391,11 +391,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SearchableSnapshotAction that = (SearchableSnapshotAction) o;
-        return Objects.equals(snapshotRepository, that.snapshotRepository);
+        return o instanceof SearchableSnapshotAction that && Objects.equals(snapshotRepository, that.snapshotRepository);
     }
 
     @Override

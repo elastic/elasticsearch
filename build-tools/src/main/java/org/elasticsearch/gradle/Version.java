@@ -125,11 +125,7 @@ public final class Version implements Comparable<Version>, Serializable {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        Version version = (Version) o;
-        return major == version.major && minor == version.minor && revision == version.revision;
+        return o instanceof Version version && major == version.major && minor == version.minor && revision == version.revision;
     }
 
     @Override

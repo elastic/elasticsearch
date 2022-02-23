@@ -79,9 +79,7 @@ public class DeleteTrainedModelAction extends ActionType<AcknowledgedResponse> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DeleteTrainedModelAction.Request request = (DeleteTrainedModelAction.Request) o;
-            return Objects.equals(id, request.id) && force == request.force;
+            return o instanceof DeleteTrainedModelAction.Request request && Objects.equals(id, request.id) && force == request.force;
         }
 
         @Override

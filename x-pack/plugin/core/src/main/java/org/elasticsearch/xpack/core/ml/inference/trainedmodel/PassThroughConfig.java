@@ -129,10 +129,8 @@ public class PassThroughConfig implements NlpConfig {
     @Override
     public boolean equals(Object o) {
         if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        PassThroughConfig that = (PassThroughConfig) o;
-        return Objects.equals(vocabularyConfig, that.vocabularyConfig)
+        return o instanceof PassThroughConfig that
+            && Objects.equals(vocabularyConfig, that.vocabularyConfig)
             && Objects.equals(tokenization, that.tokenization)
             && Objects.equals(resultsField, that.resultsField);
     }

@@ -111,9 +111,8 @@ public class OutlierDetectionStats implements AnalysisStats {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        OutlierDetectionStats that = (OutlierDetectionStats) o;
-        return Objects.equals(jobId, that.jobId)
+        return o instanceof OutlierDetectionStats that
+            && Objects.equals(jobId, that.jobId)
             && Objects.equals(timestamp, that.timestamp)
             && Objects.equals(parameters, that.parameters)
             && Objects.equals(timingStats, that.timingStats);

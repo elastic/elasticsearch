@@ -77,9 +77,7 @@ public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Resp
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(desiredNodes, response.desiredNodes);
+            return o instanceof Response response && Objects.equals(desiredNodes, response.desiredNodes);
         }
 
         @Override

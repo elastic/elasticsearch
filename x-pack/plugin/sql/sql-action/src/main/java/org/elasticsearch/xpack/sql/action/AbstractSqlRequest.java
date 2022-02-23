@@ -100,9 +100,7 @@ public abstract class AbstractSqlRequest extends ActionRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AbstractSqlRequest that = (AbstractSqlRequest) o;
-        return Objects.equals(requestInfo, that.requestInfo);
+        return o instanceof AbstractSqlRequest that && Objects.equals(requestInfo, that.requestInfo);
     }
 
     @Override

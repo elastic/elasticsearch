@@ -408,9 +408,7 @@ class RollupShardIndexer {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            BucketKey other = (BucketKey) o;
-            return timestamp == other.timestamp && Objects.equals(groupFields, other.groupFields);
+            return o instanceof BucketKey other && timestamp == other.timestamp && Objects.equals(groupFields, other.groupFields);
         }
 
         @Override

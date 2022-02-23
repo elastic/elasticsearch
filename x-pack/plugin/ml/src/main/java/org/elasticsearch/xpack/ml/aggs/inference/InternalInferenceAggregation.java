@@ -91,9 +91,8 @@ public class InternalInferenceAggregation extends InternalAggregation {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        InternalInferenceAggregation other = (InternalInferenceAggregation) obj;
-        return Objects.equals(inferenceResult, other.inferenceResult);
+        return obj instanceof InternalInferenceAggregation other
+            && super.equals(obj)
+            && Objects.equals(inferenceResult, other.inferenceResult);
     }
 }

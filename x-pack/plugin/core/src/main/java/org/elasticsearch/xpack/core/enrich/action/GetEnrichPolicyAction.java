@@ -69,9 +69,7 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(names, request.names);
+            return o instanceof Request request && Objects.equals(names, request.names);
         }
 
         @Override
@@ -134,9 +132,7 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return policies.equals(response.policies);
+            return o instanceof Response response && policies.equals(response.policies);
         }
 
         @Override

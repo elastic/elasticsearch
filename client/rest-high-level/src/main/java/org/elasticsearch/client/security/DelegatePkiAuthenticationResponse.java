@@ -53,11 +53,8 @@ public final class DelegatePkiAuthenticationResponse {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final DelegatePkiAuthenticationResponse that = (DelegatePkiAuthenticationResponse) o;
-        return Objects.equals(accessToken, that.accessToken)
+        return o instanceof DelegatePkiAuthenticationResponse that
+            && Objects.equals(accessToken, that.accessToken)
             && Objects.equals(type, that.type)
             && Objects.equals(expiresIn, that.expiresIn)
             && Objects.equals(authentication, that.authentication);

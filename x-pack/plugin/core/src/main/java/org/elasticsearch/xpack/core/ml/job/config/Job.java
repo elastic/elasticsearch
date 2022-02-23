@@ -1087,10 +1087,8 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
 
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Job.Builder that = (Job.Builder) o;
-            return Objects.equals(this.id, that.id)
+            return o instanceof Job.Builder that
+                && Objects.equals(this.id, that.id)
                 && Objects.equals(this.jobType, that.jobType)
                 && Objects.equals(this.jobVersion, that.jobVersion)
                 && Objects.equals(this.groups, that.groups)

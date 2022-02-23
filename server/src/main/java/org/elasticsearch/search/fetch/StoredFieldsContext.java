@@ -110,12 +110,9 @@ public class StoredFieldsContext implements Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        StoredFieldsContext that = (StoredFieldsContext) o;
-
-        if (fetchFields != that.fetchFields) return false;
-        return fieldNames != null ? fieldNames.equals(that.fieldNames) : that.fieldNames == null;
+        return o instanceof StoredFieldsContext that
+            && fetchFields == that.fetchFields
+            && (fieldNames != null ? fieldNames.equals(that.fieldNames) : that.fieldNames == null);
 
     }
 

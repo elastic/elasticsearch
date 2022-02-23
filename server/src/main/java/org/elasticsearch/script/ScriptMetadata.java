@@ -323,11 +323,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ScriptMetadata that = (ScriptMetadata) o;
-
-        return scripts.equals(that.scripts);
+        return o instanceof ScriptMetadata that && scripts.equals(that.scripts);
 
     }
 

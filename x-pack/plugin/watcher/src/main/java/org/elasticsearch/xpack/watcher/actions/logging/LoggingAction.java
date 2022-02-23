@@ -44,11 +44,10 @@ public class LoggingAction implements Action {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        LoggingAction action = (LoggingAction) o;
-        return Objects.equals(text, action.text) && level == action.level && Objects.equals(category, action.category);
+        return o instanceof LoggingAction action
+            && Objects.equals(text, action.text)
+            && level == action.level
+            && Objects.equals(category, action.category);
     }
 
     @Override

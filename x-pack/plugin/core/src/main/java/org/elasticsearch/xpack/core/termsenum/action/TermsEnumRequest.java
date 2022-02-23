@@ -247,9 +247,8 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TermsEnumRequest that = (TermsEnumRequest) o;
-        return size == that.size
+        return o instanceof TermsEnumRequest that
+            && size == that.size
             && caseInsensitive == that.caseInsensitive
             && Objects.equals(field, that.field)
             && Objects.equals(string, that.string)

@@ -79,14 +79,7 @@ public abstract class Step {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        Step other = (Step) obj;
-        return Objects.equals(key, other.key) && Objects.equals(nextStepKey, other.nextStepKey);
+        return obj instanceof Step other && Objects.equals(key, other.key) && Objects.equals(nextStepKey, other.nextStepKey);
     }
 
     @Override

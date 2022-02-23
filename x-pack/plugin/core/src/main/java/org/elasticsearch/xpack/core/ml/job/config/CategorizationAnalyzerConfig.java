@@ -297,9 +297,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        CategorizationAnalyzerConfig that = (CategorizationAnalyzerConfig) o;
-        return Objects.equals(analyzer, that.analyzer)
+        return o instanceof CategorizationAnalyzerConfig that
+            && Objects.equals(analyzer, that.analyzer)
             && Objects.equals(charFilters, that.charFilters)
             && Objects.equals(tokenizer, that.tokenizer)
             && Objects.equals(tokenFilters, that.tokenFilters);

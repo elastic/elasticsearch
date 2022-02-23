@@ -244,9 +244,8 @@ public class AllocationStats implements ToXContentObject, Writeable {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AllocationStats.NodeStats that = (AllocationStats.NodeStats) o;
-            return Objects.equals(inferenceCount, that.inferenceCount)
+            return o instanceof AllocationStats.NodeStats that
+                && Objects.equals(inferenceCount, that.inferenceCount)
                 && Objects.equals(that.avgInferenceTime, avgInferenceTime)
                 && Objects.equals(node, that.node)
                 && Objects.equals(lastAccess, that.lastAccess)
@@ -442,9 +441,8 @@ public class AllocationStats implements ToXContentObject, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AllocationStats that = (AllocationStats) o;
-        return Objects.equals(modelId, that.modelId)
+        return o instanceof AllocationStats that
+            && Objects.equals(modelId, that.modelId)
             && Objects.equals(inferenceThreads, that.inferenceThreads)
             && Objects.equals(modelThreads, that.modelThreads)
             && Objects.equals(queueCapacity, that.queueCapacity)

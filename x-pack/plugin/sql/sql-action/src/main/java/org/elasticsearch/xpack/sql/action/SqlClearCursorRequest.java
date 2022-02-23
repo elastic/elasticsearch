@@ -91,10 +91,7 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        SqlClearCursorRequest that = (SqlClearCursorRequest) o;
-        return Objects.equals(cursor, that.cursor);
+        return o instanceof SqlClearCursorRequest that && super.equals(o) && Objects.equals(cursor, that.cursor);
     }
 
     @Override

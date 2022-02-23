@@ -235,11 +235,8 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        UpdateSettingsRequest that = (UpdateSettingsRequest) o;
-        return masterNodeTimeout.equals(that.masterNodeTimeout)
+        return o instanceof UpdateSettingsRequest that
+            && masterNodeTimeout.equals(that.masterNodeTimeout)
             && timeout.equals(that.timeout)
             && Objects.equals(settings, that.settings)
             && Objects.equals(indicesOptions, that.indicesOptions)

@@ -100,9 +100,8 @@ public final class ApplicationPrivilege implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ApplicationPrivilege that = (ApplicationPrivilege) o;
-        return Objects.equals(application, that.application)
+        return o instanceof ApplicationPrivilege that
+            && Objects.equals(application, that.application)
             && Objects.equals(name, that.name)
             && Objects.equals(actions, that.actions)
             && Objects.equals(metadata, that.metadata);

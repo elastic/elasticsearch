@@ -42,11 +42,7 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        Condition<?> condition = (Condition<?>) o;
-        return Objects.equals(value, condition.value) && Objects.equals(name, condition.name);
+        return o instanceof Condition<?> condition && Objects.equals(value, condition.value) && Objects.equals(name, condition.name);
     }
 
     @Override

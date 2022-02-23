@@ -142,11 +142,7 @@ public class DeadlockAnalyzer {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Deadlock deadlock = (Deadlock) o;
-
-            return Objects.equals(memberIds, deadlock.memberIds);
+            return o instanceof Deadlock deadlock && Objects.equals(memberIds, deadlock.memberIds);
         }
 
         @Override

@@ -218,11 +218,8 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        ExplainResponse other = (ExplainResponse) obj;
-        return index.equals(other.index)
+        return obj instanceof ExplainResponse other
+            && index.equals(other.index)
             && id.equals(other.id)
             && Objects.equals(explanation, other.explanation)
             && getResult.isExists() == other.getResult.isExists()

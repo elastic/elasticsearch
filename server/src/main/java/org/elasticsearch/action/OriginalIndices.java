@@ -69,9 +69,9 @@ public final class OriginalIndices implements IndicesRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        OriginalIndices that = (OriginalIndices) o;
-        return Arrays.equals(indices, that.indices) && Objects.equals(indicesOptions, that.indicesOptions);
+        return o instanceof OriginalIndices that
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override

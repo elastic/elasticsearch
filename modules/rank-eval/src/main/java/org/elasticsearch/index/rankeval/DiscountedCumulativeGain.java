@@ -206,11 +206,8 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        DiscountedCumulativeGain other = (DiscountedCumulativeGain) obj;
-        return Objects.equals(normalize, other.normalize)
+        return obj instanceof DiscountedCumulativeGain other
+            && Objects.equals(normalize, other.normalize)
             && Objects.equals(unknownDocRating, other.unknownDocRating)
             && Objects.equals(k, other.k);
     }
@@ -319,11 +316,8 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            DiscountedCumulativeGain.Detail other = (DiscountedCumulativeGain.Detail) obj;
-            return Double.compare(this.dcg, other.dcg) == 0
+            return obj instanceof DiscountedCumulativeGain.Detail other
+                && Double.compare(this.dcg, other.dcg) == 0
                 && Double.compare(this.idcg, other.idcg) == 0
                 && this.unratedDocs == other.unratedDocs;
         }

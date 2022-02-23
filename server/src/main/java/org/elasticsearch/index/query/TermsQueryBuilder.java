@@ -575,9 +575,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            BinaryValues that = (BinaryValues) o;
-            return Objects.equals(valueRef, that.valueRef);
+            return o instanceof BinaryValues that && Objects.equals(valueRef, that.valueRef);
         }
 
         @Override
@@ -657,9 +655,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ListValues that = (ListValues) o;
-            return Objects.equals(values, that.values);
+            return o instanceof ListValues that && Objects.equals(values, that.values);
         }
 
         @Override

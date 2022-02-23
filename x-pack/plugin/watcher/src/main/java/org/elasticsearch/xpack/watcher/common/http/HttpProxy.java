@@ -66,11 +66,10 @@ public class HttpProxy implements ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        HttpProxy that = (HttpProxy) o;
-
-        return Objects.equals(port, that.port) && Objects.equals(host, that.host) && Objects.equals(scheme, that.scheme);
+        return o instanceof HttpProxy that
+            && Objects.equals(port, that.port)
+            && Objects.equals(host, that.host)
+            && Objects.equals(scheme, that.scheme);
     }
 
     @Override

@@ -155,9 +155,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            PutDataFrameAnalyticsAction.Request request = (PutDataFrameAnalyticsAction.Request) o;
-            return Objects.equals(config, request.config);
+            return o instanceof PutDataFrameAnalyticsAction.Request request && Objects.equals(config, request.config);
         }
 
         @Override
@@ -195,9 +193,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(config, response.config);
+            return o instanceof Response response && Objects.equals(config, response.config);
         }
 
         @Override

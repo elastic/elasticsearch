@@ -70,9 +70,10 @@ public class EqlStatsResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        EqlStatsResponse that = (EqlStatsResponse) o;
-        return Objects.equals(nodes, that.nodes) && Objects.equals(header, that.header) && Objects.equals(clusterName, that.clusterName);
+        return o instanceof EqlStatsResponse that
+            && Objects.equals(nodes, that.nodes)
+            && Objects.equals(header, that.header)
+            && Objects.equals(clusterName, that.clusterName);
     }
 
     @Override
@@ -105,9 +106,7 @@ public class EqlStatsResponse {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Node node = (Node) o;
-            return Objects.equals(stats, node.stats);
+            return o instanceof Node node && Objects.equals(stats, node.stats);
         }
 
         @Override

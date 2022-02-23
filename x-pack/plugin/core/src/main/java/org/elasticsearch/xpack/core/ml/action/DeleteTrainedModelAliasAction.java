@@ -69,9 +69,9 @@ public class DeleteTrainedModelAliasAction extends ActionType<AcknowledgedRespon
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(modelAlias, request.modelAlias) && Objects.equals(modelId, request.modelId);
+            return o instanceof Request request
+                && Objects.equals(modelAlias, request.modelAlias)
+                && Objects.equals(modelId, request.modelId);
         }
 
         @Override

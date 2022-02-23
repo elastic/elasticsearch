@@ -79,11 +79,9 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SimulateIndexTemplateRequest that = (SimulateIndexTemplateRequest) o;
-        return indexName.equals(that.indexName) && Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
+        return o instanceof SimulateIndexTemplateRequest that
+            && indexName.equals(that.indexName)
+            && Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
     }
 
     @Override

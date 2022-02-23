@@ -134,9 +134,8 @@ public class IngestStats implements Writeable, ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        IngestStats that = (IngestStats) o;
-        return Objects.equals(totalStats, that.totalStats)
+        return o instanceof IngestStats that
+            && Objects.equals(totalStats, that.totalStats)
             && Objects.equals(pipelineStats, that.pipelineStats)
             && Objects.equals(processorStats, that.processorStats);
     }
@@ -218,9 +217,8 @@ public class IngestStats implements Writeable, ToXContentFragment {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IngestStats.Stats that = (IngestStats.Stats) o;
-            return Objects.equals(ingestCount, that.ingestCount)
+            return o instanceof IngestStats.Stats that
+                && Objects.equals(ingestCount, that.ingestCount)
                 && Objects.equals(ingestTimeInMillis, that.ingestTimeInMillis)
                 && Objects.equals(ingestFailedCount, that.ingestFailedCount)
                 && Objects.equals(ingestCurrent, that.ingestCurrent);
@@ -284,9 +282,9 @@ public class IngestStats implements Writeable, ToXContentFragment {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IngestStats.PipelineStat that = (IngestStats.PipelineStat) o;
-            return Objects.equals(pipelineId, that.pipelineId) && Objects.equals(stats, that.stats);
+            return o instanceof IngestStats.PipelineStat that
+                && Objects.equals(pipelineId, that.pipelineId)
+                && Objects.equals(stats, that.stats);
         }
 
         @Override
@@ -324,9 +322,10 @@ public class IngestStats implements Writeable, ToXContentFragment {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IngestStats.ProcessorStat that = (IngestStats.ProcessorStat) o;
-            return Objects.equals(name, that.name) && Objects.equals(type, that.type) && Objects.equals(stats, that.stats);
+            return o instanceof IngestStats.ProcessorStat that
+                && Objects.equals(name, that.name)
+                && Objects.equals(type, that.type)
+                && Objects.equals(stats, that.stats);
         }
 
         @Override

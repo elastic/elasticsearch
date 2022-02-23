@@ -221,9 +221,7 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return stopped == response.stopped;
+            return o instanceof Response response && stopped == response.stopped;
         }
 
         @Override

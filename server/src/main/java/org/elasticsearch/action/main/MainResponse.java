@@ -142,11 +142,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        MainResponse other = (MainResponse) o;
-        return Objects.equals(nodeName, other.nodeName)
+        return o instanceof MainResponse other
+            && Objects.equals(nodeName, other.nodeName)
             && Objects.equals(version, other.version)
             && Objects.equals(clusterUuid, other.clusterUuid)
             && Objects.equals(build, other.build)

@@ -374,11 +374,8 @@ final class S3ClientSettings {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final S3ClientSettings that = (S3ClientSettings) o;
-        return proxyPort == that.proxyPort
+        return o instanceof S3ClientSettings that
+            && proxyPort == that.proxyPort
             && readTimeoutMillis == that.readTimeoutMillis
             && maxRetries == that.maxRetries
             && throttleRetries == that.throttleRetries

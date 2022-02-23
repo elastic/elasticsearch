@@ -237,9 +237,8 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SnapshotHistoryItem that = (SnapshotHistoryItem) o;
-        return isSuccess() == that.isSuccess()
+        return o instanceof SnapshotHistoryItem that
+            && isSuccess() == that.isSuccess()
             && timestamp == that.getTimestamp()
             && Objects.equals(getPolicyId(), that.getPolicyId())
             && Objects.equals(getRepository(), that.getRepository())

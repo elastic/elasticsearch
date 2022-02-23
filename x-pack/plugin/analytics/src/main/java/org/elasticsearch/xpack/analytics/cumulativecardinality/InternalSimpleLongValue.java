@@ -86,9 +86,6 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        InternalSimpleLongValue other = (InternalSimpleLongValue) obj;
-        return Objects.equals(value, other.value);
+        return obj instanceof InternalSimpleLongValue other && super.equals(obj) && Objects.equals(value, other.value);
     }
 }

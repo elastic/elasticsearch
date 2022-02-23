@@ -258,9 +258,8 @@ class Extent {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Extent extent = (Extent) o;
-        return top == extent.top
+        return o instanceof Extent extent
+            && top == extent.top
             && bottom == extent.bottom
             && negLeft == extent.negLeft
             && negRight == extent.negRight

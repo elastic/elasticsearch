@@ -105,9 +105,8 @@ public class DeprecationInfoResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DeprecationInfoResponse that = (DeprecationInfoResponse) o;
-        return Objects.equals(clusterSettingsIssues, that.clusterSettingsIssues)
+        return o instanceof DeprecationInfoResponse that
+            && Objects.equals(clusterSettingsIssues, that.clusterSettingsIssues)
             && Objects.equals(nodeSettingsIssues, that.nodeSettingsIssues)
             && Objects.equals(mlSettingsIssues, that.mlSettingsIssues)
             && Objects.equals(indexSettingsIssues, that.indexSettingsIssues);
@@ -225,11 +224,8 @@ public class DeprecationInfoResponse {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            DeprecationIssue that = (DeprecationIssue) o;
-            return Objects.equals(level, that.level)
+            return o instanceof DeprecationIssue that
+                && Objects.equals(level, that.level)
                 && Objects.equals(message, that.message)
                 && Objects.equals(url, that.url)
                 && Objects.equals(details, that.details)

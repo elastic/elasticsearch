@@ -134,11 +134,9 @@ public class RollupILMAction implements LifecycleAction {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        RollupILMAction that = (RollupILMAction) o;
-
-        return Objects.equals(this.config, that.config) && Objects.equals(this.rollupPolicy, that.rollupPolicy);
+        return o instanceof RollupILMAction that
+            && Objects.equals(this.config, that.config)
+            && Objects.equals(this.rollupPolicy, that.rollupPolicy);
     }
 
     @Override

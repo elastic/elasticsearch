@@ -57,11 +57,7 @@ public class StringScriptFieldFuzzyQuery extends AbstractStringScriptFieldAutoma
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        StringScriptFieldFuzzyQuery other = (StringScriptFieldFuzzyQuery) obj;
-        return delegate.equals(other.delegate);
+        return super.equals(obj) && obj instanceof StringScriptFieldFuzzyQuery other && delegate.equals(other.delegate);
     }
 
     FuzzyQuery delegate() {

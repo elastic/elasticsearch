@@ -150,13 +150,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal>, Accountable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        OrdinalGroup<?> other = (OrdinalGroup<?>) obj;
-        return Objects.equals(elements, other.elements);
+        return obj instanceof OrdinalGroup<?> other && Objects.equals(elements, other.elements);
     }
 
     @Override

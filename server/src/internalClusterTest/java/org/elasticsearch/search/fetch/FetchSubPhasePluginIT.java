@@ -185,11 +185,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            TermVectorsFetchBuilder that = (TermVectorsFetchBuilder) o;
-            return Objects.equals(field, that.field);
+            return o instanceof TermVectorsFetchBuilder that && Objects.equals(field, that.field);
         }
 
         @Override

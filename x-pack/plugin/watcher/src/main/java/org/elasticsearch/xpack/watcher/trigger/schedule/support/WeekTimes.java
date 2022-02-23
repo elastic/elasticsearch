@@ -67,12 +67,8 @@ public class WeekTimes implements Times {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        WeekTimes that = (WeekTimes) o;
-
-        return days.equals(that.days)
-            // we don't care about order
+        return o instanceof WeekTimes that && days.equals(that.days)
+        // we don't care about order
             && newHashSet(times).equals(newHashSet(that.times));
     }
 

@@ -44,11 +44,7 @@ public class BooleanScriptFieldTermQuery extends AbstractBooleanScriptFieldQuery
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        BooleanScriptFieldTermQuery other = (BooleanScriptFieldTermQuery) obj;
-        return term == other.term;
+        return super.equals(obj) && obj instanceof BooleanScriptFieldTermQuery other && term == other.term;
     }
 
     boolean term() {

@@ -130,9 +130,8 @@ public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Usage usage = (Usage) o;
-            return numberOfFollowerIndices == usage.numberOfFollowerIndices
+            return o instanceof Usage usage
+                && numberOfFollowerIndices == usage.numberOfFollowerIndices
                 && numberOfAutoFollowPatterns == usage.numberOfAutoFollowPatterns
                 && Objects.equals(lastFollowTimeInMillis, usage.lastFollowTimeInMillis);
         }

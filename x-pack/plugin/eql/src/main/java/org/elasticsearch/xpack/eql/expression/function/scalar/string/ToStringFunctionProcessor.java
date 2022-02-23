@@ -50,13 +50,7 @@ public class ToStringFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        ToStringFunctionProcessor other = (ToStringFunctionProcessor) obj;
-        return Objects.equals(input(), other.input());
+        return obj instanceof ToStringFunctionProcessor other && Objects.equals(input(), other.input());
     }
 
     @Override

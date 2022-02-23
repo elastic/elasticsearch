@@ -132,11 +132,8 @@ public class CollectorResult implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        CollectorResult other = (CollectorResult) obj;
-        return collectorName.equals(other.collectorName)
+        return obj instanceof CollectorResult other
+            && collectorName.equals(other.collectorName)
             && reason.equals(other.reason)
             && time == other.time
             && children.equals(other.children);

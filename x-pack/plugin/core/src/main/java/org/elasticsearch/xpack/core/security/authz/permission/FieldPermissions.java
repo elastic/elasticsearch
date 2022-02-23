@@ -256,9 +256,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        FieldPermissions that = (FieldPermissions) o;
-        return permittedFieldsAutomatonIsTotal == that.permittedFieldsAutomatonIsTotal
+        return o instanceof FieldPermissions that
+            && permittedFieldsAutomatonIsTotal == that.permittedFieldsAutomatonIsTotal
             && fieldPermissionsDefinition.equals(that.fieldPermissionsDefinition)
             && Objects.equals(limitedByFieldPermissionsDefinition, that.limitedByFieldPermissionsDefinition);
     }

@@ -82,9 +82,10 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DeleteDataFrameAnalyticsAction.Request request = (DeleteDataFrameAnalyticsAction.Request) o;
-            return Objects.equals(id, request.id) && force == request.force && Objects.equals(timeout, request.timeout);
+            return o instanceof DeleteDataFrameAnalyticsAction.Request request
+                && Objects.equals(id, request.id)
+                && force == request.force
+                && Objects.equals(timeout, request.timeout);
         }
 
         @Override

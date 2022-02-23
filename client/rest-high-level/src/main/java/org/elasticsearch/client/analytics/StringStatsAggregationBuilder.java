@@ -113,14 +113,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        StringStatsAggregationBuilder other = (StringStatsAggregationBuilder) obj;
-        return showDistribution == other.showDistribution;
+        return obj instanceof StringStatsAggregationBuilder other && super.equals(obj) && showDistribution == other.showDistribution;
     }
 
     @Override

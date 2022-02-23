@@ -92,11 +92,8 @@ public class EmailAction implements Action {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        EmailAction action = (EmailAction) o;
-
-        return Objects.equals(email, action.email)
+        return o instanceof EmailAction action
+            && Objects.equals(email, action.email)
             && Objects.equals(account, action.account)
             && Objects.equals(auth, action.auth)
             && Objects.equals(profile, action.profile)

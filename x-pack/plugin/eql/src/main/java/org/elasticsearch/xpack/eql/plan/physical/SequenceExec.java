@@ -132,13 +132,8 @@ public class SequenceExec extends PhysicalPlan {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        SequenceExec other = (SequenceExec) obj;
-        return Objects.equals(timestamp, other.timestamp)
+        return obj instanceof SequenceExec other
+            && Objects.equals(timestamp, other.timestamp)
             && Objects.equals(tiebreaker, other.tiebreaker)
             && Objects.equals(limit, other.limit)
             && Objects.equals(direction, other.direction)

@@ -140,11 +140,7 @@ public class HighlightField implements ToXContentFragment, Writeable {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        HighlightField other = (HighlightField) obj;
-        return Objects.equals(name, other.name) && Arrays.equals(fragments, other.fragments);
+        return obj instanceof HighlightField other && Objects.equals(name, other.name) && Arrays.equals(fragments, other.fragments);
     }
 
     @Override

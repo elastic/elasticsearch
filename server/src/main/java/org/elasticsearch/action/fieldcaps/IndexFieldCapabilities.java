@@ -141,9 +141,8 @@ public class IndexFieldCapabilities implements Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        IndexFieldCapabilities that = (IndexFieldCapabilities) o;
-        return isMetadatafield == that.isMetadatafield
+        return o instanceof IndexFieldCapabilities that
+            && isMetadatafield == that.isMetadatafield
             && isSearchable == that.isSearchable
             && isAggregatable == that.isAggregatable
             && isDimension == that.isDimension

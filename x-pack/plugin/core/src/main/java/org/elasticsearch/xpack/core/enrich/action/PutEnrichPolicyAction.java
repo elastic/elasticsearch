@@ -76,9 +76,7 @@ public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return policy.equals(request.policy) && name.equals(request.name);
+            return o instanceof Request request && policy.equals(request.policy) && name.equals(request.name);
         }
 
         @Override

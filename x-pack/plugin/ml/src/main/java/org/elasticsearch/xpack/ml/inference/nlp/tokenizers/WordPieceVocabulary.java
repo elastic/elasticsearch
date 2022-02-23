@@ -73,9 +73,7 @@ public class WordPieceVocabulary implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        WordPieceVocabulary that = (WordPieceVocabulary) o;
-        return unknownToken == that.unknownToken && Objects.equals(vocab, that.vocab);
+        return o instanceof WordPieceVocabulary that && unknownToken == that.unknownToken && Objects.equals(vocab, that.vocab);
     }
 
     @Override

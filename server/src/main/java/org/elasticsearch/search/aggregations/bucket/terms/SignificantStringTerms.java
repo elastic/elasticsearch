@@ -90,10 +90,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         @Override
         public boolean equals(Object obj) {
             if (this == obj) return true;
-            if (obj == null || getClass() != obj.getClass()) return false;
-            if (super.equals(obj) == false) return false;
-
-            return super.equals(obj) && Objects.equals(termBytes, ((SignificantStringTerms.Bucket) obj).termBytes);
+            return obj instanceof SignificantStringTerms.Bucket that && super.equals(obj) && Objects.equals(termBytes, that.termBytes);
         }
 
         @Override

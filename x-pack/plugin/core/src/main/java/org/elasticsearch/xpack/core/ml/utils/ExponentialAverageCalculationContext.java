@@ -194,9 +194,8 @@ public class ExponentialAverageCalculationContext implements Writeable, ToXConte
     @Override
     public boolean equals(Object o) {
         if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ExponentialAverageCalculationContext that = (ExponentialAverageCalculationContext) o;
-        return this.incrementalMetricValueMs == that.incrementalMetricValueMs
+        return o instanceof ExponentialAverageCalculationContext that
+            && this.incrementalMetricValueMs == that.incrementalMetricValueMs
             && Objects.equals(this.latestTimestamp, that.latestTimestamp)
             && Objects.equals(this.previousExponentialAverageMs, that.previousExponentialAverageMs);
     }

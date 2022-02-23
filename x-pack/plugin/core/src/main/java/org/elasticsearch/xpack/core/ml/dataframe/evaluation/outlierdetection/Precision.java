@@ -61,9 +61,7 @@ public class Precision extends AbstractConfusionMatrixMetric {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Precision that = (Precision) o;
-        return Arrays.equals(thresholds, that.thresholds);
+        return o instanceof Precision that && Arrays.equals(thresholds, that.thresholds);
     }
 
     @Override

@@ -152,11 +152,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        UnresolvedFunction other = (UnresolvedFunction) obj;
-        return name.equals(other.name)
+        return obj instanceof UnresolvedFunction other
+            && name.equals(other.name)
             && resolution.equals(other.resolution)
             && children().equals(other.children())
             && analyzed == other.analyzed

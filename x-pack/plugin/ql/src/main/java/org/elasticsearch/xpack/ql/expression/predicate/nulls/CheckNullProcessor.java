@@ -76,11 +76,7 @@ public class CheckNullProcessor implements Processor {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        CheckNullProcessor that = (CheckNullProcessor) o;
-        return operation == that.operation;
+        return o instanceof CheckNullProcessor that && operation == that.operation;
     }
 
     @Override

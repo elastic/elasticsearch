@@ -309,11 +309,7 @@ public class ClusterPermissionTests extends ESTestCase {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            final MockConfigurableClusterPrivilege that = (MockConfigurableClusterPrivilege) o;
-            return requestPredicate.equals(that.requestPredicate);
+            return o instanceof MockConfigurableClusterPrivilege that && requestPredicate.equals(that.requestPredicate);
         }
 
         @Override

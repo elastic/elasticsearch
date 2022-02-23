@@ -84,13 +84,8 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        UnresolvedRelation other = (UnresolvedRelation) obj;
-        return Objects.equals(table, other.table)
+        return obj instanceof UnresolvedRelation other
+            && Objects.equals(table, other.table)
             && Objects.equals(alias, other.alias)
             && Objects.equals(frozen, other.frozen)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);

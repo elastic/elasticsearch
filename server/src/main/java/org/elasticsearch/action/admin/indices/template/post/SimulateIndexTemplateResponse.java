@@ -101,11 +101,8 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SimulateIndexTemplateResponse that = (SimulateIndexTemplateResponse) o;
-        return Objects.equals(resolvedTemplate, that.resolvedTemplate)
+        return o instanceof SimulateIndexTemplateResponse that
+            && Objects.equals(resolvedTemplate, that.resolvedTemplate)
             && Objects.deepEquals(overlappingTemplates, that.overlappingTemplates);
     }
 

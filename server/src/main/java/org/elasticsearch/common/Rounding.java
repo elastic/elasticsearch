@@ -1391,11 +1391,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            OffsetRounding other = (OffsetRounding) obj;
-            return delegate.equals(other.delegate) && offset == other.offset;
+            return obj instanceof OffsetRounding other && delegate.equals(other.delegate) && offset == other.offset;
         }
 
         @Override

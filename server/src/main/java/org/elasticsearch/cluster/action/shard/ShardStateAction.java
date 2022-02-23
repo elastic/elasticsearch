@@ -519,10 +519,9 @@ public class ShardStateAction {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FailedShardEntry that = (FailedShardEntry) o;
             // Exclude message and exception from equals and hashCode
-            return Objects.equals(this.shardId, that.shardId)
+            return o instanceof FailedShardEntry that
+                && Objects.equals(this.shardId, that.shardId)
                 && Objects.equals(this.allocationId, that.allocationId)
                 && primaryTerm == that.primaryTerm
                 && markAsStale == that.markAsStale;
@@ -838,9 +837,8 @@ public class ShardStateAction {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            StartedShardEntry that = (StartedShardEntry) o;
-            return primaryTerm == that.primaryTerm
+            return o instanceof StartedShardEntry that
+                && primaryTerm == that.primaryTerm
                 && shardId.equals(that.shardId)
                 && allocationId.equals(that.allocationId)
                 && message.equals(that.message)

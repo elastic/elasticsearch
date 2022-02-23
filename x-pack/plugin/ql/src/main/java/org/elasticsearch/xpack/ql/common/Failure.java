@@ -45,13 +45,7 @@ public class Failure {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Failure other = (Failure) obj;
-        return Objects.equals(node, other.node);
+        return obj instanceof Failure other && Objects.equals(node, other.node);
     }
 
     @Override

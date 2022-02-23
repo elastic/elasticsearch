@@ -97,11 +97,10 @@ public class StringScriptFieldPrefixQuery extends AbstractStringScriptFieldQuery
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        StringScriptFieldPrefixQuery other = (StringScriptFieldPrefixQuery) obj;
-        return prefix.equals(other.prefix) && caseInsensitive == other.caseInsensitive;
+        return super.equals(obj)
+            && obj instanceof StringScriptFieldPrefixQuery other
+            && prefix.equals(other.prefix)
+            && caseInsensitive == other.caseInsensitive;
     }
 
     String prefix() {

@@ -97,9 +97,8 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TotalFeatureImportance that = (TotalFeatureImportance) o;
-        return Objects.equals(that.importance, importance)
+        return o instanceof TotalFeatureImportance that
+            && Objects.equals(that.importance, importance)
             && Objects.equals(featureName, that.featureName)
             && Objects.equals(classImportances, that.classImportances);
     }
@@ -159,9 +158,8 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Importance that = (Importance) o;
-            return Double.compare(that.meanMagnitude, meanMagnitude) == 0
+            return o instanceof Importance that
+                && Double.compare(that.meanMagnitude, meanMagnitude) == 0
                 && Double.compare(that.min, min) == 0
                 && Double.compare(that.max, max) == 0;
         }
@@ -264,9 +262,9 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ClassImportance that = (ClassImportance) o;
-            return Objects.equals(that.importance, importance) && Objects.equals(className, that.className);
+            return o instanceof ClassImportance that
+                && Objects.equals(that.importance, importance)
+                && Objects.equals(className, that.className);
         }
 
         @Override

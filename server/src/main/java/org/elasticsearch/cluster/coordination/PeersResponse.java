@@ -75,9 +75,10 @@ public class PeersResponse extends TransportResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        PeersResponse that = (PeersResponse) o;
-        return term == that.term && Objects.equals(masterNode, that.masterNode) && Objects.equals(knownPeers, that.knownPeers);
+        return o instanceof PeersResponse that
+            && term == that.term
+            && Objects.equals(masterNode, that.masterNode)
+            && Objects.equals(knownPeers, that.knownPeers);
     }
 
     @Override

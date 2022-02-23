@@ -72,10 +72,8 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        HttpRequestAttachment otherDataAttachment = (HttpRequestAttachment) o;
-        return Objects.equals(id, otherDataAttachment.id)
+        return o instanceof HttpRequestAttachment otherDataAttachment
+            && Objects.equals(id, otherDataAttachment.id)
             && Objects.equals(requestTemplate, otherDataAttachment.requestTemplate)
             && Objects.equals(contentType, otherDataAttachment.contentType)
             && Objects.equals(inline, otherDataAttachment.inline);

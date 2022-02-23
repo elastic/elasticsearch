@@ -161,10 +161,7 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        ParentAggregationBuilder other = (ParentAggregationBuilder) obj;
-        return Objects.equals(childType, other.childType);
+        return obj instanceof ParentAggregationBuilder other && super.equals(obj) && Objects.equals(childType, other.childType);
     }
 
     @Override

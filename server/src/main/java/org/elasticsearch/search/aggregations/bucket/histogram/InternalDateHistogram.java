@@ -176,11 +176,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            EmptyBucketInfo that = (EmptyBucketInfo) obj;
-            return Objects.equals(rounding, that.rounding)
+            return obj instanceof EmptyBucketInfo that
+                && Objects.equals(rounding, that.rounding)
                 && Objects.equals(bounds, that.bounds)
                 && Objects.equals(subAggregations, that.subAggregations);
         }
@@ -542,11 +539,9 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalDateHistogram that = (InternalDateHistogram) obj;
-        return Objects.equals(buckets, that.buckets)
+        return obj instanceof InternalDateHistogram that
+            && super.equals(obj)
+            && Objects.equals(buckets, that.buckets)
             && Objects.equals(order, that.order)
             && Objects.equals(format, that.format)
             && Objects.equals(keyed, that.keyed)

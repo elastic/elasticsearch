@@ -129,11 +129,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             if (obj == this) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Request other = (Request) obj;
-            return Objects.equals(config, other.config);
+            return obj instanceof Request other && Objects.equals(config, other.config);
         }
     }
 

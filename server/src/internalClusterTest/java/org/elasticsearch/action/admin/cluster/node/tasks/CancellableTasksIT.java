@@ -466,9 +466,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TestRequest that = (TestRequest) o;
-            return id == that.id;
+            return o instanceof TestRequest that && id == that.id;
         }
 
         @Override

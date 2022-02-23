@@ -33,11 +33,7 @@ public class Percentile {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        Percentile that = (Percentile) o;
-        return Double.compare(that.percent, percent) == 0 && Double.compare(that.value, value) == 0;
+        return o instanceof Percentile that && Double.compare(that.percent, percent) == 0 && Double.compare(that.value, value) == 0;
     }
 
     @Override

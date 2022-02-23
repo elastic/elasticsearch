@@ -75,11 +75,7 @@ public final class FieldExpression implements RoleMapperExpression {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        final FieldExpression that = (FieldExpression) o;
-
-        return this.field.equals(that.field) && this.values.equals(that.values);
+        return o instanceof FieldExpression that && this.field.equals(that.field) && this.values.equals(that.values);
     }
 
     @Override
@@ -158,11 +154,7 @@ public final class FieldExpression implements RoleMapperExpression {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            final FieldValue that = (FieldValue) o;
-            return Objects.equals(this.value, that.value);
+            return o instanceof FieldValue that && Objects.equals(this.value, that.value);
         }
 
         @Override

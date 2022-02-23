@@ -92,9 +92,9 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(autoFollowStats, response.autoFollowStats) && Objects.equals(followStats, response.followStats);
+            return o instanceof Response response
+                && Objects.equals(autoFollowStats, response.autoFollowStats)
+                && Objects.equals(followStats, response.followStats);
         }
 
         @Override

@@ -197,11 +197,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        GetResponse getResponse = (GetResponse) o;
-        return Objects.equals(getResult, getResponse.getResult);
+        return o instanceof GetResponse getResponse && Objects.equals(getResult, getResponse.getResult);
     }
 
     @Override

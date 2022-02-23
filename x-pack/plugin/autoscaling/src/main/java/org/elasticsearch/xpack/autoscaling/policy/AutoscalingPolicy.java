@@ -129,9 +129,7 @@ public class AutoscalingPolicy implements SimpleDiffable<AutoscalingPolicy>, ToX
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        final AutoscalingPolicy that = (AutoscalingPolicy) o;
-        return name.equals(that.name) && roles.equals(that.roles) && deciders.equals(that.deciders);
+        return o instanceof AutoscalingPolicy that && name.equals(that.name) && roles.equals(that.roles) && deciders.equals(that.deciders);
     }
 
     @Override

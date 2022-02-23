@@ -59,9 +59,7 @@ public class WriteableZoneId implements Writeable, ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        WriteableZoneId that = (WriteableZoneId) o;
-        return Objects.equals(zoneId, that.zoneId);
+        return o instanceof WriteableZoneId that && Objects.equals(zoneId, that.zoneId);
     }
 
     @Override

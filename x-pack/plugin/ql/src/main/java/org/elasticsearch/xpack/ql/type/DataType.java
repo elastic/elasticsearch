@@ -92,13 +92,8 @@ public class DataType {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        DataType other = (DataType) obj;
-        return Objects.equals(typeName, other.typeName)
+        return obj instanceof DataType other
+            && Objects.equals(typeName, other.typeName)
             && Objects.equals(esType, other.esType)
             && size == other.size
             && isInteger == other.isInteger

@@ -76,9 +76,7 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(datafeed, request.datafeed);
+            return o instanceof Request request && Objects.equals(datafeed, request.datafeed);
         }
 
         @Override
@@ -118,9 +116,7 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(datafeed, response.datafeed);
+            return o instanceof Response response && Objects.equals(datafeed, response.datafeed);
         }
 
         @Override

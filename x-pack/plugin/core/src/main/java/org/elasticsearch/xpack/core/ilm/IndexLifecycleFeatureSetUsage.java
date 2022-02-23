@@ -500,9 +500,8 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ActionConfigStats that = (ActionConfigStats) o;
-            return Objects.equals(allocateNumberOfReplicas, that.allocateNumberOfReplicas)
+            return o instanceof ActionConfigStats that
+                && Objects.equals(allocateNumberOfReplicas, that.allocateNumberOfReplicas)
                 && Objects.equals(forceMergeMaxNumberOfSegments, that.forceMergeMaxNumberOfSegments)
                 && Objects.equals(rolloverMaxAge, that.rolloverMaxAge)
                 && Objects.equals(rolloverMaxDocs, that.rolloverMaxDocs)

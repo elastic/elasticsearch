@@ -41,9 +41,7 @@ public final class RoleKey {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RoleKey roleKey = (RoleKey) o;
-        return names.equals(roleKey.names) && source.equals(roleKey.source);
+        return o instanceof RoleKey roleKey && names.equals(roleKey.names) && source.equals(roleKey.source);
     }
 
     @Override

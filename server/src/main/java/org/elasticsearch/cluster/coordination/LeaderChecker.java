@@ -402,9 +402,7 @@ public class LeaderChecker {
         @Override
         public boolean equals(final Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            final LeaderCheckRequest that = (LeaderCheckRequest) o;
-            return Objects.equals(sender, that.sender);
+            return o instanceof LeaderCheckRequest that && Objects.equals(sender, that.sender);
         }
 
         @Override

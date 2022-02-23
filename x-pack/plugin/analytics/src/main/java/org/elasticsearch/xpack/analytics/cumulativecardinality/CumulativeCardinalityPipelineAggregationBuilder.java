@@ -114,10 +114,9 @@ public class CumulativeCardinalityPipelineAggregationBuilder extends AbstractPip
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        CumulativeCardinalityPipelineAggregationBuilder other = (CumulativeCardinalityPipelineAggregationBuilder) obj;
-        return Objects.equals(format, other.format);
+        return obj instanceof CumulativeCardinalityPipelineAggregationBuilder other
+            && super.equals(obj)
+            && Objects.equals(format, other.format);
     }
 
     @Override

@@ -187,11 +187,6 @@ public class In extends ScalarFunction {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        In other = (In) obj;
-        return Objects.equals(value, other.value) && Objects.equals(list, other.list);
+        return obj instanceof In other && Objects.equals(value, other.value) && Objects.equals(list, other.list);
     }
 }

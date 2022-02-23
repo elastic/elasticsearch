@@ -117,9 +117,7 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FrozenExistenceReason that = (FrozenExistenceReason) o;
-            return indices.equals(that.indices);
+            return o instanceof FrozenExistenceReason that && indices.equals(that.indices);
         }
 
         @Override

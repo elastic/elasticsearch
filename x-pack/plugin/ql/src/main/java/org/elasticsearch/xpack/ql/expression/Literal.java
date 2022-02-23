@@ -81,12 +81,7 @@ public class Literal extends LeafExpression {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Literal other = (Literal) obj;
-        return Objects.equals(value, other.value) && Objects.equals(dataType, other.dataType);
+        return obj instanceof Literal other && Objects.equals(value, other.value) && Objects.equals(dataType, other.dataType);
     }
 
     @Override

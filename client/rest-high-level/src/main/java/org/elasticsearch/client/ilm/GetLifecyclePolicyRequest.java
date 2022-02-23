@@ -37,9 +37,7 @@ public class GetLifecyclePolicyRequest extends TimedRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetLifecyclePolicyRequest request = (GetLifecyclePolicyRequest) o;
-        return Arrays.equals(getPolicyNames(), request.getPolicyNames());
+        return o instanceof GetLifecyclePolicyRequest request && Arrays.equals(getPolicyNames(), request.getPolicyNames());
     }
 
     @Override

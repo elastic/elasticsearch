@@ -58,7 +58,6 @@ public class NotProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
         return obj == null || getClass() != obj.getClass();
     }
 }

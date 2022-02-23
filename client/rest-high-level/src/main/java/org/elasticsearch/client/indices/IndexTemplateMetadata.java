@@ -163,9 +163,8 @@ public class IndexTemplateMetadata {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        IndexTemplateMetadata that = (IndexTemplateMetadata) o;
-        return order == that.order
+        return o instanceof IndexTemplateMetadata that
+            && order == that.order
             && Objects.equals(name, that.name)
             && Objects.equals(version, that.version)
             && Objects.equals(patterns, that.patterns)

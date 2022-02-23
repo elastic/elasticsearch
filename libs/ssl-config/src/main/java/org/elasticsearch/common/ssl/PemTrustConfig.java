@@ -118,11 +118,7 @@ public final class PemTrustConfig implements SslTrustConfig {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final PemTrustConfig that = (PemTrustConfig) o;
-        return Objects.equals(this.certificateAuthorities, that.certificateAuthorities);
+        return o instanceof PemTrustConfig that && Objects.equals(this.certificateAuthorities, that.certificateAuthorities);
     }
 
     @Override

@@ -58,9 +58,7 @@ public class CreateTrainedModelAllocationAction extends ActionType<CreateTrained
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(taskParams, request.taskParams);
+            return o instanceof Request request && Objects.equals(taskParams, request.taskParams);
         }
 
         @Override
@@ -120,9 +118,7 @@ public class CreateTrainedModelAllocationAction extends ActionType<CreateTrained
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(trainedModelAllocation, response.trainedModelAllocation);
+            return o instanceof Response response && Objects.equals(trainedModelAllocation, response.trainedModelAllocation);
         }
 
         @Override

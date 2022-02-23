@@ -136,10 +136,8 @@ public class NerConfig implements NlpConfig {
     @Override
     public boolean equals(Object o) {
         if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        NerConfig that = (NerConfig) o;
-        return Objects.equals(vocabularyConfig, that.vocabularyConfig)
+        return o instanceof NerConfig that
+            && Objects.equals(vocabularyConfig, that.vocabularyConfig)
             && Objects.equals(tokenization, that.tokenization)
             && Objects.equals(classificationLabels, that.classificationLabels)
             && Objects.equals(resultsField, that.resultsField);

@@ -36,12 +36,7 @@ final class DeleteVersionValue extends VersionValue {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-
-        DeleteVersionValue that = (DeleteVersionValue) o;
-
-        return time == that.time;
+        return o instanceof DeleteVersionValue that && super.equals(o) && time == that.time;
     }
 
     @Override

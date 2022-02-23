@@ -311,11 +311,7 @@ public class Alias implements Writeable, ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Alias alias = (Alias) o;
-
-        return Objects.equals(name, alias.name);
+        return o instanceof Alias alias && Objects.equals(name, alias.name);
     }
 
     @Override

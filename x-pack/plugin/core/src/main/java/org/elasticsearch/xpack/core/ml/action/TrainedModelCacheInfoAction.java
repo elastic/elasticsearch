@@ -114,9 +114,8 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                CacheInfo cacheInfo = (CacheInfo) o;
-                return Objects.equals(getNode(), cacheInfo.getNode())
+                return o instanceof CacheInfo cacheInfo
+                    && Objects.equals(getNode(), cacheInfo.getNode())
                     && Objects.equals(jvmInferenceMax, cacheInfo.jvmInferenceMax)
                     && Objects.equals(jvmInference, cacheInfo.jvmInference);
             }

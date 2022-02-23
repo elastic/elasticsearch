@@ -383,11 +383,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        RoutingNode that = (RoutingNode) o;
-        return nodeId.equals(that.nodeId) && Objects.equals(node, that.node) && shards.equals(that.shards);
+        return o instanceof RoutingNode that && nodeId.equals(that.nodeId) && Objects.equals(node, that.node) && shards.equals(that.shards);
     }
 
     @Override

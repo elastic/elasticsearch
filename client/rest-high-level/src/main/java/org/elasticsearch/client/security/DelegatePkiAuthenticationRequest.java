@@ -56,11 +56,7 @@ public final class DelegatePkiAuthenticationRequest implements Validatable, ToXC
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final DelegatePkiAuthenticationRequest that = (DelegatePkiAuthenticationRequest) o;
-        return Objects.equals(x509CertificateChain, that.x509CertificateChain);
+        return o instanceof DelegatePkiAuthenticationRequest that && Objects.equals(x509CertificateChain, that.x509CertificateChain);
     }
 
     @Override

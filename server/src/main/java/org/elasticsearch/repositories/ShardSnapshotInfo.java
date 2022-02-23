@@ -96,9 +96,8 @@ public class ShardSnapshotInfo implements Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ShardSnapshotInfo that = (ShardSnapshotInfo) o;
-        return startedAt == that.startedAt
+        return o instanceof ShardSnapshotInfo that
+            && startedAt == that.startedAt
             && Objects.equals(indexId, that.indexId)
             && Objects.equals(snapshot, that.snapshot)
             && Objects.equals(shardId, that.shardId)

@@ -185,10 +185,8 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
     @Override
     public boolean equals(Object o) {
         if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ZeroShotClassificationConfigUpdate that = (ZeroShotClassificationConfigUpdate) o;
-        return Objects.equals(isMultiLabel, that.isMultiLabel)
+        return o instanceof ZeroShotClassificationConfigUpdate that
+            && Objects.equals(isMultiLabel, that.isMultiLabel)
             && Objects.equals(labels, that.labels)
             && Objects.equals(resultsField, that.resultsField)
             && Objects.equals(tokenizationUpdate, that.tokenizationUpdate);

@@ -97,13 +97,9 @@ public class ToNumberFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        ToNumberFunctionProcessor other = (ToNumberFunctionProcessor) obj;
-        return Objects.equals(value(), other.value()) && Objects.equals(base(), other.base());
+        return obj instanceof ToNumberFunctionProcessor other
+            && Objects.equals(value(), other.value())
+            && Objects.equals(base(), other.base());
     }
 
     @Override

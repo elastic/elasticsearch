@@ -38,13 +38,7 @@ public class KeyAndOrdinal {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        KeyAndOrdinal other = (KeyAndOrdinal) obj;
-        return Objects.equals(key, other.key) && Objects.equals(ordinal, other.ordinal);
+        return obj instanceof KeyAndOrdinal other && Objects.equals(key, other.key) && Objects.equals(ordinal, other.ordinal);
     }
 
     @Override

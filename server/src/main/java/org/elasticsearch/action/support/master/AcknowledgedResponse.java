@@ -114,11 +114,7 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        AcknowledgedResponse that = (AcknowledgedResponse) o;
-        return isAcknowledged() == that.isAcknowledged();
+        return o instanceof AcknowledgedResponse that && isAcknowledged() == that.isAcknowledged();
     }
 
     @Override

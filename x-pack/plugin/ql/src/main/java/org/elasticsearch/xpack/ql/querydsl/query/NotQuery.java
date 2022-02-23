@@ -60,11 +60,7 @@ public class NotQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        NotQuery other = (NotQuery) obj;
-        return child.equals(other.child);
+        return super.equals(obj) && obj instanceof NotQuery other && child.equals(other.child);
     }
 
     @Override

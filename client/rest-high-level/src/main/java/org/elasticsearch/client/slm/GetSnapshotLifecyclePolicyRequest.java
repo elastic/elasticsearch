@@ -26,9 +26,7 @@ public class GetSnapshotLifecyclePolicyRequest extends TimedRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetSnapshotLifecyclePolicyRequest other = (GetSnapshotLifecyclePolicyRequest) o;
-        return Arrays.equals(this.policyIds, other.policyIds);
+        return o instanceof GetSnapshotLifecyclePolicyRequest other && Arrays.equals(this.policyIds, other.policyIds);
     }
 
     @Override

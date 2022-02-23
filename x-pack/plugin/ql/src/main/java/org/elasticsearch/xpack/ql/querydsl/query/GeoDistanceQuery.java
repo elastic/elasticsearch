@@ -59,13 +59,8 @@ public class GeoDistanceQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        GeoDistanceQuery other = (GeoDistanceQuery) obj;
-        return Objects.equals(field, other.field)
+        return obj instanceof GeoDistanceQuery other
+            && Objects.equals(field, other.field)
             && Objects.equals(distance, other.distance)
             && Objects.equals(lat, other.lat)
             && Objects.equals(lon, other.lon);

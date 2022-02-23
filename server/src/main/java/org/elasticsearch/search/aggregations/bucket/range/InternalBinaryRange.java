@@ -168,13 +168,10 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Bucket bucket = (Bucket) o;
-
-            if (docCount != bucket.docCount) return false;
             // keyed and format are ignored since they are already tested on the InternalBinaryRange object
-            return Objects.equals(key, bucket.key)
+            return o instanceof Bucket bucket
+                && docCount == bucket.docCount
+                && Objects.equals(key, bucket.key)
                 && Objects.equals(from, bucket.from)
                 && Objects.equals(to, bucket.to)
                 && Objects.equals(aggregations, bucket.aggregations);
@@ -300,11 +297,11 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalBinaryRange that = (InternalBinaryRange) obj;
-        return Objects.equals(buckets, that.buckets) && Objects.equals(format, that.format) && Objects.equals(keyed, that.keyed);
+        return obj instanceof InternalBinaryRange that
+            && super.equals(obj)
+            && Objects.equals(buckets, that.buckets)
+            && Objects.equals(format, that.format)
+            && Objects.equals(keyed, that.keyed);
     }
 
     public int hashCode() {

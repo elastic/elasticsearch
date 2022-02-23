@@ -41,13 +41,7 @@ public class GetSnapshotLifecycleStatsResponse implements ToXContentObject {
         if (this == o) {
             return true;
         }
-
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        GetSnapshotLifecycleStatsResponse other = (GetSnapshotLifecycleStatsResponse) o;
-        return Objects.equals(this.stats, other.stats);
+        return o instanceof GetSnapshotLifecycleStatsResponse other && Objects.equals(this.stats, other.stats);
     }
 
     @Override

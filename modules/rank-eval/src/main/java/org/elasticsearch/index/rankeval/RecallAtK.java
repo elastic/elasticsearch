@@ -179,11 +179,9 @@ public class RecallAtK implements EvaluationMetric {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        RecallAtK other = (RecallAtK) obj;
-        return Objects.equals(relevantRatingThreshold, other.relevantRatingThreshold) && Objects.equals(k, other.k);
+        return obj instanceof RecallAtK other
+            && Objects.equals(relevantRatingThreshold, other.relevantRatingThreshold)
+            && Objects.equals(k, other.k);
     }
 
     @Override
@@ -254,11 +252,9 @@ public class RecallAtK implements EvaluationMetric {
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            RecallAtK.Detail other = (RecallAtK.Detail) obj;
-            return Objects.equals(relevantRetrieved, other.relevantRetrieved) && Objects.equals(relevant, other.relevant);
+            return obj instanceof RecallAtK.Detail other
+                && Objects.equals(relevantRetrieved, other.relevantRetrieved)
+                && Objects.equals(relevant, other.relevant);
         }
 
         @Override

@@ -41,13 +41,7 @@ public class TableIdentifier {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        TableIdentifier other = (TableIdentifier) obj;
-        return Objects.equals(index, other.index) && Objects.equals(cluster, other.cluster);
+        return obj instanceof TableIdentifier other && Objects.equals(index, other.index) && Objects.equals(cluster, other.cluster);
     }
 
     public Source source() {

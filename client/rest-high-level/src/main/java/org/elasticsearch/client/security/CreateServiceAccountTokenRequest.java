@@ -64,9 +64,8 @@ public final class CreateServiceAccountTokenRequest implements Validatable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        CreateServiceAccountTokenRequest that = (CreateServiceAccountTokenRequest) o;
-        return namespace.equals(that.namespace)
+        return o instanceof CreateServiceAccountTokenRequest that
+            && namespace.equals(that.namespace)
             && serviceName.equals(that.serviceName)
             && Objects.equals(tokenName, that.tokenName)
             && refreshPolicy == that.refreshPolicy;

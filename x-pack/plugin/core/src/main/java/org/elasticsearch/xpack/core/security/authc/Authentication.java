@@ -338,9 +338,8 @@ public class Authentication implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Authentication that = (Authentication) o;
-        return user.equals(that.user)
+        return o instanceof Authentication that
+            && user.equals(that.user)
             && authenticatedBy.equals(that.authenticatedBy)
             && Objects.equals(lookedUpBy, that.lookedUpBy)
             && version.equals(that.version)
@@ -524,13 +523,10 @@ public class Authentication implements ToXContentObject {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            RealmRef realmRef = (RealmRef) o;
-
-            if (nodeName.equals(realmRef.nodeName) == false) return false;
-            if (type.equals(realmRef.type) == false) return false;
-            return Objects.equals(domain, realmRef.domain);
+            return o instanceof RealmRef realmRef
+                && nodeName.equals(realmRef.nodeName)
+                && type.equals(realmRef.type)
+                && Objects.equals(domain, realmRef.domain);
         }
 
         @Override

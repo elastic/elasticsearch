@@ -55,11 +55,7 @@ public class LongScriptFieldTermsQuery extends AbstractLongScriptFieldQuery {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        LongScriptFieldTermsQuery other = (LongScriptFieldTermsQuery) obj;
-        return terms.equals(other.terms);
+        return super.equals(obj) && obj instanceof LongScriptFieldTermsQuery other && terms.equals(other.terms);
     }
 
     LongSet terms() {

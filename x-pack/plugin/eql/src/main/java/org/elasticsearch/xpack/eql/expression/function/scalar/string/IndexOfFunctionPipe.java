@@ -102,13 +102,8 @@ public class IndexOfFunctionPipe extends Pipe {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        IndexOfFunctionPipe other = (IndexOfFunctionPipe) obj;
-        return Objects.equals(input(), other.input())
+        return obj instanceof IndexOfFunctionPipe other
+            && Objects.equals(input(), other.input())
             && Objects.equals(substring(), other.substring())
             && Objects.equals(start(), other.start())
             && Objects.equals(isCaseInsensitive(), other.isCaseInsensitive());

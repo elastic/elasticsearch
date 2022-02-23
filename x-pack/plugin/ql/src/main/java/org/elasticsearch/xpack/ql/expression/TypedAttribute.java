@@ -40,6 +40,6 @@ public abstract class TypedAttribute extends Attribute {
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(dataType, ((TypedAttribute) obj).dataType);
+        return obj instanceof TypedAttribute that && super.equals(obj) && Objects.equals(dataType, that.dataType);
     }
 }

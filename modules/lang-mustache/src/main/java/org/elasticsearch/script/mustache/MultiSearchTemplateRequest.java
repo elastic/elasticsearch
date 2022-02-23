@@ -122,9 +122,8 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        MultiSearchTemplateRequest that = (MultiSearchTemplateRequest) o;
-        return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests
+        return o instanceof MultiSearchTemplateRequest that
+            && maxConcurrentSearchRequests == that.maxConcurrentSearchRequests
             && Objects.equals(requests, that.requests)
             && Objects.equals(indicesOptions, that.indicesOptions);
     }

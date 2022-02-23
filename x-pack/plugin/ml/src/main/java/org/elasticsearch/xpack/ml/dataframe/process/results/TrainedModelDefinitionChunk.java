@@ -76,9 +76,10 @@ public class TrainedModelDefinitionChunk implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TrainedModelDefinitionChunk that = (TrainedModelDefinitionChunk) o;
-        return docNum == that.docNum && Objects.equals(definition, that.definition) && Objects.equals(eos, that.eos);
+        return o instanceof TrainedModelDefinitionChunk that
+            && docNum == that.docNum
+            && Objects.equals(definition, that.definition)
+            && Objects.equals(eos, that.eos);
     }
 
     @Override

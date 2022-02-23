@@ -72,9 +72,8 @@ public class MainResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        MainResponse that = (MainResponse) o;
-        return nodeName.equals(that.nodeName)
+        return o instanceof MainResponse that
+            && nodeName.equals(that.nodeName)
             && version.equals(that.version)
             && clusterName.equals(that.clusterName)
             && clusterUuid.equals(that.clusterUuid)
@@ -187,9 +186,8 @@ public class MainResponse {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Version version = (Version) o;
-            return isSnapshot == version.isSnapshot
+            return o instanceof Version version
+                && isSnapshot == version.isSnapshot
                 && number.equals(version.number)
                 && Objects.equals(buildFlavor, version.buildFlavor)
                 && Objects.equals(buildType, version.buildType)

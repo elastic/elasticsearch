@@ -44,10 +44,9 @@ public class DataAttachment implements EmailAttachmentParser.EmailAttachment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        DataAttachment otherDataAttachment = (DataAttachment) o;
-        return Objects.equals(id, otherDataAttachment.id) && Objects.equals(dataAttachment, otherDataAttachment.dataAttachment);
+        return o instanceof DataAttachment otherDataAttachment
+            && Objects.equals(id, otherDataAttachment.id)
+            && Objects.equals(dataAttachment, otherDataAttachment.dataAttachment);
     }
 
     @Override

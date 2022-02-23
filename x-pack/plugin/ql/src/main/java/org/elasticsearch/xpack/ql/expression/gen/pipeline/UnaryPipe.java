@@ -86,13 +86,8 @@ public final class UnaryPipe extends Pipe {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        UnaryPipe other = (UnaryPipe) obj;
-        return Objects.equals(action, other.action)
+        return obj instanceof UnaryPipe other
+            && Objects.equals(action, other.action)
             && Objects.equals(child, other.child)
             && Objects.equals(expression(), other.expression());
     }

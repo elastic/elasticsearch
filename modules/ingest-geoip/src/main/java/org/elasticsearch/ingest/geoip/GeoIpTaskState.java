@@ -94,9 +94,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GeoIpTaskState that = (GeoIpTaskState) o;
-        return databases.equals(that.databases);
+        return o instanceof GeoIpTaskState that && databases.equals(that.databases);
     }
 
     @Override

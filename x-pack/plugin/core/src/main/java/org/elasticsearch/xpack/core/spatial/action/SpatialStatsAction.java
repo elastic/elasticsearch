@@ -139,9 +139,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response other = (Response) o;
-            return Objects.equals(getStats(), other.getStats());
+            return o instanceof Response other && Objects.equals(getStats(), other.getStats());
         }
     }
 
@@ -171,9 +169,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NodeResponse that = (NodeResponse) o;
-            return counters.equals(that.counters) && getNode().equals(that.getNode());
+            return o instanceof NodeResponse that && counters.equals(that.counters) && getNode().equals(that.getNode());
         }
 
         @Override

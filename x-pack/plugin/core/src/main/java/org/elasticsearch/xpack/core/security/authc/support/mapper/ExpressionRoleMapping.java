@@ -179,11 +179,8 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final ExpressionRoleMapping that = (ExpressionRoleMapping) o;
-        return this.enabled == that.enabled
+        return o instanceof ExpressionRoleMapping that
+            && this.enabled == that.enabled
             && Objects.equals(this.name, that.name)
             && Objects.equals(this.expression, that.expression)
             && Objects.equals(this.roles, that.roles)

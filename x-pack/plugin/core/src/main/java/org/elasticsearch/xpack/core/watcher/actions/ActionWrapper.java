@@ -271,11 +271,8 @@ public class ActionWrapper implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ActionWrapper that = (ActionWrapper) o;
-
-        return Objects.equals(id, that.id)
+        return o instanceof ActionWrapper that
+            && Objects.equals(id, that.id)
             && Objects.equals(condition, that.condition)
             && Objects.equals(transform, that.transform)
             && Objects.equals(action, that.action);

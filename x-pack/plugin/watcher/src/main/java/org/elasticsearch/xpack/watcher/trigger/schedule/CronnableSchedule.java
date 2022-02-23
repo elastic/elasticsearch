@@ -55,11 +55,7 @@ public abstract class CronnableSchedule implements Schedule {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        final CronnableSchedule other = (CronnableSchedule) obj;
-        return Objects.deepEquals(this.crons, other.crons);
+        return obj instanceof final CronnableSchedule other && Objects.deepEquals(this.crons, other.crons);
     }
 
     static Cron[] crons(String... expressions) {

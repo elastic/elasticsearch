@@ -553,9 +553,8 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        InnerHitBuilder that = (InnerHitBuilder) o;
-        return ignoreUnmapped == that.ignoreUnmapped
+        return o instanceof InnerHitBuilder that
+            && ignoreUnmapped == that.ignoreUnmapped
             && from == that.from
             && size == that.size
             && explain == that.explain

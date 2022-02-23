@@ -93,9 +93,8 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        MlScalingReason that = (MlScalingReason) o;
-        return Objects.equals(waitingAnalyticsJobs, that.waitingAnalyticsJobs)
+        return o instanceof MlScalingReason that
+            && Objects.equals(waitingAnalyticsJobs, that.waitingAnalyticsJobs)
             && Objects.equals(waitingAnomalyJobs, that.waitingAnomalyJobs)
             && Objects.equals(waitingModels, that.waitingModels)
             && Objects.equals(passedConfiguration, that.passedConfiguration)

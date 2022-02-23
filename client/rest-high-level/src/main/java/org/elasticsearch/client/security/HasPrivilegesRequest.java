@@ -71,11 +71,8 @@ public final class HasPrivilegesRequest implements Validatable, ToXContentObject
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final HasPrivilegesRequest that = (HasPrivilegesRequest) o;
-        return Objects.equals(clusterPrivileges, that.clusterPrivileges)
+        return o instanceof HasPrivilegesRequest that
+            && Objects.equals(clusterPrivileges, that.clusterPrivileges)
             && Objects.equals(indexPrivileges, that.indexPrivileges)
             && Objects.equals(applicationPrivileges, that.applicationPrivileges);
     }

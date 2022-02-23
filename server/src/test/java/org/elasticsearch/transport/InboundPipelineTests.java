@@ -325,9 +325,8 @@ public class InboundPipelineTests extends ESTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            MessageData that = (MessageData) o;
-            return requestId == that.requestId
+            return o instanceof MessageData that
+                && requestId == that.requestId
                 && isRequest == that.isRequest
                 && Objects.equals(compressionScheme, that.compressionScheme)
                 && Objects.equals(version, that.version)

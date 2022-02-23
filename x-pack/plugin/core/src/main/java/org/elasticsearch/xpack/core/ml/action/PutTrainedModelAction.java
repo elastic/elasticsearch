@@ -105,9 +105,9 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(config, request.config) && deferDefinitionDecompression == request.deferDefinitionDecompression;
+            return o instanceof Request request
+                && Objects.equals(config, request.config)
+                && deferDefinitionDecompression == request.deferDefinitionDecompression;
         }
 
         @Override
@@ -151,9 +151,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(trainedModelConfig, response.trainedModelConfig);
+            return o instanceof Response response && Objects.equals(trainedModelConfig, response.trainedModelConfig);
         }
 
         @Override

@@ -73,9 +73,7 @@ public class BlobPath {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BlobPath other = (BlobPath) o;
-        return paths.equals(other.paths);
+        return o instanceof BlobPath other && paths.equals(other.paths);
     }
 
     @Override

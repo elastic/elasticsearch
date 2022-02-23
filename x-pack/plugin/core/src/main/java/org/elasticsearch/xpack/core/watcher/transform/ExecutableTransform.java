@@ -42,11 +42,7 @@ public abstract class ExecutableTransform<T extends Transform, R extends Transfo
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ExecutableTransform<?, ?> that = (ExecutableTransform<?, ?>) o;
-
-        return transform.equals(that.transform);
+        return o instanceof ExecutableTransform<?, ?> that && transform.equals(that.transform);
     }
 
     @Override

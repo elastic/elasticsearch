@@ -227,11 +227,8 @@ public class HttpRequestTemplate implements ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        HttpRequestTemplate that = (HttpRequestTemplate) o;
-        return port == that.port
+        return o instanceof HttpRequestTemplate that
+            && port == that.port
             && scheme == that.scheme
             && Objects.equals(host, that.host)
             && method == that.method

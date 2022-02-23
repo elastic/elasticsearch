@@ -165,11 +165,8 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            BucketInfo that = (BucketInfo) obj;
-            return Objects.deepEquals(roundingInfos, that.roundingInfos)
+            return obj instanceof BucketInfo that
+                && Objects.deepEquals(roundingInfos, that.roundingInfos)
                 && Objects.equals(roundingIdx, that.roundingIdx)
                 && Objects.equals(emptySubAggregations, that.emptySubAggregations);
         }
@@ -626,11 +623,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalAutoDateHistogram that = (InternalAutoDateHistogram) obj;
-        return Objects.equals(buckets, that.buckets) && Objects.equals(format, that.format) && Objects.equals(bucketInfo, that.bucketInfo);
+        return obj instanceof InternalAutoDateHistogram that
+            && super.equals(obj)
+            && Objects.equals(buckets, that.buckets)
+            && Objects.equals(format, that.format)
+            && Objects.equals(bucketInfo, that.bucketInfo);
     }
 
     @Override

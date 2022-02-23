@@ -63,12 +63,6 @@ public class AggPathInput extends CommonNonExecutableInput<AggRef> {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        AggPathInput other = (AggPathInput) obj;
-        return Objects.equals(context(), other.context()) && Objects.equals(action, other.action);
+        return obj instanceof AggPathInput other && Objects.equals(context(), other.context()) && Objects.equals(action, other.action);
     }
 }

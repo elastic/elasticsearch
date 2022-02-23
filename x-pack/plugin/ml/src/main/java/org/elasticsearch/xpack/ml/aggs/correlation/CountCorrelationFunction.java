@@ -80,9 +80,7 @@ public class CountCorrelationFunction implements CorrelationFunction {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        CountCorrelationFunction other = (CountCorrelationFunction) obj;
-        return Objects.equals(indicator, other.indicator);
+        return obj instanceof CountCorrelationFunction other && Objects.equals(indicator, other.indicator);
     }
 
     /**

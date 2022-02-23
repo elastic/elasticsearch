@@ -313,10 +313,6 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalBoxplot that = (InternalBoxplot) obj;
-        return Objects.equals(state, that.state);
+        return obj instanceof InternalBoxplot that && super.equals(obj) && Objects.equals(state, that.state);
     }
 }

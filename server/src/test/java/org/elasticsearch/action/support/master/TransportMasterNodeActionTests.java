@@ -196,9 +196,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return identity == response.identity;
+            return o instanceof Response response && identity == response.identity;
         }
 
         @Override

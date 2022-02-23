@@ -56,15 +56,9 @@ public abstract class CompositeRoleMapperExpression implements RoleMapperExpress
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        final CompositeRoleMapperExpression that = (CompositeRoleMapperExpression) o;
-        if (Objects.equals(this.getName(), that.getName()) == false) {
-            return false;
-        }
-        return Objects.equals(this.getElements(), that.getElements());
+        return o instanceof CompositeRoleMapperExpression that
+            && Objects.equals(this.getName(), that.getName()) != false
+            && Objects.equals(this.getElements(), that.getElements());
     }
 
     @Override

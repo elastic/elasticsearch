@@ -223,9 +223,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                ContextSetup that = (ContextSetup) o;
-                return Objects.equals(index, that.index)
+                return o instanceof ContextSetup that
+                    && Objects.equals(index, that.index)
                     && Objects.equals(document, that.document)
                     && Objects.equals(query, that.query)
                     && Objects.equals(xContentType, that.xContentType);
@@ -368,9 +367,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(script, request.script)
+            return o instanceof Request request
+                && Objects.equals(script, request.script)
                 && Objects.equals(context, request.context)
                 && Objects.equals(contextSetup, request.contextSetup);
         }
@@ -423,9 +421,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(result, response.result);
+            return o instanceof Response response && Objects.equals(result, response.result);
         }
 
         @Override

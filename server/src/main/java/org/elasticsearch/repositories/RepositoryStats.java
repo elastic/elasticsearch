@@ -49,9 +49,7 @@ public class RepositoryStats implements Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RepositoryStats that = (RepositoryStats) o;
-        return requestCounts.equals(that.requestCounts);
+        return o instanceof RepositoryStats that && requestCounts.equals(that.requestCounts);
     }
 
     @Override

@@ -198,11 +198,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(config, other.config) && super.equals(obj);
+            return obj instanceof Response other && Objects.equals(config, other.config) && super.equals(obj);
         }
 
         @Override

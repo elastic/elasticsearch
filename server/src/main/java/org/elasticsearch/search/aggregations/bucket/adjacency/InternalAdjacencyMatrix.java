@@ -233,10 +233,6 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalAdjacencyMatrix that = (InternalAdjacencyMatrix) obj;
-        return Objects.equals(buckets, that.buckets);
+        return obj instanceof InternalAdjacencyMatrix that && super.equals(obj) && Objects.equals(buckets, that.buckets);
     }
 }

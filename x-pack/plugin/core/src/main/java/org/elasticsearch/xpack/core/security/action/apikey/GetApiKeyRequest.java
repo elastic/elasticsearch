@@ -192,11 +192,8 @@ public final class GetApiKeyRequest extends ActionRequest {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        GetApiKeyRequest that = (GetApiKeyRequest) o;
-        return ownedByAuthenticatedUser == that.ownedByAuthenticatedUser
+        return o instanceof GetApiKeyRequest that
+            && ownedByAuthenticatedUser == that.ownedByAuthenticatedUser
             && Objects.equals(realmName, that.realmName)
             && Objects.equals(userName, that.userName)
             && Objects.equals(apiKeyId, that.apiKeyId)

@@ -95,13 +95,8 @@ public class EndsWithFunctionPipe extends Pipe {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        EndsWithFunctionPipe other = (EndsWithFunctionPipe) obj;
-        return Objects.equals(input(), other.input())
+        return obj instanceof EndsWithFunctionPipe other
+            && Objects.equals(input(), other.input())
             && Objects.equals(pattern(), other.pattern())
             && Objects.equals(isCaseInsensitive(), other.isCaseInsensitive());
     }

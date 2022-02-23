@@ -214,11 +214,9 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalGeoBounds other = (InternalGeoBounds) obj;
-        return top == other.top
+        return obj instanceof InternalGeoBounds other
+            && super.equals(obj)
+            && top == other.top
             && bottom == other.bottom
             && posLeft == other.posLeft
             && posRight == other.posRight

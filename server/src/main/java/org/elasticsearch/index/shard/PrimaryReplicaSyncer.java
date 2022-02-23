@@ -488,14 +488,11 @@ public class PrimaryReplicaSyncer {
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-
-                Status status = (Status) o;
-
-                if (totalOperations != status.totalOperations) return false;
-                if (resyncedOperations != status.resyncedOperations) return false;
-                if (skippedOperations != status.skippedOperations) return false;
-                return phase.equals(status.phase);
+                return o instanceof Status status
+                    && totalOperations == status.totalOperations
+                    && resyncedOperations == status.resyncedOperations
+                    && skippedOperations == status.skippedOperations
+                    && phase.equals(status.phase);
             }
 
             @Override

@@ -133,10 +133,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Request that = (Request) o;
-            return Objects.equals(id, that.id) && allowNoMatch == that.allowNoMatch && force == that.force;
+            return o instanceof Request that && Objects.equals(id, that.id) && allowNoMatch == that.allowNoMatch && force == that.force;
         }
     }
 
@@ -177,9 +174,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response that = (Response) o;
-            return undeployed == that.undeployed;
+            return o instanceof Response that && undeployed == that.undeployed;
         }
     }
 }

@@ -33,13 +33,7 @@ public class ScheduleTrigger implements Trigger {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ScheduleTrigger trigger = (ScheduleTrigger) o;
-
-        if (schedule.equals(trigger.schedule) == false) return false;
-
-        return true;
+        return o instanceof ScheduleTrigger trigger && schedule.equals(trigger.schedule);
     }
 
     @Override

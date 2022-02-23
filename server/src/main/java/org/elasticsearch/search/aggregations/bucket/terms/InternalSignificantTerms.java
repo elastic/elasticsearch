@@ -136,12 +136,8 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            Bucket<?> that = (Bucket<?>) o;
-            return Double.compare(that.score, score) == 0
+            return o instanceof Bucket<?> that
+                && Double.compare(that.score, score) == 0
                 && Objects.equals(aggregations, that.aggregations)
                 && Objects.equals(format, that.format);
         }
@@ -301,10 +297,9 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalSignificantTerms<?, ?> that = (InternalSignificantTerms<?, ?>) obj;
-        return Objects.equals(minDocCount, that.minDocCount) && Objects.equals(requiredSize, that.requiredSize);
+        return obj instanceof InternalSignificantTerms<?, ?> that
+            && super.equals(obj)
+            && Objects.equals(minDocCount, that.minDocCount)
+            && Objects.equals(requiredSize, that.requiredSize);
     }
 }

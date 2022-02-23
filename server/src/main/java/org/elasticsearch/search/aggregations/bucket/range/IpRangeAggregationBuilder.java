@@ -175,11 +175,10 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Range that = (Range) obj;
-            return Objects.equals(key, that.key) && Objects.equals(from, that.from) && Objects.equals(to, that.to);
+            return obj instanceof Range that
+                && Objects.equals(key, that.key)
+                && Objects.equals(from, that.from)
+                && Objects.equals(to, that.to);
         }
 
         @Override
@@ -415,10 +414,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        IpRangeAggregationBuilder that = (IpRangeAggregationBuilder) obj;
-        return keyed == that.keyed && ranges.equals(that.ranges);
+        return obj instanceof IpRangeAggregationBuilder that && super.equals(obj) && keyed == that.keyed && ranges.equals(that.ranges);
     }
 
     @Override

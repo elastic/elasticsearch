@@ -241,9 +241,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetIndexResponse that = (GetIndexResponse) o;
-        return Arrays.equals(indices, that.indices)
+        return o instanceof GetIndexResponse that
+            && Arrays.equals(indices, that.indices)
             && Objects.equals(aliases, that.aliases)
             && Objects.equals(mappings, that.mappings)
             && Objects.equals(settings, that.settings)

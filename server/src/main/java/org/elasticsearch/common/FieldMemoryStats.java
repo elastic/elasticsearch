@@ -92,9 +92,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<ObjectLongCur
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        FieldMemoryStats that = (FieldMemoryStats) o;
-        return Objects.equals(stats, that.stats);
+        return o instanceof FieldMemoryStats that && Objects.equals(stats, that.stats);
     }
 
     @Override

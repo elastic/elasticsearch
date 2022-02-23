@@ -44,11 +44,7 @@ public class SingleMessageFieldInfo implements ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SingleMessageFieldInfo that = (SingleMessageFieldInfo) o;
-        return Objects.equals(message, that.message);
+        return o instanceof SingleMessageFieldInfo that && Objects.equals(message, that.message);
     }
 
     @Override

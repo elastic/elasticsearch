@@ -57,7 +57,6 @@ public abstract class Function extends Expression {
         if (this == obj) {
             return true;
         }
-
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }

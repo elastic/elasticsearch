@@ -47,12 +47,8 @@ public abstract class LeafInput<T> extends Pipe {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        LeafInput<?> other = (LeafInput<?>) obj;
-        return Objects.equals(context(), other.context()) && Objects.equals(expression(), other.expression());
+        return obj instanceof LeafInput<?> other
+            && Objects.equals(context(), other.context())
+            && Objects.equals(expression(), other.expression());
     }
 }

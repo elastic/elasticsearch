@@ -132,12 +132,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        SnapshotDeletionsInProgress that = (SnapshotDeletionsInProgress) o;
-        return entries.equals(that.entries);
+        return o instanceof SnapshotDeletionsInProgress that && entries.equals(that.entries);
     }
 
     @Override
@@ -273,11 +268,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Entry that = (Entry) o;
-            return repoName.equals(that.repoName)
+            return o instanceof Entry that
+                && repoName.equals(that.repoName)
                 && snapshots.equals(that.snapshots)
                 && startTime == that.startTime
                 && repositoryStateId == that.repositoryStateId

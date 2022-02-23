@@ -103,9 +103,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Arrays.equals(names, request.names);
+            return o instanceof Request request && Arrays.equals(names, request.names);
         }
 
         @Override
@@ -227,9 +225,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ResolvedIndex index = (ResolvedIndex) o;
-            return getName().equals(index.getName())
+            return o instanceof ResolvedIndex index
+                && getName().equals(index.getName())
                 && Objects.equals(dataStream, index.dataStream)
                 && Arrays.equals(aliases, index.aliases)
                 && Arrays.equals(attributes, index.attributes);
@@ -288,9 +285,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ResolvedAlias alias = (ResolvedAlias) o;
-            return getName().equals(alias.getName()) && Arrays.equals(indices, alias.indices);
+            return o instanceof ResolvedAlias alias && getName().equals(alias.getName()) && Arrays.equals(indices, alias.indices);
         }
 
         @Override
@@ -353,9 +348,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ResolvedDataStream dataStream = (ResolvedDataStream) o;
-            return getName().equals(dataStream.getName())
+            return o instanceof ResolvedDataStream dataStream
+                && getName().equals(dataStream.getName())
                 && timestampField.equals(dataStream.timestampField)
                 && Arrays.equals(backingIndices, dataStream.backingIndices);
         }
@@ -422,9 +416,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return indices.equals(response.indices) && aliases.equals(response.aliases) && dataStreams.equals(response.dataStreams);
+            return o instanceof Response response
+                && indices.equals(response.indices)
+                && aliases.equals(response.aliases)
+                && dataStreams.equals(response.dataStreams);
         }
 
         @Override

@@ -150,9 +150,10 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ScriptContextInfo that = (ScriptContextInfo) o;
-        return Objects.equals(name, that.name) && Objects.equals(execute, that.execute) && Objects.equals(getters, that.getters);
+        return o instanceof ScriptContextInfo that
+            && Objects.equals(name, that.name)
+            && Objects.equals(execute, that.execute)
+            && Objects.equals(getters, that.getters);
     }
 
     @Override
@@ -227,9 +228,8 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ScriptMethodInfo that = (ScriptMethodInfo) o;
-            return Objects.equals(name, that.name)
+            return o instanceof ScriptMethodInfo that
+                && Objects.equals(name, that.name)
                 && Objects.equals(returnType, that.returnType)
                 && Objects.equals(parameters, that.parameters);
         }
@@ -291,9 +291,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                ParameterInfo that = (ParameterInfo) o;
-                return Objects.equals(type, that.type) && Objects.equals(name, that.name);
+                return o instanceof ParameterInfo that && Objects.equals(type, that.type) && Objects.equals(name, that.name);
             }
 
             @Override

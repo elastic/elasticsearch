@@ -876,11 +876,8 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        RoutingNodes that = (RoutingNodes) o;
-        return readOnly == that.readOnly
+        return o instanceof RoutingNodes that
+            && readOnly == that.readOnly
             && inactivePrimaryCount == that.inactivePrimaryCount
             && inactiveShardCount == that.inactiveShardCount
             && relocatingShards == that.relocatingShards
@@ -1152,11 +1149,8 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            UnassignedShards that = (UnassignedShards) o;
-            return primaries == that.primaries
+            return o instanceof UnassignedShards that
+                && primaries == that.primaries
                 && ignoredPrimaries == that.ignoredPrimaries
                 && unassigned.equals(that.unassigned)
                 && ignored.equals(that.ignored);
@@ -1384,11 +1378,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Recoveries that = (Recoveries) o;
-            return incoming == that.incoming && outgoing == that.outgoing;
+            return o instanceof Recoveries that && incoming == that.incoming && outgoing == that.outgoing;
         }
 
         @Override

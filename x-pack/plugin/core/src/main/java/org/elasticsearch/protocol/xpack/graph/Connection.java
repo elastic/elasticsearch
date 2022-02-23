@@ -177,11 +177,7 @@ public class Connection {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            ConnectionId that = (ConnectionId) o;
-            return Objects.equals(source, that.source) && Objects.equals(target, that.target);
+            return o instanceof ConnectionId that && Objects.equals(source, that.source) && Objects.equals(target, that.target);
         }
 
         @Override

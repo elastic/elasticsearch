@@ -369,11 +369,8 @@ public class Account {
                 if (this == o) {
                     return true;
                 }
-                if (o == null || getClass() != o.getClass()) {
-                    return false;
-                }
-                EmailDefaults that = (EmailDefaults) o;
-                return Objects.equals(bcc, that.bcc)
+                return o instanceof EmailDefaults that
+                    && Objects.equals(bcc, that.bcc)
                     && Objects.equals(cc, that.cc)
                     && Objects.equals(from, that.from)
                     && priority == that.priority

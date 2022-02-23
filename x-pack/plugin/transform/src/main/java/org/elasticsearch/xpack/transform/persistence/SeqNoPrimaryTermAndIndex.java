@@ -56,13 +56,10 @@ public class SeqNoPrimaryTermAndIndex {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        SeqNoPrimaryTermAndIndex other = (SeqNoPrimaryTermAndIndex) obj;
-        return Objects.equals(seqNo, other.seqNo) && Objects.equals(primaryTerm, other.primaryTerm) && Objects.equals(index, other.index);
+        return obj instanceof SeqNoPrimaryTermAndIndex other
+            && Objects.equals(seqNo, other.seqNo)
+            && Objects.equals(primaryTerm, other.primaryTerm)
+            && Objects.equals(index, other.index);
     }
 
     @Override

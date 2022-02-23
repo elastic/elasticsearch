@@ -105,13 +105,8 @@ public abstract class BinaryComparisonCaseInsensitiveFunction extends CaseInsens
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        BinaryComparisonCaseInsensitiveFunction other = (BinaryComparisonCaseInsensitiveFunction) obj;
-        return Objects.equals(left, other.left)
+        return obj instanceof BinaryComparisonCaseInsensitiveFunction other
+            && Objects.equals(left, other.left)
             && Objects.equals(right, other.right)
             && Objects.equals(isCaseInsensitive(), other.isCaseInsensitive());
     }

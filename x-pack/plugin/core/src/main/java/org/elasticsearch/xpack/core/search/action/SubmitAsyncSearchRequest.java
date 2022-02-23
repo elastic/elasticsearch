@@ -179,11 +179,8 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SubmitAsyncSearchRequest request1 = (SubmitAsyncSearchRequest) o;
-        return keepOnCompletion == request1.keepOnCompletion
+        return o instanceof SubmitAsyncSearchRequest request1
+            && keepOnCompletion == request1.keepOnCompletion
             && waitForCompletionTimeout.equals(request1.waitForCompletionTimeout)
             && keepAlive.equals(request1.keepAlive)
             && request.equals(request1.request);

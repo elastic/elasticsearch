@@ -215,9 +215,7 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Multi multi = (Multi) o;
-        return Arrays.equals(multi.processors, processors) && custom == multi.custom;
+        return o instanceof Multi multi && Arrays.equals(multi.processors, processors) && custom == multi.custom;
     }
 
     @Override

@@ -1716,9 +1716,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DeprecationWarning that = (DeprecationWarning) o;
-            return Objects.equals(message, that.message);
+            return o instanceof DeprecationWarning that && Objects.equals(message, that.message);
         }
 
         @Override

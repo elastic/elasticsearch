@@ -150,11 +150,11 @@ public class NestedQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        NestedQuery other = (NestedQuery) obj;
-        return path.equals(other.path) && fields.equals(other.fields) && child.equals(other.child);
+        return super.equals(obj)
+            && obj instanceof NestedQuery other
+            && path.equals(other.path)
+            && fields.equals(other.fields)
+            && child.equals(other.child);
     }
 
     @Override

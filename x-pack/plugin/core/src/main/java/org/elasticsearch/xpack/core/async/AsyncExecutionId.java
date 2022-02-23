@@ -59,9 +59,7 @@ public final class AsyncExecutionId {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AsyncExecutionId searchId = (AsyncExecutionId) o;
-        return docId.equals(searchId.docId) && taskId.equals(searchId.taskId);
+        return o instanceof AsyncExecutionId searchId && docId.equals(searchId.docId) && taskId.equals(searchId.taskId);
     }
 
     @Override

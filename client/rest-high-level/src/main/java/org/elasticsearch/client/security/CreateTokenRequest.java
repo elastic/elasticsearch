@@ -148,11 +148,8 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final CreateTokenRequest that = (CreateTokenRequest) o;
-        return Objects.equals(grantType, that.grantType)
+        return o instanceof CreateTokenRequest that
+            && Objects.equals(grantType, that.grantType)
             && Objects.equals(scope, that.scope)
             && Objects.equals(username, that.username)
             && Arrays.equals(password, that.password)

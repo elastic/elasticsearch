@@ -47,9 +47,9 @@ public class ExecuteWatchResponse extends ActionResponse implements ToXContentOb
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ExecuteWatchResponse that = (ExecuteWatchResponse) o;
-        return Objects.equals(recordId, that.recordId) && Objects.equals(recordSource, that.recordSource);
+        return o instanceof ExecuteWatchResponse that
+            && Objects.equals(recordId, that.recordId)
+            && Objects.equals(recordSource, that.recordSource);
     }
 
     @Override

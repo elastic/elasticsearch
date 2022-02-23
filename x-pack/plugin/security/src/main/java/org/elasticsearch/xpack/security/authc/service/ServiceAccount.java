@@ -80,9 +80,7 @@ public interface ServiceAccount {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ServiceAccountId that = (ServiceAccountId) o;
-            return namespace.equals(that.namespace) && serviceName.equals(that.serviceName);
+            return o instanceof ServiceAccountId that && namespace.equals(that.namespace) && serviceName.equals(that.serviceName);
         }
 
         @Override

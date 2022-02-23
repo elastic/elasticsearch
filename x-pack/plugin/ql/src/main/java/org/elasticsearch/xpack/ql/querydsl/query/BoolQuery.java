@@ -92,11 +92,11 @@ public class BoolQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        BoolQuery other = (BoolQuery) obj;
-        return isAnd == other.isAnd && left.equals(other.left) && right.equals(other.right);
+        return super.equals(obj)
+            && obj instanceof BoolQuery other
+            && isAnd == other.isAnd
+            && left.equals(other.left)
+            && right.equals(other.right);
     }
 
     @Override

@@ -489,10 +489,9 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        GeoDistanceAggregationBuilder other = (GeoDistanceAggregationBuilder) obj;
-        return Objects.equals(origin, other.origin)
+        return obj instanceof GeoDistanceAggregationBuilder other
+            && super.equals(obj)
+            && Objects.equals(origin, other.origin)
             && Objects.equals(ranges, other.ranges)
             && Objects.equals(keyed, other.keyed)
             && Objects.equals(distanceType, other.distanceType)

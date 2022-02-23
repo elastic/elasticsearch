@@ -82,9 +82,7 @@ public class ResultsFieldUpdate implements InferenceConfigUpdate {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ResultsFieldUpdate that = (ResultsFieldUpdate) o;
-        return Objects.equals(resultsField, that.resultsField);
+        return o instanceof ResultsFieldUpdate that && Objects.equals(resultsField, that.resultsField);
     }
 
     @Override

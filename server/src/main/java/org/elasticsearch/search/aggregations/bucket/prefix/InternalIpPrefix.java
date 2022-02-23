@@ -153,9 +153,8 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Bucket bucket = (Bucket) o;
-            return isIpv6 == bucket.isIpv6
+            return o instanceof Bucket bucket
+                && isIpv6 == bucket.isIpv6
                 && prefixLength == bucket.prefixLength
                 && appendPrefixLength == bucket.appendPrefixLength
                 && docCount == bucket.docCount
@@ -352,10 +351,11 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        InternalIpPrefix that = (InternalIpPrefix) o;
-        return minDocCount == that.minDocCount && Objects.equals(format, that.format) && Objects.equals(buckets, that.buckets);
+        return o instanceof InternalIpPrefix that
+            && super.equals(o)
+            && minDocCount == that.minDocCount
+            && Objects.equals(format, that.format)
+            && Objects.equals(buckets, that.buckets);
     }
 
     @Override

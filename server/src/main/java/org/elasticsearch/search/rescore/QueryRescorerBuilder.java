@@ -186,11 +186,8 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        QueryRescorerBuilder other = (QueryRescorerBuilder) obj;
-        return super.equals(obj)
+        return obj instanceof QueryRescorerBuilder other
+            && super.equals(obj)
             && Objects.equals(scoreMode, other.scoreMode)
             && Objects.equals(queryWeight, other.queryWeight)
             && Objects.equals(rescoreQueryWeight, other.rescoreQueryWeight)

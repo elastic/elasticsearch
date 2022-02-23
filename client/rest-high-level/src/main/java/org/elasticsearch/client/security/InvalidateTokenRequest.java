@@ -126,9 +126,8 @@ public final class InvalidateTokenRequest implements Validatable, ToXContentObje
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        InvalidateTokenRequest that = (InvalidateTokenRequest) o;
-        return Objects.equals(accessToken, that.accessToken)
+        return o instanceof InvalidateTokenRequest that
+            && Objects.equals(accessToken, that.accessToken)
             && Objects.equals(refreshToken, that.refreshToken)
             && Objects.equals(realmName, that.realmName)
             && Objects.equals(username, that.username);

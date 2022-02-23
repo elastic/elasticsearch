@@ -78,11 +78,8 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        RuntimeFieldStats that = (RuntimeFieldStats) o;
-        return count == that.count
+        return o instanceof RuntimeFieldStats that
+            && count == that.count
             && indexCount == that.indexCount
             && scriptLessCount == that.scriptLessCount
             && shadowedCount == that.shadowedCount

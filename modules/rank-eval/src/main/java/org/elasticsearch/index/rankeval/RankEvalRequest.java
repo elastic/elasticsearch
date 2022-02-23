@@ -136,11 +136,8 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        RankEvalRequest that = (RankEvalRequest) o;
-        return Objects.equals(indicesOptions, that.indicesOptions)
+        return o instanceof RankEvalRequest that
+            && Objects.equals(indicesOptions, that.indicesOptions)
             && Arrays.equals(indices, that.indices)
             && Objects.equals(rankingEvaluationSpec, that.rankingEvaluationSpec)
             && Objects.equals(searchType, that.searchType);

@@ -42,11 +42,7 @@ public class DelayableWriteableTests extends ESTestCase {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Example other = (Example) obj;
-            return s.equals(other.s);
+            return obj instanceof Example other && s.equals(other.s);
         }
 
         @Override
@@ -73,11 +69,7 @@ public class DelayableWriteableTests extends ESTestCase {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            NamedHolder other = (NamedHolder) obj;
-            return e.equals(other.e);
+            return obj instanceof NamedHolder other && e.equals(other.e);
         }
 
         @Override

@@ -147,11 +147,8 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        NestedSortBuilder that = (NestedSortBuilder) obj;
-        return Objects.equals(path, that.path)
+        return obj instanceof NestedSortBuilder that
+            && Objects.equals(path, that.path)
             && Objects.equals(filter, that.filter)
             && Objects.equals(maxChildren, that.maxChildren)
             && Objects.equals(nestedSort, that.nestedSort);

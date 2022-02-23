@@ -61,13 +61,7 @@ public class GetSnapshotLifecyclePolicyResponse implements ToXContentObject {
         if (this == o) {
             return true;
         }
-
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        GetSnapshotLifecyclePolicyResponse other = (GetSnapshotLifecyclePolicyResponse) o;
-        return Objects.equals(this.policies, other.policies);
+        return o instanceof GetSnapshotLifecyclePolicyResponse other && Objects.equals(this.policies, other.policies);
     }
 
     @Override

@@ -141,9 +141,7 @@ public class Exponent implements StrictlyParsedOutputAggregator, LenientlyParsed
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Exponent that = (Exponent) o;
-        return Arrays.equals(weights, that.weights);
+        return o instanceof Exponent that && Arrays.equals(weights, that.weights);
     }
 
     @Override

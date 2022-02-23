@@ -62,11 +62,8 @@ public class StartTransformRequest implements Validatable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        StartTransformRequest other = (StartTransformRequest) obj;
-        return Objects.equals(this.id, other.id) && Objects.equals(this.timeout, other.timeout);
+        return obj instanceof StartTransformRequest other
+            && Objects.equals(this.id, other.id)
+            && Objects.equals(this.timeout, other.timeout);
     }
 }

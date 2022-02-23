@@ -89,12 +89,6 @@ public class ToNumberFunctionPipe extends Pipe {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        ToNumberFunctionPipe other = (ToNumberFunctionPipe) obj;
-        return Objects.equals(value(), other.value()) && Objects.equals(base(), other.base());
+        return obj instanceof ToNumberFunctionPipe other && Objects.equals(value(), other.value()) && Objects.equals(base(), other.base());
     }
 }

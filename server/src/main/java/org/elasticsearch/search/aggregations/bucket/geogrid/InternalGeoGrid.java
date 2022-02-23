@@ -147,11 +147,10 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalGeoGrid<?> other = (InternalGeoGrid<?>) obj;
-        return Objects.equals(requiredSize, other.requiredSize) && Objects.equals(buckets, other.buckets);
+        return obj instanceof InternalGeoGrid<?> other
+            && super.equals(obj)
+            && Objects.equals(requiredSize, other.requiredSize)
+            && Objects.equals(buckets, other.buckets);
     }
 
 }

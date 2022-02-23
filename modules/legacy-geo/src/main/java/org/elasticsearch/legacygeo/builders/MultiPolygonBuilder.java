@@ -202,10 +202,8 @@ public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygon, Multi
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        MultiPolygonBuilder other = (MultiPolygonBuilder) obj;
-        return Objects.equals(polygons, other.polygons) && Objects.equals(orientation, other.orientation);
+        return obj instanceof MultiPolygonBuilder other
+            && Objects.equals(polygons, other.polygons)
+            && Objects.equals(orientation, other.orientation);
     }
 }

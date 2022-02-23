@@ -66,11 +66,8 @@ public class SlackMessage implements MessageElement {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        SlackMessage that = (SlackMessage) o;
-
-        return Objects.equals(from, that.from)
+        return o instanceof SlackMessage that
+            && Objects.equals(from, that.from)
             && Arrays.equals(to, that.to)
             && Objects.equals(icon, that.icon)
             && Objects.equals(text, that.text)
@@ -170,11 +167,8 @@ public class SlackMessage implements MessageElement {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Template template = (Template) o;
-
-            return Objects.equals(from, template.from)
+            return o instanceof Template template
+                && Objects.equals(from, template.from)
                 && Objects.equals(text, template.text)
                 && Objects.equals(icon, template.icon)
                 && Objects.equals(dynamicAttachments, template.dynamicAttachments)

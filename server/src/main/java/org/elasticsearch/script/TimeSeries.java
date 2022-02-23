@@ -82,9 +82,8 @@ public class TimeSeries implements Writeable, ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TimeSeries that = (TimeSeries) o;
-        return fiveMinutes == that.fiveMinutes
+        return o instanceof TimeSeries that
+            && fiveMinutes == that.fiveMinutes
             && fifteenMinutes == that.fifteenMinutes
             && twentyFourHours == that.twentyFourHours
             && total == that.total;

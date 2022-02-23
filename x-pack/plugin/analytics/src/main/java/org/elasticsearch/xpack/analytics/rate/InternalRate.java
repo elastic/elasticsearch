@@ -107,10 +107,9 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalRate that = (InternalRate) obj;
-        return Objects.equals(sum, that.sum) && Objects.equals(divisor, that.divisor);
+        return obj instanceof InternalRate that
+            && super.equals(obj)
+            && Objects.equals(sum, that.sum)
+            && Objects.equals(divisor, that.divisor);
     }
 }

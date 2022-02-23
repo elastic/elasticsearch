@@ -189,10 +189,8 @@ public class Hyperparameters implements ToXContentObject, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Hyperparameters that = (Hyperparameters) o;
-        return alpha == that.alpha
+        return o instanceof Hyperparameters that
+            && alpha == that.alpha
             && downsampleFactor == that.downsampleFactor
             && eta == that.eta
             && etaGrowthRatePerTree == that.etaGrowthRatePerTree

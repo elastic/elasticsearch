@@ -595,13 +595,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            JvmVersion jvm = (JvmVersion) o;
-
-            return vmVersion.equals(jvm.vmVersion) && vmVendor.equals(jvm.vmVendor);
+            return o instanceof JvmVersion jvm && vmVersion.equals(jvm.vmVersion) && vmVendor.equals(jvm.vmVendor);
         }
 
         @Override

@@ -213,11 +213,8 @@ public class PrecisionAtK implements EvaluationMetric {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        PrecisionAtK other = (PrecisionAtK) obj;
-        return Objects.equals(relevantRatingThreshold, other.relevantRatingThreshold)
+        return obj instanceof PrecisionAtK other
+            && Objects.equals(relevantRatingThreshold, other.relevantRatingThreshold)
             && Objects.equals(ignoreUnlabeled, other.ignoreUnlabeled)
             && Objects.equals(k, other.k);
     }
@@ -290,11 +287,9 @@ public class PrecisionAtK implements EvaluationMetric {
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            PrecisionAtK.Detail other = (PrecisionAtK.Detail) obj;
-            return Objects.equals(relevantRetrieved, other.relevantRetrieved) && Objects.equals(retrieved, other.retrieved);
+            return obj instanceof PrecisionAtK.Detail other
+                && Objects.equals(relevantRetrieved, other.relevantRetrieved)
+                && Objects.equals(retrieved, other.retrieved);
         }
 
         @Override

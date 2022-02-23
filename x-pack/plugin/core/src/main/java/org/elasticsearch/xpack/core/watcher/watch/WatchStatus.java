@@ -147,11 +147,8 @@ public class WatchStatus implements ToXContentObject, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        WatchStatus that = (WatchStatus) o;
-
-        return Objects.equals(lastChecked, that.lastChecked)
+        return o instanceof WatchStatus that
+            && Objects.equals(lastChecked, that.lastChecked)
             && Objects.equals(lastMetCondition, that.lastMetCondition)
             && Objects.equals(version, that.version)
             && Objects.equals(executionState, that.executionState)

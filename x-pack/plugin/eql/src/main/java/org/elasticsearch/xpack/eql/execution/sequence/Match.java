@@ -52,13 +52,7 @@ class Match implements Accountable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Match other = (Match) obj;
-        return Objects.equals(ordinal, other.ordinal) && Objects.equals(hit, other.hit);
+        return obj instanceof Match other && Objects.equals(ordinal, other.ordinal) && Objects.equals(hit, other.hit);
     }
 
     @Override

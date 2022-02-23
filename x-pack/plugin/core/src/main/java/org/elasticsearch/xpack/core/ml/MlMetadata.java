@@ -192,9 +192,7 @@ public class MlMetadata implements Metadata.Custom {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        MlMetadata that = (MlMetadata) o;
-        return upgradeMode == that.upgradeMode && resetMode == that.resetMode;
+        return o instanceof MlMetadata that && upgradeMode == that.upgradeMode && resetMode == that.resetMode;
     }
 
     @Override

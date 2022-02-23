@@ -92,9 +92,8 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TestIpDataHolder that = (TestIpDataHolder) o;
-            return prefixLength == that.prefixLength
+            return o instanceof TestIpDataHolder that
+                && prefixLength == that.prefixLength
                 && time == that.time
                 && Objects.equals(ipAddressAsString, that.ipAddressAsString)
                 && Objects.equals(ipAddress, that.ipAddress)

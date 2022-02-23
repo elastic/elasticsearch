@@ -280,9 +280,8 @@ public class ClusterStateUpdateStats implements Writeable, ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ClusterStateUpdateStats that = (ClusterStateUpdateStats) o;
-        return unchangedTaskCount == that.unchangedTaskCount
+        return o instanceof ClusterStateUpdateStats that
+            && unchangedTaskCount == that.unchangedTaskCount
             && publicationSuccessCount == that.publicationSuccessCount
             && publicationFailureCount == that.publicationFailureCount
             && unchangedComputationElapsedMillis == that.unchangedComputationElapsedMillis

@@ -53,13 +53,8 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Ordinal other = (Ordinal) obj;
-        return Objects.equals(timestamp, other.timestamp)
+        return obj instanceof Ordinal other
+            && Objects.equals(timestamp, other.timestamp)
             && Objects.equals(tiebreaker, other.tiebreaker)
             && Objects.equals(implicitTiebreaker, other.implicitTiebreaker);
     }

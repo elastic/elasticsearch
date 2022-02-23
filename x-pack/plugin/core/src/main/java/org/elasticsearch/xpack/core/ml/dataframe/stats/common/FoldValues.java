@@ -76,10 +76,7 @@ public class FoldValues implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        FoldValues other = (FoldValues) o;
-        return fold == other.fold && Arrays.equals(values, other.values);
+        return o instanceof FoldValues other && fold == other.fold && Arrays.equals(values, other.values);
     }
 
     @Override

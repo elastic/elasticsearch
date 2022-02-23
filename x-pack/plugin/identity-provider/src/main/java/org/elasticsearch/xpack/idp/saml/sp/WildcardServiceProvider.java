@@ -88,11 +88,8 @@ class WildcardServiceProvider {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final WildcardServiceProvider that = (WildcardServiceProvider) o;
-        return matchEntityId.pattern().equals(that.matchEntityId.pattern())
+        return o instanceof WildcardServiceProvider that
+            && matchEntityId.pattern().equals(that.matchEntityId.pattern())
             && matchAcs.pattern().equals(that.matchAcs.pattern())
             && tokens.equals(that.tokens)
             && serviceTemplate.equals(that.serviceTemplate);

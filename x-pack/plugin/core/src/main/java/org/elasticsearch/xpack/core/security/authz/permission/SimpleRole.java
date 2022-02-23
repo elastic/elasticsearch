@@ -137,11 +137,8 @@ public class SimpleRole implements Role {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SimpleRole that = (SimpleRole) o;
-        return Arrays.equals(this.names, that.names)
+        return o instanceof SimpleRole that
+            && Arrays.equals(this.names, that.names)
             && this.cluster.equals(that.cluster)
             && this.indices.equals(that.indices)
             && this.application.equals(that.application)

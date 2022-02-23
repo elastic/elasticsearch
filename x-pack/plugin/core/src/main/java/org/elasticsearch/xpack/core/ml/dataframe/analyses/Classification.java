@@ -467,9 +467,8 @@ public class Classification implements DataFrameAnalysis {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Classification that = (Classification) o;
-        return Objects.equals(dependentVariable, that.dependentVariable)
+        return o instanceof Classification that
+            && Objects.equals(dependentVariable, that.dependentVariable)
             && Objects.equals(boostedTreeParams, that.boostedTreeParams)
             && Objects.equals(predictionFieldName, that.predictionFieldName)
             && Objects.equals(classAssignmentObjective, that.classAssignmentObjective)

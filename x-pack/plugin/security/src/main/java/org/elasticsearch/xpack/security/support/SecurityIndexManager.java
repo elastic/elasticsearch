@@ -522,9 +522,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            State state = (State) o;
-            return Objects.equals(creationTime, state.creationTime)
+            return o instanceof State state
+                && Objects.equals(creationTime, state.creationTime)
                 && isIndexUpToDate == state.isIndexUpToDate
                 && indexAvailable == state.indexAvailable
                 && mappingUpToDate == state.mappingUpToDate

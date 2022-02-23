@@ -86,11 +86,7 @@ public class YearTimes implements Times {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        YearTimes that = (YearTimes) o;
-
-        return Arrays.equals(days, that.days) && months.equals(that.months)
+        return o instanceof YearTimes that && Arrays.equals(days, that.days) && months.equals(that.months)
         // order doesn't matter
             && newHashSet(times).equals(newHashSet(that.times));
     }

@@ -242,9 +242,7 @@ public class Recall implements EvaluationMetric {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Result that = (Result) o;
-            return Objects.equals(this.classes, that.classes) && this.avgRecall == that.avgRecall;
+            return o instanceof Result that && Objects.equals(this.classes, that.classes) && this.avgRecall == that.avgRecall;
         }
 
         @Override

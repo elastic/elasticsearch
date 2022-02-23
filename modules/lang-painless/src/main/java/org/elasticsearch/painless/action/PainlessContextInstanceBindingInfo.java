@@ -106,9 +106,8 @@ public class PainlessContextInstanceBindingInfo implements Writeable, ToXContent
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        PainlessContextInstanceBindingInfo that = (PainlessContextInstanceBindingInfo) o;
-        return Objects.equals(declaring, that.declaring)
+        return o instanceof PainlessContextInstanceBindingInfo that
+            && Objects.equals(declaring, that.declaring)
             && Objects.equals(name, that.name)
             && Objects.equals(rtn, that.rtn)
             && Objects.equals(parameters, that.parameters);

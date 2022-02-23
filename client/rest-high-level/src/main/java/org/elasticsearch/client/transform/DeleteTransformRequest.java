@@ -61,11 +61,6 @@ public class DeleteTransformRequest implements Validatable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        DeleteTransformRequest other = (DeleteTransformRequest) obj;
-        return Objects.equals(id, other.id) && Objects.equals(force, other.force);
+        return obj instanceof DeleteTransformRequest other && Objects.equals(id, other.id) && Objects.equals(force, other.force);
     }
 }

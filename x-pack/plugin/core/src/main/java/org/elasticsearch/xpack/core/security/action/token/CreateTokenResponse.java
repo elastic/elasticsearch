@@ -120,9 +120,8 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        CreateTokenResponse that = (CreateTokenResponse) o;
-        return Objects.equals(tokenString, that.tokenString)
+        return o instanceof CreateTokenResponse that
+            && Objects.equals(tokenString, that.tokenString)
             && Objects.equals(expiresIn, that.expiresIn)
             && Objects.equals(scope, that.scope)
             && Objects.equals(refreshToken, that.refreshToken)

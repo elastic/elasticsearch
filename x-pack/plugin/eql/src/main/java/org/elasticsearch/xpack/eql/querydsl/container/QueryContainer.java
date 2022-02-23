@@ -157,13 +157,8 @@ public class QueryContainer {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        QueryContainer other = (QueryContainer) obj;
-        return Objects.equals(query, other.query)
+        return obj instanceof QueryContainer other
+            && Objects.equals(query, other.query)
             && Objects.equals(attributes, other.attributes)
             && Objects.equals(fields, other.fields)
             && trackHits == other.trackHits

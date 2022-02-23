@@ -74,9 +74,7 @@ public class TaskCancellationService {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            final CancelRequest that = (CancelRequest) o;
-            return waitForCompletion == that.waitForCompletion && Objects.equals(task, that.task);
+            return o instanceof CancelRequest that && waitForCompletion == that.waitForCompletion && Objects.equals(task, that.task);
         }
 
         @Override

@@ -261,13 +261,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
     @SuppressWarnings("rawtypes")
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ImmutableOpenIntMap that = (ImmutableOpenIntMap) o;
-
-        if (map.equals(that.map) == false) return false;
-
-        return true;
+        return o instanceof ImmutableOpenIntMap that && map.equals(that.map);
     }
 
     @Override

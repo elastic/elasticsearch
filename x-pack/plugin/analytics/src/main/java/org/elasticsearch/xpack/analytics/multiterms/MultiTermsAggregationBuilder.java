@@ -419,11 +419,9 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        MultiTermsAggregationBuilder other = (MultiTermsAggregationBuilder) obj;
-        return Objects.equals(this.terms, other.terms)
+        return obj instanceof MultiTermsAggregationBuilder other
+            && super.equals(obj)
+            && Objects.equals(this.terms, other.terms)
             && Objects.equals(this.order, other.order)
             && Objects.equals(this.collectMode, other.collectMode)
             && Objects.equals(this.bucketCountThresholds, other.bucketCountThresholds);

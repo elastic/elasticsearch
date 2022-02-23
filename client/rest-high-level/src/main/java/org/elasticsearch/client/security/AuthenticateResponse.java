@@ -222,9 +222,8 @@ public final class AuthenticateResponse implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AuthenticateResponse that = (AuthenticateResponse) o;
-        return enabled == that.enabled
+        return o instanceof AuthenticateResponse that
+            && enabled == that.enabled
             && Objects.equals(user, that.user)
             && Objects.equals(authenticationRealm, that.authenticationRealm)
             && Objects.equals(lookupRealm, that.lookupRealm)
@@ -262,9 +261,7 @@ public final class AuthenticateResponse implements ToXContentObject {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            RealmInfo realmInfo = (RealmInfo) o;
-            return Objects.equals(name, realmInfo.name) && Objects.equals(type, realmInfo.type);
+            return o instanceof RealmInfo realmInfo && Objects.equals(name, realmInfo.name) && Objects.equals(type, realmInfo.type);
         }
 
         @Override
@@ -293,9 +290,7 @@ public final class AuthenticateResponse implements ToXContentObject {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            final ApiKeyInfo that = (ApiKeyInfo) o;
-            return Objects.equals(this.id, that.id) && Objects.equals(this.name, that.name);
+            return o instanceof ApiKeyInfo that && Objects.equals(this.id, that.id) && Objects.equals(this.name, that.name);
         }
 
         @Override

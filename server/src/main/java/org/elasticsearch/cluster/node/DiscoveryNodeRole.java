@@ -105,9 +105,8 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DiscoveryNodeRole that = (DiscoveryNodeRole) o;
-        return roleName.equals(that.roleName)
+        return o instanceof DiscoveryNodeRole that
+            && roleName.equals(that.roleName)
             && roleNameAbbreviation.equals(that.roleNameAbbreviation)
             && canContainData == that.canContainData
             && isKnownRole == that.isKnownRole;

@@ -89,13 +89,7 @@ public class ConstantProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        ConstantProcessor other = (ConstantProcessor) obj;
-        return Objects.equals(constant, other.constant);
+        return obj instanceof ConstantProcessor other && Objects.equals(constant, other.constant);
     }
 
     @Override

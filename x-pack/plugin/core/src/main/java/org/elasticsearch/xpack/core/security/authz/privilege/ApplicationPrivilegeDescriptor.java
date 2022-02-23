@@ -143,11 +143,8 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final ApplicationPrivilegeDescriptor that = (ApplicationPrivilegeDescriptor) o;
-        return Objects.equals(this.application, that.application)
+        return o instanceof ApplicationPrivilegeDescriptor that
+            && Objects.equals(this.application, that.application)
             && Objects.equals(this.name, that.name)
             && Objects.equals(this.actions, that.actions)
             && Objects.equals(this.metadata, that.metadata);

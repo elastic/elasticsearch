@@ -104,9 +104,10 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DataFrameAnalyticsTaskState that = (DataFrameAnalyticsTaskState) o;
-        return allocationId == that.allocationId && state == that.state && Objects.equals(reason, that.reason);
+        return o instanceof DataFrameAnalyticsTaskState that
+            && allocationId == that.allocationId
+            && state == that.state
+            && Objects.equals(reason, that.reason);
     }
 
     @Override

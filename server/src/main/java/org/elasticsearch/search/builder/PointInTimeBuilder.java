@@ -127,9 +127,9 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        final PointInTimeBuilder that = (PointInTimeBuilder) o;
-        return Objects.equals(encodedId, that.encodedId) && Objects.equals(keepAlive, that.keepAlive);
+        return o instanceof PointInTimeBuilder that
+            && Objects.equals(encodedId, that.encodedId)
+            && Objects.equals(keepAlive, that.keepAlive);
     }
 
     @Override

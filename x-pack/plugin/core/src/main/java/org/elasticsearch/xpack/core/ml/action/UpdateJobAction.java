@@ -101,9 +101,10 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            UpdateJobAction.Request that = (UpdateJobAction.Request) o;
-            return Objects.equals(jobId, that.jobId) && Objects.equals(update, that.update) && isInternal == that.isInternal;
+            return o instanceof UpdateJobAction.Request that
+                && Objects.equals(jobId, that.jobId)
+                && Objects.equals(update, that.update)
+                && isInternal == that.isInternal;
         }
 
         @Override

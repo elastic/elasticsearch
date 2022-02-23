@@ -150,9 +150,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            BucketKey bucketKey = (BucketKey) o;
-            return Arrays.equals(key, bucketKey.key);
+            return o instanceof BucketKey bucketKey && Arrays.equals(key, bucketKey.key);
         }
 
         @Override

@@ -51,9 +51,10 @@ public class DelimitedToken {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DelimitedToken that = (DelimitedToken) o;
-        return startOffset == that.startOffset && endOffset == that.endOffset && Objects.equals(charSequence, that.charSequence);
+        return o instanceof DelimitedToken that
+            && startOffset == that.startOffset
+            && endOffset == that.endOffset
+            && Objects.equals(charSequence, that.charSequence);
     }
 
     @Override

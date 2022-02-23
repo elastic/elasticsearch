@@ -824,9 +824,8 @@ public class BulkByScrollTask extends CancellableTask {
 
         public boolean equalsWithoutSliceStatus(Object o, boolean includeUpdated, boolean includeCreated) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Status other = (Status) o;
-            return Objects.equals(sliceId, other.sliceId)
+            return o instanceof Status other
+                && Objects.equals(sliceId, other.sliceId)
                 && total == other.total
                 && (includeUpdated == false || updated == other.updated)
                 && (includeCreated == false || created == other.created)

@@ -73,13 +73,8 @@ public class ScriptTemplate {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        ScriptTemplate other = (ScriptTemplate) obj;
-        return Objects.equals(template, other.template)
+        return obj instanceof ScriptTemplate other
+            && Objects.equals(template, other.template)
             && Objects.equals(params, other.params)
             && Objects.equals(outputType, other.outputType);
     }

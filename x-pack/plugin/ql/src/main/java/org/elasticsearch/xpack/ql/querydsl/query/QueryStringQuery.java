@@ -103,13 +103,10 @@ public class QueryStringQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        QueryStringQuery other = (QueryStringQuery) obj;
-        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields) && Objects.equals(predicate, other.predicate);
+        return obj instanceof QueryStringQuery other
+            && Objects.equals(query, other.query)
+            && Objects.equals(fields, other.fields)
+            && Objects.equals(predicate, other.predicate);
     }
 
     @Override

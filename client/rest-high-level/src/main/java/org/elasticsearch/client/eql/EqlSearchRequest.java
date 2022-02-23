@@ -243,11 +243,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        EqlSearchRequest that = (EqlSearchRequest) o;
-        return size == that.size
+        return o instanceof EqlSearchRequest that
+            && size == that.size
             && fetchSize == that.fetchSize
             && Arrays.equals(indices, that.indices)
             && Objects.equals(indicesOptions, that.indicesOptions)

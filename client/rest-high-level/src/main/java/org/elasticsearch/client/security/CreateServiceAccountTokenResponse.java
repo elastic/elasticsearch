@@ -42,9 +42,7 @@ public final class CreateServiceAccountTokenResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        CreateServiceAccountTokenResponse that = (CreateServiceAccountTokenResponse) o;
-        return Objects.equals(name, that.name) && Objects.equals(value, that.value);
+        return o instanceof CreateServiceAccountTokenResponse that && Objects.equals(name, that.name) && Objects.equals(value, that.value);
     }
 
     @Override

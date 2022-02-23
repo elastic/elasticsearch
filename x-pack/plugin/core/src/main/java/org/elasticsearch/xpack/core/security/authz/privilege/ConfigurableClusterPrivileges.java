@@ -231,11 +231,7 @@ public final class ConfigurableClusterPrivileges {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            final WriteProfileDataPrivileges that = (WriteProfileDataPrivileges) o;
-            return this.applicationNames.equals(that.applicationNames);
+            return o instanceof WriteProfileDataPrivileges that && this.applicationNames.equals(that.applicationNames);
         }
 
         @Override
@@ -340,11 +336,7 @@ public final class ConfigurableClusterPrivileges {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            final ManageApplicationPrivileges that = (ManageApplicationPrivileges) o;
-            return this.applicationNames.equals(that.applicationNames);
+            return o instanceof ManageApplicationPrivileges that && this.applicationNames.equals(that.applicationNames);
         }
 
         @Override

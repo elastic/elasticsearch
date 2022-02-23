@@ -118,9 +118,7 @@ public class AucRoc extends AbstractAucRoc {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AucRoc that = (AucRoc) o;
-        return includeCurve == that.includeCurve;
+        return o instanceof AucRoc that && includeCurve == that.includeCurve;
     }
 
     @Override

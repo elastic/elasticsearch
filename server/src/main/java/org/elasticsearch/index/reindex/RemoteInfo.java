@@ -218,9 +218,8 @@ public class RemoteInfo implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RemoteInfo that = (RemoteInfo) o;
-        return port == that.port
+        return o instanceof RemoteInfo that
+            && port == that.port
             && Objects.equals(scheme, that.scheme)
             && Objects.equals(host, that.host)
             && Objects.equals(pathPrefix, that.pathPrefix)

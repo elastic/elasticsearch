@@ -275,13 +275,7 @@ public abstract class Node<T extends Node<T>> {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Node<?> other = (Node<?>) obj;
-        return Objects.equals(children(), other.children());
+        return obj instanceof Node<?> other && Objects.equals(children(), other.children());
     }
 
     public String nodeName() {

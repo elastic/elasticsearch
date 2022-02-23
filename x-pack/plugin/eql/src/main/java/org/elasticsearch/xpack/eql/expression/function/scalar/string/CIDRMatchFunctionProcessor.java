@@ -94,12 +94,8 @@ public class CIDRMatchFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        CIDRMatchFunctionProcessor other = (CIDRMatchFunctionProcessor) obj;
-        return Objects.equals(source(), other.source()) && Objects.equals(addresses(), other.addresses());
+        return obj instanceof CIDRMatchFunctionProcessor other
+            && Objects.equals(source(), other.source())
+            && Objects.equals(addresses(), other.addresses());
     }
 }

@@ -325,9 +325,8 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DataStreamAlias that = (DataStreamAlias) o;
-        return Objects.equals(name, that.name)
+        return o instanceof DataStreamAlias that
+            && Objects.equals(name, that.name)
             && Objects.equals(dataStreams, that.dataStreams)
             && Objects.equals(writeDataStream, that.writeDataStream)
             && Objects.equals(filter, that.filter);

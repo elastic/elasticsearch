@@ -56,13 +56,10 @@ public class RegexQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        RegexQuery other = (RegexQuery) obj;
-        return Objects.equals(field, other.field) && Objects.equals(regex, other.regex) && caseInsensitive == other.caseInsensitive;
+        return obj instanceof RegexQuery other
+            && Objects.equals(field, other.field)
+            && Objects.equals(regex, other.regex)
+            && caseInsensitive == other.caseInsensitive;
     }
 
     @Override

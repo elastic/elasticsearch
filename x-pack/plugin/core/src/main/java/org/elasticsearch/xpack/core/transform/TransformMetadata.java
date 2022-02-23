@@ -127,9 +127,7 @@ public class TransformMetadata implements Metadata.Custom {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TransformMetadata that = (TransformMetadata) o;
-        return resetMode == that.resetMode;
+        return o instanceof TransformMetadata that && resetMode == that.resetMode;
     }
 
     @Override

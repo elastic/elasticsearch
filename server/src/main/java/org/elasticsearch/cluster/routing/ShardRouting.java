@@ -688,11 +688,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        ShardRouting that = (ShardRouting) o;
-        return Objects.equals(unassignedInfo, that.unassignedInfo) && equalsIgnoringMetadata(that);
+        return o instanceof ShardRouting that && Objects.equals(unassignedInfo, that.unassignedInfo) && equalsIgnoringMetadata(that);
     }
 
     /**

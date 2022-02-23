@@ -43,11 +43,10 @@ public class SlackAction implements Action {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        SlackAction that = (SlackAction) o;
-
-        return Objects.equals(account, that.account) && Objects.equals(message, that.message) && Objects.equals(proxy, that.proxy);
+        return o instanceof SlackAction that
+            && Objects.equals(account, that.account)
+            && Objects.equals(message, that.message)
+            && Objects.equals(proxy, that.proxy);
     }
 
     @Override

@@ -55,12 +55,7 @@ public final class ResourcePrivileges {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        final ResourcePrivileges other = (ResourcePrivileges) o;
-        return this.resource.equals(other.resource) && this.privileges.equals(other.privileges);
+        return o instanceof ResourcePrivileges other && this.resource.equals(other.resource) && this.privileges.equals(other.privileges);
     }
 
     public static Builder builder(String resource) {

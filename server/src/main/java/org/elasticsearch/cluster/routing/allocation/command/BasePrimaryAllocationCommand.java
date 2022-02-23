@@ -74,11 +74,7 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        BasePrimaryAllocationCommand other = (BasePrimaryAllocationCommand) obj;
-        return acceptDataLoss == other.acceptDataLoss;
+        return super.equals(obj) && obj instanceof BasePrimaryAllocationCommand other && acceptDataLoss == other.acceptDataLoss;
     }
 
     @Override

@@ -249,13 +249,11 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Key key = (Key) o;
-            if (mappingCacheKey.equals(key.mappingCacheKey) == false) return false;
-            if (readerCacheKey.equals(key.readerCacheKey) == false) return false;
-            if (entity.getCacheIdentity().equals(key.entity.getCacheIdentity()) == false) return false;
-            if (value.equals(key.value) == false) return false;
-            return true;
+            return o instanceof Key key
+                && mappingCacheKey.equals(key.mappingCacheKey)
+                && readerCacheKey.equals(key.readerCacheKey)
+                && entity.getCacheIdentity().equals(key.entity.getCacheIdentity())
+                && value.equals(key.value);
         }
 
         @Override
@@ -301,13 +299,9 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            CleanupKey that = (CleanupKey) o;
-            if (Objects.equals(readerCacheKey, that.readerCacheKey) == false) return false;
-            if (entity.getCacheIdentity().equals(that.entity.getCacheIdentity()) == false) return false;
-            return true;
+            return o instanceof CleanupKey that
+                && Objects.equals(readerCacheKey, that.readerCacheKey)
+                && entity.getCacheIdentity().equals(that.entity.getCacheIdentity());
         }
 
         @Override

@@ -526,7 +526,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         if (oldProxy == null || oldProxy.isEmpty()) {
             return (newProxy == null || newProxy.isEmpty()) == false;
         }
-
         return Objects.equals(oldProxy, newProxy) == false;
     }
 
@@ -597,9 +596,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            SniffModeInfo sniff = (SniffModeInfo) o;
-            return maxConnectionsPerCluster == sniff.maxConnectionsPerCluster
+            return o instanceof SniffModeInfo sniff
+                && maxConnectionsPerCluster == sniff.maxConnectionsPerCluster
                 && numNodesConnected == sniff.numNodesConnected
                 && Objects.equals(seedNodes, sniff.seedNodes);
         }

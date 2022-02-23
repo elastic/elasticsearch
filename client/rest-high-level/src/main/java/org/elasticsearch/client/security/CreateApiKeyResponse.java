@@ -74,11 +74,8 @@ public final class CreateApiKeyResponse {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        final CreateApiKeyResponse other = (CreateApiKeyResponse) obj;
-        return Objects.equals(id, other.id)
+        return obj instanceof final CreateApiKeyResponse other
+            && Objects.equals(id, other.id)
             && Objects.equals(key, other.key)
             && Objects.equals(name, other.name)
             && Objects.equals(expiration, other.expiration);

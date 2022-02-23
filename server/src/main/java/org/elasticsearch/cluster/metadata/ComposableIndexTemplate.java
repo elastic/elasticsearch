@@ -420,9 +420,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting && indexMode == that.indexMode;
+            return o instanceof DataStreamTemplate that
+                && hidden == that.hidden
+                && allowCustomRouting == that.allowCustomRouting
+                && indexMode == that.indexMode;
         }
 
         @Override

@@ -60,14 +60,11 @@ public final class FieldStats extends IndexFeatureStats {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (super.equals(o) == false) {
-            return false;
-        }
-        FieldStats that = (FieldStats) o;
-        return scriptCount == that.scriptCount && scriptLangs.equals(that.scriptLangs) && fieldScriptStats.equals(that.fieldScriptStats);
+        return o instanceof FieldStats that
+            && super.equals(o)
+            && scriptCount == that.scriptCount
+            && scriptLangs.equals(that.scriptLangs)
+            && fieldScriptStats.equals(that.fieldScriptStats);
     }
 
     @Override

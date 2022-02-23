@@ -612,11 +612,7 @@ public class MasterServiceTests extends ESTestCase {
                 if (this == o) {
                     return true;
                 }
-                if (o == null || getClass() != o.getClass()) {
-                    return false;
-                }
-                Task task = (Task) o;
-                return id == task.id;
+                return o instanceof Task task && id == task.id;
             }
 
             @Override

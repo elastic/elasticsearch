@@ -118,9 +118,8 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(jobId, request.jobId)
+            return o instanceof Request request
+                && Objects.equals(jobId, request.jobId)
                 && Objects.equals(timeout, request.timeout)
                 && Objects.equals(snapshotId, request.snapshotId)
                 && waitForCompletion == request.waitForCompletion;
@@ -195,9 +194,7 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return completed == response.completed && Objects.equals(node, response.node);
+            return o instanceof Response response && completed == response.completed && Objects.equals(node, response.node);
         }
 
         @Override

@@ -67,11 +67,9 @@ public class SearchProfileQueryPhaseResult implements Writeable {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        SearchProfileQueryPhaseResult other = (SearchProfileQueryPhaseResult) obj;
-        return queryProfileResults.equals(other.queryProfileResults) && aggProfileShardResult.equals(other.aggProfileShardResult);
+        return obj instanceof SearchProfileQueryPhaseResult other
+            && queryProfileResults.equals(other.queryProfileResults)
+            && aggProfileShardResult.equals(other.aggProfileShardResult);
     }
 
     @Override

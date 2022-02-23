@@ -73,10 +73,10 @@ public class PyTorchPassThroughResults extends NlpInferenceResults {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        PyTorchPassThroughResults that = (PyTorchPassThroughResults) o;
-        return Arrays.deepEquals(inference, that.inference) && Objects.equals(resultsField, that.resultsField);
+        return o instanceof PyTorchPassThroughResults that
+            && super.equals(o)
+            && Arrays.deepEquals(inference, that.inference)
+            && Objects.equals(resultsField, that.resultsField);
     }
 
     @Override

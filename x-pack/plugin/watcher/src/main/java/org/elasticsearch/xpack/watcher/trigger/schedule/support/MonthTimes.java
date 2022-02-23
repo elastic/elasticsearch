@@ -78,12 +78,8 @@ public class MonthTimes implements Times {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        MonthTimes that = (MonthTimes) o;
-
-        return Arrays.equals(days, that.days)
-            // order doesn't matter
+        return o instanceof MonthTimes that && Arrays.equals(days, that.days)
+        // order doesn't matter
             && newHashSet(times).equals(newHashSet(that.times));
     }
 

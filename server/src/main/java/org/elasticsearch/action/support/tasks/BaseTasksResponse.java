@@ -132,11 +132,9 @@ public class BaseTasksResponse extends ActionResponse {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        BaseTasksResponse response = (BaseTasksResponse) o;
-        return taskFailures.equals(response.taskFailures) && nodeFailures.equals(response.nodeFailures);
+        return o instanceof BaseTasksResponse response
+            && taskFailures.equals(response.taskFailures)
+            && nodeFailures.equals(response.nodeFailures);
     }
 
     @Override

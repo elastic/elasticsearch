@@ -69,11 +69,9 @@ public class UsernamePasswordToken implements AuthenticationToken {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        UsernamePasswordToken that = (UsernamePasswordToken) o;
-
-        return Objects.equals(password, that.password) && Objects.equals(username, that.username);
+        return o instanceof UsernamePasswordToken that
+            && Objects.equals(password, that.password)
+            && Objects.equals(username, that.username);
     }
 
     @Override

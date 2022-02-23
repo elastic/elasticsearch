@@ -58,11 +58,10 @@ public class IpScriptFieldRangeQuery extends AbstractIpScriptFieldQuery {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        IpScriptFieldRangeQuery other = (IpScriptFieldRangeQuery) obj;
-        return lower.bytesEquals(other.lower) && upper.bytesEquals(other.upper);
+        return super.equals(obj)
+            && obj instanceof IpScriptFieldRangeQuery other
+            && lower.bytesEquals(other.lower)
+            && upper.bytesEquals(other.upper);
     }
 
     InetAddress lowerAddress() {

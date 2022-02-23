@@ -77,9 +77,7 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(config, request.config);
+            return o instanceof Request request && Objects.equals(config, request.config);
         }
 
         @Override

@@ -121,9 +121,8 @@ public class EnrollmentToken {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        EnrollmentToken that = (EnrollmentToken) o;
-        return apiKey.equals(that.apiKey)
+        return o instanceof EnrollmentToken that
+            && apiKey.equals(that.apiKey)
             && fingerprint.equals(that.fingerprint)
             && version.equals(that.version)
             && boundAddress.equals(that.boundAddress);

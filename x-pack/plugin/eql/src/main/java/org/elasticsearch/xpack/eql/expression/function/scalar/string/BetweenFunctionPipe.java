@@ -126,13 +126,8 @@ public class BetweenFunctionPipe extends Pipe {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        BetweenFunctionPipe other = (BetweenFunctionPipe) obj;
-        return Objects.equals(input(), other.input())
+        return obj instanceof BetweenFunctionPipe other
+            && Objects.equals(input(), other.input())
             && Objects.equals(left(), other.left())
             && Objects.equals(right(), other.right())
             && Objects.equals(greedy(), other.greedy())

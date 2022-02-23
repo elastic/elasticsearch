@@ -108,11 +108,7 @@ public abstract class InternalOrder extends BucketOrder {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Aggregation other = (Aggregation) obj;
-            return Objects.equals(path, other.path) && Objects.equals(order, other.order);
+            return obj instanceof Aggregation other && Objects.equals(path, other.path) && Objects.equals(order, other.order);
         }
     }
 

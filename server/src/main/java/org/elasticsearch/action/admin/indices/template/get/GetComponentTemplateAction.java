@@ -110,9 +110,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response that = (Response) o;
-            return Objects.equals(componentTemplates, that.componentTemplates);
+            return o instanceof Response that && Objects.equals(componentTemplates, that.componentTemplates);
         }
 
         @Override

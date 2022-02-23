@@ -162,11 +162,8 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SnapshotIndexStatus that = (SnapshotIndexStatus) o;
-        return Objects.equals(index, that.index)
+        return o instanceof SnapshotIndexStatus that
+            && Objects.equals(index, that.index)
             && Objects.equals(indexShards, that.indexShards)
             && Objects.equals(shardsStats, that.shardsStats)
             && Objects.equals(stats, that.stats);

@@ -93,12 +93,8 @@ public class StopTransformRequest implements Validatable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        StopTransformRequest other = (StopTransformRequest) obj;
-        return Objects.equals(this.id, other.id)
+        return obj instanceof StopTransformRequest other
+            && Objects.equals(this.id, other.id)
             && Objects.equals(this.waitForCompletion, other.waitForCompletion)
             && Objects.equals(this.timeout, other.timeout)
             && Objects.equals(this.waitForCheckpoint, other.waitForCheckpoint)

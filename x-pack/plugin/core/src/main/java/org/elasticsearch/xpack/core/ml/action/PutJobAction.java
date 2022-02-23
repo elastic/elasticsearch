@@ -93,9 +93,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(jobBuilder, request.jobBuilder);
+            return o instanceof Request request && Objects.equals(jobBuilder, request.jobBuilder);
         }
 
         @Override
@@ -137,9 +135,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(job, response.job);
+            return o instanceof Response response && Objects.equals(job, response.job);
         }
 
         @Override

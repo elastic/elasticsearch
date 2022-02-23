@@ -369,11 +369,9 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InferencePipelineAggregationBuilder other = (InferencePipelineAggregationBuilder) obj;
-        return Objects.equals(bucketPathMap, other.bucketPathMap)
+        return obj instanceof InferencePipelineAggregationBuilder other
+            && super.equals(obj)
+            && Objects.equals(bucketPathMap, other.bucketPathMap)
             && Objects.equals(modelId, other.modelId)
             && Objects.equals(inferenceConfig, other.inferenceConfig);
     }

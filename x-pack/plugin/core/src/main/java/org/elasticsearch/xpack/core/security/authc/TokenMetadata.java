@@ -72,10 +72,7 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        TokenMetadata that = (TokenMetadata) o;
-        return keys.equals(that.keys) && Arrays.equals(currentKeyHash, that.currentKeyHash);
+        return o instanceof TokenMetadata that && keys.equals(that.keys) && Arrays.equals(currentKeyHash, that.currentKeyHash);
     }
 
     @Override

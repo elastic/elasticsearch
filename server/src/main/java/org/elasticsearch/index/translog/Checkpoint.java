@@ -234,17 +234,14 @@ final class Checkpoint {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Checkpoint that = (Checkpoint) o;
-
-        if (offset != that.offset) return false;
-        if (numOps != that.numOps) return false;
-        if (generation != that.generation) return false;
-        if (minSeqNo != that.minSeqNo) return false;
-        if (maxSeqNo != that.maxSeqNo) return false;
-        if (globalCheckpoint != that.globalCheckpoint) return false;
-        return trimmedAboveSeqNo == that.trimmedAboveSeqNo;
+        return o instanceof Checkpoint that
+            && offset == that.offset
+            && numOps == that.numOps
+            && generation == that.generation
+            && minSeqNo == that.minSeqNo
+            && maxSeqNo == that.maxSeqNo
+            && globalCheckpoint == that.globalCheckpoint
+            && trimmedAboveSeqNo == that.trimmedAboveSeqNo;
     }
 
     @Override

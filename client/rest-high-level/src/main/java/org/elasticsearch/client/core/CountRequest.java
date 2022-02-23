@@ -225,11 +225,8 @@ public final class CountRequest implements Validatable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        CountRequest that = (CountRequest) o;
-        return Objects.equals(indicesOptions, that.indicesOptions)
+        return o instanceof CountRequest that
+            && Objects.equals(indicesOptions, that.indicesOptions)
             && Arrays.equals(indices, that.indices)
             && Arrays.equals(types, that.types)
             && Objects.equals(routing, that.routing)

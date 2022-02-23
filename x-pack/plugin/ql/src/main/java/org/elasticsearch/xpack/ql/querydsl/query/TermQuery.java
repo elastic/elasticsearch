@@ -60,13 +60,8 @@ public class TermQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        TermQuery other = (TermQuery) obj;
-        return Objects.equals(term, other.term)
+        return obj instanceof TermQuery other
+            && Objects.equals(term, other.term)
             && Objects.equals(value, other.value)
             && Objects.equals(caseInsensitive, other.caseInsensitive);
     }

@@ -63,11 +63,8 @@ public class SearchInput implements Input {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SearchInput that = (SearchInput) o;
-        return Objects.equals(request, that.request)
+        return o instanceof SearchInput that
+            && Objects.equals(request, that.request)
             && Objects.equals(extractKeys, that.extractKeys)
             && Objects.equals(timeout, that.timeout)
             && Objects.equals(dynamicNameTimeZone, that.dynamicNameTimeZone);

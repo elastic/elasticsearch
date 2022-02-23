@@ -50,13 +50,7 @@ public class SequenceKey implements Accountable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        SequenceKey other = (SequenceKey) obj;
-        return Arrays.equals(keys, other.keys);
+        return obj instanceof SequenceKey other && Arrays.equals(keys, other.keys);
     }
 
     @Override

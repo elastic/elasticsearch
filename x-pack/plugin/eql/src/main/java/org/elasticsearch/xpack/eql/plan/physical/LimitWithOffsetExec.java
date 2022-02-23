@@ -45,12 +45,6 @@ public class LimitWithOffsetExec extends UnaryExec implements Unexecutable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        LimitWithOffsetExec other = (LimitWithOffsetExec) obj;
-        return Objects.equals(limit, other.limit) && Objects.equals(child(), other.child());
+        return obj instanceof LimitWithOffsetExec other && Objects.equals(limit, other.limit) && Objects.equals(child(), other.child());
     }
 }

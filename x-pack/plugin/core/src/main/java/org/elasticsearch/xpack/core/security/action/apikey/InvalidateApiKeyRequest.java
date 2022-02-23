@@ -233,11 +233,8 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        InvalidateApiKeyRequest that = (InvalidateApiKeyRequest) o;
-        return ownedByAuthenticatedUser == that.ownedByAuthenticatedUser
+        return o instanceof InvalidateApiKeyRequest that
+            && ownedByAuthenticatedUser == that.ownedByAuthenticatedUser
             && Objects.equals(realmName, that.realmName)
             && Objects.equals(userName, that.userName)
             && Arrays.equals(ids, that.ids)

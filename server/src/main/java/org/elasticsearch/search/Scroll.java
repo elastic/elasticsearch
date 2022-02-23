@@ -54,11 +54,7 @@ public final class Scroll implements Writeable {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        Scroll scroll = (Scroll) o;
-        return Objects.equals(keepAlive, scroll.keepAlive);
+        return o instanceof Scroll scroll && Objects.equals(keepAlive, scroll.keepAlive);
     }
 
     @Override

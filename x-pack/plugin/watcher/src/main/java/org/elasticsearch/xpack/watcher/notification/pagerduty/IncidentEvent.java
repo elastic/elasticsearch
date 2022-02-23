@@ -88,10 +88,8 @@ public class IncidentEvent implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        IncidentEvent template = (IncidentEvent) o;
-        return Objects.equals(description, template.description)
+        return o instanceof IncidentEvent template
+            && Objects.equals(description, template.description)
             && Objects.equals(incidentKey, template.incidentKey)
             && Objects.equals(client, template.client)
             && Objects.equals(clientUrl, template.clientUrl)
@@ -259,10 +257,8 @@ public class IncidentEvent implements ToXContentObject {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Template template = (Template) o;
-            return Objects.equals(description, template.description)
+            return o instanceof Template template
+                && Objects.equals(description, template.description)
                 && Objects.equals(incidentKey, template.incidentKey)
                 && Objects.equals(client, template.client)
                 && Objects.equals(clientUrl, template.clientUrl)

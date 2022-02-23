@@ -48,9 +48,7 @@ public class LifecycleManagementStatusResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        LifecycleManagementStatusResponse that = (LifecycleManagementStatusResponse) o;
-        return operationMode == that.operationMode;
+        return o instanceof LifecycleManagementStatusResponse that && operationMode == that.operationMode;
     }
 
     @Override

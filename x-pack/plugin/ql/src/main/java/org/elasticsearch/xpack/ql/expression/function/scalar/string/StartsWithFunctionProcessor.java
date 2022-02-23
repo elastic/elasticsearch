@@ -85,13 +85,8 @@ public class StartsWithFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        StartsWithFunctionProcessor other = (StartsWithFunctionProcessor) obj;
-        return Objects.equals(source(), other.source())
+        return obj instanceof StartsWithFunctionProcessor other
+            && Objects.equals(source(), other.source())
             && Objects.equals(pattern(), other.pattern())
             && Objects.equals(isCaseInsensitive(), other.isCaseInsensitive());
     }

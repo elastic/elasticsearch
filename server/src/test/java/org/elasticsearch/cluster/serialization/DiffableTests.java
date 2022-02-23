@@ -458,11 +458,7 @@ public class DiffableTests extends ESTestCase {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            TestDiffable that = (TestDiffable) o;
-
-            return Objects.equals(value, that.value);
+            return o instanceof TestDiffable that && Objects.equals(value, that.value);
         }
 
         @Override

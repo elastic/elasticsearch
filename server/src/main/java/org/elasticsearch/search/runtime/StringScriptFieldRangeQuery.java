@@ -107,11 +107,9 @@ public class StringScriptFieldRangeQuery extends AbstractStringScriptFieldQuery 
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        StringScriptFieldRangeQuery other = (StringScriptFieldRangeQuery) obj;
-        return Objects.equals(lowerValue, other.lowerValue)
+        return super.equals(obj)
+            && obj instanceof StringScriptFieldRangeQuery other
+            && Objects.equals(lowerValue, other.lowerValue)
             && Objects.equals(upperValue, other.upperValue)
             && includeLower == other.includeLower
             && includeUpper == other.includeUpper;

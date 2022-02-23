@@ -177,9 +177,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Match match = (Match) o;
-            return maxGaps == match.maxGaps
+            return o instanceof Match match
+                && maxGaps == match.maxGaps
                 && ordered == match.ordered
                 && Objects.equals(query, match.query)
                 && Objects.equals(filter, match.filter)
@@ -315,9 +314,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Disjunction that = (Disjunction) o;
-            return Objects.equals(subSources, that.subSources) && Objects.equals(filter, that.filter);
+            return o instanceof Disjunction that && Objects.equals(subSources, that.subSources) && Objects.equals(filter, that.filter);
         }
 
         @Override
@@ -426,9 +423,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Combine combine = (Combine) o;
-            return Objects.equals(subSources, combine.subSources)
+            return o instanceof Combine combine
+                && Objects.equals(subSources, combine.subSources)
                 && ordered == combine.ordered
                 && maxGaps == combine.maxGaps
                 && Objects.equals(filter, combine.filter);
@@ -561,9 +557,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Prefix prefix = (Prefix) o;
-            return Objects.equals(this.prefix, prefix.prefix)
+            return o instanceof Prefix prefix
+                && Objects.equals(this.prefix, prefix.prefix)
                 && Objects.equals(analyzer, prefix.analyzer)
                 && Objects.equals(useField, prefix.useField);
         }
@@ -679,9 +674,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Wildcard wildcard = (Wildcard) o;
-            return Objects.equals(pattern, wildcard.pattern)
+            return o instanceof Wildcard wildcard
+                && Objects.equals(pattern, wildcard.pattern)
                 && Objects.equals(analyzer, wildcard.analyzer)
                 && Objects.equals(useField, wildcard.useField);
         }
@@ -813,9 +807,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Fuzzy fuzzy = (Fuzzy) o;
-            return prefixLength == fuzzy.prefixLength
+            return o instanceof Fuzzy fuzzy
+                && prefixLength == fuzzy.prefixLength
                 && transpositions == fuzzy.transpositions
                 && Objects.equals(term, fuzzy.term)
                 && Objects.equals(fuzziness, fuzzy.fuzziness)
@@ -976,9 +969,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IntervalFilter that = (IntervalFilter) o;
-            return Objects.equals(type, that.type) && Objects.equals(script, that.script) && Objects.equals(filter, that.filter);
+            return o instanceof IntervalFilter that
+                && Objects.equals(type, that.type)
+                && Objects.equals(script, that.script)
+                && Objects.equals(filter, that.filter);
         }
 
         @Override

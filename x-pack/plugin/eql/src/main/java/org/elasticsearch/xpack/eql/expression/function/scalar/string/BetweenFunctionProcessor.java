@@ -101,13 +101,8 @@ public class BetweenFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        BetweenFunctionProcessor other = (BetweenFunctionProcessor) obj;
-        return Objects.equals(input(), other.input())
+        return obj instanceof BetweenFunctionProcessor other
+            && Objects.equals(input(), other.input())
             && Objects.equals(left(), other.left())
             && Objects.equals(right(), other.right())
             && Objects.equals(greedy(), other.greedy())

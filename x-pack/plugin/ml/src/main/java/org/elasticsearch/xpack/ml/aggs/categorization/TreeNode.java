@@ -171,9 +171,9 @@ abstract class TreeNode implements Accountable {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            LeafTreeNode that = (LeafTreeNode) o;
-            return that.similarityThreshold == similarityThreshold && Objects.equals(textCategorizations, that.textCategorizations);
+            return o instanceof LeafTreeNode that
+                && that.similarityThreshold == similarityThreshold
+                && Objects.equals(textCategorizations, that.textCategorizations);
         }
 
         @Override
@@ -370,9 +370,8 @@ abstract class TreeNode implements Accountable {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            InnerTreeNode treeNode = (InnerTreeNode) o;
-            return childrenTokenPos == treeNode.childrenTokenPos
+            return o instanceof InnerTreeNode treeNode
+                && childrenTokenPos == treeNode.childrenTokenPos
                 && getCount() == treeNode.getCount()
                 && Objects.equals(children, treeNode.children)
                 && Objects.equals(smallestChild, treeNode.smallestChild);

@@ -55,9 +55,7 @@ public class PreVoteRequest extends TransportRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        PreVoteRequest that = (PreVoteRequest) o;
-        return currentTerm == that.currentTerm && Objects.equals(sourceNode, that.sourceNode);
+        return o instanceof PreVoteRequest that && currentTerm == that.currentTerm && Objects.equals(sourceNode, that.sourceNode);
     }
 
     @Override

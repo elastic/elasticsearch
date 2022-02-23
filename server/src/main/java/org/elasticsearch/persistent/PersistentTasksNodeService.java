@@ -354,9 +354,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Status status = (Status) o;
-            return state == status.state;
+            return o instanceof Status status && state == status.state;
         }
 
         @Override

@@ -566,10 +566,7 @@ public final class Settings implements ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Settings that = (Settings) o;
-        return Objects.equals(settings, that.settings);
+        return o instanceof Settings that && Objects.equals(settings, that.settings);
     }
 
     @Override

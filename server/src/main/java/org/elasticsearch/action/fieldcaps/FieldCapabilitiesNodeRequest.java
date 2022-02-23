@@ -139,9 +139,8 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        FieldCapabilitiesNodeRequest that = (FieldCapabilitiesNodeRequest) o;
-        return nowInMillis == that.nowInMillis
+        return o instanceof FieldCapabilitiesNodeRequest that
+            && nowInMillis == that.nowInMillis
             && shardIds.equals(that.shardIds)
             && Arrays.equals(fields, that.fields)
             && Arrays.equals(filters, that.filters)

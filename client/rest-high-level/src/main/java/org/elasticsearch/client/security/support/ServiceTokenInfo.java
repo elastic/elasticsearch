@@ -44,9 +44,10 @@ public class ServiceTokenInfo {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ServiceTokenInfo that = (ServiceTokenInfo) o;
-        return Objects.equals(name, that.name) && Objects.equals(source, that.source) && Objects.equals(nodeNames, that.nodeNames);
+        return o instanceof ServiceTokenInfo that
+            && Objects.equals(name, that.name)
+            && Objects.equals(source, that.source)
+            && Objects.equals(nodeNames, that.nodeNames);
     }
 
     @Override

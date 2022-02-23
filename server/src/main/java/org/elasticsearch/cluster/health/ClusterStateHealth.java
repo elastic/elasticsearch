@@ -237,9 +237,8 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ClusterStateHealth that = (ClusterStateHealth) o;
-        return numberOfNodes == that.numberOfNodes
+        return o instanceof ClusterStateHealth that
+            && numberOfNodes == that.numberOfNodes
             && numberOfDataNodes == that.numberOfDataNodes
             && activeShards == that.activeShards
             && relocatingShards == that.relocatingShards

@@ -44,9 +44,8 @@ public class NodesDeprecationCheckResponse extends BaseNodesResponse<NodesDeprec
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        NodesDeprecationCheckResponse that = (NodesDeprecationCheckResponse) o;
-        return Objects.equals(getClusterName(), that.getClusterName())
+        return o instanceof NodesDeprecationCheckResponse that
+            && Objects.equals(getClusterName(), that.getClusterName())
             && Objects.equals(getNodes(), that.getNodes())
             && Objects.equals(failures(), that.failures());
     }

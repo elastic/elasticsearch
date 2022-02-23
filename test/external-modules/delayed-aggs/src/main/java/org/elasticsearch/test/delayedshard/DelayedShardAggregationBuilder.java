@@ -121,10 +121,7 @@ public class DelayedShardAggregationBuilder extends AbstractAggregationBuilder<D
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        DelayedShardAggregationBuilder that = (DelayedShardAggregationBuilder) o;
-        return Objects.equals(delay, that.delay);
+        return o instanceof DelayedShardAggregationBuilder that && super.equals(o) && Objects.equals(delay, that.delay);
     }
 
     @Override

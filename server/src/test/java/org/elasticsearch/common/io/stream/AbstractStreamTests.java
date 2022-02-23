@@ -239,9 +239,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
             @Override
             public boolean equals(final Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                final FooBar that = (FooBar) o;
-                return foo == that.foo && bar == that.bar;
+                return o instanceof FooBar that && foo == that.foo && bar == that.bar;
             }
 
             @Override
@@ -342,13 +340,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            WriteableString that = (WriteableString) o;
-
-            return string.equals(that.string);
+            return o instanceof WriteableString that && string.equals(that.string);
 
         }
 

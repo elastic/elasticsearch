@@ -162,9 +162,8 @@ public final class Role {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Role that = (Role) o;
-        return name.equals(that.name)
+        return o instanceof Role that
+            && name.equals(that.name)
             && clusterPrivileges.equals(that.clusterPrivileges)
             && Objects.equals(globalPrivileges, that.globalPrivileges)
             && indicesPrivileges.equals(that.indicesPrivileges)

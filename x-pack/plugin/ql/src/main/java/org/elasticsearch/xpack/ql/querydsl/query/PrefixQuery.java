@@ -48,13 +48,10 @@ public class PrefixQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        PrefixQuery other = (PrefixQuery) obj;
-        return caseInsensitive == other.caseInsensitive && Objects.equals(field, other.field) && Objects.equals(query, other.query);
+        return obj instanceof PrefixQuery other
+            && caseInsensitive == other.caseInsensitive
+            && Objects.equals(field, other.field)
+            && Objects.equals(query, other.query);
     }
 
     @Override

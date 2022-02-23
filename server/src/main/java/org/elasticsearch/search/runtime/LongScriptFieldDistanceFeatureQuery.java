@@ -184,11 +184,10 @@ public final class LongScriptFieldDistanceFeatureQuery extends AbstractScriptFie
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        LongScriptFieldDistanceFeatureQuery other = (LongScriptFieldDistanceFeatureQuery) obj;
-        return origin == other.origin && pivot == other.pivot;
+        return super.equals(obj)
+            && obj instanceof LongScriptFieldDistanceFeatureQuery other
+            && origin == other.origin
+            && pivot == other.pivot;
     }
 
     @Override

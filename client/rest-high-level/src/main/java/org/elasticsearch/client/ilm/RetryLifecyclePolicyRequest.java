@@ -34,11 +34,7 @@ public class RetryLifecyclePolicyRequest extends TimedRequest {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        RetryLifecyclePolicyRequest that = (RetryLifecyclePolicyRequest) o;
-        return indices.size() == that.indices.size() && indices.containsAll(that.indices);
+        return o instanceof RetryLifecyclePolicyRequest that && indices.size() == that.indices.size() && indices.containsAll(that.indices);
     }
 
     @Override

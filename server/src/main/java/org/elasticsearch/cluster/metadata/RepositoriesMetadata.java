@@ -122,11 +122,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        RepositoriesMetadata that = (RepositoriesMetadata) o;
-
-        return repositories.equals(that.repositories);
+        return o instanceof RepositoriesMetadata that && repositories.equals(that.repositories);
     }
 
     /**

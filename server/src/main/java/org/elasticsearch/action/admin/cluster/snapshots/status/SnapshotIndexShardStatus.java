@@ -206,11 +206,8 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SnapshotIndexShardStatus that = (SnapshotIndexShardStatus) o;
-        return stage == that.stage
+        return o instanceof SnapshotIndexShardStatus that
+            && stage == that.stage
             && Objects.equals(stats, that.stats)
             && Objects.equals(nodeId, that.nodeId)
             && Objects.equals(failure, that.failure);

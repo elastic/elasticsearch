@@ -78,13 +78,7 @@ public class LocalRelation extends LogicalPlan implements Executable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        LocalRelation other = (LocalRelation) obj;
-        return Objects.equals(executable, other.executable);
+        return obj instanceof LocalRelation other && Objects.equals(executable, other.executable);
     }
 
     @Override

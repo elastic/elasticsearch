@@ -50,11 +50,7 @@ public class GetBasicStatusResponse extends ActionResponse implements ToXContent
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        GetBasicStatusResponse that = (GetBasicStatusResponse) o;
-        return eligibleToStartBasic == that.eligibleToStartBasic;
+        return o instanceof GetBasicStatusResponse that && eligibleToStartBasic == that.eligibleToStartBasic;
     }
 
     @Override

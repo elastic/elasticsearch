@@ -84,11 +84,8 @@ public final class CreateTokenResponse {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final CreateTokenResponse that = (CreateTokenResponse) o;
-        return Objects.equals(accessToken, that.accessToken)
+        return o instanceof CreateTokenResponse that
+            && Objects.equals(accessToken, that.accessToken)
             && Objects.equals(type, that.type)
             && Objects.equals(expiresIn, that.expiresIn)
             && Objects.equals(scope, that.scope)

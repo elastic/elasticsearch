@@ -153,14 +153,10 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (super.equals(o) == false) {
-            return false;
-        }
-        CreateSnapshotStep that = (CreateSnapshotStep) o;
-        return Objects.equals(nextKeyOnComplete, that.nextKeyOnComplete) && Objects.equals(nextKeyOnIncomplete, that.nextKeyOnIncomplete);
+        return o instanceof CreateSnapshotStep that
+            && super.equals(o)
+            && Objects.equals(nextKeyOnComplete, that.nextKeyOnComplete)
+            && Objects.equals(nextKeyOnIncomplete, that.nextKeyOnIncomplete);
     }
 
     @Override

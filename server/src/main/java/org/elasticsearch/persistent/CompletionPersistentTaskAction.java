@@ -99,9 +99,8 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(taskId, request.taskId)
+            return o instanceof Request request
+                && Objects.equals(taskId, request.taskId)
                 && allocationId == request.allocationId
                 && Objects.equals(exception, request.exception)
                 && Objects.equals(localAbortReason, request.localAbortReason);

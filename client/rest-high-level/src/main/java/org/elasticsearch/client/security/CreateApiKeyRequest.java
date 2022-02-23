@@ -86,11 +86,8 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final CreateApiKeyRequest that = (CreateApiKeyRequest) o;
-        return Objects.equals(name, that.name)
+        return o instanceof CreateApiKeyRequest that
+            && Objects.equals(name, that.name)
             && Objects.equals(refreshPolicy, that.refreshPolicy)
             && Objects.equals(roles, that.roles)
             && Objects.equals(expiration, that.expiration)

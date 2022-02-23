@@ -43,13 +43,7 @@ public final class Source {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Source other = (Source) obj;
-        return Objects.equals(location, other.location) && Objects.equals(text, other.text);
+        return obj instanceof Source other && Objects.equals(location, other.location) && Objects.equals(text, other.text);
     }
 
     @Override

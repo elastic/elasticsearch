@@ -53,9 +53,7 @@ public final class GetPrivilegesResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetPrivilegesResponse that = (GetPrivilegesResponse) o;
-        return Objects.equals(privileges, that.privileges);
+        return o instanceof GetPrivilegesResponse that && Objects.equals(privileges, that.privileges);
     }
 
     @Override

@@ -163,10 +163,9 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        CardinalityAggregationBuilder other = (CardinalityAggregationBuilder) obj;
-        return Objects.equals(precisionThreshold, other.precisionThreshold);
+        return obj instanceof CardinalityAggregationBuilder other
+            && super.equals(obj)
+            && Objects.equals(precisionThreshold, other.precisionThreshold);
     }
 
     @Override

@@ -203,11 +203,10 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        ExpectedReciprocalRank other = (ExpectedReciprocalRank) obj;
-        return this.k == other.k && this.maxRelevance == other.maxRelevance && Objects.equals(unknownDocRating, other.unknownDocRating);
+        return obj instanceof ExpectedReciprocalRank other
+            && this.k == other.k
+            && this.maxRelevance == other.maxRelevance
+            && Objects.equals(unknownDocRating, other.unknownDocRating);
     }
 
     @Override
@@ -274,11 +273,7 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            ExpectedReciprocalRank.Detail other = (ExpectedReciprocalRank.Detail) obj;
-            return this.unratedDocs == other.unratedDocs;
+            return obj instanceof ExpectedReciprocalRank.Detail other && this.unratedDocs == other.unratedDocs;
         }
 
         @Override

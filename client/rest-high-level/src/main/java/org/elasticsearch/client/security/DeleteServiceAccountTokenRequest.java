@@ -54,9 +54,8 @@ public class DeleteServiceAccountTokenRequest implements Validatable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DeleteServiceAccountTokenRequest that = (DeleteServiceAccountTokenRequest) o;
-        return namespace.equals(that.namespace)
+        return o instanceof DeleteServiceAccountTokenRequest that
+            && namespace.equals(that.namespace)
             && serviceName.equals(that.serviceName)
             && tokenName.equals(that.tokenName)
             && refreshPolicy == that.refreshPolicy;

@@ -216,10 +216,7 @@ public final class CompressedXContent {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        CompressedXContent that = (CompressedXContent) o;
-        return sha256.equals(that.sha256);
+        return o instanceof CompressedXContent that && sha256.equals(that.sha256);
     }
 
     @Override

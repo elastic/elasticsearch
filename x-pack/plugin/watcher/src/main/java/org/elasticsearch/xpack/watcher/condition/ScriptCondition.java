@@ -73,11 +73,7 @@ public final class ScriptCondition implements ExecutableCondition {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        ScriptCondition condition = (ScriptCondition) o;
-
-        return script.equals(condition.script);
+        return o instanceof ScriptCondition condition && script.equals(condition.script);
     }
 
     @Override

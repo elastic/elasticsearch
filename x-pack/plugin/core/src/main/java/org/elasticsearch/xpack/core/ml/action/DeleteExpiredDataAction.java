@@ -126,9 +126,8 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(requestsPerSecond, request.requestsPerSecond)
+            return o instanceof Request request
+                && Objects.equals(requestsPerSecond, request.requestsPerSecond)
                 && Objects.equals(jobId, request.jobId)
                 && Objects.equals(expandedJobIds, request.expandedJobIds)
                 && Objects.equals(timeout, request.timeout);
@@ -184,9 +183,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(deleted, response.deleted);
+            return o instanceof Response response && Objects.equals(deleted, response.deleted);
         }
 
         @Override

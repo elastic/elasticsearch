@@ -115,9 +115,7 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FrozenShardsReason that = (FrozenShardsReason) o;
-            return shards == that.shards;
+            return o instanceof FrozenShardsReason that && shards == that.shards;
         }
 
         @Override

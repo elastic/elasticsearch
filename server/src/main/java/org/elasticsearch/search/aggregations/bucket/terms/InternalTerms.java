@@ -254,11 +254,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalTerms<?, ?> that = (InternalTerms<?, ?>) obj;
-        return Objects.equals(minDocCount, that.minDocCount)
+        return obj instanceof InternalTerms<?, ?> that
+            && super.equals(obj)
+            && Objects.equals(minDocCount, that.minDocCount)
             && Objects.equals(reduceOrder, that.reduceOrder)
             && Objects.equals(order, that.order)
             && Objects.equals(requiredSize, that.requiredSize);

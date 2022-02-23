@@ -407,11 +407,8 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Settings other = (Settings) obj;
-            return Objects.equals(lenient, other.lenient)
+            return obj instanceof Settings other
+                && Objects.equals(lenient, other.lenient)
                 && Objects.equals(analyzeWildcard, other.analyzeWildcard)
                 && Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix)
                 && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery)

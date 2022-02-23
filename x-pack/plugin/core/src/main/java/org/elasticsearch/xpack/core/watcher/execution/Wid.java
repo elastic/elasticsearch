@@ -55,11 +55,7 @@ public class Wid {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Wid wid = (Wid) o;
-
-        return value.equals(wid.value);
+        return o instanceof Wid wid && value.equals(wid.value);
     }
 
     @Override

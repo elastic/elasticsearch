@@ -119,9 +119,7 @@ public final class NlpHelpers {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ScoreAndIndex that = (ScoreAndIndex) o;
-            return Double.compare(that.score, score) == 0 && index == that.index;
+            return o instanceof ScoreAndIndex that && Double.compare(that.score, score) == 0 && index == that.index;
         }
 
         @Override

@@ -2021,9 +2021,7 @@ public class Setting<T> implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Setting<?> setting = (Setting<?>) o;
-        return Objects.equals(key, setting.key);
+        return o instanceof Setting<?> setting && Objects.equals(key, setting.key);
     }
 
     @Override
@@ -2099,9 +2097,7 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            SimpleKey simpleKey = (SimpleKey) o;
-            return Objects.equals(key, simpleKey.key);
+            return o instanceof SimpleKey simpleKey && Objects.equals(key, simpleKey.key);
         }
 
         @Override
@@ -2225,9 +2221,7 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            AffixKey that = (AffixKey) o;
-            return Objects.equals(prefix, that.prefix) && Objects.equals(suffix, that.suffix);
+            return o instanceof AffixKey that && Objects.equals(prefix, that.prefix) && Objects.equals(suffix, that.suffix);
         }
 
         @Override

@@ -144,9 +144,7 @@ public class MeanSquaredLogarithmicError implements EvaluationMetric {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        MeanSquaredLogarithmicError that = (MeanSquaredLogarithmicError) o;
-        return this.offset == that.offset;
+        return o instanceof MeanSquaredLogarithmicError that && this.offset == that.offset;
     }
 
     @Override
@@ -197,9 +195,7 @@ public class MeanSquaredLogarithmicError implements EvaluationMetric {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Result other = (Result) o;
-            return value == other.value;
+            return o instanceof Result other && value == other.value;
         }
 
         @Override

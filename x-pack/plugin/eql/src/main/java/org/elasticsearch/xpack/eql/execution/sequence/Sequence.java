@@ -94,13 +94,7 @@ public class Sequence implements Comparable<Sequence>, Accountable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Sequence other = (Sequence) obj;
-        return Objects.equals(currentStage, other.currentStage) && Objects.equals(key, other.key);
+        return obj instanceof Sequence other && Objects.equals(currentStage, other.currentStage) && Objects.equals(key, other.key);
     }
 
     @Override

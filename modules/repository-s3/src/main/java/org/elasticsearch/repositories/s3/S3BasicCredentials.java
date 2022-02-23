@@ -37,11 +37,7 @@ class S3BasicCredentials implements AWSCredentials {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final S3BasicCredentials that = (S3BasicCredentials) o;
-        return accessKey.equals(that.accessKey) && secretKey.equals(that.secretKey);
+        return o instanceof S3BasicCredentials that && accessKey.equals(that.accessKey) && secretKey.equals(that.secretKey);
     }
 
     @Override

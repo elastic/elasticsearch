@@ -98,12 +98,9 @@ public class Order extends Expression {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Order other = (Order) obj;
-        return Objects.equals(direction, other.direction) && Objects.equals(nulls, other.nulls) && Objects.equals(child, other.child);
+        return obj instanceof Order other
+            && Objects.equals(direction, other.direction)
+            && Objects.equals(nulls, other.nulls)
+            && Objects.equals(child, other.child);
     }
 }

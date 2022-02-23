@@ -117,9 +117,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Info info = (Info) o;
-            return Objects.equals(shardFollowTaskInfos, info.shardFollowTaskInfos);
+            return o instanceof Info info && Objects.equals(shardFollowTaskInfos, info.shardFollowTaskInfos);
         }
 
         @Override
@@ -181,9 +179,8 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                ShardFollowTaskInfo that = (ShardFollowTaskInfo) o;
-                return shardId == that.shardId
+                return o instanceof ShardFollowTaskInfo that
+                    && shardId == that.shardId
                     && leaderGlobalCheckpoint == that.leaderGlobalCheckpoint
                     && followerGlobalCheckpoint == that.followerGlobalCheckpoint
                     && Objects.equals(followerIndex, that.followerIndex);

@@ -110,11 +110,9 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Request that = (Request) o;
-            return templateName.equals(that.templateName) && Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
+            return o instanceof Request that
+                && templateName.equals(that.templateName)
+                && Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
         }
 
         @Override

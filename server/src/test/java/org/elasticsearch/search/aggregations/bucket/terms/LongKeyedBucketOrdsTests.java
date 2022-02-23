@@ -192,11 +192,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            OwningBucketOrdAndValue other = (OwningBucketOrdAndValue) obj;
-            return owningBucketOrd == other.owningBucketOrd && value == other.value;
+            return obj instanceof OwningBucketOrdAndValue other && owningBucketOrd == other.owningBucketOrd && value == other.value;
         }
 
         @Override

@@ -200,14 +200,7 @@ public class GeoPoint implements ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        GeoPoint geoPoint = (GeoPoint) o;
-
-        if (Double.compare(geoPoint.lat, lat) != 0) return false;
-        if (Double.compare(geoPoint.lon, lon) != 0) return false;
-
-        return true;
+        return o instanceof GeoPoint geoPoint && Double.compare(geoPoint.lat, lat) == 0 && Double.compare(geoPoint.lon, lon) == 0;
     }
 
     @Override

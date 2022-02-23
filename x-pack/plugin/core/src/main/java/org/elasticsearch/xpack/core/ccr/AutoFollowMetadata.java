@@ -177,9 +177,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AutoFollowMetadata that = (AutoFollowMetadata) o;
-        return Objects.equals(patterns, that.patterns)
+        return o instanceof AutoFollowMetadata that
+            && Objects.equals(patterns, that.patterns)
             && Objects.equals(followedLeaderIndexUUIDs, that.followedLeaderIndexUUIDs)
             && Objects.equals(headers, that.headers);
     }
@@ -401,10 +400,9 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (super.equals(o) == false) return false;
-            AutoFollowPattern pattern = (AutoFollowPattern) o;
-            return active == pattern.active
+            return o instanceof AutoFollowPattern pattern
+                && super.equals(o)
+                && active == pattern.active
                 && remoteCluster.equals(pattern.remoteCluster)
                 && leaderIndexPatterns.equals(pattern.leaderIndexPatterns)
                 && leaderIndexExclusionPatterns.equals(pattern.leaderIndexExclusionPatterns)

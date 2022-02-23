@@ -248,11 +248,8 @@ public class SubmitAsyncSearchRequest implements Validatable {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SubmitAsyncSearchRequest request = (SubmitAsyncSearchRequest) o;
-        return Objects.equals(searchRequest, request.searchRequest)
+        return o instanceof SubmitAsyncSearchRequest request
+            && Objects.equals(searchRequest, request.searchRequest)
             && Objects.equals(getKeepAlive(), request.getKeepAlive())
             && Objects.equals(getWaitForCompletionTimeout(), request.getWaitForCompletionTimeout())
             && Objects.equals(isKeepOnCompletion(), request.isKeepOnCompletion());

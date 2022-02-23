@@ -84,11 +84,8 @@ public final class FieldScriptStats implements Writeable, ToXContentFragment {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        FieldScriptStats that = (FieldScriptStats) o;
-        return maxLines == that.maxLines
+        return o instanceof FieldScriptStats that
+            && maxLines == that.maxLines
             && totalLines == that.totalLines
             && maxChars == that.maxChars
             && totalChars == that.totalChars

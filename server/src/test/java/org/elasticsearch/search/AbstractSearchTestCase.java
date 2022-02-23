@@ -259,11 +259,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            TestSearchExtBuilder that = (TestSearchExtBuilder) o;
-            return Objects.equals(objectName, that.objectName) && Objects.equals(name, that.name);
+            return o instanceof TestSearchExtBuilder that && Objects.equals(objectName, that.objectName) && Objects.equals(name, that.name);
         }
 
         @Override

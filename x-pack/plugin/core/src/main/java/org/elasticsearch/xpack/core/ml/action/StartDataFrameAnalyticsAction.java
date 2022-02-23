@@ -229,10 +229,8 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         @Override
         public boolean equals(Object o) {
             if (o == this) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            TaskParams other = (TaskParams) o;
-            return Objects.equals(id, other.id)
+            return o instanceof TaskParams other
+                && Objects.equals(id, other.id)
                 && Objects.equals(version, other.version)
                 && Objects.equals(allowLazyStart, other.allowLazyStart);
         }

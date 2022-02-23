@@ -29,11 +29,7 @@ public class DeleteAsyncSearchRequest implements Validatable {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        DeleteAsyncSearchRequest request = (DeleteAsyncSearchRequest) o;
-        return Objects.equals(getId(), request.getId());
+        return o instanceof DeleteAsyncSearchRequest request && Objects.equals(getId(), request.getId());
     }
 
     @Override

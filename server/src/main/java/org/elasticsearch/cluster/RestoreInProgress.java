@@ -49,8 +49,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        return entries.equals(((RestoreInProgress) o).entries);
+        return o instanceof RestoreInProgress that && entries.equals(that.entries);
     }
 
     @Override
@@ -246,12 +245,10 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            ShardRestoreStatus status = (ShardRestoreStatus) o;
-            return state == status.state && Objects.equals(nodeId, status.nodeId) && Objects.equals(reason, status.reason);
+            return o instanceof ShardRestoreStatus status
+                && state == status.state
+                && Objects.equals(nodeId, status.nodeId)
+                && Objects.equals(reason, status.reason);
         }
 
         @Override

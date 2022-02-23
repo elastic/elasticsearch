@@ -59,11 +59,10 @@ public class LongScriptFieldRangeQuery extends AbstractLongScriptFieldQuery {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        LongScriptFieldRangeQuery other = (LongScriptFieldRangeQuery) obj;
-        return lowerValue == other.lowerValue && upperValue == other.upperValue;
+        return super.equals(obj)
+            && obj instanceof LongScriptFieldRangeQuery other
+            && lowerValue == other.lowerValue
+            && upperValue == other.upperValue;
     }
 
     long lowerValue() {

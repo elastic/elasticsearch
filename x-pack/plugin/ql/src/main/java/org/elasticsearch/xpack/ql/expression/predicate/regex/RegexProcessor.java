@@ -88,12 +88,6 @@ public class RegexProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        RegexProcessor other = (RegexProcessor) obj;
-        return Objects.equals(pattern, other.pattern);
+        return obj instanceof RegexProcessor other && Objects.equals(pattern, other.pattern);
     }
 }

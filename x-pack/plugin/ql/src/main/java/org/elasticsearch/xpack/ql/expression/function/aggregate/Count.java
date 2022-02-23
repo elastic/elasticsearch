@@ -55,10 +55,6 @@ public class Count extends AggregateFunction {
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            Count other = (Count) obj;
-            return Objects.equals(other.distinct(), distinct());
-        }
-        return false;
+        return obj instanceof Count other && super.equals(obj) && Objects.equals(other.distinct(), distinct());
     }
 }

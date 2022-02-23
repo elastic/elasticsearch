@@ -473,11 +473,8 @@ public class RangeFieldMapper extends FieldMapper {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Range range = (Range) o;
-            return includeFrom == range.includeFrom
+            return o instanceof Range range
+                && includeFrom == range.includeFrom
                 && includeTo == range.includeTo
                 && type == range.type
                 && from.equals(range.from)

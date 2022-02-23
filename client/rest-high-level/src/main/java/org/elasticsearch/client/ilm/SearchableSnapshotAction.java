@@ -77,9 +77,9 @@ public class SearchableSnapshotAction implements LifecycleAction, ToXContentObje
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SearchableSnapshotAction that = (SearchableSnapshotAction) o;
-        return forceMergeIndex == that.forceMergeIndex && snapshotRepository.equals(that.snapshotRepository);
+        return o instanceof SearchableSnapshotAction that
+            && forceMergeIndex == that.forceMergeIndex
+            && snapshotRepository.equals(that.snapshotRepository);
     }
 
     @Override

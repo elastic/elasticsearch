@@ -154,11 +154,7 @@ public class AllocationId implements ToXContentObject, Writeable {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        AllocationId that = (AllocationId) o;
-        return Objects.equals(id, that.id) && Objects.equals(relocationId, that.relocationId);
+        return o instanceof AllocationId that && Objects.equals(id, that.id) && Objects.equals(relocationId, that.relocationId);
     }
 
     @Override

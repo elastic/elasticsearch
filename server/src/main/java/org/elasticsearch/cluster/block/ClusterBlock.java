@@ -174,11 +174,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final ClusterBlock that = (ClusterBlock) o;
-        return id == that.id && Objects.equals(uuid, that.uuid);
+        return o instanceof ClusterBlock that && id == that.id && Objects.equals(uuid, that.uuid);
     }
 
     @Override

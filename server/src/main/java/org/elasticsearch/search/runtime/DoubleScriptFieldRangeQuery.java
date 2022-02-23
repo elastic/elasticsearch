@@ -57,11 +57,10 @@ public class DoubleScriptFieldRangeQuery extends AbstractDoubleScriptFieldQuery 
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        DoubleScriptFieldRangeQuery other = (DoubleScriptFieldRangeQuery) obj;
-        return lowerValue == other.lowerValue && upperValue == other.upperValue;
+        return super.equals(obj)
+            && obj instanceof DoubleScriptFieldRangeQuery other
+            && lowerValue == other.lowerValue
+            && upperValue == other.upperValue;
     }
 
     double lowerValue() {

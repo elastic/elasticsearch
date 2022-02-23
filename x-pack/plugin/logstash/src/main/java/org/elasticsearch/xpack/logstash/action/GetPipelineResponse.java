@@ -53,9 +53,7 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetPipelineResponse that = (GetPipelineResponse) o;
-        return Objects.equals(pipelines, that.pipelines);
+        return o instanceof GetPipelineResponse that && Objects.equals(pipelines, that.pipelines);
     }
 
     @Override

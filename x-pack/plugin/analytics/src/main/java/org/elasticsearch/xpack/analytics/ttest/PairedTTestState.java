@@ -80,9 +80,7 @@ public class PairedTTestState implements TTestState {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        PairedTTestState that = (PairedTTestState) o;
-        return tails == that.tails && stats.equals(that.stats);
+        return o instanceof PairedTTestState that && tails == that.tails && stats.equals(that.stats);
     }
 
     @Override

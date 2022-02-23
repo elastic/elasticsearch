@@ -404,11 +404,8 @@ public class Annotation implements ToXContentObject, Writeable {
         if (obj == this) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        Annotation other = (Annotation) obj;
-        return Objects.equals(annotation, other.annotation)
+        return obj instanceof Annotation other
+            && Objects.equals(annotation, other.annotation)
             && Objects.equals(createTime, other.createTime)
             && Objects.equals(createUsername, other.createUsername)
             && Objects.equals(timestamp, other.timestamp)

@@ -179,10 +179,9 @@ public class BucketCountKSTestAggregationBuilder extends BucketMetricsPipelineAg
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        BucketCountKSTestAggregationBuilder that = (BucketCountKSTestAggregationBuilder) o;
-        return Arrays.equals(fractions, that.fractions)
+        return o instanceof BucketCountKSTestAggregationBuilder that
+            && super.equals(o)
+            && Arrays.equals(fractions, that.fractions)
             && Objects.equals(alternative, that.alternative)
             && Objects.equals(samplingMethod, that.samplingMethod);
     }

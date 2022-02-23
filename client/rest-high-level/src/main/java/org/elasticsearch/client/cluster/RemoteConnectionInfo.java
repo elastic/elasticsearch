@@ -105,9 +105,8 @@ public final class RemoteConnectionInfo {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RemoteConnectionInfo that = (RemoteConnectionInfo) o;
-        return skipUnavailable == that.skipUnavailable
+        return o instanceof RemoteConnectionInfo that
+            && skipUnavailable == that.skipUnavailable
             && Objects.equals(modeInfo, that.modeInfo)
             && Objects.equals(initialConnectionTimeoutString, that.initialConnectionTimeoutString)
             && Objects.equals(clusterAlias, that.clusterAlias);

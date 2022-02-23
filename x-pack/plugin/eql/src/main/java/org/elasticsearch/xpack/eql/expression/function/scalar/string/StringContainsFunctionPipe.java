@@ -96,12 +96,8 @@ public class StringContainsFunctionPipe extends Pipe {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        StringContainsFunctionPipe other = (StringContainsFunctionPipe) obj;
-        return Objects.equals(string(), other.string()) && Objects.equals(substring(), other.substring());
+        return obj instanceof StringContainsFunctionPipe other
+            && Objects.equals(string(), other.string())
+            && Objects.equals(substring(), other.substring());
     }
 }

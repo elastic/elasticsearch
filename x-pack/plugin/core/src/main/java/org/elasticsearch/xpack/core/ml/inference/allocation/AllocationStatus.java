@@ -109,9 +109,9 @@ public class AllocationStatus implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AllocationStatus that = (AllocationStatus) o;
-        return allocationCount == that.allocationCount && targetAllocationCount == that.targetAllocationCount;
+        return o instanceof AllocationStatus that
+            && allocationCount == that.allocationCount
+            && targetAllocationCount == that.targetAllocationCount;
     }
 
     @Override

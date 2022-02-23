@@ -64,9 +64,8 @@ public class DeleteServiceAccountTokenRequest extends ActionRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DeleteServiceAccountTokenRequest that = (DeleteServiceAccountTokenRequest) o;
-        return Objects.equals(namespace, that.namespace)
+        return o instanceof DeleteServiceAccountTokenRequest that
+            && Objects.equals(namespace, that.namespace)
             && Objects.equals(serviceName, that.serviceName)
             && Objects.equals(tokenName, that.tokenName)
             && refreshPolicy == that.refreshPolicy;

@@ -163,9 +163,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            InferTrainedModelDeploymentAction.Request that = (InferTrainedModelDeploymentAction.Request) o;
-            return Objects.equals(deploymentId, that.deploymentId)
+            return o instanceof InferTrainedModelDeploymentAction.Request that
+                && Objects.equals(deploymentId, that.deploymentId)
                 && Objects.equals(docs, that.docs)
                 && Objects.equals(update, that.update)
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout);

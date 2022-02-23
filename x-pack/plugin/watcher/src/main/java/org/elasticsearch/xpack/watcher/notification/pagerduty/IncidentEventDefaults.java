@@ -55,11 +55,7 @@ public class IncidentEventDefaults {
 
             @Override
             public boolean equals(Object obj) {
-                if (obj == null || getClass() != obj.getClass()) {
-                    return false;
-                }
-                final LinkDefaults other = (LinkDefaults) obj;
-                return Objects.equals(href, other.href) && Objects.equals(text, other.text);
+                return obj instanceof LinkDefaults other && Objects.equals(href, other.href) && Objects.equals(text, other.text);
             }
         }
 
@@ -82,11 +78,10 @@ public class IncidentEventDefaults {
 
             @Override
             public boolean equals(Object obj) {
-                if (obj == null || getClass() != obj.getClass()) {
-                    return false;
-                }
-                final ImageDefaults other = (ImageDefaults) obj;
-                return Objects.equals(href, other.href) && Objects.equals(src, other.src) && Objects.equals(alt, other.alt);
+                return obj instanceof ImageDefaults other
+                    && Objects.equals(href, other.href)
+                    && Objects.equals(src, other.src)
+                    && Objects.equals(alt, other.alt);
             }
         }
     }

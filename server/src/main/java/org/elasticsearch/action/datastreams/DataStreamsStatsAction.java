@@ -116,11 +116,8 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Response response = (Response) obj;
-            return dataStreamCount == response.dataStreamCount
+            return obj instanceof Response response
+                && dataStreamCount == response.dataStreamCount
                 && backingIndices == response.backingIndices
                 && Objects.equals(totalStoreSize, response.totalStoreSize)
                 && Arrays.equals(dataStreams, response.dataStreams);
@@ -208,11 +205,8 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            DataStreamStats that = (DataStreamStats) obj;
-            return backingIndices == that.backingIndices
+            return obj instanceof DataStreamStats that
+                && backingIndices == that.backingIndices
                 && maximumTimestamp == that.maximumTimestamp
                 && Objects.equals(dataStream, that.dataStream)
                 && Objects.equals(storeSize, that.storeSize);

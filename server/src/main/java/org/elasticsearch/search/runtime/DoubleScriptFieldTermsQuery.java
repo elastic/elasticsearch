@@ -56,11 +56,7 @@ public class DoubleScriptFieldTermsQuery extends AbstractDoubleScriptFieldQuery 
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        DoubleScriptFieldTermsQuery other = (DoubleScriptFieldTermsQuery) obj;
-        return terms.equals(other.terms);
+        return super.equals(obj) && obj instanceof DoubleScriptFieldTermsQuery other && terms.equals(other.terms);
     }
 
     double[] terms() {

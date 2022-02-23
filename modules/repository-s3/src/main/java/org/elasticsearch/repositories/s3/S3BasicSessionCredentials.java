@@ -30,11 +30,8 @@ final class S3BasicSessionCredentials extends S3BasicCredentials implements AWSS
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final S3BasicSessionCredentials that = (S3BasicSessionCredentials) o;
-        return sessionToken.equals(that.sessionToken)
+        return o instanceof S3BasicSessionCredentials that
+            && sessionToken.equals(that.sessionToken)
             && getAWSAccessKeyId().equals(that.getAWSAccessKeyId())
             && getAWSSecretKey().equals(that.getAWSSecretKey());
     }

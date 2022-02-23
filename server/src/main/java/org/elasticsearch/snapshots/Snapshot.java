@@ -66,11 +66,7 @@ public final class Snapshot implements Writeable {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        Snapshot that = (Snapshot) o;
-        return repository.equals(that.repository) && snapshotId.equals(that.snapshotId);
+        return o instanceof Snapshot that && repository.equals(that.repository) && snapshotId.equals(that.snapshotId);
     }
 
     @Override

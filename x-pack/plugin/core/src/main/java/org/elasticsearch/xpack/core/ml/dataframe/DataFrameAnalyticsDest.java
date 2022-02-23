@@ -76,10 +76,9 @@ public class DataFrameAnalyticsDest implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        DataFrameAnalyticsDest other = (DataFrameAnalyticsDest) o;
-        return Objects.equals(index, other.index) && Objects.equals(resultsField, other.resultsField);
+        return o instanceof DataFrameAnalyticsDest other
+            && Objects.equals(index, other.index)
+            && Objects.equals(resultsField, other.resultsField);
     }
 
     @Override

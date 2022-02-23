@@ -755,16 +755,13 @@ public class License implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        License license = (License) o;
-
-        if (issueDate != license.issueDate) return false;
-        if (expiryDate != license.expiryDate) return false;
-        if (startDate != license.startDate) return false;
-        if (maxNodes != license.maxNodes) return false;
-        if (version != license.version) return false;
-        return Objects.equals(uid, license.uid)
+        return o instanceof License license
+            && issueDate == license.issueDate
+            && expiryDate == license.expiryDate
+            && startDate == license.startDate
+            && maxNodes == license.maxNodes
+            && version == license.version
+            && Objects.equals(uid, license.uid)
             && Objects.equals(issuer, license.issuer)
             && Objects.equals(issuedTo, license.issuedTo)
             && Objects.equals(type, license.type)

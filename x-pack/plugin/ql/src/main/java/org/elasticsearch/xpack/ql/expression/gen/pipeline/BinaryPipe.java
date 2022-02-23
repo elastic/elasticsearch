@@ -79,12 +79,6 @@ public abstract class BinaryPipe extends Pipe {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        BinaryPipe other = (BinaryPipe) obj;
-        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
+        return obj instanceof BinaryPipe other && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
     }
 }

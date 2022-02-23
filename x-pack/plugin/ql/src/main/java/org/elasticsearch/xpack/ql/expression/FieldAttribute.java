@@ -142,7 +142,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(path, ((FieldAttribute) obj).path);
+        return obj instanceof FieldAttribute that && super.equals(obj) && Objects.equals(path, that.path);
     }
 
     @Override

@@ -708,14 +708,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            CheckpointState that = (CheckpointState) o;
-
-            if (localCheckpoint != that.localCheckpoint) return false;
-            if (globalCheckpoint != that.globalCheckpoint) return false;
-            if (inSync != that.inSync) return false;
-            return tracked == that.tracked;
+            return o instanceof CheckpointState that
+                && localCheckpoint == that.localCheckpoint
+                && globalCheckpoint == that.globalCheckpoint
+                && inSync == that.inSync
+                && tracked == that.tracked;
         }
 
         @Override

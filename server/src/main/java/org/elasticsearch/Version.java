@@ -437,17 +437,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        Version version = (Version) o;
-
-        if (id != version.id) {
-            return false;
-        }
-
-        return true;
+        return o instanceof Version version && id == version.id;
     }
 
     @Override

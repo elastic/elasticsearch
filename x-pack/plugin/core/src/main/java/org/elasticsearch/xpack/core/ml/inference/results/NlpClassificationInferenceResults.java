@@ -69,10 +69,9 @@ public class NlpClassificationInferenceResults extends NlpInferenceResults {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        NlpClassificationInferenceResults that = (NlpClassificationInferenceResults) o;
-        return Objects.equals(resultsField, that.resultsField)
+        return o instanceof NlpClassificationInferenceResults that
+            && super.equals(o)
+            && Objects.equals(resultsField, that.resultsField)
             && Objects.equals(classificationLabel, that.classificationLabel)
             && Objects.equals(predictionProbability, that.predictionProbability)
             && Objects.equals(topClasses, that.topClasses);

@@ -559,14 +559,10 @@ public class ESLoggerUsageChecker {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (super.equals(o) == false) return false;
-
-            IntMinMaxTrackingBasicValue that = (IntMinMaxTrackingBasicValue) o;
-
-            if (minValue != that.minValue) return false;
-            return maxValue == that.maxValue;
-
+            return o instanceof IntMinMaxTrackingBasicValue that
+                && super.equals(o)
+                && minValue == that.minValue
+                && maxValue == that.maxValue;
         }
 
         @Override

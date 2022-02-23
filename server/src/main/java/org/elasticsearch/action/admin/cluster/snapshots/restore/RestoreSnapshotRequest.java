@@ -595,9 +595,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RestoreSnapshotRequest that = (RestoreSnapshotRequest) o;
-        return waitForCompletion == that.waitForCompletion
+        return o instanceof RestoreSnapshotRequest that
+            && waitForCompletion == that.waitForCompletion
             && includeGlobalState == that.includeGlobalState
             && partial == that.partial
             && includeAliases == that.includeAliases

@@ -75,9 +75,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ResetFeatureStateResponse that = (ResetFeatureStateResponse) o;
-        return Objects.equals(resetFeatureStateStatusList, that.resetFeatureStateStatusList);
+        return o instanceof ResetFeatureStateResponse that && Objects.equals(resetFeatureStateStatusList, that.resetFeatureStateStatusList);
     }
 
     @Override
@@ -186,9 +184,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ResetFeatureStateStatus that = (ResetFeatureStateStatus) o;
-            return Objects.equals(featureName, that.featureName) && status == that.status;
+            return o instanceof ResetFeatureStateStatus that && Objects.equals(featureName, that.featureName) && status == that.status;
         }
 
         /**

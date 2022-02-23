@@ -129,11 +129,7 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        GenerateUniqueIndexNameStep that = (GenerateUniqueIndexNameStep) o;
-        return super.equals(o) && Objects.equals(prefix, that.prefix);
+        return o instanceof GenerateUniqueIndexNameStep that && super.equals(o) && Objects.equals(prefix, that.prefix);
     }
 
     @Override

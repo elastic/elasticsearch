@@ -141,11 +141,8 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        TermsLookup other = (TermsLookup) obj;
-        return Objects.equals(index, other.index)
+        return obj instanceof TermsLookup other
+            && Objects.equals(index, other.index)
             && Objects.equals(id, other.id)
             && Objects.equals(path, other.path)
             && Objects.equals(routing, other.routing);

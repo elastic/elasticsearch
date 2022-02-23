@@ -60,9 +60,7 @@ public class GetAutoscalingPolicyAction extends ActionType<GetAutoscalingPolicyA
         @Override
         public boolean equals(final Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            final Request request = (Request) o;
-            return name.equals(request.name);
+            return o instanceof Request request && name.equals(request.name);
         }
 
         @Override
@@ -102,9 +100,7 @@ public class GetAutoscalingPolicyAction extends ActionType<GetAutoscalingPolicyA
         @Override
         public boolean equals(final Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            final Response response = (Response) o;
-            return policy.equals(response.policy);
+            return o instanceof Response response && policy.equals(response.policy);
         }
 
         @Override

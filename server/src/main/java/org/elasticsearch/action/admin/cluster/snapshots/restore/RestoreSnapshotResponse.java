@@ -101,9 +101,7 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RestoreSnapshotResponse that = (RestoreSnapshotResponse) o;
-        return Objects.equals(restoreInfo, that.restoreInfo);
+        return o instanceof RestoreSnapshotResponse that && Objects.equals(restoreInfo, that.restoreInfo);
     }
 
     @Override

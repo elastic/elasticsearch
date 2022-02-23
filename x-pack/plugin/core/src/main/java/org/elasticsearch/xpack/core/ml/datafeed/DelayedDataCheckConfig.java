@@ -117,12 +117,9 @@ public class DelayedDataCheckConfig implements ToXContentObject, Writeable {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        DelayedDataCheckConfig other = (DelayedDataCheckConfig) obj;
-        return Objects.equals(this.enabled, other.enabled) && Objects.equals(this.checkWindow, other.checkWindow);
+        return obj instanceof DelayedDataCheckConfig other
+            && Objects.equals(this.enabled, other.enabled)
+            && Objects.equals(this.checkWindow, other.checkWindow);
     }
 
 }

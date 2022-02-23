@@ -95,11 +95,8 @@ public class IndexAction implements Action {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        IndexAction that = (IndexAction) o;
-
-        return Objects.equals(index, that.index)
+        return o instanceof IndexAction that
+            && Objects.equals(index, that.index)
             && Objects.equals(docId, that.docId)
             && Objects.equals(opType, that.opType)
             && Objects.equals(executionTimeField, that.executionTimeField)

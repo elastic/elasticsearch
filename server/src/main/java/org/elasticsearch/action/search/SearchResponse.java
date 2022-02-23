@@ -529,11 +529,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Clusters clusters = (Clusters) o;
-            return total == clusters.total && successful == clusters.successful && skipped == clusters.skipped;
+            return o instanceof Clusters clusters
+                && total == clusters.total
+                && successful == clusters.successful
+                && skipped == clusters.skipped;
         }
 
         @Override

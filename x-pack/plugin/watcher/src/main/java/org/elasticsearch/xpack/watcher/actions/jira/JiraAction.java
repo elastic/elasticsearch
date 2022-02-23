@@ -48,10 +48,10 @@ public class JiraAction implements Action {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        JiraAction that = (JiraAction) o;
-        return Objects.equals(account, that.account) && Objects.equals(fields, that.fields) && Objects.equals(proxy, that.proxy);
+        return o instanceof JiraAction that
+            && Objects.equals(account, that.account)
+            && Objects.equals(fields, that.fields)
+            && Objects.equals(proxy, that.proxy);
     }
 
     @Override

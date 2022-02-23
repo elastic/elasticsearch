@@ -68,9 +68,7 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SqlClearCursorResponse response = (SqlClearCursorResponse) o;
-        return succeeded == response.succeeded;
+        return o instanceof SqlClearCursorResponse response && succeeded == response.succeeded;
     }
 
     @Override

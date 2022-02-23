@@ -34,13 +34,8 @@ public class ScriptSort extends Sort {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        ScriptSort other = (ScriptSort) obj;
-        return Objects.equals(direction(), other.direction())
+        return obj instanceof ScriptSort other
+            && Objects.equals(direction(), other.direction())
             && Objects.equals(missing(), other.missing())
             && Objects.equals(script, other.script);
     }

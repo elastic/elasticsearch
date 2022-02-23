@@ -126,10 +126,9 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            UnresolvedAttribute ua = (UnresolvedAttribute) obj;
-            return Objects.equals(resolutionMetadata, ua.resolutionMetadata) && Objects.equals(unresolvedMsg, ua.unresolvedMsg);
-        }
-        return false;
+        return obj instanceof UnresolvedAttribute ua
+            && super.equals(obj)
+            && Objects.equals(resolutionMetadata, ua.resolutionMetadata)
+            && Objects.equals(unresolvedMsg, ua.unresolvedMsg);
     }
 }

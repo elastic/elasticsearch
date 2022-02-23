@@ -85,13 +85,10 @@ public class SubstringFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        SubstringFunctionProcessor other = (SubstringFunctionProcessor) obj;
-        return Objects.equals(input(), other.input()) && Objects.equals(start(), other.start()) && Objects.equals(end(), other.end());
+        return obj instanceof SubstringFunctionProcessor other
+            && Objects.equals(input(), other.input())
+            && Objects.equals(start(), other.start())
+            && Objects.equals(end(), other.end());
     }
 
     @Override

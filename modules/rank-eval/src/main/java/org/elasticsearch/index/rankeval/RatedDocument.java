@@ -112,11 +112,7 @@ public class RatedDocument implements Writeable, ToXContentObject {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        RatedDocument other = (RatedDocument) obj;
-        return Objects.equals(key, other.key) && Objects.equals(rating, other.rating);
+        return obj instanceof RatedDocument other && Objects.equals(key, other.key) && Objects.equals(rating, other.rating);
     }
 
     @Override

@@ -53,12 +53,7 @@ public final class ExceptExpression implements RoleMapperExpression {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        final ExceptExpression that = (ExceptExpression) o;
-        return this.expression.equals(that.expression);
+        return o instanceof ExceptExpression that && this.expression.equals(that.expression);
     }
 
     @Override

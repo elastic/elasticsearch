@@ -54,11 +54,8 @@ public class Action implements MessageElement {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Action template = (Action) o;
-
-        return Objects.equals(style, template.style)
+        return o instanceof Action template
+            && Objects.equals(style, template.style)
             && Objects.equals(type, template.type)
             && Objects.equals(url, template.url)
             && Objects.equals(text, template.text)
@@ -101,11 +98,8 @@ public class Action implements MessageElement {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Template template = (Template) o;
-
-            return Objects.equals(style, template.style)
+            return o instanceof Template template
+                && Objects.equals(style, template.style)
                 && Objects.equals(type, template.type)
                 && Objects.equals(url, template.url)
                 && Objects.equals(text, template.text)

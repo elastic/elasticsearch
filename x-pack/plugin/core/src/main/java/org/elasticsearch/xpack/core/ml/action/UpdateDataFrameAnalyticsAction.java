@@ -85,9 +85,7 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            UpdateDataFrameAnalyticsAction.Request request = (UpdateDataFrameAnalyticsAction.Request) o;
-            return Objects.equals(update, request.update);
+            return o instanceof UpdateDataFrameAnalyticsAction.Request request && Objects.equals(update, request.update);
         }
 
         @Override

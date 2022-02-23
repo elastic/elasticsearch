@@ -285,14 +285,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        IndexRoutingTable that = (IndexRoutingTable) o;
-
-        if (index.equals(that.index) == false) return false;
-        if (shards.equals(that.shards) == false) return false;
-
-        return true;
+        return o instanceof IndexRoutingTable that && index.equals(that.index) && shards.equals(that.shards);
     }
 
     @Override

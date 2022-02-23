@@ -72,11 +72,7 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        AggregationProfileShardResult other = (AggregationProfileShardResult) obj;
-        return aggProfileResults.equals(other.aggProfileResults);
+        return obj instanceof AggregationProfileShardResult other && aggProfileResults.equals(other.aggProfileResults);
     }
 
     @Override

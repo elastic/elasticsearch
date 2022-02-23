@@ -237,11 +237,9 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        MultiValuesSourceAggregationBuilder<?> other = (MultiValuesSourceAggregationBuilder<?>) obj;
-        return Objects.equals(this.fields, other.fields)
+        return obj instanceof MultiValuesSourceAggregationBuilder<?> other
+            && super.equals(obj)
+            && Objects.equals(this.fields, other.fields)
             && Objects.equals(this.format, other.format)
             && Objects.equals(this.userValueTypeHint, other.userValueTypeHint);
     }

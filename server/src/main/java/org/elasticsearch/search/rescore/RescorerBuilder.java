@@ -134,11 +134,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        RescorerBuilder<?> other = (RescorerBuilder<?>) obj;
-        return Objects.equals(windowSize, other.windowSize);
+        return obj instanceof RescorerBuilder<?> other && Objects.equals(windowSize, other.windowSize);
     }
 
     @Override

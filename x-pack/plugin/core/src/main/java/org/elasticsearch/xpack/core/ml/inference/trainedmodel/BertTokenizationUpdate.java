@@ -99,9 +99,7 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BertTokenizationUpdate that = (BertTokenizationUpdate) o;
-        return truncate == that.truncate;
+        return o instanceof BertTokenizationUpdate that && truncate == that.truncate;
     }
 
     @Override

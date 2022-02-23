@@ -116,9 +116,7 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DelegatePkiAuthenticationRequest that = (DelegatePkiAuthenticationRequest) o;
-        return Objects.equals(certificateChain, that.certificateChain);
+        return o instanceof DelegatePkiAuthenticationRequest that && Objects.equals(certificateChain, that.certificateChain);
     }
 
     @Override

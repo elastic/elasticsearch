@@ -511,9 +511,9 @@ final class QueryAnalyzer {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            QueryExtraction queryExtraction = (QueryExtraction) o;
-            return Objects.equals(term, queryExtraction.term) && Objects.equals(range, queryExtraction.range);
+            return o instanceof QueryExtraction queryExtraction
+                && Objects.equals(term, queryExtraction.term)
+                && Objects.equals(range, queryExtraction.range);
         }
 
         @Override
@@ -545,9 +545,8 @@ final class QueryAnalyzer {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Range range = (Range) o;
-            return Objects.equals(fieldName, range.fieldName)
+            return o instanceof Range range
+                && Objects.equals(fieldName, range.fieldName)
                 && Arrays.equals(lowerPoint, range.lowerPoint)
                 && Arrays.equals(upperPoint, range.upperPoint);
         }

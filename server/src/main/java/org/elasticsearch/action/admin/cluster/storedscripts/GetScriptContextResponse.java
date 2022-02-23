@@ -111,11 +111,7 @@ public class GetScriptContextResponse extends ActionResponse implements StatusTo
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        GetScriptContextResponse that = (GetScriptContextResponse) o;
-        return contexts.equals(that.contexts);
+        return o instanceof GetScriptContextResponse that && contexts.equals(that.contexts);
     }
 
     @Override

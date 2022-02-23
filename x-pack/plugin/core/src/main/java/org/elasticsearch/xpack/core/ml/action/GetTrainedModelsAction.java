@@ -104,9 +104,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Includes includes1 = (Includes) o;
-            return Objects.equals(includes, includes1.includes);
+            return o instanceof Includes includes1 && Objects.equals(includes, includes1.includes);
         }
 
         @Override
@@ -172,11 +170,10 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             if (obj == this) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Request other = (Request) obj;
-            return super.equals(obj) && this.includes.equals(other.includes) && Objects.equals(tags, other.tags);
+            return obj instanceof Request other
+                && super.equals(obj)
+                && this.includes.equals(other.includes)
+                && Objects.equals(tags, other.tags);
         }
     }
 

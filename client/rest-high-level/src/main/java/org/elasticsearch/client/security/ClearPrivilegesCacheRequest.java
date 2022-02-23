@@ -40,11 +40,7 @@ public final class ClearPrivilegesCacheRequest implements Validatable {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        ClearPrivilegesCacheRequest that = (ClearPrivilegesCacheRequest) o;
-        return Arrays.equals(applications, that.applications);
+        return o instanceof ClearPrivilegesCacheRequest that && Arrays.equals(applications, that.applications);
     }
 
     @Override

@@ -201,9 +201,8 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TextClassificationConfigUpdate that = (TextClassificationConfigUpdate) o;
-        return Objects.equals(classificationLabels, that.classificationLabels)
+        return o instanceof TextClassificationConfigUpdate that
+            && Objects.equals(classificationLabels, that.classificationLabels)
             && Objects.equals(numTopClasses, that.numTopClasses)
             && Objects.equals(resultsField, that.resultsField)
             && Objects.equals(tokenizationUpdate, that.tokenizationUpdate);

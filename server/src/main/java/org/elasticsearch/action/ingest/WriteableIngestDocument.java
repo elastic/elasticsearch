@@ -131,11 +131,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        WriteableIngestDocument that = (WriteableIngestDocument) o;
-        return Objects.equals(ingestDocument, that.ingestDocument);
+        return o instanceof WriteableIngestDocument that && Objects.equals(ingestDocument, that.ingestDocument);
     }
 
     @Override

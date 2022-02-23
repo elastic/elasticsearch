@@ -169,11 +169,8 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId)
+            return obj instanceof Request other
+                && Objects.equals(jobId, other.jobId)
                 && Objects.equals(duration, other.duration)
                 && Objects.equals(expiresIn, other.expiresIn)
                 && Objects.equals(maxModelMemory, other.maxModelMemory);

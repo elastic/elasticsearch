@@ -90,11 +90,7 @@ public class IndexLocation implements StrictlyParsedTrainedModelLocation, Lenien
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        IndexLocation that = (IndexLocation) o;
-        return Objects.equals(indexName, that.indexName);
+        return o instanceof IndexLocation that && Objects.equals(indexName, that.indexName);
     }
 
     @Override

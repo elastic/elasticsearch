@@ -67,11 +67,7 @@ class DateObjectValueSource extends FieldDataValueSource {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-
-        DateObjectValueSource that = (DateObjectValueSource) o;
-        return methodName.equals(that.methodName);
+        return o instanceof DateObjectValueSource that && super.equals(o) && methodName.equals(that.methodName);
     }
 
     @Override

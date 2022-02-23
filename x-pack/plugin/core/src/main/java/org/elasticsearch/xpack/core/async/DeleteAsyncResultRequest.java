@@ -45,9 +45,7 @@ public class DeleteAsyncResultRequest extends ActionRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DeleteAsyncResultRequest request = (DeleteAsyncResultRequest) o;
-        return id.equals(request.id);
+        return o instanceof DeleteAsyncResultRequest request && id.equals(request.id);
     }
 
     @Override

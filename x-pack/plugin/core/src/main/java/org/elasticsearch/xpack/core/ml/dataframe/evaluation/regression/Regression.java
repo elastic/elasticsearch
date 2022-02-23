@@ -136,9 +136,7 @@ public class Regression implements Evaluation {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Regression that = (Regression) o;
-        return Objects.equals(that.fields, this.fields) && Objects.equals(that.metrics, this.metrics);
+        return o instanceof Regression that && Objects.equals(that.fields, this.fields) && Objects.equals(that.metrics, this.metrics);
     }
 
     @Override

@@ -45,11 +45,8 @@ public class CacheKey {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final CacheKey cacheKey = (CacheKey) o;
-        return Objects.equals(snapshotUUID, cacheKey.snapshotUUID)
+        return o instanceof CacheKey cacheKey
+            && Objects.equals(snapshotUUID, cacheKey.snapshotUUID)
             && Objects.equals(snapshotIndexName, cacheKey.snapshotIndexName)
             && Objects.equals(shardId, cacheKey.shardId)
             && Objects.equals(fileName, cacheKey.fileName);

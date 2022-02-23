@@ -225,9 +225,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(clusterSettingsIssues, response.clusterSettingsIssues)
+            return o instanceof Response response
+                && Objects.equals(clusterSettingsIssues, response.clusterSettingsIssues)
                 && Objects.equals(nodeSettingsIssues, response.nodeSettingsIssues)
                 && Objects.equals(indexSettingsIssues, response.indexSettingsIssues)
                 && Objects.equals(pluginSettingsIssues, response.pluginSettingsIssues);
@@ -377,9 +376,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Arrays.equals(indices, request.indices);
+            return o instanceof Request request && Arrays.equals(indices, request.indices);
         }
 
         @Override

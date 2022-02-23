@@ -102,11 +102,8 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        QueryProfileShardResult other = (QueryProfileShardResult) obj;
-        return queryProfileResults.equals(other.queryProfileResults)
+        return obj instanceof QueryProfileShardResult other
+            && queryProfileResults.equals(other.queryProfileResults)
             && profileCollector.equals(other.profileCollector)
             && rewriteTime == other.rewriteTime;
     }

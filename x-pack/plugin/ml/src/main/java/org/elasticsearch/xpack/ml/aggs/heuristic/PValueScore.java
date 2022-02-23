@@ -78,10 +78,7 @@ public class PValueScore extends NXYSignificanceHeuristic {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        PValueScore that = (PValueScore) o;
-        return normalizeAbove == that.normalizeAbove;
+        return o instanceof PValueScore that && super.equals(o) && normalizeAbove == that.normalizeAbove;
     }
 
     @Override

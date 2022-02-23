@@ -298,9 +298,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Bundle bundle = (Bundle) o;
-            return Objects.equals(plugin, bundle.plugin);
+            return o instanceof Bundle bundle && Objects.equals(plugin, bundle.plugin);
         }
 
         @Override

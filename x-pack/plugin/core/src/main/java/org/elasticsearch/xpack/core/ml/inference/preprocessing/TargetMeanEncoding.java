@@ -191,9 +191,8 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TargetMeanEncoding that = (TargetMeanEncoding) o;
-        return Objects.equals(field, that.field)
+        return o instanceof TargetMeanEncoding that
+            && Objects.equals(field, that.field)
             && Objects.equals(featureName, that.featureName)
             && Objects.equals(meanMap, that.meanMap)
             && Objects.equals(defaultValue, that.defaultValue)

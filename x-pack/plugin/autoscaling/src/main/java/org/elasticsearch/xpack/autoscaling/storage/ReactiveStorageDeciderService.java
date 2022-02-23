@@ -729,9 +729,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ReactiveReason that = (ReactiveReason) o;
-            return unassigned == that.unassigned && assigned == that.assigned && reason.equals(that.reason);
+            return o instanceof ReactiveReason that
+                && unassigned == that.unassigned
+                && assigned == that.assigned
+                && reason.equals(that.reason);
         }
 
         @Override

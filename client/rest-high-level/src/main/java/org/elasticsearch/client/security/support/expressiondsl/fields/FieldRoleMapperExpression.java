@@ -54,11 +54,9 @@ public class FieldRoleMapperExpression implements RoleMapperExpression {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        final FieldRoleMapperExpression that = (FieldRoleMapperExpression) o;
-
-        return Objects.equals(this.getField(), that.getField()) && Objects.equals(this.getValues(), that.getValues());
+        return o instanceof FieldRoleMapperExpression that
+            && Objects.equals(this.getField(), that.getField())
+            && Objects.equals(this.getValues(), that.getValues());
     }
 
     @Override

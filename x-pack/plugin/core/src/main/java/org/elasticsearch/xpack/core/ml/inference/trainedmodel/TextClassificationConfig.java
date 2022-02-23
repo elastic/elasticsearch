@@ -144,10 +144,8 @@ public class TextClassificationConfig implements NlpConfig {
     @Override
     public boolean equals(Object o) {
         if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        TextClassificationConfig that = (TextClassificationConfig) o;
-        return Objects.equals(vocabularyConfig, that.vocabularyConfig)
+        return o instanceof TextClassificationConfig that
+            && Objects.equals(vocabularyConfig, that.vocabularyConfig)
             && Objects.equals(tokenization, that.tokenization)
             && Objects.equals(numTopClasses, that.numTopClasses)
             && Objects.equals(classificationLabels, that.classificationLabels)

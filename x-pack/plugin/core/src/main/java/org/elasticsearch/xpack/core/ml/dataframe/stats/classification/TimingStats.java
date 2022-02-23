@@ -71,9 +71,9 @@ public class TimingStats implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TimingStats that = (TimingStats) o;
-        return Objects.equals(elapsedTime, that.elapsedTime) && Objects.equals(iterationTime, that.iterationTime);
+        return o instanceof TimingStats that
+            && Objects.equals(elapsedTime, that.elapsedTime)
+            && Objects.equals(iterationTime, that.iterationTime);
     }
 
     @Override

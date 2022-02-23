@@ -422,10 +422,9 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        HistogramAggregationBuilder other = (HistogramAggregationBuilder) obj;
-        return Objects.equals(order, other.order)
+        return obj instanceof HistogramAggregationBuilder other
+            && super.equals(obj)
+            && Objects.equals(order, other.order)
             && Objects.equals(keyed, other.keyed)
             && Objects.equals(minDocCount, other.minDocCount)
             && Objects.equals(interval, other.interval)

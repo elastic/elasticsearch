@@ -817,11 +817,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            MigratedEntities that = (MigratedEntities) o;
-            return Objects.equals(removedIndexTemplateName, that.removedIndexTemplateName)
+            return o instanceof MigratedEntities that
+                && Objects.equals(removedIndexTemplateName, that.removedIndexTemplateName)
                 && Objects.equals(migratedIndices, that.migratedIndices)
                 && Objects.equals(migratedPolicies, that.migratedPolicies)
                 && Objects.equals(migratedTemplates, that.migratedTemplates);
@@ -857,11 +854,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            MigratedTemplates that = (MigratedTemplates) o;
-            return Objects.equals(migratedLegacyTemplates, that.migratedLegacyTemplates)
+            return o instanceof MigratedTemplates that
+                && Objects.equals(migratedLegacyTemplates, that.migratedLegacyTemplates)
                 && Objects.equals(migratedComposableTemplates, that.migratedComposableTemplates)
                 && Objects.equals(migratedComponentTemplates, that.migratedComponentTemplates);
         }

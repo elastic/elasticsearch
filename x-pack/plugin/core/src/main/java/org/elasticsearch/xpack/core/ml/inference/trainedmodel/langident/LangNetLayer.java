@@ -161,9 +161,8 @@ public class LangNetLayer implements ToXContentObject, Writeable, Accountable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        LangNetLayer that = (LangNetLayer) o;
-        return Arrays.equals(weights, that.weights)
+        return o instanceof LangNetLayer that
+            && Arrays.equals(weights, that.weights)
             && Arrays.equals(bias, that.bias)
             && Objects.equals(weightCols, that.weightCols)
             && Objects.equals(weightRows, that.weightRows);

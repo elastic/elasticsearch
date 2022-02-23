@@ -166,11 +166,8 @@ public final class ProfileResult implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        ProfileResult other = (ProfileResult) obj;
-        return type.equals(other.type)
+        return obj instanceof ProfileResult other
+            && type.equals(other.type)
             && description.equals(other.description)
             && breakdown.equals(other.breakdown)
             && debug.equals(other.debug)

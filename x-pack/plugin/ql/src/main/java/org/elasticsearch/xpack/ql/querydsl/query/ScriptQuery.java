@@ -44,13 +44,7 @@ public class ScriptQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        ScriptQuery other = (ScriptQuery) obj;
-        return Objects.equals(script, other.script);
+        return obj instanceof ScriptQuery other && Objects.equals(script, other.script);
     }
 
     @Override

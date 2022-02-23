@@ -69,10 +69,7 @@ public class FillMaskResults extends NlpClassificationInferenceResults {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        FillMaskResults that = (FillMaskResults) o;
-        return Objects.equals(predictedSequence, that.predictedSequence);
+        return o instanceof FillMaskResults that && super.equals(o) && Objects.equals(predictedSequence, that.predictedSequence);
     }
 
     @Override

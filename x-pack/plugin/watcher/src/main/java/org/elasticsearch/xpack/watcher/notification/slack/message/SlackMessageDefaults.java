@@ -39,11 +39,8 @@ public class SlackMessageDefaults {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        SlackMessageDefaults defaults = (SlackMessageDefaults) o;
-
-        return Objects.equals(from, defaults.from)
+        return o instanceof SlackMessageDefaults defaults
+            && Objects.equals(from, defaults.from)
             && Arrays.equals(to, defaults.to)
             && Objects.equals(icon, defaults.icon)
             && Objects.equals(text, defaults.text)
@@ -104,11 +101,8 @@ public class SlackMessageDefaults {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            AttachmentDefaults that = (AttachmentDefaults) o;
-
-            return Objects.equals(fallback, that.fallback)
+            return o instanceof AttachmentDefaults that
+                && Objects.equals(fallback, that.fallback)
                 && Objects.equals(color, that.color)
                 && Objects.equals(pretext, that.pretext)
                 && Objects.equals(authorName, that.authorName)
@@ -161,11 +155,10 @@ public class SlackMessageDefaults {
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-
-                FieldDefaults that = (FieldDefaults) o;
-
-                return Objects.equals(title, that.title) && Objects.equals(value, that.value) && Objects.equals(isShort, that.isShort);
+                return o instanceof FieldDefaults that
+                    && Objects.equals(title, that.title)
+                    && Objects.equals(value, that.value)
+                    && Objects.equals(isShort, that.isShort);
             }
 
             @Override

@@ -218,9 +218,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ModelAliasEntry modelAliasEntry = (ModelAliasEntry) o;
-            return Objects.equals(modelId, modelAliasEntry.modelId);
+            return o instanceof ModelAliasEntry modelAliasEntry && Objects.equals(modelId, modelAliasEntry.modelId);
         }
 
         @Override

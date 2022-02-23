@@ -56,11 +56,7 @@ public class Privilege {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Privilege privilege = (Privilege) o;
-
-        return Objects.equals(name, privilege.name);
+        return o instanceof Privilege privilege && Objects.equals(name, privilege.name);
     }
 
     @Override

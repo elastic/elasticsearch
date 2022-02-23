@@ -73,11 +73,10 @@ public class ControllerResponse implements ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        ControllerResponse that = (ControllerResponse) o;
-        return this.commandId == that.commandId && this.success == that.success && Objects.equals(this.reason, that.reason);
+        return o instanceof ControllerResponse that
+            && this.commandId == that.commandId
+            && this.success == that.success
+            && Objects.equals(this.reason, that.reason);
     }
 
     @Override

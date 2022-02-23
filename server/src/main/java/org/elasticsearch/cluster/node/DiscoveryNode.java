@@ -411,13 +411,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        DiscoveryNode that = (DiscoveryNode) o;
-
-        return ephemeralId.equals(that.ephemeralId);
+        return o instanceof DiscoveryNode that && ephemeralId.equals(that.ephemeralId);
     }
 
     @Override

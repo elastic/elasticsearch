@@ -497,10 +497,9 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        ValuesSourceAggregationBuilder<?> other = (ValuesSourceAggregationBuilder<?>) obj;
-        return Objects.equals(field, other.field)
+        return obj instanceof ValuesSourceAggregationBuilder<?> other
+            && super.equals(obj)
+            && Objects.equals(field, other.field)
             && Objects.equals(format, other.format)
             && Objects.equals(missing, other.missing)
             && Objects.equals(script, other.script)

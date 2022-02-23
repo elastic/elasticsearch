@@ -283,10 +283,8 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        SnapshotStatus that = (SnapshotStatus) o;
-        return Objects.equals(snapshot, that.snapshot)
+        return o instanceof SnapshotStatus that
+            && Objects.equals(snapshot, that.snapshot)
             && state == that.state
             && Objects.equals(indicesStatus, that.indicesStatus)
             && Objects.equals(shardsStats, that.shardsStats)

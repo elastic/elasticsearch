@@ -73,9 +73,8 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SearchTemplateRequest request1 = (SearchTemplateRequest) o;
-        return simulate == request1.simulate
+        return o instanceof SearchTemplateRequest request1
+            && simulate == request1.simulate
             && explain == request1.explain
             && profile == request1.profile
             && Objects.equals(request, request1.request)

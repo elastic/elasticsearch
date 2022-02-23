@@ -999,11 +999,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        SearchHit other = (SearchHit) obj;
-        return Objects.equals(id, other.id)
+        return obj instanceof SearchHit other
+            && Objects.equals(id, other.id)
             && Objects.equals(nestedIdentity, other.nestedIdentity)
             && Objects.equals(version, other.version)
             && Objects.equals(seqNo, other.seqNo)
@@ -1150,11 +1147,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            NestedIdentity other = (NestedIdentity) obj;
-            return Objects.equals(field, other.field) && Objects.equals(offset, other.offset) && Objects.equals(child, other.child);
+            return obj instanceof NestedIdentity other
+                && Objects.equals(field, other.field)
+                && Objects.equals(offset, other.offset)
+                && Objects.equals(child, other.child);
         }
 
         @Override

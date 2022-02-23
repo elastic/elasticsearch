@@ -115,9 +115,7 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TrainedModelAllocationMetadata that = (TrainedModelAllocationMetadata) o;
-        return Objects.equals(modelRoutingEntries, that.modelRoutingEntries);
+        return o instanceof TrainedModelAllocationMetadata that && Objects.equals(modelRoutingEntries, that.modelRoutingEntries);
     }
 
     @Override

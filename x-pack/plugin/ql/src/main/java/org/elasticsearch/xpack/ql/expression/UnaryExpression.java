@@ -64,12 +64,6 @@ public abstract class UnaryExpression extends Expression {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        UnaryExpression other = (UnaryExpression) obj;
-        return Objects.equals(child, other.child);
+        return obj instanceof UnaryExpression other && Objects.equals(child, other.child);
     }
 }

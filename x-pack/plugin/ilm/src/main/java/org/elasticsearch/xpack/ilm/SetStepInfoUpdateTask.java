@@ -77,9 +77,8 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SetStepInfoUpdateTask that = (SetStepInfoUpdateTask) o;
-        return index.equals(that.index)
+        return o instanceof SetStepInfoUpdateTask that
+            && index.equals(that.index)
             && policy.equals(that.policy)
             && currentStepKey.equals(that.currentStepKey)
             && Objects.equals(stepInfo, that.stepInfo);

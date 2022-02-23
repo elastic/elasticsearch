@@ -274,11 +274,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalComposite that = (InternalComposite) obj;
-        return Objects.equals(size, that.size)
+        return obj instanceof InternalComposite that
+            && super.equals(obj)
+            && Objects.equals(size, that.size)
             && Objects.equals(buckets, that.buckets)
             && Objects.equals(afterKey, that.afterKey)
             && Arrays.equals(reverseMuls, that.reverseMuls)
@@ -369,11 +367,8 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            InternalBucket that = (InternalBucket) obj;
-            return Objects.equals(docCount, that.docCount)
+            return obj instanceof InternalBucket that
+                && Objects.equals(docCount, that.docCount)
                 && Objects.equals(key, that.key)
                 && Objects.equals(aggregations, that.aggregations);
         }

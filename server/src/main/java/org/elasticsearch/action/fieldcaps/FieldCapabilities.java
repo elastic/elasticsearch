@@ -440,9 +440,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        FieldCapabilities that = (FieldCapabilities) o;
-        return isMetadataField == that.isMetadataField
+        return o instanceof FieldCapabilities that
+            && isMetadataField == that.isMetadataField
             && isSearchable == that.isSearchable
             && isAggregatable == that.isAggregatable
             && isDimension == that.isDimension

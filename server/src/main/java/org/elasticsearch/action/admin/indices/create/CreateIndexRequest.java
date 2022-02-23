@@ -478,9 +478,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        CreateIndexRequest that = (CreateIndexRequest) obj;
-        return Objects.equals(cause, that.cause)
+        return obj instanceof CreateIndexRequest that
+            && Objects.equals(cause, that.cause)
             && Objects.equals(index, that.index)
             && Objects.equals(settings, that.settings)
             && Objects.equals(mappings, that.mappings)

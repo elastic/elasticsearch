@@ -199,11 +199,8 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            ActiveShardsInfo info = (ActiveShardsInfo) o;
-            return currentActiveShardsCount == info.currentActiveShardsCount
+            return o instanceof ActiveShardsInfo info
+                && currentActiveShardsCount == info.currentActiveShardsCount
                 && enoughShardsActive == info.enoughShardsActive
                 && Objects.equals(targetActiveShardsCount, info.targetActiveShardsCount)
                 && Objects.equals(message, info.message);
@@ -238,11 +235,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Info info = (Info) o;
-            return Objects.equals(message, info.message);
+            return o instanceof Info info && Objects.equals(message, info.message);
         }
 
         @Override

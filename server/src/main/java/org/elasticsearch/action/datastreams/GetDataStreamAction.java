@@ -71,9 +71,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Arrays.equals(names, request.names) && indicesOptions.equals(request.indicesOptions);
+            return o instanceof Request request && Arrays.equals(names, request.names) && indicesOptions.equals(request.indicesOptions);
         }
 
         @Override
@@ -200,9 +198,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                DataStreamInfo that = (DataStreamInfo) o;
-                return dataStream.equals(that.dataStream)
+                return o instanceof DataStreamInfo that
+                    && dataStream.equals(that.dataStream)
                     && dataStreamStatus == that.dataStreamStatus
                     && Objects.equals(indexTemplate, that.indexTemplate)
                     && Objects.equals(ilmPolicyName, that.ilmPolicyName);
@@ -248,9 +245,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return dataStreams.equals(response.dataStreams);
+            return o instanceof Response response && dataStreams.equals(response.dataStreams);
         }
 
         @Override

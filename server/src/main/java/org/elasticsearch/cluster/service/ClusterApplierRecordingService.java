@@ -131,9 +131,7 @@ public final class ClusterApplierRecordingService {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Stats stats = (Stats) o;
-            return Objects.equals(recordings, stats.recordings);
+            return o instanceof Stats stats && Objects.equals(recordings, stats.recordings);
         }
 
         @Override
@@ -164,9 +162,7 @@ public final class ClusterApplierRecordingService {
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                Recording recording = (Recording) o;
-                return count == recording.count && sum == recording.sum;
+                return o instanceof Recording recording && count == recording.count && sum == recording.sum;
             }
 
             @Override

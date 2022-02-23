@@ -55,13 +55,7 @@ public class HitReference implements Accountable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        HitReference other = (HitReference) obj;
-        return Objects.equals(index, other.index) && Objects.equals(id, other.id);
+        return obj instanceof HitReference other && Objects.equals(index, other.index) && Objects.equals(id, other.id);
     }
 
     @Override

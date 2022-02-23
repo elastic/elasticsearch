@@ -82,9 +82,9 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetFeatureUpgradeStatusResponse that = (GetFeatureUpgradeStatusResponse) o;
-        return Objects.equals(featureUpgradeStatuses, that.featureUpgradeStatuses) && Objects.equals(upgradeStatus, that.upgradeStatus);
+        return o instanceof GetFeatureUpgradeStatusResponse that
+            && Objects.equals(featureUpgradeStatuses, that.featureUpgradeStatuses)
+            && Objects.equals(upgradeStatus, that.upgradeStatus);
     }
 
     @Override
@@ -199,9 +199,8 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FeatureUpgradeStatus that = (FeatureUpgradeStatus) o;
-            return Objects.equals(featureName, that.featureName)
+            return o instanceof FeatureUpgradeStatus that
+                && Objects.equals(featureName, that.featureName)
                 && Objects.equals(minimumIndexVersion, that.minimumIndexVersion)
                 && Objects.equals(upgradeStatus, that.upgradeStatus)
                 && Objects.equals(indexInfos, that.indexInfos);
@@ -315,9 +314,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IndexInfo that = (IndexInfo) o;
-            return indexName.equals(that.indexName) && version.equals(that.version);
+            return o instanceof IndexInfo that && indexName.equals(that.indexName) && version.equals(that.version);
         }
 
         @Override

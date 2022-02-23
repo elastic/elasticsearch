@@ -67,14 +67,7 @@ public class KeywordEsField extends EsField {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (super.equals(o) == false) {
-            return false;
-        }
-        KeywordEsField that = (KeywordEsField) o;
-        return precision == that.precision && normalized == that.normalized;
+        return o instanceof KeywordEsField that && super.equals(o) && precision == that.precision && normalized == that.normalized;
     }
 
     @Override

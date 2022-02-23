@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.watcher.support.WatcherUtils.responseToData;
 
@@ -53,13 +52,7 @@ public interface Payload extends ToXContentObject {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Simple simple = (Simple) o;
-
-            if (data.equals(simple.data) == false) return false;
-
-            return true;
+            return o instanceof Simple simple && data.equals(simple.data);
         }
 
         @Override
@@ -69,7 +62,7 @@ public interface Payload extends ToXContentObject {
 
         @Override
         public String toString() {
-            return "simple[" + Objects.toString(data) + "]";
+            return "simple[" + data + "]";
         }
     }
 

@@ -254,10 +254,10 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        AutoDateHistogramAggregationBuilder other = (AutoDateHistogramAggregationBuilder) obj;
-        return Objects.equals(numBuckets, other.numBuckets) && Objects.equals(minimumIntervalExpression, other.minimumIntervalExpression);
+        return obj instanceof AutoDateHistogramAggregationBuilder other
+            && super.equals(obj)
+            && Objects.equals(numBuckets, other.numBuckets)
+            && Objects.equals(minimumIntervalExpression, other.minimumIntervalExpression);
     }
 
     @Override

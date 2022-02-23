@@ -67,9 +67,9 @@ public final class GetPrivilegesRequest implements Validatable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetPrivilegesRequest that = (GetPrivilegesRequest) o;
-        return Objects.equals(applicationName, that.applicationName) && Arrays.equals(privilegeNames, that.privilegeNames);
+        return o instanceof GetPrivilegesRequest that
+            && Objects.equals(applicationName, that.applicationName)
+            && Arrays.equals(privilegeNames, that.privilegeNames);
     }
 
     @Override

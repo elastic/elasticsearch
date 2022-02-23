@@ -327,9 +327,8 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ClusterIndexHealth that = (ClusterIndexHealth) o;
-        return Objects.equals(index, that.index)
+        return o instanceof ClusterIndexHealth that
+            && Objects.equals(index, that.index)
             && numberOfShards == that.numberOfShards
             && numberOfReplicas == that.numberOfReplicas
             && activeShards == that.activeShards

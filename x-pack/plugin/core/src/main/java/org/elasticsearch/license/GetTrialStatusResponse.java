@@ -42,11 +42,7 @@ public class GetTrialStatusResponse extends ActionResponse implements ToXContent
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        GetTrialStatusResponse that = (GetTrialStatusResponse) o;
-        return eligibleToStartTrial == that.eligibleToStartTrial;
+        return o instanceof GetTrialStatusResponse that && eligibleToStartTrial == that.eligibleToStartTrial;
     }
 
     @Override

@@ -200,11 +200,7 @@ public class ClientYamlSuiteRestApi {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Path other = (Path) o;
-            return this.path.equals(other.path);
+            return o instanceof Path other && this.path.equals(other.path);
         }
 
         @Override

@@ -114,11 +114,7 @@ public class SearchScrollRequest extends ActionRequest implements ToXContentObje
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SearchScrollRequest that = (SearchScrollRequest) o;
-        return Objects.equals(scrollId, that.scrollId) && Objects.equals(scroll, that.scroll);
+        return o instanceof SearchScrollRequest that && Objects.equals(scrollId, that.scrollId) && Objects.equals(scroll, that.scroll);
     }
 
     @Override

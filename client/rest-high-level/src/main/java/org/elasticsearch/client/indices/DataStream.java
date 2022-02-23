@@ -179,9 +179,8 @@ public final class DataStream {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DataStream that = (DataStream) o;
-        return generation == that.generation
+        return o instanceof DataStream that
+            && generation == that.generation
             && name.equals(that.name)
             && timeStampField.equals(that.timeStampField)
             && indices.equals(that.indices)

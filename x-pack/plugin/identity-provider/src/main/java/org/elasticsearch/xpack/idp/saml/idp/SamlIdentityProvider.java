@@ -165,9 +165,8 @@ public class SamlIdentityProvider {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        final SamlIdentityProvider that = (SamlIdentityProvider) o;
-        return Objects.equals(entityId, that.entityId)
+        return o instanceof SamlIdentityProvider that
+            && Objects.equals(entityId, that.entityId)
             && Objects.equals(ssoEndpoints, that.ssoEndpoints)
             && Objects.equals(sloEndpoints, that.sloEndpoints)
             && Objects.equals(allowedNameIdFormats, that.allowedNameIdFormats)
@@ -230,9 +229,8 @@ public class SamlIdentityProvider {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            OrganizationInfo that = (OrganizationInfo) o;
-            return Objects.equals(organizationName, that.organizationName)
+            return o instanceof OrganizationInfo that
+                && Objects.equals(organizationName, that.organizationName)
                 && Objects.equals(displayName, that.displayName)
                 && Objects.equals(url, that.url);
         }

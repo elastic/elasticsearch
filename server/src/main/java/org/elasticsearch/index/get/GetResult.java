@@ -406,11 +406,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        GetResult getResult = (GetResult) o;
-        return version == getResult.version
+        return o instanceof GetResult getResult
+            && version == getResult.version
             && seqNo == getResult.seqNo
             && primaryTerm == getResult.primaryTerm
             && exists == getResult.exists

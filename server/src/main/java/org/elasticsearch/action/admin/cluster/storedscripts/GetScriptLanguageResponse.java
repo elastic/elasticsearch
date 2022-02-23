@@ -50,9 +50,7 @@ public class GetScriptLanguageResponse extends ActionResponse implements StatusT
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        GetScriptLanguageResponse that = (GetScriptLanguageResponse) o;
-        return info.equals(that.info);
+        return o instanceof GetScriptLanguageResponse that && info.equals(that.info);
     }
 
     @Override

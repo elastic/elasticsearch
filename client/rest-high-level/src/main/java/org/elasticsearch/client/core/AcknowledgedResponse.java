@@ -52,11 +52,7 @@ public class AcknowledgedResponse {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final AcknowledgedResponse that = (AcknowledgedResponse) o;
-        return isAcknowledged() == that.isAcknowledged();
+        return o instanceof AcknowledgedResponse that && isAcknowledged() == that.isAcknowledged();
     }
 
     @Override

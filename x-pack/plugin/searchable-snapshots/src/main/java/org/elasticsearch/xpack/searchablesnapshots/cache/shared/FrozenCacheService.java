@@ -643,9 +643,7 @@ public class FrozenCacheService implements Releasable {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            RegionKey regionKey = (RegionKey) o;
-            return region == regionKey.region && file.equals(regionKey.file);
+            return o instanceof RegionKey regionKey && region == regionKey.region && file.equals(regionKey.file);
         }
 
         @Override

@@ -61,11 +61,9 @@ public class PersistJobAction extends ActionType<PersistJobAction.Response> {
             if (this == obj) {
                 return true;
             }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            PersistJobAction.Request other = (PersistJobAction.Request) obj;
-            return Objects.equals(jobId, other.jobId) && this.isBackGround() == other.isBackGround();
+            return obj instanceof PersistJobAction.Request other
+                && Objects.equals(jobId, other.jobId)
+                && this.isBackGround() == other.isBackGround();
         }
     }
 
@@ -96,9 +94,7 @@ public class PersistJobAction extends ActionType<PersistJobAction.Response> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response that = (Response) o;
-            return this.persisted == that.persisted;
+            return o instanceof Response that && this.persisted == that.persisted;
         }
 
         @Override

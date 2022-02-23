@@ -36,9 +36,7 @@ public class PutSnapshotLifecyclePolicyRequest extends TimedRequest implements T
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        PutSnapshotLifecyclePolicyRequest other = (PutSnapshotLifecyclePolicyRequest) o;
-        return Objects.equals(this.policy, other.policy);
+        return o instanceof PutSnapshotLifecyclePolicyRequest other && Objects.equals(this.policy, other.policy);
     }
 
     @Override

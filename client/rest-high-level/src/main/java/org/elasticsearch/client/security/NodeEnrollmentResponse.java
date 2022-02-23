@@ -104,9 +104,8 @@ public class NodeEnrollmentResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        NodeEnrollmentResponse that = (NodeEnrollmentResponse) o;
-        return httpCaKey.equals(that.httpCaKey)
+        return o instanceof NodeEnrollmentResponse that
+            && httpCaKey.equals(that.httpCaKey)
             && httpCaCert.equals(that.httpCaCert)
             && transportCaCert.equals(that.transportCaCert)
             && transportKey.equals(that.transportKey)

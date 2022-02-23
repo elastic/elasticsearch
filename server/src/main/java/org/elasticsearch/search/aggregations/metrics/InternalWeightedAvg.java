@@ -113,10 +113,9 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        InternalWeightedAvg other = (InternalWeightedAvg) obj;
-        return Objects.equals(sum, other.sum)
+        return obj instanceof InternalWeightedAvg other
+            && super.equals(obj)
+            && Objects.equals(sum, other.sum)
             && Objects.equals(weight, other.weight)
             && Objects.equals(format.getWriteableName(), other.format.getWriteableName());
     }

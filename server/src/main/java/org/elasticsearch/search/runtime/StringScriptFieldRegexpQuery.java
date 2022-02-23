@@ -56,11 +56,11 @@ public class StringScriptFieldRegexpQuery extends AbstractStringScriptFieldAutom
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        StringScriptFieldRegexpQuery other = (StringScriptFieldRegexpQuery) obj;
-        return pattern.equals(other.pattern) && syntaxFlags == other.syntaxFlags && matchFlags == other.matchFlags;
+        return super.equals(obj)
+            && obj instanceof StringScriptFieldRegexpQuery other
+            && pattern.equals(other.pattern)
+            && syntaxFlags == other.syntaxFlags
+            && matchFlags == other.matchFlags;
     }
 
     String pattern() {

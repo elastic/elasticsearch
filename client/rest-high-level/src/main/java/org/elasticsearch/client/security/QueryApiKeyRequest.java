@@ -133,9 +133,8 @@ public final class QueryApiKeyRequest implements Validatable, ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        QueryApiKeyRequest that = (QueryApiKeyRequest) o;
-        return Objects.equals(queryBuilder, that.queryBuilder)
+        return o instanceof QueryApiKeyRequest that
+            && Objects.equals(queryBuilder, that.queryBuilder)
             && Objects.equals(from, that.from)
             && Objects.equals(size, that.size)
             && Objects.equals(fieldSortBuilders, that.fieldSortBuilders)

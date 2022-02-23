@@ -248,11 +248,8 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        SearchHits other = (SearchHits) obj;
-        return Objects.equals(totalHits, other.totalHits)
+        return obj instanceof SearchHits other
+            && Objects.equals(totalHits, other.totalHits)
             && Objects.equals(maxScore, other.maxScore)
             && Arrays.equals(hits, other.hits)
             && Arrays.equals(sortFields, other.sortFields)

@@ -150,10 +150,7 @@ public class Watch implements ToXContentObject {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Watch watch = (Watch) o;
-        return watch.id.equals(id);
+        return o instanceof Watch watch && watch.id.equals(id);
     }
 
     @Override

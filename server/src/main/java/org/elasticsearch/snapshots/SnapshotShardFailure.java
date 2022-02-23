@@ -180,9 +180,8 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SnapshotShardFailure that = (SnapshotShardFailure) o;
-        return shardId.equals(that.shardId)
+        return o instanceof SnapshotShardFailure that
+            && shardId.equals(that.shardId)
             && Objects.equals(reason, that.reason)
             && Objects.equals(nodeId, that.nodeId)
             && status.getStatus() == that.status.getStatus();

@@ -382,9 +382,8 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ProxyModeInfo otherProxy = (ProxyModeInfo) o;
-            return maxSocketConnections == otherProxy.maxSocketConnections
+            return o instanceof ProxyModeInfo otherProxy
+                && maxSocketConnections == otherProxy.maxSocketConnections
                 && numSocketsConnected == otherProxy.numSocketsConnected
                 && Objects.equals(address, otherProxy.address)
                 && Objects.equals(serverName, otherProxy.serverName);

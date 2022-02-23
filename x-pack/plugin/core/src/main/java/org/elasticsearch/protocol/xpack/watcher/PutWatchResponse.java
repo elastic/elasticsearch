@@ -101,11 +101,8 @@ public class PutWatchResponse extends ActionResponse implements ToXContentObject
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        PutWatchResponse that = (PutWatchResponse) o;
-
-        return Objects.equals(id, that.id)
+        return o instanceof PutWatchResponse that
+            && Objects.equals(id, that.id)
             && Objects.equals(version, that.version)
             && Objects.equals(seqNo, that.seqNo)
             && Objects.equals(primaryTerm, that.primaryTerm)

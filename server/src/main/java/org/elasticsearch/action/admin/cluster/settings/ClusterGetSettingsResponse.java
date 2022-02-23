@@ -134,9 +134,8 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ClusterGetSettingsResponse that = (ClusterGetSettingsResponse) o;
-        return Objects.equals(transientSettings, that.transientSettings)
+        return o instanceof ClusterGetSettingsResponse that
+            && Objects.equals(transientSettings, that.transientSettings)
             && Objects.equals(persistentSettings, that.persistentSettings)
             && Objects.equals(defaultSettings, that.defaultSettings);
     }

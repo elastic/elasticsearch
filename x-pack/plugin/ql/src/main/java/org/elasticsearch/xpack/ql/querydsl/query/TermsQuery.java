@@ -40,13 +40,7 @@ public class TermsQuery extends LeafQuery {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        TermsQuery other = (TermsQuery) obj;
-        return Objects.equals(term, other.term) && Objects.equals(values, other.values);
+        return obj instanceof TermsQuery other && Objects.equals(term, other.term) && Objects.equals(values, other.values);
     }
 
     @Override

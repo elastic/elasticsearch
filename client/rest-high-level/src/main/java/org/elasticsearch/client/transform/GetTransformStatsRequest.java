@@ -65,12 +65,8 @@ public class GetTransformStatsRequest implements Validatable {
         if (this == obj) {
             return true;
         }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        GetTransformStatsRequest other = (GetTransformStatsRequest) obj;
-        return Objects.equals(id, other.id)
+        return obj instanceof GetTransformStatsRequest other
+            && Objects.equals(id, other.id)
             && Objects.equals(pageParams, other.pageParams)
             && Objects.equals(allowNoMatch, other.allowNoMatch);
     }

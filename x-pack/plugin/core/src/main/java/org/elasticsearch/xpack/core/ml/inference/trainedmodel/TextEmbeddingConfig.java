@@ -129,10 +129,8 @@ public class TextEmbeddingConfig implements NlpConfig {
     @Override
     public boolean equals(Object o) {
         if (o == this) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        TextEmbeddingConfig that = (TextEmbeddingConfig) o;
-        return Objects.equals(vocabularyConfig, that.vocabularyConfig)
+        return o instanceof TextEmbeddingConfig that
+            && Objects.equals(vocabularyConfig, that.vocabularyConfig)
             && Objects.equals(tokenization, that.tokenization)
             && Objects.equals(resultsField, that.resultsField);
     }

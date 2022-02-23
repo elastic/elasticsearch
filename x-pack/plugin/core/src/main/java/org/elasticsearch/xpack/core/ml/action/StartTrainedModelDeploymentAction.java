@@ -337,10 +337,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         @Override
         public boolean equals(Object o) {
             if (o == this) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            TaskParams other = (TaskParams) o;
-            return Objects.equals(modelId, other.modelId)
+            return o instanceof TaskParams other
+                && Objects.equals(modelId, other.modelId)
                 && modelBytes == other.modelBytes
                 && inferenceThreads == other.inferenceThreads
                 && modelThreads == other.modelThreads

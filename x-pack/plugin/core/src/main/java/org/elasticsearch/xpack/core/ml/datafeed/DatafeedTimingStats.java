@@ -195,12 +195,8 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
         if (this == obj) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        DatafeedTimingStats other = (DatafeedTimingStats) obj;
-        return Objects.equals(this.jobId, other.jobId)
+        return obj instanceof DatafeedTimingStats other
+            && Objects.equals(this.jobId, other.jobId)
             && this.searchCount == other.searchCount
             && this.bucketCount == other.bucketCount
             && this.totalSearchTimeMs == other.totalSearchTimeMs

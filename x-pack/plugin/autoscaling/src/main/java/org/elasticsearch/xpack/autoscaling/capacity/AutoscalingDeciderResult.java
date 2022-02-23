@@ -75,9 +75,9 @@ public class AutoscalingDeciderResult implements ToXContent, Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AutoscalingDeciderResult that = (AutoscalingDeciderResult) o;
-        return Objects.equals(requiredCapacity, that.requiredCapacity) && Objects.equals(reason, that.reason);
+        return o instanceof AutoscalingDeciderResult that
+            && Objects.equals(requiredCapacity, that.requiredCapacity)
+            && Objects.equals(reason, that.reason);
     }
 
     @Override

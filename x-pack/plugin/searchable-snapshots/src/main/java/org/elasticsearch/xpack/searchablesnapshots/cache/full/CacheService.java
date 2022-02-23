@@ -705,9 +705,8 @@ public class CacheService extends AbstractLifecycleComponent {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ShardEviction that = (ShardEviction) o;
-            return Objects.equals(snapshotUUID, that.snapshotUUID)
+            return o instanceof ShardEviction that
+                && Objects.equals(snapshotUUID, that.snapshotUUID)
                 && Objects.equals(snapshotIndexName, that.snapshotIndexName)
                 && Objects.equals(shardId, that.shardId);
         }
@@ -761,11 +760,7 @@ public class CacheService extends AbstractLifecycleComponent {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            final CacheFileEvent event = (CacheFileEvent) o;
-            return type == event.type && value == event.value;
+            return o instanceof CacheFileEvent event && type == event.type && value == event.value;
         }
 
         @Override

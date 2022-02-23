@@ -91,10 +91,7 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-        InternalMin other = (InternalMin) obj;
-        return Objects.equals(min, other.min);
+        return obj instanceof InternalMin other && super.equals(obj) && Objects.equals(min, other.min);
     }
 
 }

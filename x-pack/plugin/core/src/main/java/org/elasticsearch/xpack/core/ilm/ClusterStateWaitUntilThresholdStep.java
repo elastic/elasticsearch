@@ -147,14 +147,8 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (super.equals(o) == false) {
-            return false;
-        }
-        ClusterStateWaitUntilThresholdStep that = (ClusterStateWaitUntilThresholdStep) o;
-        return super.equals(o)
+        return o instanceof ClusterStateWaitUntilThresholdStep that
+            && super.equals(o)
             && Objects.equals(stepToExecute, that.stepToExecute)
             && Objects.equals(nextKeyOnThresholdBreach, that.nextKeyOnThresholdBreach);
     }

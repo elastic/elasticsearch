@@ -123,9 +123,10 @@ public class JobTaskState implements PersistentTaskState {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        JobTaskState that = (JobTaskState) o;
-        return state == that.state && Objects.equals(allocationId, that.allocationId) && Objects.equals(reason, that.reason);
+        return o instanceof JobTaskState that
+            && state == that.state
+            && Objects.equals(allocationId, that.allocationId)
+            && Objects.equals(reason, that.reason);
     }
 
     @Override

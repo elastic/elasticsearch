@@ -97,11 +97,10 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            RegexMatch<?> other = (RegexMatch<?>) obj;
-            return caseInsensitive == other.caseInsensitive && Objects.equals(pattern, other.pattern);
-        }
-        return false;
+        return obj instanceof RegexMatch<?> other
+            && super.equals(obj)
+            && caseInsensitive == other.caseInsensitive
+            && Objects.equals(pattern, other.pattern);
     }
 
     @Override

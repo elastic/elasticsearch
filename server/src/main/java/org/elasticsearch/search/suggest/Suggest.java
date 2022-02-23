@@ -189,11 +189,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         if (this == other) {
             return true;
         }
-        if (other == null || getClass() != other.getClass()) {
-            return false;
-        }
-
-        return Objects.equals(suggestions, ((Suggest) other).suggestions);
+        return other instanceof Suggest that && Objects.equals(suggestions, that.suggestions);
     }
 
     @Override
@@ -520,12 +516,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 if (this == o) {
                     return true;
                 }
-                if (o == null || getClass() != o.getClass()) {
-                    return false;
-                }
-
-                Entry<?> entry = (Entry<?>) o;
-                return Objects.equals(length, entry.length)
+                return o instanceof Entry<?> entry
+                    && Objects.equals(length, entry.length)
                     && Objects.equals(offset, entry.offset)
                     && Objects.equals(text, entry.text)
                     && Objects.equals(options, entry.options);
@@ -683,12 +675,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     if (this == o) {
                         return true;
                     }
-                    if (o == null || getClass() != o.getClass()) {
-                        return false;
-                    }
-
-                    Option that = (Option) o;
-                    return Objects.equals(text, that.text);
+                    return o instanceof Option that && Objects.equals(text, that.text);
                 }
 
                 @Override

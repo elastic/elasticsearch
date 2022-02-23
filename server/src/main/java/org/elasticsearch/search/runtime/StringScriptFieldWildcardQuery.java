@@ -61,11 +61,10 @@ public class StringScriptFieldWildcardQuery extends AbstractStringScriptFieldAut
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        StringScriptFieldWildcardQuery other = (StringScriptFieldWildcardQuery) obj;
-        return pattern.equals(other.pattern) && caseInsensitive == other.caseInsensitive;
+        return super.equals(obj)
+            && obj instanceof StringScriptFieldWildcardQuery other
+            && pattern.equals(other.pattern)
+            && caseInsensitive == other.caseInsensitive;
     }
 
     String pattern() {

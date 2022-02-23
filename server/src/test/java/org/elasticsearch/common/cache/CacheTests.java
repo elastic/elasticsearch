@@ -532,11 +532,7 @@ public class CacheTests extends ESTestCase {
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-
-                Value that = (Value) o;
-
-                return value.equals(that.value);
+                return o instanceof Value that && value.equals(that.value);
             }
 
             @Override
@@ -664,12 +660,7 @@ public class CacheTests extends ESTestCase {
             @Override
             public boolean equals(Object o) {
                 if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-
-                Key key1 = (Key) o;
-
-                return key == key1.key;
-
+                return o instanceof Key key1 && key == key1.key;
             }
 
             @Override

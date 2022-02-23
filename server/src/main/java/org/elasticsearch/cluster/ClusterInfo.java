@@ -272,9 +272,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NodeAndPath that = (NodeAndPath) o;
-            return nodeId.equals(that.nodeId) && path.equals(that.path);
+            return o instanceof NodeAndPath that && nodeId.equals(that.nodeId) && path.equals(that.path);
         }
 
         @Override
@@ -333,9 +331,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ReservedSpace that = (ReservedSpace) o;
-            return total == that.total && shardIds.equals(that.shardIds);
+            return o instanceof ReservedSpace that && total == that.total && shardIds.equals(that.shardIds);
         }
 
         @Override

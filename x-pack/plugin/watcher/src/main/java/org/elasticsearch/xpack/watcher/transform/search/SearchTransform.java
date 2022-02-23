@@ -62,11 +62,8 @@ public class SearchTransform implements Transform {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        SearchTransform that = (SearchTransform) o;
-        return Objects.equals(request, that.request)
+        return o instanceof SearchTransform that
+            && Objects.equals(request, that.request)
             && Objects.equals(timeout, that.timeout)
             && Objects.equals(dynamicNameTimeZone, that.dynamicNameTimeZone);
     }

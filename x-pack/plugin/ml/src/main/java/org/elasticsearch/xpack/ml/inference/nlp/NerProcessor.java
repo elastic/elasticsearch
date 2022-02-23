@@ -229,7 +229,7 @@ public class NerProcessor extends NlpTask.Processor {
             int startTokenIndex = 0;
             int numSpecialTokens = 0;
             while (startTokenIndex < tokenization.tokenIds().length) {
-                int inputMapping = tokenization.tokenIds()[startTokenIndex];
+                int inputMapping = tokenization.tokenMap()[startTokenIndex];
                 if (inputMapping < 0) {
                     // This token does not map to a token in the input (special tokens)
                     startTokenIndex++;

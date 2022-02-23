@@ -147,6 +147,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84218")
     public void testExplainValidateQueryTwoNodes() throws IOException {
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).build());
         ensureGreen();

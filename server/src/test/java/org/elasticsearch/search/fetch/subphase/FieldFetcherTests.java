@@ -275,6 +275,30 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.size(), equalTo(2));
     }
 
+    public void testEmptyFetch() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject();
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(BytesReference.bytes(source));
+        {
+            // make sure that an empty fetch don't deserialize the document
+            FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), List.of());
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
+            assertThat(fields.size(), equalTo(0));
+            assertThat(sourceLookup.hasSourceAsMap(), equalTo(false));
+        }
+        {
+            // but a non-empty fetch deserialize the document
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                newSearchExecutionContext(mapperService),
+                fieldAndFormatList("field", null, false)
+            );
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
+            assertThat(fields.size(), equalTo(1));
+            assertThat(sourceLookup.hasSourceAsMap(), equalTo(true));
+        }
+    }
+
     public void testNestedArrays() throws IOException {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder()

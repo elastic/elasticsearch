@@ -10,6 +10,7 @@ package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -45,11 +46,12 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Collections.emptyList;
 
 public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     TransportNodesListShardStoreMetadata.Request,
@@ -132,7 +134,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 if (indexShard != null) {
                     try {
                         final StoreFilesMetadata storeFilesMetadata = new StoreFilesMetadata(
-                            shardId,
                             indexShard.snapshotStoreMetadata(),
                             indexShard.getPeerRecoveryRetentionLeases()
                         );
@@ -140,10 +141,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                         return storeFilesMetadata;
                     } catch (org.apache.lucene.index.IndexNotFoundException e) {
                         logger.trace(new ParameterizedMessage("[{}] node is missing index, responding with empty", shardId), e);
-                        return new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
+                        return StoreFilesMetadata.EMPTY;
                     } catch (IOException e) {
                         logger.warn(new ParameterizedMessage("[{}] can't read metadata from store, responding with empty", shardId), e);
-                        return new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
+                        return StoreFilesMetadata.EMPTY;
                     }
                 }
             }
@@ -166,7 +167,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             }
             final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, customDataPath);
             if (shardPath == null) {
-                return new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
+                return StoreFilesMetadata.EMPTY;
             }
             // note that this may fail if it can't get access to the shard lock. Since we check above there is an active shard, this means:
             // 1) a shard is being constructed, which means the master will not use a copy of this replica
@@ -180,7 +181,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             );
             // We use peer recovery retention leases from the primary for allocating replicas. We should always have retention leases when
             // we refresh shard info after the primary has started. Hence, we can ignore retention leases if there is no active shard.
-            return new StoreFilesMetadata(shardId, metadataSnapshot, Collections.emptyList());
+            return new StoreFilesMetadata(metadataSnapshot, emptyList());
         } finally {
             TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
             if (exists) {
@@ -192,35 +193,41 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     }
 
     public static class StoreFilesMetadata implements Iterable<StoreFileMetadata>, Writeable {
-        private final ShardId shardId;
         private final Store.MetadataSnapshot metadataSnapshot;
         private final List<RetentionLease> peerRecoveryRetentionLeases;
 
-        public StoreFilesMetadata(
-            ShardId shardId,
-            Store.MetadataSnapshot metadataSnapshot,
-            List<RetentionLease> peerRecoveryRetentionLeases
-        ) {
-            this.shardId = shardId;
+        private static final ShardId FAKE_SHARD_ID = new ShardId("_na_", "_na_", 0);
+        public static final StoreFilesMetadata EMPTY = new StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
+
+        public StoreFilesMetadata(Store.MetadataSnapshot metadataSnapshot, List<RetentionLease> peerRecoveryRetentionLeases) {
             this.metadataSnapshot = metadataSnapshot;
             this.peerRecoveryRetentionLeases = peerRecoveryRetentionLeases;
         }
 
-        public StoreFilesMetadata(StreamInput in) throws IOException {
-            this.shardId = new ShardId(in);
-            this.metadataSnapshot = new Store.MetadataSnapshot(in);
-            this.peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
+        public static StoreFilesMetadata readFrom(StreamInput in) throws IOException {
+            if (in.getVersion().before(Version.V_8_2_0)) {
+                new ShardId(in);
+            }
+            final var metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
+            final var peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
+            if (metadataSnapshot == Store.MetadataSnapshot.EMPTY && peerRecoveryRetentionLeases.isEmpty()) {
+                return EMPTY;
+            } else {
+                return new StoreFilesMetadata(metadataSnapshot, peerRecoveryRetentionLeases);
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            shardId.writeTo(out);
+            if (out.getVersion().before(Version.V_8_2_0)) {
+                // no compatible version cares about the shard ID, we can just make one up
+                FAKE_SHARD_ID.writeTo(out);
+
+                // NB only checked this for versions back to 7.17.0, we are assuming that we don't use this with earlier versions:
+                assert out.getVersion().onOrAfter(Version.V_7_17_0) : out.getVersion();
+            }
             metadataSnapshot.writeTo(out);
             out.writeList(peerRecoveryRetentionLeases);
-        }
-
-        public ShardId shardId() {
-            return this.shardId;
         }
 
         public boolean isEmpty() {
@@ -267,8 +274,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         @Override
         public String toString() {
             return "StoreFilesMetadata{"
-                + ", shardId="
-                + shardId
                 + ", metadataSnapshot{size="
                 + metadataSnapshot.size()
                 + ", syncId="
@@ -385,7 +390,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         public NodeStoreFilesMetadata(StreamInput in, DiscoveryNode node) throws IOException {
             super(in, node);
-            storeFilesMetadata = new StoreFilesMetadata(in);
+            storeFilesMetadata = StoreFilesMetadata.readFrom(in);
         }
 
         public NodeStoreFilesMetadata(DiscoveryNode node, StoreFilesMetadata storeFilesMetadata) {

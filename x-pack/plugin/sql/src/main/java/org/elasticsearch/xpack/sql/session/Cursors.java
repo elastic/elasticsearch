@@ -7,8 +7,10 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -21,10 +23,11 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.SqlBucketExtractor
 import org.elasticsearch.xpack.sql.execution.search.extractor.SqlHitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.literal.Literals;
-import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
+import org.elasticsearch.xpack.sql.plugin.BasicFormatter;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,7 +52,6 @@ public final class Cursors {
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, SearchHitCursor.NAME, SearchHitCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, CompositeAggCursor.NAME, CompositeAggCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, PivotCursor.NAME, PivotCursor::new));
-        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, TextFormatterCursor.NAME, TextFormatterCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, ListCursor.NAME, ListCursor::new));
 
         // plus all their dependencies
@@ -70,32 +72,77 @@ public final class Cursors {
         return encodeToString(info, VERSION, zoneId);
     }
 
-    static String encodeToString(Cursor info, Version version, ZoneId zoneId) {
+    public static String encodeToString(Cursor info, Version version, ZoneId zoneId) {
         if (info == Cursor.EMPTY) {
             return StringUtils.EMPTY;
         }
         try (SqlStreamOutput output = SqlStreamOutput.create(version, zoneId)) {
+            output.writeOptionalWriteable(null);
             output.writeNamedWriteable(info);
             output.close();
             // return the string only after closing the resource
             return output.streamAsString();
         } catch (IOException ex) {
-            throw new SqlIllegalArgumentException("Unexpected failure retrieving next page", ex);
+            throw new SqlIllegalArgumentException("Unexpected failure writing cursor", ex);
+        }
+    }
+
+    public static String attachFormatter(String cursor, BasicFormatter formatter) {
+        if (Strings.isNullOrEmpty(cursor) || formatter == null) {
+            return cursor;
+        } else {
+            try (SqlStreamOutput output = SqlStreamOutput.create(VERSION, ZoneOffset.UTC)) {
+                output.writeOptionalWriteable(formatter);
+                output.writeString(cursor);
+                output.close();
+                // return the string only after closing the resource
+                return output.streamAsString();
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Unexpected failure writing cursor", ex);
+            }
+        }
+    }
+
+    public static BasicFormatter decodeFormatter(String base64) {
+        if (base64.isEmpty()) {
+            return null;
+        }
+        try (SqlStreamInput in = SqlStreamInput.fromString(base64, WRITEABLE_REGISTRY, VERSION)) {
+            return in.readOptionalWriteable(BasicFormatter::new);
+        } catch (IOException ex) {
+            throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
         }
     }
 
     /**
      * Read a {@linkplain Cursor} from a string.
      */
-    public static Tuple<Cursor, ZoneId> decodeFromStringWithZone(String base64) {
+    public static Tuple<Cursor, ZoneId> decodeFromStringWithZone(String base64, NamedWriteableRegistry writeableRegistry) {
+        return internalDecodeFromStringWithZone(base64, new NamedWriteableRegistry(List.of()) {
+            @Override
+            public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {
+                try {
+                    return writeableRegistry.getReader(categoryClass, name);
+                } catch (IllegalArgumentException iae) {
+                    return WRITEABLE_REGISTRY.getReader(categoryClass, name);
+                }
+            }
+        });
+    }
+
+    private static Tuple<Cursor, ZoneId> internalDecodeFromStringWithZone(String base64, NamedWriteableRegistry writeableRegistry) {
         if (base64.isEmpty()) {
             return new Tuple<>(Cursor.EMPTY, null);
         }
-        try (SqlStreamInput in = SqlStreamInput.fromString(base64, WRITEABLE_REGISTRY, VERSION)) {
-            Cursor cursor = in.readNamedWriteable(Cursor.class);
-            return new Tuple<>(cursor, in.zoneId());
+        try (SqlStreamInput in = SqlStreamInput.fromString(base64, writeableRegistry, VERSION)) {
+            if (in.readOptionalWriteable(BasicFormatter::new) == null) {
+                Cursor cursor = in.readNamedWriteable(Cursor.class);
+                return new Tuple<>(cursor, in.zoneId());
+            } else {
+                return internalDecodeFromStringWithZone(in.readString(), writeableRegistry);
+            }
         } catch (IOException ex) {
-            throw new SqlIllegalArgumentException("Unexpected failure decoding cursor", ex);
+            throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
         }
     }
 

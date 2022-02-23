@@ -1,5 +1,5 @@
 pr: 83290
-summary: Update YAML Rest tests to check for product header on all responses
+summary: Update YAML REST tests to check for product header on all responses
 area: Infra/REST API
 type: enhancement
 issues: []

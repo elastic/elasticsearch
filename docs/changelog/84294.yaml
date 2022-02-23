@@ -1,0 +1,5 @@
+pr: 84294
+summary: Add @timestamp as a metadata field on TSDB indexes
+area: TSDB
+type: enhancement
+issues: []

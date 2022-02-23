@@ -76,7 +76,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     private static final String FROZEN_DEPRECATION_WARNING = "[{}] syntax is deprecated because frozen indices have been deprecated. "
         + "Consider cold or frozen tiers in place of frozen indices.";
 
-    protected void warnDeprecatedFrozenSyntax(boolean includeFrozen, String syntax) {
+    protected void maybeWarnDeprecatedFrozenSyntax(boolean includeFrozen, String syntax) {
         if (includeFrozen) {
             DEPRECATION_LOGGER.warn(DeprecationCategory.PARSING, "include_frozen_syntax", format(null, FROZEN_DEPRECATION_WARNING, syntax));
         }
@@ -282,7 +282,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         String alias = visitQualifiedName(ctx.qualifiedName());
         TableIdentifier tableIdentifier = visitTableIdentifier(ctx.tableIdentifier());
         boolean includeFrozen = ctx.FROZEN() != null;
-        warnDeprecatedFrozenSyntax(includeFrozen, "FROZEN");
+        maybeWarnDeprecatedFrozenSyntax(includeFrozen, "FROZEN");
         return new UnresolvedRelation(source(ctx), tableIdentifier, alias, includeFrozen);
     }
 

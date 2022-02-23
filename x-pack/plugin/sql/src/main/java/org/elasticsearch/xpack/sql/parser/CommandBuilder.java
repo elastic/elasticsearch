@@ -122,7 +122,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         String index = ti != null ? ti.qualifiedIndex() : null;
 
         boolean includeFrozen = ctx.FROZEN() != null;
-        warnDeprecatedFrozenSyntax(includeFrozen, "INCLUDE FROZEN");
+        maybeWarnDeprecatedFrozenSyntax(includeFrozen, "INCLUDE FROZEN");
 
         return new ShowTables(
             source(ctx),
@@ -145,7 +145,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         String index = ti != null ? ti.qualifiedIndex() : null;
 
         boolean includeFrozen = ctx.FROZEN() != null;
-        warnDeprecatedFrozenSyntax(includeFrozen, "INCLUDE FROZEN");
+        maybeWarnDeprecatedFrozenSyntax(includeFrozen, "INCLUDE FROZEN");
 
         return new ShowColumns(source(ctx), string(ctx.cluster), index, visitLikePattern(ctx.tableLike), includeFrozen);
     }

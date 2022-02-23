@@ -5,15 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.qa.single_node;
-
-import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
+package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 
-public class JdbcWarningsIT extends JdbcIntegrationTestCase {
+public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
 
     public void testDeprecationWarningsDoNotReachJdbcDriver() throws Exception {
         index("test_data", b -> b.field("foo", 1));

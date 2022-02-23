@@ -42,7 +42,7 @@ public class RestSqlDeprecationIT extends BaseRestSqlTestCase {
         testFrozenSyntaxIsDeprecated("SELECT * FROM FROZEN test", "FROZEN");
     }
 
-    public void testFrozenSyntaxIsDeprecated(String query, String syntax) throws IOException {
+    private void testFrozenSyntaxIsDeprecated(String query, String syntax) throws IOException {
         testDeprecationWarning(
             query(query).mode(randomMode()),
             "["
@@ -52,7 +52,7 @@ public class RestSqlDeprecationIT extends BaseRestSqlTestCase {
         );
     }
 
-    public void testDeprecationWarning(RequestObjectBuilder query, String warning) throws IOException {
+    private void testDeprecationWarning(RequestObjectBuilder query, String warning) throws IOException {
         index("{\"foo\": 1}");
 
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);

@@ -75,10 +75,9 @@ update tag field:
 
 ---
 update dimension field:
+  # TODO better error message
   - do:
-      # Changing a dimension field changes the _id. And that new document doesn't exist.
-      # And if it did it wouldn't have the same version.
-      catch: conflict
+      catch: bad_request
       update_by_query:
         index: tsdb
         body:
@@ -87,15 +86,17 @@ update dimension field:
             source: ctx._source.k8s.pod.uid = "12342134"
 
   - match: {updated: 0}
-  - match: {version_conflicts: 1}
+  - match: {version_conflicts: 0}
   - match: {batches: 1}
   - match: {throttled_millis: 0}
-  - gte: { took: 0 }
+  - gte:   { took: 0 }
+  - match: {failures.0.cause.caused_by.reason: /_id\ must\ be\ unset\ or\ set\ to\ .+/}
 
 ---
 update timestamp:
+  # TODO better error message
   - do:
-      catch: conflict
+      catch: bad_request
       update_by_query:
         index: tsdb
         body:
@@ -104,8 +105,8 @@ update timestamp:
             source: ctx._source["@timestamp"] = "2021-04-28T18:50:33.142Z"
 
   - match: {updated: 0}
-  - match: {version_conflicts: 1}
+  - match: {version_conflicts: 0}
   - match: {batches: 1}
   - match: {throttled_millis: 0}
-  - gte: { took: 0 }
-
+  - gte:   { took: 0 }
+  - match: {failures.0.cause.caused_by.reason: /_id\ must\ be\ unset\ or\ set\ to\ .+/}

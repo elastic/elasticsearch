@@ -232,14 +232,14 @@ public class MetadataIndexStateService {
 
             for (CloseIndicesTask task : tasks) {
                 try {
-                    Map<Index, ClusterBlock> blockedIndices = task.blockedIndices;
-                    Map<Index, IndexResult> verifyResults = task.verifyResults;
-                    final List<IndexResult> indices = new ArrayList<>();
-
-                    Tuple<ClusterState, Collection<IndexResult>> closingResult = closeRoutingTable(state, blockedIndices, verifyResults);
-                    assert verifyResults.size() == closingResult.v2().size();
-                    indices.addAll(closingResult.v2());
+                    Tuple<ClusterState, Collection<IndexResult>> closingResult = closeRoutingTable(
+                        state,
+                        task.blockedIndices,
+                        task.verifyResults
+                    );
                     state = closingResult.v1();
+                    List<IndexResult> indices = new ArrayList<>(closingResult.v2());
+                    assert indices.size() == task.verifyResults.size();
 
                     builder.success(task, task.listener.delegateFailure((l, clusterState) -> {
                         final boolean acknowledged = indices.stream().noneMatch(IndexResult::hasFailures);

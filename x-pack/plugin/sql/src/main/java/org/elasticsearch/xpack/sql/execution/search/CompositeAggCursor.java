@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
+import org.elasticsearch.xpack.sql.util.Check;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,6 +38,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.sql.execution.search.Querier.closePointInTime;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
 import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
 
@@ -123,6 +125,10 @@ public class CompositeAggCursor implements Cursor {
         return includeFrozen;
     }
 
+    protected SearchSourceBuilder nextQuery() {
+        return nextQuery;
+    }
+
     @Override
     public void nextPage(SqlConfiguration cfg, Client client, ActionListener<Page> listener) {
         if (log.isTraceEnabled()) {
@@ -135,6 +141,7 @@ public class CompositeAggCursor implements Cursor {
             @Override
             public void onResponse(SearchResponse response) {
                 handle(
+                    client,
                     response,
                     request.source(),
                     makeRowSet(response),
@@ -156,6 +163,7 @@ public class CompositeAggCursor implements Cursor {
     }
 
     static void handle(
+        Client client,
         SearchResponse response,
         SearchSourceBuilder source,
         Supplier<CompositeAggRowSet> makeRowSet,
@@ -164,7 +172,6 @@ public class CompositeAggCursor implements Cursor {
         ActionListener<Page> listener,
         Schema schema
     ) {
-
         if (log.isTraceEnabled()) {
             logSearchResponse(response, log);
         }
@@ -185,15 +192,26 @@ public class CompositeAggCursor implements Cursor {
                     updateSourceAfterKey(afterKey, source);
                 }
 
-                Cursor next = rowSet.remainingData() == 0 ? Cursor.EMPTY : makeCursor.apply(source, rowSet);
-                listener.onResponse(new Page(rowSet, next));
+                if (rowSet.remainingData() == 0) {
+                    closePointInTime(
+                        client,
+                        response.pointInTimeId(),
+                        ActionListener.wrap(r -> listener.onResponse(Page.last(rowSet)), listener::onFailure)
+                    );
+                } else {
+                    listener.onResponse(new Page(rowSet, makeCursor.apply(source, rowSet)));
+                }
             } catch (Exception ex) {
                 listener.onFailure(ex);
             }
         }
         // no results
         else {
-            listener.onResponse(Page.last(Rows.empty(schema)));
+            closePointInTime(
+                client,
+                response.pointInTimeId(),
+                ActionListener.wrap(r -> listener.onResponse(Page.last(Rows.empty(schema))), listener::onFailure)
+            );
         }
     }
 
@@ -241,7 +259,8 @@ public class CompositeAggCursor implements Cursor {
 
     @Override
     public void clear(Client client, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
+        Check.isTrue(nextQuery().pointInTimeBuilder() != null, "Expected cursor with point-in-time id but got null");
+        closePointInTime(client, nextQuery().pointInTimeBuilder().getEncodedId(), listener);
     }
 
     @Override

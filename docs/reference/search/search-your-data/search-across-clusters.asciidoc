@@ -291,7 +291,7 @@ means the document came from the local cluster.
 === Optional remote clusters
 
 By default, a {ccs} fails if a remote cluster in the request returns an
-error or is unavailable. Use the <<skip-unavailable,`skip_unavailable`>> cluster
+error or is unavailable. Use the `skip_unavailable` cluster
 setting to mark a specific remote cluster as optional for {ccs}.
 
 If `skip_unavailable` is `true`, a {ccs}:

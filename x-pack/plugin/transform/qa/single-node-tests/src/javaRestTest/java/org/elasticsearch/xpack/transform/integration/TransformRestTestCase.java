@@ -495,7 +495,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return (Map<?, ?>) transforms.get(0);
     }
 
-    protected static Map<String, Object> getTransformStateAndStats(int from, int size) throws IOException {
+    protected static Map<String, Object> getTransformsStateAndStats(int from, int size) throws IOException {
         Response statsResponse = client().performRequest(
             new Request("GET", getTransformEndpoint() + "_stats?from=" + from + "&size=" + size)
         );

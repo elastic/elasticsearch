@@ -145,7 +145,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         awaitWrittenIndexerState(CONTINUOUS_TRANSFORM_ID, IndexerState.STARTED.value());
     }
 
-    private String transformConfig() {
+    private static String transformConfig() {
         return """
             {
               "source": {

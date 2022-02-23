@@ -509,7 +509,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
             int size = randomIntBetween(1, 1000);
 
             var transforms = getTransforms(from, size);
-            var statsResponse = getTransformStateAndStats(from, size);
+            var statsResponse = getTransformsStateAndStats(from, size);
 
             assertEquals(numberOfTransforms, transforms.get("count"));
             assertEquals(numberOfTransforms, statsResponse.get("count"));
@@ -537,7 +537,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         }
     }
 
-    private String transformConfig() {
+    private static String transformConfig() {
         return """
             {
               "description": "Test 10000 transform configs",

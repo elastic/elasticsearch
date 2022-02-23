@@ -100,7 +100,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         SetOnce<Boolean> secondPluginPreMigrationHookCalled = new SetOnce<>();
         SetOnce<Boolean> secondPluginPostMigrationHookCalled = new SetOnce<>();
 
-        TestPlugin.preMigrationHook.set(clusterState -> {
+        getTestPlugin().preMigrationHook.set(clusterState -> {
             // None of the other hooks should have been called yet.
             assertThat(postMigrationHookCalled.get(), nullValue());
             assertThat(secondPluginPreMigrationHookCalled.get(), nullValue());
@@ -117,7 +117,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             return metadata;
         });
 
-        TestPlugin.postMigrationHook.set((clusterState, metadata) -> {
+        getTestPlugin().postMigrationHook.set((clusterState, metadata) -> {
             // Check that the hooks have been called or not as expected.
             assertThat(preMigrationHookCalled.get(), is(true));
             assertThat(secondPluginPreMigrationHookCalled.get(), nullValue());
@@ -263,8 +263,8 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         .setAliasName(".second-internal-managed-alias")
         .setPrimaryIndex(".second-int-man-old")
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(Version.V_7_0_0, 0))
-        .setMappings(createSimpleMapping(true, true))
+        .setSettings(createSettings(Version.V_7_0_0, 0))
+        .setMappings(createMapping(true, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())

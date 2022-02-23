@@ -7,30 +7,42 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -49,19 +61,17 @@ public class ProfileSingleNodeTests extends AbstractProfileSingleNodeTestCase {
     }
 
     public void testProfileIndexAutoCreation() {
+        // Index does not exist yet
+        assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
+
+        // Trigger index creation by indexing
         var indexResponse = client().prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS))
             .setSource(Map.of("user_profile", Map.of("uid", randomAlphaOfLength(22))))
             .get();
-
         assertThat(indexResponse.status().getStatus(), equalTo(201));
 
-        var getIndexRequest = new GetIndexRequest();
-        getIndexRequest.indices(INTERNAL_SECURITY_PROFILE_INDEX_8);
-
-        var getIndexResponse = client().execute(GetIndexAction.INSTANCE, getIndexRequest).actionGet();
-
-        assertThat(getIndexResponse.getIndices(), arrayContaining(INTERNAL_SECURITY_PROFILE_INDEX_8));
-
+        final GetIndexResponse getIndexResponse = getProfileIndexResponse();
+        assertThat(getIndexResponse.getIndices(), hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8));
         var aliases = getIndexResponse.getAliases().get(INTERNAL_SECURITY_PROFILE_INDEX_8);
         assertThat(aliases, hasSize(1));
         assertThat(aliases.get(0).alias(), equalTo(SECURITY_PROFILE_ALIAS));
@@ -221,5 +231,112 @@ public class ProfileSingleNodeTests extends AbstractProfileSingleNodeTestCase {
             DocumentMissingException.class,
             () -> client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest3).actionGet()
         );
+    }
+
+    public void testSearchProfiles() {
+        final String nativeRacUserPasswordHash = new String(getFastStoredHashAlgoForTests().hash(NATIVE_RAC_USER_PASSWORD));
+        final Map<String, String> users = Map.of(
+            "user_foo",
+            "Very Curious User Foo",
+            "user_bar",
+            "Super Curious Admin Bar",
+            "user_baz",
+            "Very Anxious User Baz",
+            "user_qux",
+            "Super Anxious Admin Qux"
+        );
+        users.forEach((key, value) -> {
+            final PutUserRequest putUserRequest1 = new PutUserRequest();
+            putUserRequest1.username(key);
+            putUserRequest1.fullName(value);
+            putUserRequest1.roles("rac_role");
+            putUserRequest1.passwordHash(nativeRacUserPasswordHash.toCharArray());
+            assertThat(client().execute(PutUserAction.INSTANCE, putUserRequest1).actionGet().created(), is(true));
+            doActivateProfile(key, NATIVE_RAC_USER_PASSWORD);
+        });
+
+        final SearchProfilesResponse.ProfileHit[] profiles1 = doSearch("");
+        assertThat(extractUsernames(profiles1), equalTo(users.keySet()));
+
+        final SearchProfilesResponse.ProfileHit[] profiles2 = doSearch(randomFrom("super admin", "admin super"));
+        assertThat(extractUsernames(profiles2), equalTo(Set.of("user_bar", "user_qux")));
+
+        // Prefix match on full name
+        final SearchProfilesResponse.ProfileHit[] profiles3 = doSearch("ver");
+        assertThat(extractUsernames(profiles3), equalTo(Set.of("user_foo", "user_baz")));
+
+        // Prefix match on the username
+        final SearchProfilesResponse.ProfileHit[] profiles4 = doSearch("user");
+        assertThat(extractUsernames(profiles4), equalTo(users.keySet()));
+        // Documents scored higher are those with matches in more fields
+        assertThat(extractUsernames(Arrays.copyOfRange(profiles4, 0, 2)), equalTo(Set.of("user_foo", "user_baz")));
+
+        // Match of different terms on different fields
+        final SearchProfilesResponse.ProfileHit[] profiles5 = doSearch(randomFrom("admin very", "very admin"));
+        assertThat(extractUsernames(profiles5), equalTo(users.keySet()));
+    }
+
+    public void testProfileAPIsWhenIndexNotCreated() {
+        // Ensure index does not exist
+        assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
+
+        // Get Profile by ID returns empty result
+        final GetProfilesResponse getProfilesResponse = client().execute(
+            GetProfileAction.INSTANCE,
+            new GetProfileRequest(randomAlphaOfLength(20), Set.of())
+        ).actionGet();
+        assertThat(getProfilesResponse.getProfiles(), arrayWithSize(0));
+
+        // Ensure index does not exist
+        assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
+
+        // Search returns empty result
+        final SearchProfilesResponse.ProfileHit[] profiles1 = doSearch("");
+        assertThat(profiles1, emptyArray());
+
+        // Ensure index does not exist
+        assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
+
+        // Updating profile data results into doc missing exception
+        // But the index is created in the process
+        final DocumentMissingException e1 = expectThrows(
+            DocumentMissingException.class,
+            () -> client().execute(
+                UpdateProfileDataAction.INSTANCE,
+                new UpdateProfileDataRequest(
+                    randomAlphaOfLength(20),
+                    null,
+                    Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+                    -1,
+                    -1,
+                    WriteRequest.RefreshPolicy.WAIT_UNTIL
+                )
+            ).actionGet()
+        );
+
+        // TODO: The index is created after the update call regardless. Should it not do that?
+        assertThat(getProfileIndexResponse().getIndices(), hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8));
+    }
+
+    private SearchProfilesResponse.ProfileHit[] doSearch(String query) {
+        final SearchProfilesRequest searchProfilesRequest = new SearchProfilesRequest(Set.of(), query, 10);
+        final SearchProfilesResponse searchProfilesResponse = client().execute(SearchProfilesAction.INSTANCE, searchProfilesRequest)
+            .actionGet();
+        assertThat(searchProfilesResponse.getTotalHits().relation, is(TotalHits.Relation.EQUAL_TO));
+        return searchProfilesResponse.getProfileHits();
+    }
+
+    private Set<String> extractUsernames(SearchProfilesResponse.ProfileHit[] profileHits) {
+        return Arrays.stream(profileHits)
+            .map(SearchProfilesResponse.ProfileHit::profile)
+            .map(Profile::user)
+            .map(Profile.ProfileUser::username)
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private GetIndexResponse getProfileIndexResponse() {
+        final GetIndexRequest getIndexRequest = new GetIndexRequest();
+        getIndexRequest.indices(".*");
+        return client().execute(GetIndexAction.INSTANCE, getIndexRequest).actionGet();
     }
 }

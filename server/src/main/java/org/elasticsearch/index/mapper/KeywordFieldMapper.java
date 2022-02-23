@@ -32,7 +32,6 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -62,6 +61,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -69,6 +69,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -901,16 +903,32 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
         if (dimension) {
-            // Encode the tsid part of the dimension field. Although, it would seem reasonable
-            // to skip the encode part if we don't generate a _tsid field (as we do with number
-            // and ip fields), we keep this test because we must ensure that the value of this
-            // dimension field is not larger than TimeSeriesIdFieldMapper.DIMENSION_VALUE_LIMIT
-            BytesReference bytes = TimeSeriesIdFieldMapper.encodeTsidValue(value);
-            context.doc().addDimensionBytes(fieldType().name(), bytes);
+            context.getDimensions().addString(fieldType().name(), value);
         }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
+
+        // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to roll
+        // back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only
+        // workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC instead of
+        // MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
+        if (binaryValue.length > BYTE_BLOCK_SIZE - 2) {
+            byte[] prefix = new byte[30];
+            System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
+            String msg = "Document contains at least one immense term in field=\""
+                + fieldType().name()
+                + "\" (whose "
+                + "UTF8 encoding is longer than the max length "
+                + (BYTE_BLOCK_SIZE - 2)
+                + "), all of which were "
+                + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
+                + "term is: '"
+                + Arrays.toString(prefix)
+                + "...'";
+            throw new IllegalArgumentException(msg);
+        }
+
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
             context.doc().add(field);
@@ -960,5 +978,14 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup lookup) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
+            throw new IllegalArgumentException(
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
+            );
+        }
     }
 }

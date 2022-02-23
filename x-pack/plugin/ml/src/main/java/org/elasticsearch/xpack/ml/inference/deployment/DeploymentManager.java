@@ -29,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -201,7 +202,11 @@ public class DeploymentManager {
         try (
             InputStream stream = hit.getSourceRef().streamInput();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                    stream
+                )
         ) {
             return Vocabulary.createParser(true).apply(parser, null);
         } catch (IOException e) {
@@ -374,8 +379,8 @@ public class DeploymentManager {
                 NlpConfig nlpConfig = (NlpConfig) config;
                 NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
                     .buildRequest(text, requestIdStr, nlpConfig.getTokenization().getTruncate());
-                logger.debug(() -> "Inference Request " + request.processInput.utf8ToString());
-                if (request.tokenization.anyTruncated()) {
+                logger.debug(() -> "Inference Request " + request.processInput().utf8ToString());
+                if (request.tokenization().anyTruncated()) {
                     logger.debug("[{}] [{}] input truncated", modelId, requestId);
                 }
                 processContext.getResultProcessor()
@@ -385,14 +390,14 @@ public class DeploymentManager {
                             inferenceResult -> processResult(
                                 inferenceResult,
                                 processContext,
-                                request.tokenization,
+                                request.tokenization(),
                                 processor.getResultProcessor((NlpConfig) config),
                                 this
                             ),
                             this::onFailure
                         )
                     );
-                processContext.process.get().writeInferenceRequest(request.processInput);
+                processContext.process.get().writeInferenceRequest(request.processInput());
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] error writing to inference process", processContext.task.getModelId()), e);
                 onFailure(ExceptionsHelper.serverError("Error writing to inference process", e));
@@ -448,8 +453,8 @@ public class DeploymentManager {
         private volatile Instant startTime;
         private volatile Integer inferenceThreads;
         private volatile Integer modelThreads;
-        private AtomicInteger rejectedExecutionCount = new AtomicInteger();
-        private AtomicInteger timeoutCount = new AtomicInteger();
+        private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
+        private final AtomicInteger timeoutCount = new AtomicInteger();
 
         ProcessContext(TrainedModelDeploymentTask task, ExecutorService executorService) {
             this.task = Objects.requireNonNull(task);

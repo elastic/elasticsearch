@@ -9,12 +9,9 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.ChangePasswordRequest;
-import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.test.SecurityClientTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
@@ -30,7 +27,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -86,7 +82,6 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
      * the reserved realm.
      */
     public void testAuthenticateAfterEnablingUser() throws IOException {
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         final List<String> usernames = Arrays.asList(
             ElasticUser.NAME,
             KibanaUser.NAME,
@@ -97,7 +92,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
             RemoteMonitoringUser.NAME
         );
         for (String username : usernames) {
-            SecurityClientTestHelper.setUserEnabled(getRestClient(), username, true);
+            getSecurityClient().setUserEnabled(username, true);
 
             ClusterHealthResponse response = client().filterWithHeader(
                 singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
@@ -126,13 +121,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
 
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        final boolean changed = restClient.security()
-            .changePassword(
-                new ChangePasswordRequest(username, Arrays.copyOf(newPassword, newPassword.length), RefreshPolicy.IMMEDIATE),
-                SECURITY_REQUEST_OPTIONS
-            );
-        assertTrue(changed);
+        getSecurityClient().changePassword(username, new SecureString(Arrays.copyOf(newPassword, newPassword.length)));
 
         ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(
             ElasticsearchSecurityException.class,
@@ -159,7 +148,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(response.getClusterName(), is(cluster().getClusterName()));
 
         // disable user
-        SecurityClientTestHelper.setUserEnabled(getRestClient(), ElasticUser.NAME, false);
+        getSecurityClient().setUserEnabled(ElasticUser.NAME, false);
         ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(
             ElasticsearchSecurityException.class,
             () -> client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
@@ -171,7 +160,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
 
         // enable
-        SecurityClientTestHelper.setUserEnabled(getRestClient(), ElasticUser.NAME, true);
+        getSecurityClient().setUserEnabled(ElasticUser.NAME, true);
         response = client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
             .admin()
             .cluster()

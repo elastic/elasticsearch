@@ -124,15 +124,19 @@ public record Profile(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerToXContent(builder, params);
+        versionControl.toXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("uid", uid);
         builder.field("enabled", enabled);
         builder.field("last_synchronized", lastSynchronized);
         user.toXContent(builder, params);
         builder.field("access", access);
         builder.field("data", applicationData);
-        versionControl.toXContent(builder, params);
-        builder.endObject();
-        return builder;
     }
 
     @Override

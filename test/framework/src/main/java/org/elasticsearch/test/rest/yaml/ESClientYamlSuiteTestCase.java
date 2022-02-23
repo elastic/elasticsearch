@@ -14,7 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
@@ -447,7 +447,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140")
         );
 
-        if (testCandidate.getSetupSection().isEmpty() == false) {
+        if (skipSetupSections() == false && testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
                 executeSection(executableSection);
@@ -468,6 +468,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             }
             logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
+    }
+
+    protected boolean skipSetupSections() {
+        return false;
     }
 
     /**

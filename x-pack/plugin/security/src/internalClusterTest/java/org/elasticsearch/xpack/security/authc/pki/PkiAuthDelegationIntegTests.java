@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.security.authc.pki;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.client.security.AuthenticateResponse;
-import org.elasticsearch.client.security.AuthenticateResponse.RealmInfo;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
@@ -21,15 +20,20 @@ import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
-import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.TestSecurityClient;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.user.User.Fields;
 import org.junit.Before;
 
 import java.io.InputStream;
@@ -39,10 +43,14 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.emptyCollectionOf;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -179,15 +187,16 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                 // authenticate
                 optionsBuilder = RequestOptions.DEFAULT.toBuilder();
                 optionsBuilder.addHeader("Authorization", "Bearer " + token);
-                AuthenticateResponse resp = restClient.security().authenticate(optionsBuilder.build());
-                User user = resp.getUser();
-                assertThat(user, is(notNullValue()));
-                assertThat(user.getUsername(), is("Elasticsearch Test Client"));
-                RealmInfo authnRealm = resp.getAuthenticationRealm();
-                assertThat(authnRealm, is(notNullValue()));
-                assertThat(authnRealm.getName(), is("pki3"));
-                assertThat(authnRealm.getType(), is("pki"));
-                assertThat(resp.getAuthenticationType(), is("token"));
+
+                final TestSecurityClient securityClient = getSecurityClient(optionsBuilder.build());
+                final Map<String, Object> authenticateResponse = securityClient.authenticate();
+                assertThat(authenticateResponse, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
+
+                Map<String, Object> realm = assertMap(authenticateResponse, Fields.AUTHENTICATION_REALM);
+                assertThat(realm, hasEntry(Fields.REALM_NAME.getPreferredName(), "pki3"));
+                assertThat(realm, hasEntry(Fields.REALM_TYPE.getPreferredName(), "pki"));
+
+                assertThat(authenticateResponse, hasEntry(Fields.AUTHENTICATION_TYPE.getPreferredName(), "token"));
             }
         }
     }
@@ -220,23 +229,25 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             // authenticate
             optionsBuilder = RequestOptions.DEFAULT.toBuilder();
             optionsBuilder.addHeader("Authorization", "Bearer " + token);
-            AuthenticateResponse resp = restClient.security().authenticate(optionsBuilder.build());
-            User user = resp.getUser();
-            assertThat(user, is(notNullValue()));
-            assertThat(user.getUsername(), is("Elasticsearch Test Client"));
-            assertThat(user.getMetadata().get("pki_dn"), is(notNullValue()));
-            assertThat(user.getMetadata().get("pki_dn"), is("O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
-            assertThat(user.getMetadata().get("pki_delegated_by_user"), is(notNullValue()));
-            assertThat(user.getMetadata().get("pki_delegated_by_user"), is(delegateeUsername));
-            assertThat(user.getMetadata().get("pki_delegated_by_realm"), is(notNullValue()));
-            assertThat(user.getMetadata().get("pki_delegated_by_realm"), is("file"));
+            final TestSecurityClient securityClient = getSecurityClient(optionsBuilder.build());
+            final Map<String, Object> authenticateResponse = securityClient.authenticate();
+            assertThat(authenticateResponse, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
+
+            final Map<String, Object> metadata = assertMap(authenticateResponse, Fields.METADATA);
+            assertThat(metadata, hasEntry("pki_dn", "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
+            assertThat(metadata, hasEntry("pki_delegated_by_user", delegateeUsername));
+            assertThat(metadata, hasEntry("pki_delegated_by_realm", "file"));
+
             // no roles because no role mappings
-            assertThat(user.getRoles(), is(emptyCollectionOf(String.class)));
-            RealmInfo authnRealm = resp.getAuthenticationRealm();
-            assertThat(authnRealm, is(notNullValue()));
-            assertThat(authnRealm.getName(), is("pki3"));
-            assertThat(authnRealm.getType(), is("pki"));
-            assertThat(resp.getAuthenticationType(), is("token"));
+            List<?> roles = assertList(authenticateResponse, Fields.ROLES);
+            assertThat(roles, empty());
+
+            Map<String, Object> realm = assertMap(authenticateResponse, Fields.AUTHENTICATION_REALM);
+            assertThat(realm, hasEntry(Fields.REALM_NAME.getPreferredName(), "pki3"));
+            assertThat(realm, hasEntry(Fields.REALM_TYPE.getPreferredName(), "pki"));
+
+            assertThat(authenticateResponse, hasEntry(Fields.AUTHENTICATION_TYPE.getPreferredName(), "token"));
+
             // invalidate
             InvalidateTokenRequest invalidateRequest = InvalidateTokenRequest.accessToken(token);
             optionsBuilder = RequestOptions.DEFAULT.toBuilder();
@@ -248,12 +259,19 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             assertThat(invalidateResponse.getInvalidatedTokens(), is(1));
             assertThat(invalidateResponse.getErrorsCount(), is(0));
             // failed authenticate
-            ElasticsearchStatusException e1 = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> restClient.security()
-                    .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + token).build())
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> new TestSecurityClient(
+                    getRestClient(),
+                    RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + token).build()
+                ).authenticate()
             );
-            assertThat(e1.getMessage(), is("Elasticsearch exception [type=security_exception, reason=token expired]"));
+
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(RestStatus.UNAUTHORIZED.getStatus()));
+
+            final Map<String, Object> response = ESRestTestCase.entityAsMap(ex.getResponse());
+            assertThat(ObjectPath.eval("error.type", response), is("security_exception"));
+            assertThat(ObjectPath.eval("error.reason", response), is("token expired"));
         }
     }
 
@@ -336,32 +354,40 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             DelegatePkiAuthenticationResponse delegatePkiResponse = restClient.security()
                 .delegatePkiAuthentication(delegatePkiRequest, testUserOptions);
             // authenticate
-            AuthenticateResponse resp = restClient.security()
-                .authenticate(
-                    RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + delegatePkiResponse.getAccessToken()).build()
-                );
-            User user = resp.getUser();
-            assertThat(user, is(notNullValue()));
-            assertThat(user.getUsername(), is("Elasticsearch Test Client"));
-            assertThat(user.getMetadata().get("pki_dn"), is(notNullValue()));
-            assertThat(user.getMetadata().get("pki_dn"), is("O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
-            assertThat(user.getMetadata().get("pki_delegated_by_user"), is(notNullValue()));
-            assertThat(user.getMetadata().get("pki_delegated_by_user"), is("test_user"));
-            assertThat(user.getMetadata().get("pki_delegated_by_realm"), is(notNullValue()));
-            assertThat(user.getMetadata().get("pki_delegated_by_realm"), is("file"));
+            TestSecurityClient securityClient = getSecurityClient(
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + delegatePkiResponse.getAccessToken()).build()
+            );
+            final Map<String, Object> authenticateResponse = securityClient.authenticate();
+            assertThat(authenticateResponse, hasEntry(Fields.USERNAME.getPreferredName(), "Elasticsearch Test Client"));
+
+            final Map<String, Object> metadata = assertMap(authenticateResponse, Fields.METADATA);
+            assertThat(metadata, hasEntry("pki_dn", "O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
+            assertThat(metadata, hasEntry("pki_delegated_by_user", "test_user"));
+            assertThat(metadata, hasEntry("pki_delegated_by_realm", "file"));
+
             // assert roles
-            assertThat(user.getRoles(), containsInAnyOrder("role_by_delegated_user", "role_by_delegated_realm"));
-            RealmInfo authnRealm = resp.getAuthenticationRealm();
-            assertThat(authnRealm, is(notNullValue()));
-            assertThat(authnRealm.getName(), is("pki3"));
-            assertThat(authnRealm.getType(), is("pki"));
-            assertThat(resp.getAuthenticationType(), is("token"));
+            List<?> roles = assertList(authenticateResponse, Fields.ROLES);
+            assertThat(roles, containsInAnyOrder("role_by_delegated_user", "role_by_delegated_realm"));
+
+            Map<String, Object> realm = assertMap(authenticateResponse, Fields.AUTHENTICATION_REALM);
+            assertThat(realm, hasEntry(Fields.REALM_NAME.getPreferredName(), "pki3"));
+            assertThat(realm, hasEntry(Fields.REALM_TYPE.getPreferredName(), "pki"));
+
+            assertThat(authenticateResponse, hasEntry(Fields.AUTHENTICATION_TYPE.getPreferredName(), "token"));
+
             // delete role mappings for delegated PKI
             restClient.security()
                 .deleteRoleMapping(new DeleteRoleMappingRequest("role_by_delegated_user", RefreshPolicy.IMMEDIATE), testUserOptions);
             restClient.security()
                 .deleteRoleMapping(new DeleteRoleMappingRequest("role_by_delegated_realm", RefreshPolicy.IMMEDIATE), testUserOptions);
         }
+    }
+
+    private Object evaluate(Map<String, Object> map, ParseField... fields) {
+        for (int i = 0; i < fields.length - 1; i++) {
+            map = assertMap(map, fields[i]);
+        }
+        return map.get(fields[fields.length - 1]);
     }
 
     public void testIncorrectCertChain() throws Exception {
@@ -417,4 +443,16 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> assertMap(Map<String, Object> map, ParseField field) {
+        final Object val = map.get(field.getPreferredName());
+        assertThat("Field " + field + " of " + map, val, instanceOf(Map.class));
+        return (Map<String, Object>) val;
+    }
+
+    private List<?> assertList(Map<String, Object> map, ParseField field) {
+        final Object val = map.get(field.getPreferredName());
+        assertThat("Field " + field + " of " + map, val, instanceOf(List.class));
+        return (List<?>) val;
+    }
 }

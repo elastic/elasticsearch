@@ -36,7 +36,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     public void testAllSettings() throws Exception {
         final String realmName = "jwt" + randomIntBetween(1, 9);
         final Settings settings = super.generateRandomRealmSettings(realmName).build();
-        final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+        final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
         for (final Setting.AffixSetting<?> setting : JwtRealmSettings.getSettings()) {
             realmConfig.getConcreteSetting(setting);
         }
@@ -49,7 +49,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         for (final String rejectedValue : new String[] { null, "" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                 final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
-                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                 final String actualValue = realmConfig.getSetting(setting);
                 fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
             });
@@ -57,7 +57,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         }
         for (final String acceptedValue : new String[] { "http://localhost/iss1", "issuer1", "i" }) {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final String actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(acceptedValue));
         }
@@ -70,7 +70,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         for (final String rejectedValue : new String[] { "unknown", "HS256,unknown" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                 final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
-                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                 final List<String> actualValue = realmConfig.getSetting(setting);
                 fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
             });
@@ -88,14 +88,14 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         }
         for (final String ignoredValue : new String[] { null, "" }) {
             final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final List<String> actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(setting.getDefault(settings)));
         }
         final String allAcceptedValues = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.toString().replaceAll("[\\[\\] ]", "");
         for (final String acceptedValue : List.of("HS256", "HS512,RS512", allAcceptedValues)) {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final List<String> actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(Arrays.asList(acceptedValue.split(",", -1))));
         }
@@ -103,17 +103,17 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testJwtPath() {
         final String realmName = "jwt" + randomIntBetween(1, 9);
-        final Setting.AffixSetting<String> setting = JwtRealmSettings.JWKSET_PATH;
+        final Setting.AffixSetting<String> setting = JwtRealmSettings.PKC_JWKSET_PATH;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String ignoredValue : new String[] { null, "" }) {
             final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final String actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(setting.getDefault(settings)));
         }
         for (final String acceptedValue : new String[] { "./config/jwkset.json", "http://localhost/jwkset.json" }) {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final String actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(acceptedValue));
         }
@@ -126,7 +126,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         for (final String rejectedValue : new String[] { null, "" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                 final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
-                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                 final List<String> actualValue = realmConfig.getSetting(setting);
                 fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
             });
@@ -134,7 +134,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         }
         for (final String acceptedValue : new String[] { "elasticsearch", "elasticsearch,other" }) {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final List<String> actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(Arrays.asList(acceptedValue.split(",", -1))));
         }
@@ -150,7 +150,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             for (final String rejectedValue : new String[] { null, "" }) {
                 final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                     final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
-                    final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                    final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                     final String actualValue = realmConfig.getSetting(setting);
                     fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
                 });
@@ -158,7 +158,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             }
             for (final String acceptedValue : new String[] { "sub", "name", "email", "dn" }) {
                 final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                 final String actualValue = realmConfig.getSetting(setting);
                 assertThat(actualValue, equalTo(acceptedValue));
             }
@@ -175,7 +175,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             for (final String rejectedValue : new String[] { "[" }) {
                 final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                     final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
-                    final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                    final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                     final String actualValue = realmConfig.getSetting(setting);
                     fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
                 });
@@ -183,7 +183,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             }
             for (final String acceptedValue : new String[] { "^([^@]+)@example\\.com$", "^Group-(.+)$" }) {
                 final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                 final String actualValue = realmConfig.getSetting(setting);
                 assertThat(actualValue, equalTo(acceptedValue));
             }
@@ -197,7 +197,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         for (final String rejectedValue : new String[] { "", "unknown", "t", "f", "TRUE", "FALSE", "True", "False" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                 final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
-                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                 final Boolean actualValue = realmConfig.getSetting(setting);
                 fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
             });
@@ -208,26 +208,26 @@ public class JwtRealmSettingsTests extends JwtTestCase {
         }
         for (final String ignoredValue : new String[] { null }) {
             final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final Boolean actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(setting.getDefault(settings)));
         }
         for (final String acceptedValue : new String[] { "true", "false" }) {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final Boolean actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(Boolean.valueOf(acceptedValue)));
         }
     }
 
-    public void testClientAuthorizationType() {
+    public void testClientAuthenticationType() {
         final String realmName = "jwt" + randomIntBetween(1, 9);
-        final Setting.AffixSetting<String> setting = JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE;
+        final Setting.AffixSetting<String> setting = JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String rejectedValue : new String[] { "", "unknown" }) {
             final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                 final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
-                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                 final String actualValue = realmConfig.getSetting(setting);
                 fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
             });
@@ -240,38 +240,38 @@ public class JwtRealmSettingsTests extends JwtTestCase {
                         + settingKey
                         + "]."
                         + " Allowed values are "
-                        + JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPES
+                        + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPES
                         + "."
                 )
             );
         }
         for (final String ignoredValue : new String[] { null }) {
             final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final String actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(setting.getDefault(settings)));
         }
         for (final String acceptedValue : new String[] { "SharedSecret", "None" }) {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final String actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(acceptedValue));
         }
     }
 
-    public void testAuthorizationRealms() {
+    public void testAuthenticationRealms() {
         final String realmName = "jwt" + randomIntBetween(1, 9);
         final Setting.AffixSetting<List<String>> setting = DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE);
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String ignoredValue : new String[] { null, "" }) {
             final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final List<String> actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(List.of()));
         }
         for (final String acceptedValue : new String[] { "a", "1", "native1,file1,ldap1,ad1" }) {
             final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
             final List<String> actualValue = realmConfig.getSetting(setting);
             assertThat(actualValue, equalTo(Arrays.asList(acceptedValue.split(",", -1))));
         }
@@ -279,8 +279,9 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testSecureStrings() {
         for (final Setting.AffixSetting<SecureString> setting : List.of(
-            JwtRealmSettings.ISSUER_HMAC_SECRET_KEY,
-            JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET
+            JwtRealmSettings.HMAC_JWKSET,
+            JwtRealmSettings.HMAC_KEY,
+            JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET
         )) {
             final String realmName = "jwt" + randomIntBetween(1, 9);
             final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
@@ -308,7 +309,6 @@ public class JwtRealmSettingsTests extends JwtTestCase {
     public void testTimeSettingsWithDefault() {
         for (final Setting.AffixSetting<TimeValue> setting : List.of(
             JwtRealmSettings.ALLOWED_CLOCK_SKEW,
-            JwtRealmSettings.CACHE_TTL,
             JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT,
             JwtRealmSettings.HTTP_SOCKET_TIMEOUT
         )) {
@@ -317,7 +317,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             for (final String rejectedValue : new String[] { "", "-2", "10", "1w", "1M", "1y" }) {
                 final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                     final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
-                    final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                    final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                     final TimeValue actualValue = realmConfig.getSetting(setting);
                     fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
                 });
@@ -334,13 +334,13 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             }
             for (final String ignoredValue : new String[] { null }) {
                 final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
-                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                 final TimeValue actualValue = realmConfig.getSetting(setting);
                 assertThat(actualValue, equalTo(setting.getDefault(settings)));
             }
             for (final String acceptedValue : new String[] { "-1", "0", "0s", "1s", "1m", "1h", "1d" }) {
                 final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                 final TimeValue actualValue = realmConfig.getSetting(setting);
                 assertThat(actualValue, equalTo(TimeValue.parseTimeValue(acceptedValue, settingKey)));
             }
@@ -349,7 +349,6 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testIntegerSettingsWithDefault() {
         for (final Setting.AffixSetting<Integer> setting : List.of(
-            JwtRealmSettings.CACHE_MAX_USERS,
             JwtRealmSettings.HTTP_MAX_CONNECTIONS,
             JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS
         )) {
@@ -359,7 +358,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             for (final String rejectedValue : new String[] { "", "100_000", "NaN" }) {
                 final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                     final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
-                    final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                    final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                     final Integer actualValue = realmConfig.getSetting(setting);
                     fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
                 });
@@ -372,7 +371,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             for (final String rejectedValue : new String[] { "-1", Integer.toString(Integer.MIN_VALUE) }) {
                 final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
                     final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
-                    final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                    final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                     final Integer actualValue = realmConfig.getSetting(setting);
                     fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
                 });
@@ -383,13 +382,13 @@ public class JwtRealmSettingsTests extends JwtTestCase {
             }
             for (final String ignoredValue : new String[] { null }) {
                 final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
-                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                 final Integer actualValue = realmConfig.getSetting(setting);
                 assertThat(actualValue, equalTo(setting.getDefault(settings)));
             }
             for (final String acceptedValue : new String[] { "0", "1", "100000", Integer.toString(Integer.MAX_VALUE) }) {
                 final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
-                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, 0);
                 final Integer actualValue = realmConfig.getSetting(setting);
                 assertThat(actualValue, equalTo(Integer.valueOf(acceptedValue)));
             }

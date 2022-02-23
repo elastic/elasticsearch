@@ -1009,7 +1009,8 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
-            new PersistentTasksCustomMetadata.Assignment(null, "foo")
+            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            ByteSizeValue.ofGb(1).getBytes()
         );
         assertEquals("foo", result.getExplanation());
         assertNull(result.getExecutorNode());
@@ -1053,7 +1054,53 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
-            new PersistentTasksCustomMetadata.Assignment(null, "foo")
+            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            ByteSizeValue.ofGb(1).getBytes()
+        );
+        assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), result.getExplanation());
+        assertNull(result.getExecutorNode());
+    }
+
+    public void testConsiderLazyAssignmentWithFilledLazyNodesAndVerticalScale() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(
+                new DiscoveryNode(
+                    "_node_name1",
+                    "_node_id1",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(1).getBytes())),
+                    ROLES_WITH_ML,
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "_node_name2",
+                    "_node_id2",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                    Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(1).getBytes())),
+                    ROLES_WITH_ML,
+                    Version.CURRENT
+                )
+            )
+            .build();
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id1000", JOB_MEMORY_REQUIREMENT).build(new Date());
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(
+            cs.build(),
+            shuffled(cs.nodes()),
+            job.getId(),
+            MlTasks.JOB_TASK_NAME,
+            memoryTracker,
+            randomIntBetween(1, 3),
+            node -> nodeFilter(node, job)
+        );
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
+            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            ByteSizeValue.ofGb(64).getBytes()
         );
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), result.getExplanation());
         assertNull(result.getExecutorNode());

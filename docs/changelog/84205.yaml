@@ -1,5 +1,0 @@
-pr: 84205
-summary: User Profile - Use only `realmType` for file and native realms
-area: Security
-type: enhancement
-issues: []

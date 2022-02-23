@@ -181,36 +181,27 @@ public class MetadataIndexStateService {
                 try {
                     final Map<Index, ClusterBlock> blockedIndices = new HashMap<>(task.request.indices().length);
                     state = addIndexClosedBlocks(task.request.indices(), blockedIndices, state);
-                    builder.success(task, new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {
-                            if (blockedIndices.isEmpty()) {
-                                task.listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
-                            } else {
-                                threadPool.executor(ThreadPool.Names.MANAGEMENT)
-                                    .execute(
-                                        new WaitForClosedBlocksApplied(
-                                            blockedIndices,
-                                            task.request,
-                                            ActionListener.wrap(
-                                                verifyResults -> clusterService.submitStateUpdateTask(
-                                                    "close-indices",
-                                                    new CloseIndicesTask(task.request, blockedIndices, verifyResults, task.listener),
-                                                    ClusterStateTaskConfig.build(Priority.URGENT),
-                                                    closesExecutor
-                                                ),
-                                                task.listener::onFailure
-                                            )
-                                        )
-                                    );
-                            }
+                    builder.success(task, task.listener.delegateFailure((l1, clusterState) -> {
+                        if (blockedIndices.isEmpty()) {
+                            task.listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
+                        } else {
+                            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                                .execute(
+                                    new WaitForClosedBlocksApplied(
+                                        blockedIndices,
+                                        task.request,
+                                        task.listener.delegateFailure((l2, verifyResults) -> {
+                                            clusterService.submitStateUpdateTask(
+                                                "close-indices",
+                                                new CloseIndicesTask(task.request, blockedIndices, verifyResults, task.listener),
+                                                ClusterStateTaskConfig.build(Priority.URGENT),
+                                                closesExecutor
+                                            );
+                                        })
+                                    )
+                                );
                         }
-
-                        @Override
-                        public void onFailure(final Exception e) {
-                            task.listener.onFailure(e);
-                        }
-                    });
+                    }));
                 } catch (Exception e) {
                     builder.failure(task, e);
                 }
@@ -253,47 +244,39 @@ public class MetadataIndexStateService {
                     indices.addAll(closingResult.v2());
                     state = closingResult.v1();
 
-                    builder.success(task, new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {
-                            final boolean acknowledged = indices.stream().noneMatch(IndexResult::hasFailures);
-                            final String[] waitForIndices = indices.stream()
-                                .filter(result -> result.hasFailures() == false)
-                                .filter(result -> clusterState.routingTable().hasIndex(result.getIndex()))
-                                .map(result -> result.getIndex().getName())
-                                .toArray(String[]::new);
+                    builder.success(task, task.listener.delegateFailure((l, clusterState) -> {
+                        final boolean acknowledged = indices.stream().noneMatch(IndexResult::hasFailures);
+                        final String[] waitForIndices = indices.stream()
+                            .filter(result -> result.hasFailures() == false)
+                            .filter(result -> clusterState.routingTable().hasIndex(result.getIndex()))
+                            .map(result -> result.getIndex().getName())
+                            .toArray(String[]::new);
 
-                            if (waitForIndices.length > 0) {
-                                activeShardsObserver.waitForActiveShards(
-                                    waitForIndices,
-                                    task.request.waitForActiveShards(),
-                                    task.request.ackTimeout(),
-                                    shardsAcknowledged -> {
-                                        if (shardsAcknowledged == false) {
-                                            logger.debug(
-                                                "[{}] indices closed, but the operation timed out while "
-                                                    + "waiting for enough shards to be started.",
-                                                Arrays.toString(waitForIndices)
-                                            );
-                                        }
-                                        // acknowledged maybe be false but some indices may have been correctly closed,
-                                        // so we maintain a kind of coherency by overriding the shardsAcknowledged value
-                                        // (see ShardsAcknowledgedResponse constructor)
-                                        boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
-                                        task.listener.onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
-                                    },
-                                    task.listener::onFailure
-                                );
-                            } else {
-                                task.listener.onResponse(new CloseIndexResponse(acknowledged, false, indices));
-                            }
+                        if (waitForIndices.length > 0) {
+                            activeShardsObserver.waitForActiveShards(
+                                waitForIndices,
+                                task.request.waitForActiveShards(),
+                                task.request.ackTimeout(),
+                                shardsAcknowledged -> {
+                                    if (shardsAcknowledged == false) {
+                                        logger.debug(
+                                            "[{}] indices closed, but the operation timed out while "
+                                                + "waiting for enough shards to be started.",
+                                            Arrays.toString(waitForIndices)
+                                        );
+                                    }
+                                    // acknowledged maybe be false but some indices may have been correctly closed,
+                                    // so we maintain a kind of coherency by overriding the shardsAcknowledged value
+                                    // (see ShardsAcknowledgedResponse constructor)
+                                    boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
+                                    task.listener.onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
+                                },
+                                task.listener::onFailure
+                            );
+                        } else {
+                            task.listener.onResponse(new CloseIndexResponse(acknowledged, false, indices));
                         }
-
-                        @Override
-                        public void onFailure(final Exception e) {
-                            task.listener.onFailure(e);
-                        }
-                    });
+                    }));
                 } catch (Exception e) {
                     builder.failure(task, e);
                 }

@@ -179,8 +179,12 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         }, 30, TimeUnit.SECONDS);
         assertThat(indexExists(disallowedIndex), is(false));
         assertBusy(() -> {
-            verifyCcrMonitoring(allowedIndex, allowedIndex);
-            verifyAutoFollowMonitoring();
+            try {
+                verifyCcrMonitoring(allowedIndex, allowedIndex);
+                verifyAutoFollowMonitoring();
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
         }, 30, TimeUnit.SECONDS);
 
         // Cleanup by deleting auto follow pattern and pause following:

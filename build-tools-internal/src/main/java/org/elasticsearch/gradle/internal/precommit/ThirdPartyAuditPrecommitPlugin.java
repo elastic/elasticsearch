@@ -50,7 +50,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin implements I
         project.getTasks().withType(ThirdPartyAuditTask.class).configureEach(t -> {
             Configuration runtimeConfiguration = getRuntimeConfiguration(project);
             Configuration compileOnly = project.getConfigurations()
-                    .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+                .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
             t.setClasspath(runtimeConfiguration.plus(compileOnly));
             t.setJarsToScan(runtimeConfiguration.fileCollection(dep -> {
                 // These are SelfResolvingDependency, and some of them backed by file collections, like the Gradle API files,

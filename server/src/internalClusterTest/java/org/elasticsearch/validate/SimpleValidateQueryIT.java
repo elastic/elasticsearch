@@ -147,7 +147,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84218")
     public void testExplainValidateQueryTwoNodes() throws IOException {
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).build());
         ensureGreen();
@@ -184,7 +183,11 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .actionGet();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setSource("foo", "text", "bar", i, "baz", "blort").execute().actionGet();
+            client().prepareIndex("test")
+                .setSource("foo", "text", "bar", i, "baz", "blort")
+                .setId(Integer.toString(i))
+                .execute()
+                .actionGet();
         }
         refresh();
 

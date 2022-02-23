@@ -8,14 +8,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-
-import com.carrotsearch.hppc.ObjectIntMap;
-
-import com.carrotsearch.hppc.ObjectIntWormMap;
-
-import com.carrotsearch.hppc.procedures.ObjectIntProcedure;
-
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;

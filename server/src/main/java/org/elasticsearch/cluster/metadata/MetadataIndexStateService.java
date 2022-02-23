@@ -159,102 +159,143 @@ public class MetadataIndexStateService {
             throw new IllegalArgumentException("Index name is required");
         }
 
-        final Map<Index, ClusterBlock> blockedIndices = new HashMap<>(request.indices().length);
-
         clusterService.submitStateUpdateTask(
             "add-block-index-to-close " + Arrays.toString(request.indices()),
-            new AddBlocksToCloseTask(request, blockedIndices, new ActionListener<>() {
-                @Override
-                public void onResponse(ClusterState clusterState) {
-                    if (blockedIndices.isEmpty()) {
-                        listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
-                    } else {
-                        threadPool.executor(ThreadPool.Names.MANAGEMENT)
-                            .execute(
-                                new WaitForClosedBlocksApplied(
-                                    blockedIndices,
-                                    request,
-                                    ActionListener.wrap(
-                                        verifyResults -> clusterService.submitStateUpdateTask(
-                                            "close-indices",
-                                            new ClusterStateUpdateTask(Priority.URGENT) {
-                                                private final List<IndexResult> indices = new ArrayList<>();
-
-                                                @Override
-                                                public ClusterState execute(final ClusterState currentState) throws Exception {
-                                                    Tuple<ClusterState, Collection<IndexResult>> closingResult = closeRoutingTable(
-                                                        currentState,
-                                                        blockedIndices,
-                                                        verifyResults
-                                                    );
-                                                    assert verifyResults.size() == closingResult.v2().size();
-                                                    indices.addAll(closingResult.v2());
-                                                    return allocationService.reroute(closingResult.v1(), "indices closed");
-                                                }
-
-                                                @Override
-                                                public void onFailure(final Exception e) {
-                                                    listener.onFailure(e);
-                                                }
-
-                                                @Override
-                                                public void clusterStateProcessed(
-                                                    final ClusterState oldState,
-                                                    final ClusterState newState
-                                                ) {
-
-                                                    final boolean acknowledged = indices.stream().noneMatch(IndexResult::hasFailures);
-                                                    final String[] waitForIndices = indices.stream()
-                                                        .filter(result -> result.hasFailures() == false)
-                                                        .filter(result -> newState.routingTable().hasIndex(result.getIndex()))
-                                                        .map(result -> result.getIndex().getName())
-                                                        .toArray(String[]::new);
-
-                                                    if (waitForIndices.length > 0) {
-                                                        activeShardsObserver.waitForActiveShards(
-                                                            waitForIndices,
-                                                            request.waitForActiveShards(),
-                                                            request.ackTimeout(),
-                                                            shardsAcknowledged -> {
-                                                                if (shardsAcknowledged == false) {
-                                                                    logger.debug(
-                                                                        "[{}] indices closed, but the operation timed out while "
-                                                                            + "waiting for enough shards to be started.",
-                                                                        Arrays.toString(waitForIndices)
-                                                                    );
-                                                                }
-                                                                // acknowledged maybe be false but some indices may have been correctly
-                                                                // closed, so we maintain a kind of coherency by overriding the
-                                                                // shardsAcknowledged value (see ShardsAcknowledgedResponse constructor)
-                                                                boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
-                                                                listener.onResponse(
-                                                                    new CloseIndexResponse(acknowledged, shardsAcked, indices)
-                                                                );
-                                                            },
-                                                            listener::onFailure
-                                                        );
-                                                    } else {
-                                                        listener.onResponse(new CloseIndexResponse(acknowledged, false, indices));
-                                                    }
-                                                }
-                                            },
-                                            ClusterStateTaskExecutor.unbatched()
-                                        ),
-                                        listener::onFailure
-                                    )
-                                )
-                            );
-                    }
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    listener.onFailure(e);
-                }
-            }),
+            new AddBlocksToCloseTask(request, listener),
             ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
             this.addBlocksToCloseExecutor
         );
+    }
+
+    private class AddBlocksToCloseExecutor implements ClusterStateTaskExecutor<AddBlocksToCloseTask> {
+
+        @Override
+        public ClusterTasksResult<AddBlocksToCloseTask> execute(ClusterState currentState, List<AddBlocksToCloseTask> tasks)
+            throws Exception {
+            ClusterTasksResult.Builder<AddBlocksToCloseTask> builder = ClusterTasksResult.builder();
+            ClusterState state = currentState;
+
+            for (AddBlocksToCloseTask task : tasks) {
+                try {
+                    final Map<Index, ClusterBlock> blockedIndices = new HashMap<>(task.request().indices().length);
+                    state = addIndexClosedBlocks(task.request().indices(), blockedIndices, state);
+                    builder.success(task, new ActionListener<>() {
+                        @Override
+                        public void onResponse(ClusterState clusterState) {
+                            CloseIndexClusterStateUpdateRequest request = task.request();
+                            ActionListener<CloseIndexResponse> listener = task.listener();
+
+                            if (blockedIndices.isEmpty()) {
+                                listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
+                            } else {
+                                threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                                    .execute(
+                                        new WaitForClosedBlocksApplied(
+                                            blockedIndices,
+                                            request,
+                                            ActionListener.wrap(
+                                                verifyResults -> clusterService.submitStateUpdateTask(
+                                                    "close-indices",
+                                                    new ClusterStateUpdateTask(Priority.URGENT) {
+                                                        private final List<IndexResult> indices = new ArrayList<>();
+
+                                                        @Override
+                                                        public ClusterState execute(final ClusterState currentState) throws Exception {
+                                                            Tuple<ClusterState, Collection<IndexResult>> closingResult = closeRoutingTable(
+                                                                currentState,
+                                                                blockedIndices,
+                                                                verifyResults
+                                                            );
+                                                            assert verifyResults.size() == closingResult.v2().size();
+                                                            indices.addAll(closingResult.v2());
+                                                            return allocationService.reroute(closingResult.v1(), "indices closed");
+                                                        }
+
+                                                        @Override
+                                                        public void onFailure(final Exception e) {
+                                                            listener.onFailure(e);
+                                                        }
+
+                                                        @Override
+                                                        public void clusterStateProcessed(
+                                                            final ClusterState oldState,
+                                                            final ClusterState newState
+                                                        ) {
+
+                                                            final boolean acknowledged = indices.stream()
+                                                                .noneMatch(IndexResult::hasFailures);
+                                                            final String[] waitForIndices = indices.stream()
+                                                                .filter(result -> result.hasFailures() == false)
+                                                                .filter(result -> newState.routingTable().hasIndex(result.getIndex()))
+                                                                .map(result -> result.getIndex().getName())
+                                                                .toArray(String[]::new);
+
+                                                            if (waitForIndices.length > 0) {
+                                                                activeShardsObserver.waitForActiveShards(
+                                                                    waitForIndices,
+                                                                    request.waitForActiveShards(),
+                                                                    request.ackTimeout(),
+                                                                    shardsAcknowledged -> {
+                                                                        if (shardsAcknowledged == false) {
+                                                                            logger.debug(
+                                                                                "[{}] indices closed, but the operation timed out while "
+                                                                                    + "waiting for enough shards to be started.",
+                                                                                Arrays.toString(waitForIndices)
+                                                                            );
+                                                                        }
+                                                                        // acknowledged maybe be false but some indices may have been
+                                                                        // correctly
+                                                                        // closed, so we maintain a kind of coherency by overriding the
+                                                                        // shardsAcknowledged value (see ShardsAcknowledgedResponse
+                                                                        // constructor)
+                                                                        boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
+                                                                        listener.onResponse(
+                                                                            new CloseIndexResponse(acknowledged, shardsAcked, indices)
+                                                                        );
+                                                                    },
+                                                                    listener::onFailure
+                                                                );
+                                                            } else {
+                                                                listener.onResponse(new CloseIndexResponse(acknowledged, false, indices));
+                                                            }
+                                                        }
+                                                    },
+                                                    ClusterStateTaskExecutor.unbatched()
+                                                ),
+                                                listener::onFailure
+                                            )
+                                        )
+                                    );
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(final Exception e) {
+                            task.listener.onFailure(e);
+                        }
+                    });
+                } catch (Exception e) {
+                    builder.failure(task, e);
+                }
+            }
+
+            return builder.build(state);
+        }
+    }
+
+    private record AddBlocksToCloseTask(CloseIndexClusterStateUpdateRequest request, ActionListener<CloseIndexResponse> listener)
+        implements
+            ClusterStateTaskListener {
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "not called";
+        }
     }
 
     /**
@@ -1166,44 +1207,6 @@ public class MetadataIndexStateService {
         @Override
         public TimeValue ackTimeout() {
             return request.ackTimeout();
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
-        }
-    }
-
-    private class AddBlocksToCloseExecutor implements ClusterStateTaskExecutor<AddBlocksToCloseTask> {
-
-        @Override
-        public ClusterTasksResult<AddBlocksToCloseTask> execute(ClusterState currentState, List<AddBlocksToCloseTask> tasks)
-            throws Exception {
-            ClusterTasksResult.Builder<AddBlocksToCloseTask> builder = ClusterTasksResult.builder();
-            ClusterState state = currentState;
-
-            for (AddBlocksToCloseTask task : tasks) {
-                try {
-                    state = addIndexClosedBlocks(task.request.indices(), task.blockedIndices(), state);
-                    builder.success(task, task.listener());
-                } catch (Exception e) {
-                    builder.failure(task, e);
-                }
-            }
-
-            return builder.build(state);
-        }
-    }
-
-    private record AddBlocksToCloseTask(
-        CloseIndexClusterStateUpdateRequest request,
-        Map<Index, ClusterBlock> blockedIndices,
-        ActionListener<ClusterState> listener
-    ) implements ClusterStateTaskListener {
-
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
         }
 
         @Override

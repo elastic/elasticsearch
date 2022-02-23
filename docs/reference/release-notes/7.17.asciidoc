@@ -1,6 +1,8 @@
 [[release-notes-7.17.1]]
 == {es} version 7.17.1
 
+coming::[7.17.1]
+
 Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 
 [[deprecation-7.17.1]]

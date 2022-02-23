@@ -22,16 +22,6 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin implement
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         TaskProvider<TestingConventionsTasks> testingConventions = project.getTasks()
-<<<<<<< HEAD
-            .register("testingConventions", TestingConventionsTasks.class);
-        testingConventions.configure(t -> {
-            TestingConventionRule testsRule = t.getNaming().maybeCreate("Tests");
-            testsRule.baseClass("org.apache.lucene.util.LuceneTestCase");
-            TestingConventionRule itRule = t.getNaming().maybeCreate("IT");
-            itRule.baseClass("org.elasticsearch.test.ESIntegTestCase");
-            itRule.baseClass("org.elasticsearch.test.rest.ESRestTestCase");
-        });
-=======
             .register("testingConventions", TestingConventionsTasks.class, t -> {
                 NamedDomainObjectContainer<TestingConventionRule> namings = project.container(TestingConventionRule.class);
                 TestingConventionRule testsRule = namings.maybeCreate("Tests");
@@ -48,7 +38,6 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin implement
                 // Run only after everything is compiled
                 javaSourceSets.all(sourceSet -> t.dependsOn(sourceSet.getOutput().getClassesDirs()));
             });
->>>>>>> c4686128f01 (Replace getProject() references with injected services in task implementations where possible (#81681))
         return testingConventions;
     }
 }

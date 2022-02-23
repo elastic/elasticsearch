@@ -7,7 +7,7 @@
 package org.elasticsearch.integration;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.bulk.BulkItemResponse;

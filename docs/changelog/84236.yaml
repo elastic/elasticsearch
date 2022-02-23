@@ -1,0 +1,6 @@
+pr: 84236
+summary: Text structure finder caps exclude lines pattern at 1000 characters
+area: Machine Learning
+type: bug
+issues:
+ - 83434

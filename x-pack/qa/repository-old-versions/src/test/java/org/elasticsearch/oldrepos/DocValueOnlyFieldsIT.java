@@ -190,7 +190,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
         // register repo on new ES and restore snapshot
         Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);
         createRepoRequest2.setJsonEntity("""
-            {"type":"fs","settings":{"location":"%s","allow_bwc_indices":true}}
+            {"type":"fs","settings":{"location":"%s"}}
             """.formatted(repoLocation));
         assertOK(client().performRequest(createRepoRequest2));
 

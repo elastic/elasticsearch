@@ -879,7 +879,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(true)
             );
 
-            final boolean isAlsoAutoCreateIndex = indexName.startsWith(".logs-endpoint.actions-");
+            final boolean isAlsoAutoCreateIndex = indexName.startsWith(".logs-endpoint.actions-") || indexName.startsWith(".logs-osquery_manager.actions-");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(isAlsoAutoCreateIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(false));
@@ -889,7 +889,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
             // Endpoint diagnostic and actions data streams also have read access, all others should not.
             final boolean isAlsoReadIndex = indexName.startsWith(".logs-endpoint.diagnostic.collection-")
                 || indexName.startsWith(".logs-endpoint.actions-")
-                || indexName.startsWith(".logs-endpoint.action.responses-");
+                || indexName.startsWith(".logs-endpoint.action.responses-")
+                || indexName.startsWith(".logs-osquery_manager.actions-")
+                || indexName.startsWith(".logs-osquery_manager.action.responses-");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(isAlsoReadIndex));
@@ -898,38 +900,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             final boolean isAlsoIlmDeleteIndex = indexName.startsWith(".logs-endpoint.diagnostic.collection-")
                 || indexName.startsWith("traces-apm.sampled-");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(isAlsoIlmDeleteIndex));
-
-            final boolean isAlsoAutoCreateOsqueryManagerIndex = indexName.startsWith(".logs-osquery_manager.actions-");
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction),
-                is(isAlsoAutoCreateOsqueryManagerIndex)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction),
-                is(isAlsoAutoCreateOsqueryManagerIndex)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction),
-                is(isAlsoAutoCreateOsqueryManagerIndex)
-            );
-
-            // Osquery manager actions data streams also have read access, all others should not.
-            final boolean isAlsoReadOsqueryManagerIndex = indexName.startsWith(".logs-osquery_manager.actions-")
-                || indexName.startsWith(".logs-osquery_manager.action.responses-");
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction),
-                is(isAlsoReadOsqueryManagerIndex)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction),
-                is(isAlsoReadOsqueryManagerIndex)
-            );
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction),
-                is(isAlsoReadOsqueryManagerIndex)
-            );
         });
 
         // 4. Transform for endpoint package

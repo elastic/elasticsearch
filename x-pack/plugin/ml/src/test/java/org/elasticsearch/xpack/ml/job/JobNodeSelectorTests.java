@@ -1091,7 +1091,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id1000", JOB_MEMORY_REQUIREMENT).build(new Date());
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             cs.build(),
-            shuffled(cs.nodes()),
+            shuffled(cs.nodes().getAllNodes()),
             job.getId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,

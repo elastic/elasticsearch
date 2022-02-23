@@ -204,7 +204,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         if (sourceOnlyRepository) {
             repoSettingsBuilder.put("delegate_type", "fs");
         }
-        repoSettingsBuilder.put("allow_bwc_indices", true);
         ElasticsearchAssertions.assertAcked(
             client.snapshot()
                 .createRepository(

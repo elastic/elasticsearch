@@ -78,7 +78,7 @@ public class MetadataUpdateSettingsService {
             for (AckedClusterStateUpdateTask task : tasks) {
                 try {
                     state = task.execute(state);
-                    builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+                    builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState), task);
                 } catch (Exception e) {
                     builder.failure(task, e);
                 }

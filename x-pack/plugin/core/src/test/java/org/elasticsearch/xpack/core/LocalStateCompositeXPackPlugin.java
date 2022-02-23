@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -20,7 +21,6 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -84,6 +84,7 @@ import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -105,7 +106,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -571,12 +571,12 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Consumer<IndexMetadata> addPreRestoreCheck() {
-        List<Consumer<IndexMetadata>> checks = filterPlugins(RepositoryPlugin.class).stream()
-            .map(RepositoryPlugin::addPreRestoreCheck)
+    public BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
+        List<BiConsumer<Snapshot, Version>> checks = filterPlugins(RepositoryPlugin.class).stream()
+            .map(RepositoryPlugin::addPreRestoreVersionCheck)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
-        return checks.isEmpty() ? null : imd -> checks.forEach(c -> c.accept(imd));
+        return checks.isEmpty() ? null : (s, v) -> checks.forEach(c -> c.accept(s, v));
     }
 
     @Override

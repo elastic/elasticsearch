@@ -9,12 +9,12 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CannedTokenStream;
-import org.apache.lucene.analysis.MockTokenizer;
-import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.MockTokenizer;
+import org.apache.lucene.tests.analysis.Token;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;

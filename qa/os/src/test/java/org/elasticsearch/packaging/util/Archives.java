@@ -255,7 +255,6 @@ public class Archives {
         String keystoreScript = keystorePassword == null ? "" : """
             expect "Elasticsearch keystore password:"
             send "%s\\r"
-            expect eof
             """.formatted(keystorePassword);
         String checkStartupScript = daemonize ? "" : """
             expect {

@@ -255,6 +255,20 @@ public class ReadinessServiceTests extends ESTestCase {
             });
         }
 
+        ClusterState noMasterState = ClusterState.builder(previousState)
+            .nodes(
+                DiscoveryNodes.builder(previousState.nodes())
+                    .masterNodeId(null)
+            )
+            .build();
+        event = new ClusterChangedEvent("test", noMasterState, previousState);
+        spied.clusterChanged(event);
+        assertFalse(spied.ready());
+
+        event = new ClusterChangedEvent("test", previousState, noMasterState);
+        spied.clusterChanged(event);
+        assertTrue(spied.ready());
+
         newState = ClusterState.builder(previousState)
             .metadata(
                 Metadata.builder(previousState.metadata())

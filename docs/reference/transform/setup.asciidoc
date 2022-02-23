@@ -69,6 +69,7 @@ views already exist for your destination indices),
 * `read` and `view_index_metadata` index privileges on source indices, and
 * `create_index`, `index`, `manage`, and `read` index privileges on destination
 indices 
+* `read_pipeline` cluster privileges, if the {transform} uses an ingest pipeline
 
 Within a {kib} space, for read-only access to {transforms}, you must meet all of
 the following requirements:

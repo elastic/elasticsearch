@@ -1,6 +1,6 @@
 pr: 71274
 summary: Adding cat api for component template
-area: Data Management/Indices APIs
+area: Indices APIs
 type: feature
 issues:
   - 68941

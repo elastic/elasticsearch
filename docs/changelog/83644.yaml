@@ -1,5 +1,5 @@
 pr: 83644
-summary: Wait for model process to be stop in stop deployment
+summary: Wait for model process to stop in stop deployment
 area: Machine Learning
 type: bug
 issues: []

@@ -1,5 +1,5 @@
 pr: 83514
-summary: Simplify and Speed up `ExecutorSelector`
+summary: Simplify and speed up `ExecutorSelector`
 area: Indices APIs
 type: bug
 issues:

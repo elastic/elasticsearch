@@ -696,8 +696,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-         // read-only index for Osquery manager specific action responses
-         Arrays.asList(".logs-osquery_manager.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+        // read-only index for Osquery manager specific action responses
+        Arrays.asList(".logs-osquery_manager.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));

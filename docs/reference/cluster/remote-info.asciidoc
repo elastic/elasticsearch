@@ -41,7 +41,7 @@ by the configured remote cluster alias.
 
 [[skip-unavailable]]
 `skip_unavailable`::
-Whether a {ccs} skips the cluster if its nodes are unavailable during the
+Whether a {ccs} skips the remote cluster if its nodes are unavailable during the
 search. If `true`, a {ccs} also ignores errors returned by the remote cluster.
 Refer to <<skip-unavailable-clusters>>.
 

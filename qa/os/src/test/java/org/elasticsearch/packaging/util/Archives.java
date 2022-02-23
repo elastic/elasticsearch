@@ -250,8 +250,7 @@ public class Archives {
         String keystoreScript = keystorePassword == null
             ? ""
             : asBlock("expect \"Elasticsearch keystore password:\"",
-                "send \"" + keystorePassword + "\\r\"",
-                "expect eof");
+                "send \"" + keystorePassword + "\\r\"");
         String checkStartupScript = daemonize
             ? ""
             : asBlock("expect {",

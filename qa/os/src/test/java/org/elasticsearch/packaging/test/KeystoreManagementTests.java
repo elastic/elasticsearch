@@ -167,7 +167,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
     /**
      * This test simulates a user starting Elasticsearch on the command line without daemonizing
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84204")
     public void test42KeystorePasswordOnTtyRunningInForeground() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);

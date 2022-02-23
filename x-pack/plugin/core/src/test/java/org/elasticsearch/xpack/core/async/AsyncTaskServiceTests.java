@@ -99,8 +99,10 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         assertThat(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(Collections.emptyMap()), is(true));
         // current is not authenticated
         try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
-            assertThat(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)),
-                is(false));
+            assertThat(
+                indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)),
+                is(false)
+            );
             assertThat(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(Map.of()), is(true));
         }
 
@@ -116,7 +118,9 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
                             new Authentication.RealmRef("realm", "file", "node")
                         )
                     )
-                ), is(true));
+                ),
+            is(true)
+        );
 
         try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
             // current user being run as
@@ -126,8 +130,10 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
                 new Authentication.RealmRef("realm", "file", "node")
             );
             current.writeToContext(indexService.getSecurityContext().getThreadContext());
-            assertThat(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)),
-                is(true));
+            assertThat(
+                indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)),
+                is(true)
+            );
 
             // both users are run as
             assertThat(
@@ -140,8 +146,9 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
                                 new Authentication.RealmRef("realm", "file", "node")
                             )
                         )
-                    )
-            , is(true));
+                    ),
+                is(true)
+            );
         }
 
         try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {

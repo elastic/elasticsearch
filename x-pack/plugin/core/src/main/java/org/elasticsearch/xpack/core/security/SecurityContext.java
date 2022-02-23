@@ -194,39 +194,45 @@ public class SecurityContext {
             Authentication.AuthenticationType.INTERNAL
         ).containsAll(EnumSet.of(myAuthentication.getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
             : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
-            + EnumSet.of(myAuthentication.getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType());
+                + EnumSet.of(myAuthentication.getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType());
         final AuthenticationContext myAuthContext = AuthenticationContext.fromAuthentication(myAuthentication);
         final AuthenticationContext creatorAuthContext = AuthenticationContext.fromAuthentication(resourceCreatorAuthentication);
         if (myAuthContext.isApiKey() && creatorAuthContext.isApiKey()) {
-            final boolean sameKeyId = myAuthContext.getEffectiveSubject().getMetadata()
+            final boolean sameKeyId = myAuthContext.getEffectiveSubject()
+                .getMetadata()
                 .get(AuthenticationField.API_KEY_ID_KEY)
                 .equals(creatorAuthContext.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
-            assert false == sameKeyId || myAuthContext.getEffectiveSubject().getUser().principal().equals(
-                creatorAuthContext.getEffectiveSubject().getUser().principal()) :
-                "The same API key ID cannot be attributed to two different usernames";
+            assert false == sameKeyId
+                || myAuthContext.getEffectiveSubject()
+                    .getUser()
+                    .principal()
+                    .equals(creatorAuthContext.getEffectiveSubject().getUser().principal())
+                : "The same API key ID cannot be attributed to two different usernames";
             return sameKeyId;
-        } else if ((myAuthContext.isApiKey() && false == creatorAuthContext.isApiKey()) ||
-            (false == myAuthContext.isApiKey() && creatorAuthContext.isApiKey())) {
-            // an API Key cannot access resources created by non-API Keys or vice-versa
-            return false;
-        } else {
-            assert false == myAuthContext.isApiKey();
-            assert false == creatorAuthContext.isApiKey();
-            if (false == myAuthContext.getEffectiveSubject().getUser().principal().equals(
-                creatorAuthContext.getEffectiveSubject().getUser().principal())) {
+        } else if ((myAuthContext.isApiKey() && false == creatorAuthContext.isApiKey())
+            || (false == myAuthContext.isApiKey() && creatorAuthContext.isApiKey())) {
+                // an API Key cannot access resources created by non-API Keys or vice-versa
                 return false;
-            }
-            final Authentication.RealmRef myAuthRealm = myAuthContext.getEffectiveSubject().getRealm();
-            final Authentication.RealmRef creatorAuthRealm = creatorAuthContext.getEffectiveSubject().getRealm();
-            if (FileRealmSettings.TYPE.equals(myAuthRealm.getType()) || NativeRealmSettings.TYPE.equals(myAuthRealm.getType())) {
-                // file and native realms can be renamed...
-                // nonetheless, they are singleton realms, only one such realm of each type can exist
-                return myAuthRealm.getType().equals(creatorAuthRealm.getType());
             } else {
-                return myAuthRealm.getName().equals(creatorAuthRealm.getName())
-                    && myAuthRealm.getType().equals(creatorAuthRealm.getType());
+                assert false == myAuthContext.isApiKey();
+                assert false == creatorAuthContext.isApiKey();
+                if (false == myAuthContext.getEffectiveSubject()
+                    .getUser()
+                    .principal()
+                    .equals(creatorAuthContext.getEffectiveSubject().getUser().principal())) {
+                    return false;
+                }
+                final Authentication.RealmRef myAuthRealm = myAuthContext.getEffectiveSubject().getRealm();
+                final Authentication.RealmRef creatorAuthRealm = creatorAuthContext.getEffectiveSubject().getRealm();
+                if (FileRealmSettings.TYPE.equals(myAuthRealm.getType()) || NativeRealmSettings.TYPE.equals(myAuthRealm.getType())) {
+                    // file and native realms can be renamed...
+                    // nonetheless, they are singleton realms, only one such realm of each type can exist
+                    return myAuthRealm.getType().equals(creatorAuthRealm.getType());
+                } else {
+                    return myAuthRealm.getName().equals(creatorAuthRealm.getName())
+                        && myAuthRealm.getType().equals(creatorAuthRealm.getType());
+                }
             }
-        }
     }
 
     public boolean canIAccessResourcesCreatedWithHeaders(Map<String, String> resourceCreateRequestHeaders) throws IOException {

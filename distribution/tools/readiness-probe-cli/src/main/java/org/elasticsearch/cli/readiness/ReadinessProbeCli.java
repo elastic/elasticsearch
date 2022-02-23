@@ -14,6 +14,7 @@ import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.readiness.ReadinessService;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -37,7 +38,7 @@ public class ReadinessProbeCli extends EnvironmentAwareCommand {
     }
 
     Path getSocketPath(Environment environment) {
-        return environment.logsFile().resolve("readiness.socket");
+        return environment.logsFile().resolve(ReadinessService.SOCKET_NAME);
     }
 
     @SuppressForbidden(reason = "Intentional socket open")

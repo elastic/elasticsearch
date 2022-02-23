@@ -11,6 +11,7 @@ package org.elasticsearch.cli.readiness;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.readiness.ReadinessService;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
@@ -40,7 +41,7 @@ public class ReadinessProbeCliTests extends LuceneTestCase {
         doAnswer(i -> {
             Object arg0 = i.getArgument(0);
 
-            assertThat(arg0.toString(), containsString("readiness.socket"));
+            assertThat(arg0.toString(), containsString(ReadinessService.SOCKET_NAME));
             return null;
         }).when(cli).tryConnect(any());
 

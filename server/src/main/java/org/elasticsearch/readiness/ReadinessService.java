@@ -50,6 +50,8 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         Setting.Property.NodeScope
     );
 
+    public static final String SOCKET_NAME = "readiness.socket";
+
     private final Environment environment;
     private final ExecutorService workerExecutor;
 
@@ -85,13 +87,23 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    Path getSocketPath() {
-        return environment.logsFile().resolve("readiness.socket");
+    boolean enabled() {
+        return enabled;
     }
 
-    ServerSocketChannel setupUnixDomainSocket() {
-        Path socketPath = getSocketPath();
+    boolean ready() {
+        return ready;
+    }
 
+    ServerSocketChannel serverChannel() {
+        return serverChannel;
+    }
+
+    Path getSocketPath() {
+        return environment.logsFile().resolve(SOCKET_NAME);
+    }
+
+    ServerSocketChannel setupUnixDomainSocket(Path socketPath) {
         try {
             Files.deleteIfExists(socketPath);
             UnixDomainSocketAddress socketAddress = UnixDomainSocketAddress.of(socketPath);
@@ -117,7 +129,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             return;
         }
 
-        this.serverChannel = setupUnixDomainSocket();
+        this.serverChannel = setupUnixDomainSocket(getSocketPath());
 
         new Thread(() -> {
             while (serverChannel.isOpen()) {

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
@@ -26,7 +26,7 @@ import java.time.ZonedDateTime;
  * {@link Secret}s are encrypted values that are stored in memory and are decrypted
  * on demand when needed.
  */
-public class WatcherXContentParser extends FilterXContentParser {
+public class WatcherXContentParser extends FilterXContentParserWrapper {
 
     public static final String REDACTED_PASSWORD = "::es_redacted::";
 

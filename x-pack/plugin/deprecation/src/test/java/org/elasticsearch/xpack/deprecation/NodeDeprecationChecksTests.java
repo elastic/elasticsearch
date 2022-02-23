@@ -675,4 +675,21 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             )
         );
     }
+
+    public void testCheckNodeAttrData() {
+        Settings settings = Settings.builder().put("node.attr.data", randomAlphaOfLength(randomIntBetween(4, 20))).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Setting node.attributes.data is not recommended",
+            "https://ela.st/es-deprecation-7-node-attr-data-setting",
+            "One or more of your nodes is configured with node.attributes.data settings. This is typically used to create a "
+                + "hot/warm or tiered architecture, based on legacy guidelines. Data tiers are a recommended replacement for tiered "
+                + "architecture clusters.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+    }
 }

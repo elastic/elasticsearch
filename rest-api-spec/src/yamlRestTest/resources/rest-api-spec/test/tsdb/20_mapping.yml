@@ -304,3 +304,63 @@ runtime field matching routing path:
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"bar": "a"}}}'
   - match: {items.0.index.error.reason: "All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
   - match: {items.1.index.error.reason: "All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
+
+---
+nested dimensions:
+  - skip:
+      version: " - 8.1.99"
+      reason: message changed in 8.2.0
+
+  - do:
+      catch: /time_series_dimension can't be configured in nested field \[nested.dim\]/
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [nested.*]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                nested:
+                  type: nested
+                  properties:
+                      dim:
+                        type: keyword
+                        time_series_dimension: true
+
+---
+nested fields:
+  - skip:
+      version: " - 8.1.99"
+      reason: message changed in 8.2.0
+
+  - do:
+      catch: /cannot have nested fields when index is in \[index.mode=time_series\]/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [dim]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              dim:
+                type: keyword
+                time_series_dimension: true
+              nested:
+                type: nested
+                properties:
+                  foo:
+                    type: keyword

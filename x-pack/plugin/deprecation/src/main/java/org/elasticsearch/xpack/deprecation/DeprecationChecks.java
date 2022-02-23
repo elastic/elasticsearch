@@ -82,7 +82,8 @@ public class DeprecationChecks {
         NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
         NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
         NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
-        NodeDeprecationChecks::checkEqlEnabledSetting
+        NodeDeprecationChecks::checkEqlEnabledSetting,
+        NodeDeprecationChecks::checkNodeAttrData
     );
 
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(

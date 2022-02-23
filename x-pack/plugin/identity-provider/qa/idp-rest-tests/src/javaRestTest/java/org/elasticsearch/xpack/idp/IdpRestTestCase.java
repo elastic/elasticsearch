@@ -6,18 +6,17 @@
  */
 package org.elasticsearch.xpack.idp;
 
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 
 import java.io.IOException;
@@ -67,18 +67,40 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         return highLevelAdminClient;
     }
 
-    protected User createUser(String username, SecureString password, String... roles) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final User user = new User(username, List.of(roles), Map.of(), username + " in " + getTestName(), username + "@test.example.com");
-        final PutUserRequest request = PutUserRequest.withPassword(user, password.getChars(), true, RefreshPolicy.IMMEDIATE);
-        client.security().putUser(request, RequestOptions.DEFAULT);
+    protected User createUser(String username, SecureString password, String role) throws IOException {
+        final User user = new User(
+            username,
+            new String[] { role },
+            username + " in " + getTestName(),
+            username + "@test.example.com",
+            Map.of(),
+            true
+        );
+        final String endpoint = "/_security/user/" + username;
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        final String body = """
+            {
+                "username": "%s",
+                "full_name": "%s",
+                "email": "%s",
+                "password": "%s",
+                "roles": [ "%s" ]
+            }
+            """.formatted(user.principal(), user.fullName(), user.email(), password.toString(), role);
+        request.setJsonEntity(body);
+        request.addParameters(Map.of("refresh", "true"));
+        request.setOptions(RequestOptions.DEFAULT);
+        adminClient().performRequest(request);
+
         return user;
     }
 
     protected void deleteUser(String username) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final DeleteUserRequest request = new DeleteUserRequest(username, RefreshPolicy.WAIT_UNTIL);
-        client.security().deleteUser(request, RequestOptions.DEFAULT);
+        final String endpoint = "/_security/user/" + username;
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        request.addParameters(Map.of("refresh", "true"));
+        request.setOptions(RequestOptions.DEFAULT);
+        adminClient().performRequest(request);
     }
 
     protected void createRole(
@@ -114,9 +136,16 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
     }
 
     protected void setUserPassword(String username, SecureString password) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final ChangePasswordRequest request = new ChangePasswordRequest(username, password.getChars(), RefreshPolicy.NONE);
-        client.security().changePassword(request, RequestOptions.DEFAULT);
+        final String endpoint = "/_security/user/" + username + "/_password";
+        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        final String body = """
+            {
+                "password": "%s"
+            }
+            """.formatted(password.toString());
+        request.setJsonEntity(body);
+        request.setOptions(RequestOptions.DEFAULT);
+        adminClient().performRequest(request);
     }
 
     protected SamlServiceProviderIndex.DocumentVersion createServiceProvider(String entityId, Map<String, Object> body) throws IOException {

@@ -105,7 +105,7 @@ public class LagDetector {
         } else {
             logger.debug("starting lag detector for version {}: {}", version, laggingTrackers);
 
-            threadPool.scheduleUnlessShuttingDown(clusterStateApplicationTimeout, Names.GENERIC, new Runnable() {
+            threadPool.scheduleUnlessShuttingDown(clusterStateApplicationTimeout, Names.CLUSTER_COORDINATION, new Runnable() {
                 @Override
                 public void run() {
                     laggingTrackers.forEach(t -> t.checkForLag(version));

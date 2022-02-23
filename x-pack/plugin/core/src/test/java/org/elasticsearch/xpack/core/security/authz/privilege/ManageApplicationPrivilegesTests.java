@@ -149,7 +149,7 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
         return new ManageApplicationPrivileges(new LinkedHashSet<>(original.getApplicationNames()));
     }
 
-    private ManageApplicationPrivileges buildPrivileges() {
+    static ManageApplicationPrivileges buildPrivileges() {
         return buildPrivileges(randomIntBetween(4, 7));
     }
 

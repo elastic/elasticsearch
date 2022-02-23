@@ -1347,8 +1347,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         )).get(0);
         assertThat(actualObj.get("type"), equalTo("point"));
         List<Double> coordinates = (List<Double>) actualObj.get("coordinates");
-        assertEquals((4 + 10), coordinates.get(1), 0.000001);
-        assertEquals((4 + 15), coordinates.get(0), 0.000001);
+        assertEquals(-76.0, coordinates.get(1), 0.000001);
+        assertEquals(-161.0, coordinates.get(0), 0.000001);
     }
 
     public void testPivotWithGeoCentroidAgg() throws Exception {
@@ -1411,8 +1411,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(3.878048780, actual.doubleValue(), 0.000001);
         String actualString = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.location", searchResult)).get(0);
         String[] latlon = actualString.split(",");
-        assertEquals((4 + 10), Double.valueOf(latlon[0]), 0.000001);
-        assertEquals((4 + 15), Double.valueOf(latlon[1]), 0.000001);
+        assertEquals(-76.0, Double.valueOf(latlon[0]), 0.000001);
+        assertEquals(-161.0, Double.valueOf(latlon[1]), 0.000001);
     }
 
     @SuppressWarnings("unchecked")

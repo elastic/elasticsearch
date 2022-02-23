@@ -344,8 +344,8 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                     }
 
                     @Override
-                    public FieldComparator<?> getComparator(int numHits, int sortPos) {
-                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), sortPos) {
+                    public FieldComparator<?> getComparator(int numHits, boolean enableSkipping) {
+                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), false) {
                             @Override
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {

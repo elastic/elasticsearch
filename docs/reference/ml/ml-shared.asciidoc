@@ -995,7 +995,7 @@ Tokenize with special tokens. The tokens typically included in MPNet-style token
 end::inference-config-nlp-tokenization-mpnet-with-special-tokens[]
 
 tag::inference-config-nlp-vocabulary[]
-The configuration for retreiving the vocabulary of the model. The vocabulary is
+The configuration for retrieving the vocabulary of the model. The vocabulary is
 then used at inference time. This information is usually provided automatically
 by storing vocabulary in a known, internally managed index.
 end::inference-config-nlp-vocabulary[]

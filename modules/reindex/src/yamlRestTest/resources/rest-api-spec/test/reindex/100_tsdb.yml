@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
 
   - do:
       indices.create:
@@ -91,8 +91,8 @@ setup:
 ---
 from tsdb to standard:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
 
   - do:
       reindex:
@@ -126,6 +126,10 @@ from tsdb to standard:
 
 ---
 from tsdb to tsdb:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
   - do:
       reindex:
         refresh: true
@@ -166,8 +170,8 @@ from tsdb to tsdb:
 ---
 from standard to tsdb:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
 
   # Populate the standard index
   - do:
@@ -232,6 +236,10 @@ from standard to tsdb:
 
 ---
 from tsdb to tsdb modifying timestamp:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
   - do:
       catch: bad_request # TODO make this work
       reindex:
@@ -246,6 +254,10 @@ from tsdb to tsdb modifying timestamp:
 
 ---
 from tsdb to tsdb modifying dimension:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
   - do:
       catch: bad_request # TODO make this work
       reindex:

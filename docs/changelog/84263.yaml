@@ -1,0 +1,5 @@
+pr: 84263
+summary: Capture client's effective realm for token creation
+area: Security
+type: bug
+issues: []

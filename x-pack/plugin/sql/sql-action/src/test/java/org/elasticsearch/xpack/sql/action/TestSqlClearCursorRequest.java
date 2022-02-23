@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.sql.proto.RequestInfo;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
-
 /**
  * Extension of SqlClearCursorRequest that relies on the sql-proto non-X-Content serialization
  * and then wrapping the outputstream in builder.
@@ -36,7 +34,7 @@ public class TestSqlClearCursorRequest extends SqlClearCursorRequest implements 
         org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest protoInstance = new org.elasticsearch.xpack.sql.proto.SqlClearCursorRequest(
             this.getCursor(),
             this.requestInfo(),
-            randomBoolean()
+            false
         );
         return SqlTestUtils.toXContentBuilder(builder, g -> Payloads.generate(g, protoInstance));
     }

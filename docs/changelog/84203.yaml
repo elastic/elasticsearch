@@ -1,0 +1,5 @@
+pr: 84203
+summary: Metadata of API key authentication must have `roleDescriptor` keys
+area: Authentication
+type: enhancement
+issues: []

@@ -52,7 +52,6 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -780,16 +779,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         public static MetadataSnapshot readFrom(StreamInput in) throws IOException {
-            final int metadataSize = in.readVInt();
-            final Map<String, StoreFileMetadata> metadata = metadataSize == 0 ? emptyMap() : Maps.newMapWithExpectedSize(metadataSize);
-            for (int i = 0; i < metadataSize; i++) {
-                final var storeFileMetadata = new StoreFileMetadata(in);
-                metadata.put(storeFileMetadata.name(), storeFileMetadata);
-            }
+            final Map<String, StoreFileMetadata> metadata = in.readMapValues(StoreFileMetadata::new, StoreFileMetadata::name);
             final var commitUserData = in.readMap(StreamInput::readString, StreamInput::readString);
             final var numDocs = in.readLong();
 
-            if (metadataSize == 0 && commitUserData.size() == 0 && numDocs == 0) {
+            if (metadata.size() == 0 && commitUserData.size() == 0 && numDocs == 0) {
                 return MetadataSnapshot.EMPTY;
             } else {
                 return new MetadataSnapshot(metadata, commitUserData, numDocs);
@@ -798,15 +792,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.metadata.size());
-            for (StoreFileMetadata meta : this) {
-                meta.writeTo(out);
-            }
-            out.writeVInt(commitUserData.size());
-            for (Map.Entry<String, String> entry : commitUserData.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeString(entry.getValue());
-            }
+            out.writeMapValues(metadata);
+            out.writeMap(commitUserData, StreamOutput::writeString, StreamOutput::writeString);
             out.writeLong(numDocs);
         }
 

@@ -446,7 +446,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 .map(
                     b -> new Bucket(
                         b.key,
-                        samplingContext.inverseScale(b.docCount),
+                        samplingContext.scaleUp(b.docCount),
                         InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
                     )
                 )

@@ -149,7 +149,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
             getBuckets().stream()
                 .map(
                     b -> createBucket(
-                        samplingContext.inverseScale(b.getDocCount()),
+                        samplingContext.scaleUp(b.getDocCount()),
                         InternalAggregations.finalizeSampling(b.aggregations, samplingContext),
                         b
                     )

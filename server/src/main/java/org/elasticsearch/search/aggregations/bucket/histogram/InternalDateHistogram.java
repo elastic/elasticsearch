@@ -150,7 +150,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         Bucket finalizeSampling(SamplingContext samplingContext) {
             return new Bucket(
                 key,
-                samplingContext.inverseScale(docCount),
+                samplingContext.scaleUp(docCount),
                 keyed,
                 format,
                 InternalAggregations.finalizeSampling(aggregations, samplingContext)

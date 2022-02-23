@@ -51,16 +51,16 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
         InternalSignificantTerms<?, ?> reduced,
         SamplingContext samplingContext
     ) {
-        assertThat(sampled.getSubsetSize(), equalTo(samplingContext.inverseScale(reduced.getSubsetSize())));
-        assertThat(sampled.getSupersetSize(), equalTo(samplingContext.inverseScale(reduced.getSupersetSize())));
+        assertThat(sampled.getSubsetSize(), equalTo(samplingContext.scaleUp(reduced.getSubsetSize())));
+        assertThat(sampled.getSupersetSize(), equalTo(samplingContext.scaleUp(reduced.getSupersetSize())));
         assertEquals(sampled.getBuckets().size(), reduced.getBuckets().size());
         Iterator<? extends InternalSignificantTerms.Bucket<?>> sampledIt = sampled.getBuckets().iterator();
         for (InternalSignificantTerms.Bucket<?> reducedBucket : reduced.getBuckets()) {
             InternalSignificantTerms.Bucket<?> sampledBucket = sampledIt.next();
-            assertEquals(sampledBucket.subsetDf, samplingContext.inverseScale(reducedBucket.subsetDf));
-            assertEquals(sampledBucket.supersetDf, samplingContext.inverseScale(reducedBucket.supersetDf));
-            assertEquals(sampledBucket.subsetSize, samplingContext.inverseScale(reducedBucket.subsetSize));
-            assertEquals(sampledBucket.supersetSize, samplingContext.inverseScale(reducedBucket.supersetSize));
+            assertEquals(sampledBucket.subsetDf, samplingContext.scaleUp(reducedBucket.subsetDf));
+            assertEquals(sampledBucket.supersetDf, samplingContext.scaleUp(reducedBucket.supersetDf));
+            assertEquals(sampledBucket.subsetSize, samplingContext.scaleUp(reducedBucket.subsetSize));
+            assertEquals(sampledBucket.supersetSize, samplingContext.scaleUp(reducedBucket.supersetSize));
             assertThat(sampledBucket.score, closeTo(reducedBucket.score, 1e-14));
         }
     }

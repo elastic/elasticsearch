@@ -71,6 +71,9 @@ class SignificanceLookup {
         this.context = context;
         this.fieldType = fieldType;
         this.format = format;
+        // If there is no provided background filter, but we are within a sampling context, our background docs need to take the sampling
+        // context into account.
+        // If there is a filter, that filter needs to take the sampling into account (if we are within a sampling context)
         this.backgroundFilter = backgroundFilter == null
             ? samplingContext.buildSamplingQueryIfNecessary(context).orElse(null)
             : samplingContext.buildQueryWithSampler(backgroundFilter, context);
@@ -80,7 +83,6 @@ class SignificanceLookup {
          * up later on.
          */
         IndexSearcher searcher = context.searcher();
-        // TODO can we cheat the random sampler and take a fraction of the max doc?
         supersetNumDocs = this.backgroundFilter == null ? searcher.getIndexReader().maxDoc() : searcher.count(this.backgroundFilter);
     }
 
@@ -202,7 +204,6 @@ class SignificanceLookup {
     }
 
     private long getBackgroundFrequency(Query query) throws IOException {
-        // TODO can we optimize with the sampling here and take a faction of the doc freq?
         // Note that `getTermsEnum` takes into account the backgroundFilter, with already has the sampling query applied
         if (query instanceof TermQuery) {
             // for types that use the inverted index, we prefer using a terms

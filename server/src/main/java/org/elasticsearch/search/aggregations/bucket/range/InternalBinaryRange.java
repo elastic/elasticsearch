@@ -193,7 +193,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
                 key,
                 from,
                 to,
-                samplingContext.inverseScale(docCount),
+                samplingContext.scaleUp(docCount),
                 InternalAggregations.finalizeSampling(aggregations, samplingContext)
             );
         }

@@ -370,7 +370,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                         b.getKey(),
                         b.from,
                         b.to,
-                        samplingContext.inverseScale(b.getDocCount()),
+                        samplingContext.scaleUp(b.getDocCount()),
                         InternalAggregations.finalizeSampling(b.getAggregations(), samplingContext),
                         b.keyed,
                         b.format

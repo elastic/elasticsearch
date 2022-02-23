@@ -477,7 +477,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                 key,
                 reverseMuls,
                 missingOrders,
-                samplingContext.inverseScale(docCount),
+                samplingContext.scaleUp(docCount),
                 InternalAggregations.finalizeSampling(aggregations, samplingContext)
             );
         }

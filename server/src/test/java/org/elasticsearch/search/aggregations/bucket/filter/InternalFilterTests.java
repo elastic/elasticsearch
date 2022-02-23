@@ -43,7 +43,7 @@ public class InternalFilterTests extends InternalSingleBucketAggregationTestCase
 
     @Override
     protected void assertSampled(InternalFilter sampled, InternalFilter reduced, SamplingContext samplingContext) {
-        assertThat(sampled.getDocCount(), equalTo(samplingContext.inverseScale(reduced.getDocCount())));
+        assertThat(sampled.getDocCount(), equalTo(samplingContext.scaleUp(reduced.getDocCount())));
     }
 
     @Override

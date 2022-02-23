@@ -172,7 +172,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
         Iterator<InternalMultiTerms.Bucket> sampledIt = sampled.iterator();
         for (InternalMultiTerms.Bucket reducedBucket : reduced) {
             InternalMultiTerms.Bucket sampledBucket = sampledIt.next();
-            assertEquals(sampledBucket.getDocCount(), samplingContext.inverseScale(reducedBucket.getDocCount()));
+            assertEquals(sampledBucket.getDocCount(), samplingContext.scaleUp(reducedBucket.getDocCount()));
         }
     }
 

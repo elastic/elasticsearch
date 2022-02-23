@@ -111,7 +111,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
         InternalBucket finalizeSampling(SamplingContext samplingContext) {
             return new InternalBucket(
                 key,
-                samplingContext.inverseScale(docCount),
+                samplingContext.scaleUp(docCount),
                 InternalAggregations.finalizeSampling(aggregations, samplingContext)
             );
         }

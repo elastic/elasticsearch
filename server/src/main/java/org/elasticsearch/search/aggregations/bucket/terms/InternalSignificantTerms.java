@@ -260,17 +260,17 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        long supersetSize = samplingContext.inverseScale(getSupersetSize());
-        long subsetSize = samplingContext.inverseScale(getSubsetSize());
+        long supersetSize = samplingContext.scaleUp(getSupersetSize());
+        long subsetSize = samplingContext.scaleUp(getSubsetSize());
         return create(
             subsetSize,
             supersetSize,
             getBuckets().stream()
                 .map(
                     b -> createBucket(
-                        samplingContext.inverseScale(b.subsetDf),
+                        samplingContext.scaleUp(b.subsetDf),
                         subsetSize,
-                        samplingContext.inverseScale(b.supersetDf),
+                        samplingContext.scaleUp(b.supersetDf),
                         supersetSize,
                         InternalAggregations.finalizeSampling(b.aggregations, samplingContext),
                         b

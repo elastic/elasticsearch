@@ -120,7 +120,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
                 .map(
                     b -> createBucket(
                         b.hashAsLong,
-                        samplingContext.inverseScale(b.docCount),
+                        samplingContext.scaleUp(b.docCount),
                         InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
                     )
                 )

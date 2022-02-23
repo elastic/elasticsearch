@@ -43,7 +43,7 @@ public class InternalFilter extends InternalSingleBucketAggregation implements F
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return newAggregation(
             name,
-            samplingContext.inverseScale(getDocCount()),
+            samplingContext.scaleUp(getDocCount()),
             InternalAggregations.finalizeSampling(getAggregations(), samplingContext)
         );
     }

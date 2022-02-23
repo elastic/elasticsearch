@@ -196,7 +196,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             return new Bucket(
                 centroid,
                 bounds,
-                samplingContext.inverseScale(docCount),
+                samplingContext.scaleUp(docCount),
                 format,
                 InternalAggregations.finalizeSampling(aggregations, samplingContext)
             );

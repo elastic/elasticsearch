@@ -136,7 +136,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         Bucket finalizeSampling(SamplingContext samplingContext) {
             return new Bucket(
                 key,
-                samplingContext.inverseScale(docCount),
+                samplingContext.scaleUp(docCount),
                 format,
                 InternalAggregations.finalizeSampling(aggregations, samplingContext)
             );

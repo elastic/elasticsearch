@@ -113,7 +113,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         InternalBucket finalizeSampling(SamplingContext samplingContext) {
             return new InternalBucket(
                 key,
-                samplingContext.inverseScale(docCount),
+                samplingContext.scaleUp(docCount),
                 InternalAggregations.finalizeSampling(aggregations, samplingContext),
                 keyed
             );

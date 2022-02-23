@@ -129,7 +129,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         Iterator<? extends MultiBucketsAggregation.Bucket> sampledIt = sampled.iterator();
         for (MultiBucketsAggregation.Bucket reducedBucket : reduced) {
             MultiBucketsAggregation.Bucket sampledBucket = sampledIt.next();
-            assertEquals(sampledBucket.getDocCount(), samplingContext.inverseScale(reducedBucket.getDocCount()));
+            assertEquals(sampledBucket.getDocCount(), samplingContext.scaleUp(reducedBucket.getDocCount()));
         }
     }
 

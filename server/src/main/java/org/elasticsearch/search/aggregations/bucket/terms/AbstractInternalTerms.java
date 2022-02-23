@@ -350,16 +350,16 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             getBuckets().stream()
                 .map(
                     b -> createBucket(
-                        samplingContext.inverseScale(b.getDocCount()),
+                        samplingContext.scaleUp(b.getDocCount()),
                         InternalAggregations.finalizeSampling((InternalAggregations) b.getAggregations(), samplingContext),
-                        b.getShowDocCountError() ? samplingContext.inverseScale(b.getDocCountError()) : 0,
+                        b.getShowDocCountError() ? samplingContext.scaleUp(b.getDocCountError()) : 0,
                         b
                     )
                 )
                 .collect(Collectors.toList()),
             getOrder(),
-            samplingContext.inverseScale(getDocCountError()),
-            samplingContext.inverseScale(getSumOfOtherDocCounts())
+            samplingContext.scaleUp(getDocCountError()),
+            samplingContext.scaleUp(getSumOfOtherDocCounts())
         );
     }
 

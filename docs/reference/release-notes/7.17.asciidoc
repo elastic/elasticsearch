@@ -68,7 +68,7 @@ Machine Learning::
 * Retry anomaly detection job recovery during relocation {es-pull}83456[#83456]
 * Address cause of "[CStatisticalTests.cc@102] Test statistic is nan" log errors {ml-pull}2196[#2196]
 * Address possible causes of "x = NaN, distribution = N5boost4math23students_t_distribution" log errors {ml-pull}2197[#2197]
-* Fix bug restoring data gatherer state for time of day and week anomaly detection functions. This could lead to "No queue item for time " and "Time is out of range. Returning earliest bucket index" log errors  {ml-pull}2213[#2213]
+* Fix bug restoring data gatherer state for time of day and week anomaly detection functions  {ml-pull}2213[#2213]
 
 Recovery::
 * Add missing `indices.recovery.internal_action_retry_timeout` to list of settings {es-pull}83354[#83354] (issue: {es-issue}55353[#55353])

@@ -2,4 +2,5 @@ pr: 84202
 summary: Assign indices of PIT requests in transport layer
 area: Search
 type: bug
-issues: []
+issues:
+ - 84187

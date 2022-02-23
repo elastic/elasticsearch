@@ -764,7 +764,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             c -> c.apply(nodettings, pluginsAndModules, clusterState, licenseState)
         );
 
-        Map<String, Object> meta = buildMetaObjectForRemovableSettings(concreteSettingKey);
+        Map<String, Object> meta = null;
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "The [" + concreteSettingKey + "] settings are deprecated and will be removed after 8.0",

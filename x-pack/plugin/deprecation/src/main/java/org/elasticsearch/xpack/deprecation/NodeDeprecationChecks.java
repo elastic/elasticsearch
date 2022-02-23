@@ -229,14 +229,10 @@ public class NodeDeprecationChecks {
         );
         final String details = String.format(Locale.ROOT, detailPattern, concatSettingNames);
 
-        boolean canBeFixedByRemovingDynamicSetting = deprecatedNodeSettingKeys.containsAll(deprecatedClusterSettingKeys) == false;
-        if (canBeFixedByRemovingDynamicSetting) {
-            deprecatedClusterSettingKeys.removeAll(deprecatedNodeSettingKeys);
-        }
-        final Map<String, Object> meta = createMetaMapForRemovableSettings(
-            canBeFixedByRemovingDynamicSetting,
-            deprecatedClusterSettingKeys
-        );
+        /* Removing affix settings can cause more problems than it's worth, so always make meta null even if the settings are only set
+         * dynamically
+         */
+        final Map<String, Object> meta = null;
         return new DeprecationIssue(warningLevel, message, url, details, false, meta);
     }
 
@@ -291,11 +287,10 @@ public class NodeDeprecationChecks {
             groupSettingNames
         );
         final String details = String.format(Locale.ROOT, detailPattern, allSubSettings);
-        boolean canBeFixedByRemovingDynamicSetting = allNodeSubSettingKeys.containsAll(allClusterSubSettingKeys) == false;
-        if (canBeFixedByRemovingDynamicSetting) {
-            allClusterSubSettingKeys.removeAll(allNodeSubSettingKeys);
-        }
-        final Map<String, Object> meta = createMetaMapForRemovableSettings(canBeFixedByRemovingDynamicSetting, allClusterSubSettingKeys);
+        /* Removing affix settings can cause more problems than it's worth, so always make meta null even if the settings are only set
+         * dynamically
+         */
+        final Map<String, Object> meta = null;
         return new DeprecationIssue(warningLevel, message, url, details, false, meta);
     }
 

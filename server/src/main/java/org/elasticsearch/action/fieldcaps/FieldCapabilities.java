@@ -315,6 +315,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         void add(String index, boolean isMetadataField, boolean search, boolean agg, Map<String, String> meta) {
             assert indiceList.isEmpty() || indiceList.get(indiceList.size() - 1).name.compareTo(index) < 0
                 : "indices aren't sorted; previous [" + indiceList.get(indiceList.size() - 1).name + "], current [" + index + "]";
+            indiceList.add(new IndexCaps(index, search, agg));
             if (search) {
                 searchableIndices++;
             }

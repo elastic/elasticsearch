@@ -38,13 +38,13 @@ import static org.elasticsearch.health.ServerHealthComponents.DATA;
  * <p>
  * Each shard needs to be available and replicated in order to guarantee high availability and prevent data loses.
  */
-public class ShardsAllocationHealthIndicatorService implements HealthIndicatorService {
+public class ShardsAvailabilityHealthIndicatorService implements HealthIndicatorService {
 
-    public static final String NAME = "shards_allocation";
+    public static final String NAME = "shards_availability";
 
     private final ClusterService clusterService;
 
-    public ShardsAllocationHealthIndicatorService(ClusterService clusterService) {
+    public ShardsAvailabilityHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 
@@ -81,19 +81,18 @@ public class ShardsAllocationHealthIndicatorService implements HealthIndicatorSe
         private int unassigned_restarting = 0;
         private int initializing = 0;
         private int started = 0;
-        private int relocating = 0;
 
         public void increment(ShardRouting routing) {
             switch (routing.state()) {
                 case UNASSIGNED -> {
-                    unassigned++;
                     if (routing.unassignedInfo() != null && routing.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_RESTARTING) {
                         unassigned_restarting++;
+                    } else {
+                        unassigned++;
                     }
                 }
                 case INITIALIZING -> initializing++;
                 case STARTED -> started++;
-                case RELOCATING -> relocating++;
             }
         }
     }
@@ -111,9 +110,9 @@ public class ShardsAllocationHealthIndicatorService implements HealthIndicatorSe
         }
 
         public HealthStatus getStatus() {
-            if (primaries.unassigned > 0) {
+            if (primaries.unassigned > 0 || primaries.unassigned_restarting > 0) {
                 return RED;
-            } else if (replicas.unassigned > replicas.unassigned_restarting) {
+            } else if (replicas.unassigned > 0) {
                 return YELLOW;
             } else {
                 return GREEN;
@@ -122,41 +121,52 @@ public class ShardsAllocationHealthIndicatorService implements HealthIndicatorSe
 
         public String getSummary() {
             var builder = new StringBuilder("This cluster has ");
-            if (primaries.unassigned > 0 || replicas.unassigned > 0) {
-
+            if (primaries.unassigned > 0
+                || primaries.unassigned_restarting > 0
+                || replicas.unassigned > 0
+                || replicas.unassigned_restarting > 0) {
                 builder.append(
                     Stream.of(
-                        Stream.of("1 unassigned primary").filter(it -> primaries.unassigned == 1),
-                        Stream.of(primaries.unassigned + " unassigned primaries").filter(it -> primaries.unassigned > 1),
-                        Stream.of("1 unassigned replica").filter(it -> replicas.unassigned == 1),
-                        Stream.of(replicas.unassigned + " unassigned replicas").filter(it -> replicas.unassigned > 1)
-                    ).flatMap(Function.identity()).collect(joining(" and "))
+                        createMessage(
+                            primaries.unassigned + primaries.unassigned_restarting,
+                            "unavailable primary",
+                            " unavailable primaries"
+                        ),
+                        createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
+                        createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
+                    ).flatMap(Function.identity()).collect(joining(" , "))
                 ).append(".");
             } else {
-                builder.append("no unassigned shards.");
+                builder.append("no unavailable shards.");
             }
             return builder.toString();
+        }
+
+        private static Stream<String> createMessage(int count, String singular, String plural) {
+            return switch (count) {
+                case 0 -> Stream.empty();
+                case 1 -> Stream.of("1 " + singular);
+                default -> Stream.of(count + " " + plural);
+            };
         }
 
         public SimpleHealthIndicatorDetails getDetails() {
             return new SimpleHealthIndicatorDetails(
                 Map.of(
                     "unassigned_primaries",
-                    primaries.unassigned,
+                    primaries.unassigned + primaries.unassigned_restarting,
                     "initializing_primaries",
                     primaries.initializing,
                     "started_primaries",
                     primaries.started,
-                    "relocating_primaries",
-                    primaries.relocating,
                     "unassigned_replicas",
                     replicas.unassigned,
                     "initializing_replicas",
                     replicas.initializing,
+                    "restarting_replicas",
+                    replicas.unassigned_restarting,
                     "started_replicas",
-                    replicas.started,
-                    "relocating_replicas",
-                    replicas.relocating
+                    replicas.started
                 )
             );
         }

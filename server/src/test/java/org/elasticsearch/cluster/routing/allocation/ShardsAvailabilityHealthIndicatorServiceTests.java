@@ -33,10 +33,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAllocationHealthIndicatorService.NAME;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAllocationHealthIndicatorServiceTests.ShardState.AVAILABLE;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAllocationHealthIndicatorServiceTests.ShardState.RESTARTING;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAllocationHealthIndicatorServiceTests.ShardState.UNAVAILABLE;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.NAME;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.AVAILABLE;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.RESTARTING;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.UNAVAILABLE;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
+public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testShouldBeGreenWhenAllPrimariesAndReplicasAreStarted() {
         var replicatedIndices = randomList(1, 10, indexGenerator("replicated-index-", AVAILABLE, AVAILABLE));
@@ -60,7 +60,7 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has no unassigned shards.",
+                    "This cluster has no unavailable shards.",
                     Map.of(
                         "started_primaries",
                         replicatedIndices.size() + unreplicatedIndices.size(),
@@ -86,8 +86,8 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     YELLOW,
                     unavailableReplicas.size() > 1
-                        ? "This cluster has " + unavailableReplicas.size() + " unassigned replicas."
-                        : "This cluster has 1 unassigned replica.",
+                        ? "This cluster has " + unavailableReplicas.size() + " unavailable replicas."
+                        : "This cluster has 1 unavailable replica.",
                     Map.of(
                         "started_primaries",
                         greenIndices.size() + 1,
@@ -112,7 +112,7 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     RED,
-                    "This cluster has 1 unassigned primary.",
+                    "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1, "started_primaries", greenIndices.size(), "started_replicas", greenIndices.size())
                 )
             )
@@ -130,8 +130,8 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has 1 unassigned replica.",
-                    Map.of("started_primaries", greenIndices.size() + 1, "unassigned_replicas", 1, "started_replicas", greenIndices.size())
+                    "This cluster has 1 restarting replica.",
+                    Map.of("started_primaries", greenIndices.size() + 1, "restarting_replicas", 1, "started_replicas", greenIndices.size())
                 )
             )
         );
@@ -148,7 +148,7 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     RED,
-                    "This cluster has 1 unassigned primary.",
+                    "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1, "started_primaries", greenIndices.size(), "started_replicas", greenIndices.size())
                 )
             )
@@ -183,16 +183,14 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
             override.getOrDefault("initializing_primaries", 0),
             "started_primaries",
             override.getOrDefault("started_primaries", 0),
-            "relocating_primaries",
-            override.getOrDefault("relocating_primaries", 0),
             "unassigned_replicas",
             override.getOrDefault("unassigned_replicas", 0),
             "initializing_replicas",
             override.getOrDefault("initializing_replicas", 0),
+            "restarting_replicas",
+            override.getOrDefault("restarting_replicas", 0),
             "started_replicas",
-            override.getOrDefault("started_replicas", 0),
-            "relocating_replicas",
-            override.getOrDefault("relocating_replicas", 0)
+            override.getOrDefault("started_replicas", 0)
         );
     }
 
@@ -251,9 +249,9 @@ public class ShardsAllocationHealthIndicatorServiceTests extends ESTestCase {
         RESTARTING
     }
 
-    private static ShardsAllocationHealthIndicatorService createAllocationHealthIndicatorService(ClusterState clusterState) {
+    private static ShardsAvailabilityHealthIndicatorService createAllocationHealthIndicatorService(ClusterState clusterState) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        return new ShardsAllocationHealthIndicatorService(clusterService);
+        return new ShardsAvailabilityHealthIndicatorService(clusterService);
     }
 }

@@ -447,16 +447,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[]"), e.getMessage());
     }
 
-    public void testCheckValid_GivenIndicesContainsOnlyNulls() {
-        List<String> indices = new ArrayList<>();
-        indices.add(null);
-        indices.add(null);
-        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
-        conf.setIndices(indices);
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[null, null]"), e.getMessage());
-    }
-
     public void testCheckValid_GivenIndicesContainsOnlyEmptyStrings() {
         List<String> indices = new ArrayList<>();
         indices.add("");

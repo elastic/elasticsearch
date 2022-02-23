@@ -391,7 +391,10 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
     public void testProvideWrongId() throws IOException {
         String wrongId = testCase.expectedId + "wrong";
         Exception e = expectThrows(MapperParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
-        assertThat(e.getCause().getMessage(), equalTo("_id must be unset or set to [" + testCase.expectedId + "] because [index] is in time_series mode"));
+        assertThat(
+            e.getCause().getMessage(),
+            equalTo("_id must be unset or set to [" + testCase.expectedId + "] because [index] is in time_series mode")
+        );
     }
 
     public void testEquivalentSources() throws IOException {
@@ -401,7 +404,8 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
-    private ParsedDocument parse(@Nullable String id, MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> source) throws IOException {
+    private ParsedDocument parse(@Nullable String id, MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> source)
+        throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
             builder.startObject();
             source.accept(builder);

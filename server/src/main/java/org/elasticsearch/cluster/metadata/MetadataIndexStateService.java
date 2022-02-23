@@ -76,7 +76,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -232,13 +231,13 @@ public class MetadataIndexStateService {
 
             for (CloseIndicesTask task : tasks) {
                 try {
-                    Tuple<ClusterState, Collection<IndexResult>> closingResult = closeRoutingTable(
+                    final Tuple<ClusterState, List<IndexResult>> closingResult = closeRoutingTable(
                         state,
                         task.blockedIndices,
                         task.verifyResults
                     );
                     state = closingResult.v1();
-                    List<IndexResult> indices = new ArrayList<>(closingResult.v2());
+                    final List<IndexResult> indices = closingResult.v2();
                     assert indices.size() == task.verifyResults.size();
 
                     builder.success(task, task.listener.delegateFailure((l, clusterState) -> {
@@ -526,7 +525,7 @@ public class MetadataIndexStateService {
 
                                                 @Override
                                                 public ClusterState execute(final ClusterState currentState) throws Exception {
-                                                    Tuple<ClusterState, Collection<AddBlockResult>> addBlockResult = finalizeBlock(
+                                                    Tuple<ClusterState, List<AddBlockResult>> addBlockResult = finalizeBlock(
                                                         currentState,
                                                         blockedIndices,
                                                         verifyResults,
@@ -825,7 +824,7 @@ public class MetadataIndexStateService {
     /**
      * Step 3 - Move index states from OPEN to CLOSE in cluster state for indices that are ready for closing.
      */
-    static Tuple<ClusterState, Collection<IndexResult>> closeRoutingTable(
+    static Tuple<ClusterState, List<IndexResult>> closeRoutingTable(
         final ClusterState currentState,
         final Map<Index, ClusterBlock> blockedIndices,
         final Map<Index, IndexResult> verifyResult
@@ -918,7 +917,7 @@ public class MetadataIndexStateService {
         logger.info("completed closing of indices {}", closedIndices);
         return Tuple.tuple(
             ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable).build(),
-            closingResults.values()
+            List.copyOf(closingResults.values())
         );
     }
 
@@ -968,7 +967,7 @@ public class MetadataIndexStateService {
      * @param block the full block to convert to
      * @return the updated cluster state, as well as the (failed and successful) index-level results for adding the block
      */
-    private static Tuple<ClusterState, Collection<AddBlockResult>> finalizeBlock(
+    private static Tuple<ClusterState, List<AddBlockResult>> finalizeBlock(
         final ClusterState currentState,
         final Map<Index, ClusterBlock> blockedIndices,
         final Map<Index, AddBlockResult> verifyResult,
@@ -1027,7 +1026,7 @@ public class MetadataIndexStateService {
             }
         }
         logger.info("completed adding block {} to indices {}", block.name, effectivelyBlockedIndices);
-        return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).build(), blockingResults.values());
+        return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).build(), List.copyOf(blockingResults.values()));
     }
 
     /**

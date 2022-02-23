@@ -16,6 +16,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -23,9 +27,12 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
@@ -151,6 +158,83 @@ public class SecurityContext {
             });
             consumer.accept(original);
         }
+    }
+
+    /**
+     * Checks whether the user or API key of the passed in authentication can access the resources owned by the user
+     * or API key of this authentication. The rules are as follows:
+     *   * True if the authentications are for the same API key (same API key ID)
+     *   * True if they are the same username from the same realm
+     *      - For file and native realm, same realm means the same realm type
+     *      - For all other realms, same realm means same realm type plus same realm name
+     *   * An user and its API key cannot access each other's resources
+     *   * An user and its token can access each other's resources
+     *   * Two API keys are never able to access each other's resources regardless of their ownership.
+     *
+     *  This check is a best effort and it does not account for certain static and external changes.
+     *  See also <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/security-limitations.html">
+     *      security limitations</a>
+     */
+    public boolean canIAccessResourcesCreatedBy(@Nullable Authentication resourceCreatorAuthentication) {
+        if (resourceCreatorAuthentication == null) {
+            // resource creation was not authenticated (security was disabled); anyone can access such resources
+            return true;
+        }
+        final Authentication myAuthentication = getAuthentication();
+        if (myAuthentication == null) {
+            // unauthenticated users cannot access any resources created by authenticated users, even anonymously authenticated ones
+            return false;
+        }
+        // if we introduce new authentication types in the future, we might need to revisit this method
+        assert EnumSet.of(
+            Authentication.AuthenticationType.REALM,
+            Authentication.AuthenticationType.API_KEY,
+            Authentication.AuthenticationType.TOKEN,
+            Authentication.AuthenticationType.ANONYMOUS,
+            Authentication.AuthenticationType.INTERNAL
+        ).containsAll(EnumSet.of(myAuthentication.getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
+            : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
+            + EnumSet.of(myAuthentication.getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType());
+        final AuthenticationContext myAuthContext = AuthenticationContext.fromAuthentication(myAuthentication);
+        final AuthenticationContext creatorAuthContext = AuthenticationContext.fromAuthentication(resourceCreatorAuthentication);
+        if (myAuthContext.isApiKey() && creatorAuthContext.isApiKey()) {
+            final boolean sameKeyId = myAuthContext.getEffectiveSubject().getMetadata()
+                .get(AuthenticationField.API_KEY_ID_KEY)
+                .equals(creatorAuthContext.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+            assert false == sameKeyId || myAuthContext.getEffectiveSubject().getUser().principal().equals(
+                creatorAuthContext.getEffectiveSubject().getUser().principal()) :
+                "The same API key ID cannot be attributed to two different usernames";
+            return sameKeyId;
+        } else if ((myAuthContext.isApiKey() && false == creatorAuthContext.isApiKey()) ||
+            (false == myAuthContext.isApiKey() && creatorAuthContext.isApiKey())) {
+            // an API Key cannot access resources created by non-API Keys or vice-versa
+            return false;
+        } else {
+            assert false == myAuthContext.isApiKey();
+            assert false == creatorAuthContext.isApiKey();
+            if (false == myAuthContext.getEffectiveSubject().getUser().principal().equals(
+                creatorAuthContext.getEffectiveSubject().getUser().principal())) {
+                return false;
+            }
+            final Authentication.RealmRef myAuthRealm = myAuthContext.getEffectiveSubject().getRealm();
+            final Authentication.RealmRef creatorAuthRealm = creatorAuthContext.getEffectiveSubject().getRealm();
+            if (FileRealmSettings.TYPE.equals(myAuthRealm.getType()) || NativeRealmSettings.TYPE.equals(myAuthRealm.getType())) {
+                // file and native realms can be renamed...
+                // nonetheless, they are singleton realms, only one such realm of each type can exist
+                return myAuthRealm.getType().equals(creatorAuthRealm.getType());
+            } else {
+                return myAuthRealm.getName().equals(creatorAuthRealm.getName())
+                    && myAuthRealm.getType().equals(creatorAuthRealm.getType());
+            }
+        }
+    }
+
+    public boolean canIAccessResourcesCreatedWithHeaders(Map<String, String> resourceCreateRequestHeaders) throws IOException {
+        Authentication resourceCreatorAuthentication = null;
+        if (resourceCreateRequestHeaders != null && resourceCreateRequestHeaders.containsKey(AUTHENTICATION_KEY)) {
+            resourceCreatorAuthentication = AuthenticationContextSerializer.decode(resourceCreateRequestHeaders.get(AUTHENTICATION_KEY));
+        }
+        return canIAccessResourcesCreatedBy(resourceCreatorAuthentication);
     }
 
     /** Writes the authentication to the thread context */

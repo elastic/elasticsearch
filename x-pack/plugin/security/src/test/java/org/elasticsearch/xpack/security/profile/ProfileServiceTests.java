@@ -78,7 +78,6 @@ public class ProfileServiceTests extends ESTestCase {
               },
               "email": "foo@example.com",
               "full_name": "User Foo",
-              "display_name": "Curious Foo",
               "active": true
             },
             "last_synchronized": %s,

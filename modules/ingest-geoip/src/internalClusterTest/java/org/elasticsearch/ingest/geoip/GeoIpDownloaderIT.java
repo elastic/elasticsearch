@@ -11,6 +11,8 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.geoip2.DatabaseReader;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
@@ -35,7 +37,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -79,10 +83,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     protected static final String ENDPOINT = System.getProperty("geoip_endpoint");
+    private NetworkDisruption partition;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class,
+            MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -96,6 +102,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @After
     public void cleanUp() throws Exception {
+        if (partition != null) {
+            partition.stopDisrupting();
+        }
+
         deleteDatabasesInConfigDirectory();
 
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
@@ -143,6 +153,44 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     assertThat(names, not(hasItem("GeoLite2-Country.mmdb")));
                 }
             }
+        });
+    }
+
+    public void testTaskRemovedAfterCancellation() throws Exception {
+        ClusterUpdateSettingsResponse settingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
+            .get();
+        assertTrue(settingsResponse.isAcknowledged());
+        assertBusy(() -> {
+            GeoIpTaskState state = getGeoIpTaskState();
+            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+        }, 2, TimeUnit.MINUTES);
+        ListTasksResponse tasks = client().admin().cluster().listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
+            .actionGet();
+        assertEquals(1, tasks.getTasks().size());
+        String nodeId = tasks.getTasks().get(0).taskId().getNodeId();
+        String nodeName = clusterService().state().nodes().getNodes().get(nodeId).getName();
+
+        partition = isolateNodeDisruption(nodeName, NetworkDisruption.DISCONNECT);
+        setDisruptionScheme(partition);
+        partition.startDisrupting();
+
+        assertBusy(() -> assertNotEquals(nodeId, getTask().getExecutorNode()));
+
+        assertBusy(() -> {
+            ListTasksResponse newTasks = client().admin().cluster().listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
+                .actionGet();
+            assertEquals(1, newTasks.getTasks().size());
+        });
+
+        partition.stopDisrupting();
+
+        assertBusy(() -> {
+            ListTasksResponse newTasks = client().admin().cluster().listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
+                .actionGet();
+            assertEquals(1, newTasks.getTasks().size());
         });
     }
 

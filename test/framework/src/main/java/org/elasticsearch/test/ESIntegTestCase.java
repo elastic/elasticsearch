@@ -685,11 +685,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @return disruption
      */
     protected static NetworkDisruption isolateMasterDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
-        final String masterNode = internalCluster().getMasterName();
+        return isolateNodeDisruption(internalCluster().getMasterName(), disruptionType);
+    }
+
+    /**
+     * Creates a disruption that isolates the specified node from all other nodes in the cluster.
+     *
+     * @param disruptionType type of disruption to create
+     * @return disruption
+     */
+    protected static NetworkDisruption isolateNodeDisruption(String node, NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
         return new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(
-                Collections.singleton(masterNode),
-                Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false).collect(Collectors.toSet())
+                Collections.singleton(node),
+                Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(node) == false).collect(Collectors.toSet())
             ),
             disruptionType
         );

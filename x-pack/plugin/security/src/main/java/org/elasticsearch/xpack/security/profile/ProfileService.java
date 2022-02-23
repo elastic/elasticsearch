@@ -482,8 +482,6 @@ public class ProfileService {
                 // Replace with incoming information even when they are null
                 subjectUser.email(),
                 subjectUser.fullName(),
-                // TODO: displayName is not available in Authentication object
-                doc.user().displayName(),
                 subjectUser.enabled()
             ),
             doc.access(),

@@ -165,7 +165,6 @@ public class ProfileServiceTests extends ESTestCase {
                         "domainA",
                         "foo@example.com",
                         "User Foo",
-                        "Curious Foo",
                         true
                     ),
                     Map.of(),

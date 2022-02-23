@@ -470,7 +470,7 @@ public class Querier {
                     query.sortingColumns().isEmpty() ? query.limit() : -1
                 );
 
-            BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ? (q, r) -> {
+            BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor = isPivot ? (q, r) -> {
                 Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
                 return new PivotCursor(
                     lastAfterKey,

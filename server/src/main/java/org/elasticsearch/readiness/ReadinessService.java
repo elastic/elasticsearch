@@ -11,7 +11,9 @@ package org.elasticsearch.readiness;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.settings.Setting;
@@ -20,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.shutdown.PluginShutdownService;
 
 import java.io.IOException;
 import java.net.StandardProtocolFamily;
@@ -32,6 +35,7 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -56,13 +60,15 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private final HttpServerTransport httpTransport;
 
-    public ReadinessService(Environment environment, HttpServerTransport httpTransport) {
+    public ReadinessService(ClusterService clusterService, Environment environment, HttpServerTransport httpTransport) {
         this.httpTransport = httpTransport;
         this.serverChannel = null;
         this.environment = environment;
         this.enabled = ENABLED_SETTING.get(environment.settings());
 
         if (enabled) {
+            clusterService.addListener(this);
+
             this.workerExecutor = EsExecutors.newScaling(
                 "readiness-worker",
                 0,
@@ -189,6 +195,14 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             return;
         }
 
-        this.ready = event.state().nodes().getMasterNodeId() != null;
+        ClusterState clusterState = event.state();
+
+        Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);
+        if (shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId())) {
+            this.ready = false;
+            logger.info("marking node as not ready because it's shutting down");
+        } else {
+            this.ready = clusterState.nodes().getMasterNodeId() != null;
+        }
     }
 }

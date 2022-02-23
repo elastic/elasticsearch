@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.index;
 
-import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.plugins.EnginePlugin;

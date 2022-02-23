@@ -44,7 +44,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static org.apache.lucene.util.LuceneTestCase.createTempFile;
+import static org.apache.lucene.tests.util.LuceneTestCase.createTempFile;
 import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;

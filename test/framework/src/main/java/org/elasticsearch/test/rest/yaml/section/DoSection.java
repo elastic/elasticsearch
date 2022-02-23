@@ -367,7 +367,13 @@ public class DoSection implements ExecutableSection {
             final String testPath = executionContext.getClientYamlTestCandidate() != null
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
-            checkElasticProductHeader(response.getHeaders("X-elastic-product"));
+            if (executionContext.esVersion().after(Version.V_8_1_0)
+                || (executionContext.esVersion().major == Version.V_7_17_0.major && executionContext.esVersion().after(Version.V_7_17_1))) {
+                // #84038 and #84089 mean that this assertion fails when running against a small number of released versions, but at time of
+                // writing it's unclear exactly which released versions will contain the fix.
+                // TODO once a fixed version has been released, adjust the condition above to match.
+                checkElasticProductHeader(response.getHeaders("X-elastic-product"));
+            }
             checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch (ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();

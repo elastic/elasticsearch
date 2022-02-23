@@ -197,4 +197,33 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         }
     }
 
+    public void testCreateCursorWithFormatTxtOnNewNode() throws IOException {
+        testCreateCursorWithFormatTxt(newNodesClient);
+    }
+
+    public void testCreateCursorWithFormatTxtOnOldNode() throws IOException {
+        testCreateCursorWithFormatTxt(oldNodesClient);
+    }
+
+    /**
+     * Tests covering https://github.com/elastic/elasticsearch/issues/83581
+     */
+    public void testCreateCursorWithFormatTxt(RestClient client) throws IOException {
+        index("{\"foo\":1}", "{\"foo\":2}");
+
+        Request query = new Request("POST", "_sql");
+        XContentBuilder json = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("query", randomFrom("SELECT foo FROM test", "SELECT foo FROM test GROUP BY foo"))
+            .field("fetch_size", 1)
+            .endObject();
+
+        query.setJsonEntity(Strings.toString(json));
+        query.addParameter("format", "txt");
+
+        Response response = client.performRequest(query);
+        assertOK(response);
+        assertFalse(Strings.isNullOrEmpty(response.getHeader("Cursor")));
+    }
+
 }

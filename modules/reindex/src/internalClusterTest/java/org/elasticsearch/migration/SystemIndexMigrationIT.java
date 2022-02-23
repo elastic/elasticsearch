@@ -110,7 +110,7 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertBusy(() -> {
             // Wait for the node we restarted to completely rejoin the cluster
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            assertThat("expected restarted node to rejoin cluster", clusterState.getNodes().size(), equalTo(2));
+            assertThat("expected restarted node to rejoin cluster", clusterState.getNodes().getSize(), equalTo(2));
 
             GetFeatureUpgradeStatusResponse statusResponse = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,

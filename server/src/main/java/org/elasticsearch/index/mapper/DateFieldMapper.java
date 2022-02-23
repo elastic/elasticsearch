@@ -630,7 +630,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
-            if (isIndexed() == false) {
+            if (isIndexed() == false && hasDocValues()) {
                 // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
                 return Relation.INTERSECTS;
             }

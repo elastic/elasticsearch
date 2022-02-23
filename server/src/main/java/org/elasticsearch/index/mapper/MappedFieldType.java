@@ -457,8 +457,7 @@ public abstract class MappedFieldType {
     }
 
     protected final void failIfNotIndexedNorDocValuesFallback(SearchExecutionContext context) {
-        if (docValues == false
-            && context.indexVersionCreated().isLegacyIndexVersion()) {
+        if (docValues == false && context.indexVersionCreated().isLegacyIndexVersion()) {
             throw new IllegalArgumentException(
                 "Cannot search on field [" + name() + "] of legacy index since it does not have doc values."
             );

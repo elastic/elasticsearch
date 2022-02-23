@@ -76,7 +76,7 @@ public final class RandomSamplingQuery extends Query {
 
             @Override
             public Scorer scorer(LeafReaderContext context) {
-                final SplittableRandom random = new SplittableRandom(BitMixer.mix(hash));
+                final SplittableRandom random = new SplittableRandom(BitMixer.mix(hash ^ seed));
                 int maxDoc = context.reader().maxDoc();
                 return new ConstantScoreScorer(
                     this,

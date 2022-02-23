@@ -163,9 +163,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             indexAnalyzers
         );
-        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
-            indexSettings.getIndexVersionCreated()
-        );
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(indexSettings);
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
         this.mappingParser = new MappingParser(
             parserContextSupplier,
@@ -197,9 +195,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
         final DocumentMapper existingMapper = mapper;
-        final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
-            indexSettings.getIndexVersionCreated()
-        );
+        final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(indexSettings);
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
         if (existingMapper == null) {
             for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
@@ -507,7 +503,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * this method considers all mapper plugins
      */
     public boolean isMetadataField(String field) {
-        return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
+        return mapperRegistry.getMetadataMapperParsers(indexSettings).containsKey(field);
     }
 
     public boolean isMultiField(String field) {

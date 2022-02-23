@@ -92,6 +92,7 @@ public abstract class DocumentParserContext {
     private final DocumentDimensions dimensions;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
+    private Long timestamp;
 
     private DocumentParserContext(DocumentParserContext in) {
         this.mappingLookup = in.mappingLookup;
@@ -107,6 +108,7 @@ public abstract class DocumentParserContext {
         this.version = in.version;
         this.seqID = in.seqID;
         this.dimensions = in.dimensions;
+        this.timestamp = in.timestamp;
     }
 
     protected DocumentParserContext(
@@ -198,6 +200,14 @@ public abstract class DocumentParserContext {
 
     public final void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
         this.seqID = seqID;
+    }
+
+    public final Long getTimestampValue() {
+        return this.timestamp;
+    }
+
+    public final void setTimestampValue(long timestamp) {
+        this.timestamp = timestamp;
     }
 
     /**

@@ -277,7 +277,6 @@ public class SearchCancellationIT extends ESIntegTestCase {
             ).setMapping("""
                 {
                   "properties": {
-                    "@timestamp": {"type": "date", "format": "epoch_millis"},
                     "dim": {"type": "keyword", "time_series_dimension": true}
                   }
                 }

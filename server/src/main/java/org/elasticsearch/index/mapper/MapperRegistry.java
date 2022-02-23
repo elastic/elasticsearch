@@ -9,6 +9,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Collections;
@@ -63,10 +65,20 @@ public final class MapperRegistry {
      * Return a map of the meta mappers that have been registered. The
      * returned map uses the name of the field as a key.
      */
-    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(Version indexCreatedVersion) {
-        if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(IndexSettings indexSettings) {
+        var versionedMappers = metadataMappersForVersion(indexSettings.getIndexVersionCreated());
+        if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+            var completeMappers = new LinkedHashMap<>(versionedMappers);
+            completeMappers.put(TimestampMetadataMapper.NAME, TimestampMetadataMapper.PARSER);
+            return Collections.unmodifiableMap(completeMappers);
+        }
+        return Collections.unmodifiableMap(versionedMappers);
+    }
+
+    private Map<String, MetadataFieldMapper.TypeParser> metadataMappersForVersion(Version version) {
+        if (version.onOrAfter(Version.V_8_0_0)) {
             return metadataMapperParsers;
-        } else if (indexCreatedVersion.major < 6) {
+        } else if (version.major < 6) {
             return metadataMapperParsers5x;
         } else {
             return metadataMapperParsers7x;

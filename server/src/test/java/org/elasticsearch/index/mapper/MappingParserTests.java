@@ -46,9 +46,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             indexSettings,
             IdFieldMapper.NO_FIELD_DATA
         );
-        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
-            indexSettings.getIndexVersionCreated()
-        );
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(indexSettings);
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
         metadataMapperParsers.values().stream().map(parser -> parser.getDefault(parserContextSupplier.get())).forEach(m -> {
             if (m != null) {

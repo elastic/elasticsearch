@@ -10,15 +10,11 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentDimensions;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
@@ -68,11 +64,6 @@ public enum IndexMode {
             if (isDataStream) {
                 MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
             }
-        }
-
-        @Override
-        public CompressedXContent getDefaultMapping() {
-            return null;
         }
 
         @Override
@@ -134,12 +125,7 @@ public enum IndexMode {
 
         @Override
         public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
-            MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
-        }
 
-        @Override
-        public CompressedXContent getDefaultMapping() {
-            return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
         }
 
         @Override
@@ -164,27 +150,6 @@ public enum IndexMode {
 
     protected String tsdbMode() {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
-    }
-
-    public static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
-
-    static {
-        try {
-            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = new CompressedXContent(
-                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject(DataStreamTimestampFieldMapper.NAME)
-                    .field("enabled", true)
-                    .endObject()
-                    .startObject("properties")
-                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
-                    .field("type", DateFieldMapper.CONTENT_TYPE)
-                    .endObject()
-                    .endObject()
-                    .endObject())
-            );
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
     }
 
     private static final List<Setting<?>> TIME_SERIES_UNSUPPORTED = List.of(
@@ -232,12 +197,6 @@ public enum IndexMode {
      * validate timestamp mapping for this index.
      */
     public abstract void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException;
-
-    /**
-     * Get default mapping for this index or {@code null} if there is none.
-     */
-    @Nullable
-    public abstract CompressedXContent getDefaultMapping();
 
     /**
      * Get timebounds

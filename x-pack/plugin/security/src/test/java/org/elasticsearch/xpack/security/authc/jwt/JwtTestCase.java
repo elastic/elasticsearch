@@ -254,19 +254,25 @@ public abstract class JwtTestCase extends ESTestCase {
         }
         if (numRegularSettings == 0) {
             sb.append("Not found.\n");
-        } else if (config.hasSetting(JwtRealmSettings.PKC_JWKSET_PATH)) {
+        }
+        sb.append("\n===\nPKC JWKSet contents\n===\n");
+        if (config.hasSetting(JwtRealmSettings.PKC_JWKSET_PATH) == false) {
+            sb.append("Not found.\n");
+        } else {
             final String key = RealmSettings.getFullSettingKey(config, JwtRealmSettings.PKC_JWKSET_PATH);
             final String pkcJwkSetPath = config.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
-            if (JwtUtil.parseHttpsUri(pkcJwkSetPath) == null) {
-                try {
+            try {
+                if (JwtUtil.parseHttpsUri(pkcJwkSetPath) != null) {
+                    sb.append("Found, but [").append(pkcJwkSetPath).append("] is not a local file.\n");
+                } else {
                     final byte[] pkcJwkSetFileBytes = JwtUtil.readFileContents(key, pkcJwkSetPath, config.env());
-                    sb.append("===\nPKC JWKSet contents\n===\n");
                     sb.append(new String(pkcJwkSetFileBytes, StandardCharsets.UTF_8)).append('\n');
-                } catch (SettingsException se) {
-                    sb.append(se);
                 }
+            } catch (SettingsException se) {
+                sb.append("Failed to load local file [").append(pkcJwkSetPath).append("].\n").append(se).append('\n');
             }
         }
+        sb.append('\n');
         if (includeSecureSettings) {
             int numSecureSettings = 0;
             sb.append("===\nelasticsearch-keystore secure settings\n===\n");
@@ -281,7 +287,7 @@ public abstract class JwtTestCase extends ESTestCase {
                 sb.append("Not found.\n");
             }
         }
-        sb.append("===\n");
+        sb.append('\n');
         return sb.toString();
     }
 
@@ -375,15 +381,21 @@ public abstract class JwtTestCase extends ESTestCase {
      * @return HMAC key with UTF-8 bytes, making the key bytes compatible with OIDC UTF-8 string encoding.
      */
     public static OctetSequenceKey conditionJwkHmacForOidc(final OctetSequenceKey hmacKey) {
-        final String bytesAsBase64 = hmacKey.getKeyValue().toString();
-        final byte[] base64AsUtf8 = bytesAsBase64.getBytes(StandardCharsets.UTF_8);
-        final OctetSequenceKey.Builder utf8HmacKeyBuilder = new OctetSequenceKey.Builder(base64AsUtf8);
-        utf8HmacKeyBuilder.keyID(hmacKey.getKeyID()); // Copy null attribute is OK (no-op)
-        utf8HmacKeyBuilder.algorithm(hmacKey.getAlgorithm());
-        utf8HmacKeyBuilder.keyUse(hmacKey.getKeyUse());
-        utf8HmacKeyBuilder.keyOperations(hmacKey.getKeyOperations());
-        utf8HmacKeyBuilder.keyStore(hmacKey.getKeyStore());
-        return utf8HmacKeyBuilder.build();
+        final String passwordKey;
+        if (randomBoolean()) {
+            final Base64URL hmacKeyBytesBase64 = hmacKey.getKeyValue(); // Random bytes => 8 bits/byte search space
+            passwordKey = hmacKeyBytesBase64.toString(); // Use Base64(randomBytes) as UTF8 bytes for a new password with same search space
+        } else {
+            final int numLetters = hmacKey.toByteArray().length * 8; // Random [A-Za-z] => 5.7 bits/byte
+            passwordKey = randomAlphaOfLength(numLetters); // Use length * ceil(2.3) to avoid reducing search space below 8 bits/byte
+        }
+        final OctetSequenceKey.Builder hmacKeyBuilder = new OctetSequenceKey.Builder(passwordKey.getBytes(StandardCharsets.UTF_8));
+        hmacKeyBuilder.keyID(hmacKey.getKeyID()); // Copy null attribute is OK (no-op)
+        hmacKeyBuilder.algorithm(hmacKey.getAlgorithm());
+        hmacKeyBuilder.keyUse(hmacKey.getKeyUse());
+        hmacKeyBuilder.keyOperations(hmacKey.getKeyOperations());
+        hmacKeyBuilder.keyStore(hmacKey.getKeyStore());
+        return hmacKeyBuilder.build();
     }
 
     public static OctetSequenceKey jwkHmacRemoveAttributes(final OctetSequenceKey hmacKey) {

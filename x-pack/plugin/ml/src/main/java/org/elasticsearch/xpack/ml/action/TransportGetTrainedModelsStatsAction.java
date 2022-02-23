@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -321,8 +322,8 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
 
     private static IngestStats mergeStats(List<IngestStats> ingestStatsList) {
 
-        Map<String, IngestStatsAccumulator> pipelineStatsAcc = new LinkedHashMap<>(ingestStatsList.size());
-        Map<String, Map<String, IngestStatsAccumulator>> processorStatsAcc = new LinkedHashMap<>(ingestStatsList.size());
+        Map<String, IngestStatsAccumulator> pipelineStatsAcc = Maps.newLinkedHashMapWithExpectedSize(ingestStatsList.size());
+        Map<String, Map<String, IngestStatsAccumulator>> processorStatsAcc = Maps.newLinkedHashMapWithExpectedSize(ingestStatsList.size());
         IngestStatsAccumulator totalStats = new IngestStatsAccumulator();
         ingestStatsList.forEach(ingestStats -> {
 
@@ -350,7 +351,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             (pipelineId, accumulator) -> pipelineStatList.add(new IngestStats.PipelineStat(pipelineId, accumulator.build()))
         );
 
-        Map<String, List<IngestStats.ProcessorStat>> processorStatList = new LinkedHashMap<>(processorStatsAcc.size());
+        Map<String, List<IngestStats.ProcessorStat>> processorStatList = Maps.newLinkedHashMapWithExpectedSize(processorStatsAcc.size());
         processorStatsAcc.forEach((pipelineId, accumulatorMap) -> {
             List<IngestStats.ProcessorStat> processorStats = new ArrayList<>(accumulatorMap.size());
             accumulatorMap.forEach(

@@ -179,7 +179,7 @@ public class MetadataIndexStateService {
                     state = addIndexClosedBlocks(task.request.indices(), blockedIndices, state);
                     builder.success(task, task.listener.delegateFailure((delegate1, clusterState) -> {
                         if (blockedIndices.isEmpty()) {
-                            delegate1.onResponse(new CloseIndexResponse(true, false, List.of()));
+                            delegate1.onResponse(CloseIndexResponse.EMPTY);
                         } else {
                             threadPool.executor(ThreadPool.Names.MANAGEMENT)
                                 .execute(
@@ -505,7 +505,7 @@ public class MetadataIndexStateService {
                 public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
                     if (oldState == newState) {
                         assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
-                        listener.onResponse(new AddIndexBlockResponse(true, false, List.of()));
+                        listener.onResponse(AddIndexBlockResponse.EMPTY);
                     } else {
                         assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)

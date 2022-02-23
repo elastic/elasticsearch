@@ -112,7 +112,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
-        return List.of(
+        return org.elasticsearch.core.List.of(
             new NamedXContentRegistry.Entry(
                 PersistentTaskParams.class,
                 new ParseField(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME),

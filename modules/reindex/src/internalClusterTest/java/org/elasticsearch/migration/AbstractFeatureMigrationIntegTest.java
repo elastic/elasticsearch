@@ -16,7 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Assert;
 import org.junit.Before;
@@ -62,7 +63,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final String INTERNAL_MANAGED_INDEX_NAME = ".int-man-old";
     static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
     static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
-    public static final Version NEEDS_UPGRADE_VERSION = Version.V_7_0_0;
+    public static final Version NEEDS_UPGRADE_VERSION = Version.V_6_0_0;
 
     static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".ext-unman-*")
@@ -72,6 +73,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
         .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
+
         .build();
     static final SystemIndexDescriptor INTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".int-unman-*")
@@ -89,12 +91,13 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setPrimaryIndex(INTERNAL_MANAGED_INDEX_NAME)
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
         .setSettings(createSimpleSettings(NEEDS_UPGRADE_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
-        .setMappings(createSimpleMapping(true, true))
+        .setMappings(createSimpleMapping(true, true, false))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
         .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
+        .setIndexType("doc") // This simulates `.tasks`, which uses a nonstandard type name. EXTERNAL_MANAGED tests the default type.
         .build();
     static final int INTERNAL_UNMANAGED_FLAG_VALUE = 2;
     static final int EXTERNAL_MANAGED_FLAG_VALUE = 3;
@@ -104,7 +107,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setPrimaryIndex(".ext-man-old")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
         .setSettings(createSimpleSettings(NEEDS_UPGRADE_VERSION, EXTERNAL_MANAGED_FLAG_VALUE))
-        .setMappings(createSimpleMapping(true, false))
+        .setMappings(createSimpleMapping(true, false, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
@@ -128,32 +131,32 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         String indexName = Optional.ofNullable(descriptor.getPrimaryIndex()).orElse(descriptor.getIndexPattern().replace("*", "old"));
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
-        if (SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
-            // unmanaged
-            createRequest.setSettings(
-                createSimpleSettings(
-                    NEEDS_UPGRADE_VERSION,
-                    descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
-                )
-            );
-        } else {
-            // managed
+        if (descriptor.getSettings() != null) {
             createRequest.setSettings(
                 Settings.builder()
                     .put("index.version.created", Version.CURRENT)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .build()
             );
+        } else {
+            createRequest.setSettings(
+                createSimpleSettings(
+                    NEEDS_UPGRADE_VERSION,
+                    descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
+                )
+            );
         }
         if (descriptor.getMappings() == null) {
-            createRequest.setMapping(createSimpleMapping(false, descriptor.isInternal()));
+            createRequest.addMapping("doc", createSimpleMapping(false, descriptor.isInternal(), false), XContentType.JSON);
         }
         CreateIndexResponse response = createRequest.get();
         Assert.assertTrue(response.isShardsAcknowledged());
 
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(ESIntegTestCase.client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
+            docs.add(
+                ESIntegTestCase.client().prepareIndex(indexName, "_doc").setId(Integer.toString(i)).setSource("some_field", "words words")
+            );
         }
         indexRandom(true, docs);
         IndicesStatsResponse indexStats = ESIntegTestCase.client().admin().indices().prepareStats(indexName).setDocs(true).get();
@@ -169,9 +172,14 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             .build();
     }
 
-    static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal) {
+    static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal, boolean useStandardType) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
+            if (useStandardType) {
+                builder.startObject("_doc");
+            } else {
+                builder.startObject("doc");
+            }
             {
                 builder.startObject("_meta");
                 builder.field(VERSION_META_KEY, META_VERSION);
@@ -188,6 +196,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
                 }
                 builder.endObject();
             }
+            builder.endObject();
             builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {

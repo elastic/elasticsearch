@@ -137,7 +137,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
@@ -737,7 +736,7 @@ public final class TokenService {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
                         listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
                     } else {
-                        invalidateAllTokens(tokenTuples.stream().map(t -> t.v1()).collect(Collectors.toList()), listener);
+                        invalidateAllTokens(tokenTuples, listener);
                     }
                 }, listener::onFailure));
             } else {
@@ -750,7 +749,7 @@ public final class TokenService {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
                         listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
                     } else {
-                        invalidateAllTokens(tokenTuples.stream().map(t -> t.v1()).collect(Collectors.toList()), listener);
+                        invalidateAllTokens(tokenTuples, listener);
                     }
                 }, listener::onFailure));
             }
@@ -761,21 +760,37 @@ public final class TokenService {
      * Invalidates a collection of access_token and refresh_token that were retrieved by
      * {@link TokenService#invalidateActiveTokensForRealmAndUser}
      *
-     * @param userTokens The user tokens for which access and refresh tokens should be invalidated
+     * @param tokenTuples The user token tuples for which access and refresh tokens (if exist) should be invalidated
      * @param listener  the listener to notify upon completion
      */
-    private void invalidateAllTokens(Collection<UserToken> userTokens, ActionListener<TokensInvalidationResult> listener) {
+    private void invalidateAllTokens(Collection<Tuple<UserToken, String>> tokenTuples, ActionListener<TokensInvalidationResult> listener) {
         maybeStartTokenRemover();
+
         // Invalidate the refresh tokens first so that they cannot be used to get new
         // access tokens while we invalidate the access tokens we currently know about
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-        indexInvalidation(
-            userTokens,
-            backoff,
-            "refresh_token",
-            null,
-            ActionListener.wrap(result -> indexInvalidation(userTokens, backoff, "access_token", result, listener), listener::onFailure)
-        );
+
+        final List<UserToken> userTokens = new ArrayList<>();
+        final List<UserToken> tokensWithRefresh = new ArrayList<>();
+
+        tokenTuples.forEach(t -> {
+            userTokens.add(t.v1());
+            if (t.v2() != null) {
+                tokensWithRefresh.add(t.v1());
+            }
+        });
+
+        if (false == tokensWithRefresh.isEmpty()) {
+            indexInvalidation(
+                tokensWithRefresh,
+                backoff,
+                "refresh_token",
+                null,
+                ActionListener.wrap(result -> indexInvalidation(userTokens, backoff, "access_token", result, listener), listener::onFailure)
+            );
+        } else {
+            indexInvalidation(userTokens, backoff, "access_token", null, listener);
+        }
     }
 
     /**
@@ -1520,12 +1535,12 @@ public final class TokenService {
                 clientAuthentication.getUser().principal()
             );
             return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-        } else if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
+        } else if (clientAuthentication.getSourceRealm().getName().equals(refreshToken.getAssociatedRealm()) == false) {
             logger.warn(
                 "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
                 refreshToken.getAssociatedUser(),
                 refreshToken.getAssociatedRealm(),
-                clientAuthentication.getAuthenticatedBy().getName()
+                clientAuthentication.getSourceRealm().getName()
             );
             return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
         } else {
@@ -1798,14 +1813,14 @@ public final class TokenService {
                     .startObject("client")
                     .field("type", "unassociated_client")
                     .field("user", originatingClientAuth.getUser().principal())
-                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName())
+                    .field("realm", originatingClientAuth.getSourceRealm().getName())
                     .endObject()
                     .endObject();
             }
             builder.startObject("access_token")
                 .field("invalidated", false)
                 .field("user_token", userToken)
-                .field("realm", userToken.getAuthentication().getAuthenticatedBy().getName())
+                .field("realm", userToken.getAuthentication().getSourceRealm().getName())
                 .endObject();
             builder.endObject();
             return BytesReference.bytes(builder);
@@ -1849,7 +1864,8 @@ public final class TokenService {
     private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
         throws IllegalStateException, DateTimeException {
         @SuppressWarnings("unchecked")
-        final String hashedRefreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
+        final Map<String, Object> refreshTokenMap = (Map<String, Object>) source.get("refresh_token");
+        final String hashedRefreshToken = refreshTokenMap != null ? (String) refreshTokenMap.get("token") : null;
         @SuppressWarnings("unchecked")
         final Map<String, Object> userTokenSource = (Map<String, Object>) ((Map<String, Object>) source.get("access_token")).get(
             "user_token"

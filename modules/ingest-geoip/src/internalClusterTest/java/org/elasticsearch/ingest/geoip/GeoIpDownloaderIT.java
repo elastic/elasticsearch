@@ -87,8 +87,12 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class,
-            MockTransportService.TestPlugin.class);
+        return Arrays.asList(
+            ReindexPlugin.class,
+            IngestGeoIpPlugin.class,
+            GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class,
+            MockTransportService.TestPlugin.class
+        );
     }
 
     @Override
@@ -167,7 +171,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
         }, 2, TimeUnit.MINUTES);
-        ListTasksResponse tasks = client().admin().cluster().listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
+        ListTasksResponse tasks = client().admin()
+            .cluster()
+            .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
             .actionGet();
         assertEquals(1, tasks.getTasks().size());
         String nodeId = tasks.getTasks().get(0).taskId().getNodeId();
@@ -180,7 +186,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> assertNotEquals(nodeId, getTask().getExecutorNode()));
 
         assertBusy(() -> {
-            ListTasksResponse newTasks = client().admin().cluster().listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
+            ListTasksResponse newTasks = client().admin()
+                .cluster()
+                .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
                 .actionGet();
             assertEquals(1, newTasks.getTasks().size());
         });
@@ -188,7 +196,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         partition.stopDisrupting();
 
         assertBusy(() -> {
-            ListTasksResponse newTasks = client().admin().cluster().listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
+            ListTasksResponse newTasks = client().admin()
+                .cluster()
+                .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
                 .actionGet();
             assertEquals(1, newTasks.getTasks().size());
         });

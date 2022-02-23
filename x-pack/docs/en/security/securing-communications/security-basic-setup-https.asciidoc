@@ -149,8 +149,7 @@ These communication channels are configured separately to use TLS. You encrypt
 traffic between your browser and {kib}, and then encrypt traffic between
 {kib} and {es}.
 
-[[encrypt-kibana-elasticsearch]]
-
+[[encrypt-kibana-browser]]
 ===== Encrypt traffic between your browser and {kib}
 
 You create a server certificate and private key for {kib}. {kib} uses this
@@ -229,6 +228,9 @@ server.ssl.enabled: true
 NOTE: After making these changes, you must always access {kib} via HTTPS. For
 example, `https://<your_kibana_host>.com`.
 
+**Next**: <<encrypt-kibana-elasticsearch>>
+
+[[encrypt-kibana-elasticsearch]]
 ===== Encrypt traffic between {kib} and {es}
 
 When you ran the `elasticsearch-certutil` tool with the `http` option, it

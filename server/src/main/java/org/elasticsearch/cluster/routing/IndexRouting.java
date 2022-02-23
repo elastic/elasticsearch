@@ -245,11 +245,7 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public void process(IndexRequest indexRequest) {
-            if (indexRequest.id() != null) {
-                throw new IllegalArgumentException("_id may not be specified for index [" + indexName + "]");
-            }
-        }
+        public void process(IndexRequest indexRequest) {}
 
         @Override
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {

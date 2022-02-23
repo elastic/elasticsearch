@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -380,22 +381,32 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testExpectedId() throws IOException {
-        assertThat(parse(mapperService(), testCase.source).id(), equalTo(testCase.expectedId));
+        assertThat(parse(null, mapperService(), testCase.source).id(), equalTo(testCase.expectedId));
+    }
+
+    public void testProvideExpectedId() throws IOException {
+        assertThat(parse(testCase.expectedId, mapperService(), testCase.source).id(), equalTo(testCase.expectedId));
+    }
+
+    public void testProvideWrongId() throws IOException {
+        String wrongId = testCase.expectedId + "wrong";
+        Exception e = expectThrows(MapperParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
+        assertThat(e.getCause().getMessage(), equalTo("_id must be unset or set to [" + testCase.expectedId + "] because [index] is in time_series mode"));
     }
 
     public void testEquivalentSources() throws IOException {
         MapperService mapperService = mapperService();
         for (CheckedConsumer<XContentBuilder, IOException> equivalent : testCase.equivalentSources) {
-            assertThat(parse(mapperService, equivalent).id(), equalTo(testCase.expectedId));
+            assertThat(parse(null, mapperService, equivalent).id(), equalTo(testCase.expectedId));
         }
     }
 
-    private ParsedDocument parse(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> source) throws IOException {
+    private ParsedDocument parse(@Nullable String id, MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> source) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
             builder.startObject();
             source.accept(builder);
             builder.endObject();
-            SourceToParse sourceToParse = new SourceToParse("replaced", BytesReference.bytes(builder), builder.contentType());
+            SourceToParse sourceToParse = new SourceToParse(id, BytesReference.bytes(builder), builder.contentType());
             return mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup());
         }
     }

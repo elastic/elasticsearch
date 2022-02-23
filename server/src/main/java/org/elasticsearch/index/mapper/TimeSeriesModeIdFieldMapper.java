@@ -28,6 +28,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 /**
@@ -106,9 +107,6 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
     private static final long SEED = 0;
 
     public void createField(DocumentParserContext context, BytesRef tsid) {
-        if (context.sourceToParse().id() != null) {
-            throw new IllegalStateException("_id is not allowed to have been set by in the request or on the coordinating node");
-        }
         IndexableField[] timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampFields.length == 0) {
             throw new IllegalArgumentException(
@@ -126,8 +124,8 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
 
         IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
         // TODO it'd be way faster to use the fields that we've extract here rather than the source or parse the tsid
-        context.id(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
-        assert Uid.isURLBase64WithoutPadding(context.id()); // Make sure we get to use Uid's nice optimizations
+        String id = indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix);
+        assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
         /*
          * Make sure that _id from extracting the tsid matches that _id
          * from extracting the _source. This should be true for all valid
@@ -139,7 +137,19 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
          */
         assert context.getDynamicMappers().isEmpty() == false
             || context.getDynamicRuntimeFields().isEmpty() == false
-            || context.id().equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
+            || id.equals(indexRouting.createId(TimeSeriesIdFieldMapper.decodeTsid(tsid), suffix));
+
+        if (context.sourceToParse().id() != null && false == context.sourceToParse().id().equals(id)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "_id must be unset or set to [%s] because [%s] is in time_series mode",
+                    id,
+                    context.indexSettings().getIndexMetadata().getIndex().getName()
+                )
+            );
+        }
+        context.id(id);
 
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new Field(NAME, uidEncoded, FIELD_TYPE));

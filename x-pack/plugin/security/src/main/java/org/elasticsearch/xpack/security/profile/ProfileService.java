@@ -182,9 +182,7 @@ public class ProfileService {
                         "user_profile.user.full_name",
                         "user_profile.user.full_name._2gram",
                         "user_profile.user.full_name._3gram",
-                        "user_profile.user.display_name",
-                        "user_profile.user.display_name._2gram",
-                        "user_profile.user.display_name._3gram"
+                        "user_profile.user.email"
                     ).type(MultiMatchQueryBuilder.Type.BOOL_PREFIX)
                 );
             }

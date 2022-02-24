@@ -346,7 +346,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", Long.MAX_VALUE)));
         assertThat(
             e.getMessage(),
-            equalTo("failed to parse field [a] of type [short] in document with id 'null'. Preview of field's value: '" + Long.MAX_VALUE + "'")
+            equalTo(
+                "failed to parse field [a] of type [short] in document with id 'null'. Preview of field's value: '" + Long.MAX_VALUE + "'"
+            )
         );
     }
 
@@ -400,7 +402,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", Long.MAX_VALUE)));
         assertThat(
             e.getMessage(),
-            equalTo("failed to parse field [a] of type [byte] in document with id 'null'. Preview of field's value: '" + Long.MAX_VALUE + "'")
+            equalTo(
+                "failed to parse field [a] of type [byte] in document with id 'null'. Preview of field's value: '" + Long.MAX_VALUE + "'"
+            )
         );
     }
 

@@ -84,7 +84,7 @@ For resiliency, indices in the warm tier should be configured to use one or more
 [[cold-tier]]
 === Cold tier
 
-Cold tier can be used for storing rarely updated time series data similar to 
+Cold tier can be used for storing infrequently updated time series data similar to 
 the warm tier.  It can also be used for storing read-only
 <<fully-mounted,fully mounted indices>> of
 <<ilm-searchable-snapshot,{search-snaps}>>.  When one chooses to use searchable

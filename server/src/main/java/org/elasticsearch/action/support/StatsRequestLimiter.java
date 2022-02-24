@@ -87,11 +87,7 @@ public class StatsRequestLimiter {
     }
 
     public StatsRequestStats stats() {
-        List<StatsRequestStats.Stats> statsPerAction = new ArrayList<>();
-        for (StatsHolder statsHolder : stats.values()) {
-            statsPerAction.add(statsHolder.stats());
-        }
-        return new StatsRequestStats(statsPerAction);
+        return new StatsRequestStats(List.copyOf(stats.values()));
     }
 
     // visible for testing

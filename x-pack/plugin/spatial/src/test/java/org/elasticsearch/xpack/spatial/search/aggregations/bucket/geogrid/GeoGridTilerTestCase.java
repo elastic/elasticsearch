@@ -145,14 +145,13 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         assertThat(numBuckets, equalTo(expected));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84152")
     public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
         for (int i = 0; i < 1000; i++) {
             int precision = randomIntBetween(0, 3);
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
             Geometry geometry = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
                 try {
-                    indexer.prepareForIndexing(g);
+                    indexer.indexShape(indexer.prepareForIndexing(g));
                     return false;
                 } catch (Exception e) {
                     return true;

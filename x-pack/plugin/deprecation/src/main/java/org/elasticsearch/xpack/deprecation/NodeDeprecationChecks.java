@@ -1461,10 +1461,10 @@ class NodeDeprecationChecks {
         if (canBeFixedByRemovingDynamicSetting) {
             deprecatedClusterSettingKeys.removeAll(deprecatedNodeSettingKeys);
         }
-        final Map<String, Object> meta = createMetaMapForRemovableSettings(
-            canBeFixedByRemovingDynamicSetting,
-            deprecatedClusterSettingKeys
-        );
+        /* Removing affix settings can cause more problems than it's worth, so always make meta null even if the settings are only set
+         * dynamically
+         */
+        final Map<String, Object> meta = null;
         return new DeprecationIssue(warningLevel, message, url, details, false, meta);
     }
 
@@ -1523,7 +1523,10 @@ class NodeDeprecationChecks {
         if (canBeFixedByRemovingDynamicSetting) {
             allClusterSubSettingKeys.removeAll(allNodeSubSettingKeys);
         }
-        final Map<String, Object> meta = createMetaMapForRemovableSettings(canBeFixedByRemovingDynamicSetting, allClusterSubSettingKeys);
+        /* Removing affix settings can cause more problems than it's worth, so always make meta null even if the settings are only set
+         * dynamically
+         */
+        final Map<String, Object> meta = null;
         return new DeprecationIssue(warningLevel, message, url, details, false, meta);
     }
 

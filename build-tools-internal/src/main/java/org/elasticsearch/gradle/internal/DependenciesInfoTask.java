@@ -19,6 +19,7 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.internal.ConventionTask;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
@@ -107,9 +108,12 @@ public class DependenciesInfoTask extends ConventionTask {
     private Configuration compileOnlyConfiguration;
 
     @Inject
-    public DependenciesInfoTask(ProjectLayout projectLayout, ObjectFactory objectFactory) {
+    public DependenciesInfoTask(ProjectLayout projectLayout, ObjectFactory objectFactory, ProviderFactory providerFactory) {
         this.licensesDir = objectFactory.directoryProperty();
-        this.licensesDir.set(projectLayout.getProjectDirectory().dir("licenses"));
+        this.licensesDir.convention(
+            providerFactory.provider(() -> projectLayout.getProjectDirectory().dir("licenses"))
+                .map(dir -> dir.getAsFile().exists() ? dir : null)
+        );
         this.outputFile = projectLayout.getBuildDirectory().dir("reports/dependencies").get().file("dependencies.csv").getAsFile();
         setDescription("Create a CSV file with dependencies information.");
     }
@@ -211,15 +215,14 @@ public class DependenciesInfoTask extends ConventionTask {
     }
 
     protected File getDependencyInfoFile(final String group, final String name, final String infoFileSuffix) {
-        File licenseDirFile = licensesDir.getAsFile().get();
-        java.util.Optional<File> license = licenseDirFile.exists()
-            ? Arrays.stream(licenseDirFile.listFiles((dir, fileName) -> Pattern.matches(".*-" + infoFileSuffix + ".*", fileName)))
-                .filter(file -> {
-                    String prefix = file.getName().split("-" + infoFileSuffix + ".*")[0];
-                    return group.contains(prefix) || name.contains(prefix);
-                })
-                .findFirst()
-            : java.util.Optional.empty();
+        java.util.Optional<File> license = licensesDir.map(
+            licenseDir -> Arrays.stream(
+                licenseDir.getAsFile().listFiles((dir, fileName) -> Pattern.matches(".*-" + infoFileSuffix + ".*", fileName))
+            ).filter(file -> {
+                String prefix = file.getName().split("-" + infoFileSuffix + ".*")[0];
+                return group.contains(prefix) || name.contains(prefix);
+            }).findFirst()
+        ).get();
 
         return license.orElseThrow(
             () -> new IllegalStateException(
@@ -230,7 +233,7 @@ public class DependenciesInfoTask extends ConventionTask {
                     + ":"
                     + name
                     + " in "
-                    + licenseDirFile.getAbsolutePath()
+                    + licensesDir.getAsFile().getOrNull()
             )
         );
     }

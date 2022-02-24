@@ -25,7 +25,7 @@ public class SamplingContextTests extends ESTestCase {
             SamplingContext samplingContext = randomContext();
             long randomLong = randomLongBetween(1_000_000_000L, 100_000_000_000L);
             double randomDouble = randomDouble();
-            long rescaled = samplingContext.scaleUp(samplingContext.scale(randomLong));
+            long rescaled = samplingContext.scaleUp(samplingContext.scaleDown(randomLong));
             assertThat(
                 Double.toString(samplingContext.probability()),
                 (double) rescaled / randomLong,

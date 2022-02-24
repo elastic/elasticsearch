@@ -89,12 +89,16 @@ For resiliency, indices in the warm tier should be configured to use one or more
 [[cold-tier]]
 === Cold tier
 
-Cold tier can be used for storing infrequently updated time series data similar to 
-the warm tier.  It can also be used for storing read-only
+Cold tier nodes hold time series data that is accessed
+infrequently and not normally updated. To save space, you can keep
 <<fully-mounted,fully mounted indices>> of
-<<ilm-searchable-snapshot,{search-snaps}>>.  When one chooses to use searchable
-snapshot on the cold tier, it eliminates the need for replicas with
-approximately 50% storage reduction compared to the warm tier.
+<<ilm-searchable-snapshot,{search-snaps}>> on the cold tier. These fully mounted
+indices eliminate the need for replicas, reducing required disk space by
+approximately 50% compared to the regular indices.
++
+Alternatively, you can use the cold tier to store regular indices with replicas instead
+of using {search-snaps}. This lets you store older data on less expensive hardware
+but doesn't reduce required disk space compared to the warm tier.
 
 [discrete]
 [[frozen-tier]]

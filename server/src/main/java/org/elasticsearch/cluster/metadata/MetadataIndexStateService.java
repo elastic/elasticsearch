@@ -540,7 +540,6 @@ public class MetadataIndexStateService {
 
                                             @Override
                                             public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
-
                                                 final boolean acknowledged = indices.stream().noneMatch(AddBlockResult::hasFailures);
                                                 delegate.onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
                                             }

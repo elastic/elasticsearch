@@ -75,4 +75,9 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
         return mapReducer.toXContent(builder, params);
     }
 
+    // for testing only
+    MapReducer getMapReducer() {
+        return mapReducer;
+    }
+
 }

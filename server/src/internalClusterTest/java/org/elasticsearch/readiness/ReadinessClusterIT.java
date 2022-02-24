@@ -163,6 +163,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start master node");
         String masterNode = internalCluster().startMasterOnlyNode();
+        internalCluster().validateClusterFormed();
 
         assertThat(
             internalCluster().masterClient()

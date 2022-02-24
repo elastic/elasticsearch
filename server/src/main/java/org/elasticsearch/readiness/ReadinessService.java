@@ -141,7 +141,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             }
         }, "elasticsearch[readiness-service]").start();
 
-        logger.info("readiness service up and running");
+        logger.info("readiness service up and running on unix domain socket {}", getSocketPath());
     }
 
     @Override

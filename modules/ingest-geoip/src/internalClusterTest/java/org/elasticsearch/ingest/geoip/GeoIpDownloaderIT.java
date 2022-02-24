@@ -37,6 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -80,6 +81,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     protected static final String ENDPOINT = System.getProperty("geoip_endpoint");
@@ -109,6 +111,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         if (partition != null) {
             partition.stopDisrupting();
         }
+        internalCluster().clearDisruptionScheme();
 
         deleteDatabasesInConfigDirectory();
 
@@ -161,47 +164,36 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testTaskRemovedAfterCancellation() throws Exception {
-        ClusterUpdateSettingsResponse settingsResponse = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-            .get();
-        assertTrue(settingsResponse.isAcknowledged());
-        assertBusy(() -> {
-            GeoIpTaskState state = getGeoIpTaskState();
-            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
-        }, 2, TimeUnit.MINUTES);
-        ListTasksResponse tasks = client().admin()
-            .cluster()
-            .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
-            .actionGet();
-        assertEquals(1, tasks.getTasks().size());
-        String nodeId = tasks.getTasks().get(0).taskId().getNodeId();
-        String nodeName = clusterService().state().nodes().getNodes().get(nodeId).getName();
-
-        partition = isolateNodeDisruption(nodeName, NetworkDisruption.DISCONNECT);
-        setDisruptionScheme(partition);
-        partition.startDisrupting();
-
-        assertBusy(() -> assertNotEquals(nodeId, getTask().getExecutorNode()));
-
-        assertBusy(() -> {
-            ListTasksResponse newTasks = client().admin()
+        for (int i = 0; i < 2; i++) {
+            ClusterUpdateSettingsResponse settingsResponse = client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
+                .get();
+            assertTrue(settingsResponse.isAcknowledged());
+            assertBusy(() -> {
+                GeoIpTaskState state = getGeoIpTaskState();
+                assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+            }, 2, TimeUnit.MINUTES);
+            ListTasksResponse tasks = client().admin()
                 .cluster()
                 .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
                 .actionGet();
-            assertEquals(1, newTasks.getTasks().size());
-        });
-
-        partition.stopDisrupting();
-
-        assertBusy(() -> {
-            ListTasksResponse newTasks = client().admin()
+            assertEquals(1, tasks.getTasks().size());
+            settingsResponse = client().admin()
                 .cluster()
-                .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
-                .actionGet();
-            assertEquals(1, newTasks.getTasks().size());
-        });
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false))
+                .get();
+            assertTrue(settingsResponse.isAcknowledged());
+            assertBusy(() -> {
+                ListTasksResponse tasks2 = client().admin()
+                    .cluster()
+                    .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
+                    .actionGet();
+                assertEquals(0, tasks2.getTasks().size());
+            });
+        }
     }
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")

@@ -27,8 +27,10 @@ public class JwtRealmAuthIT extends SecurityRealmSmokeTestCase {
     private static final String USERNAME = "security_test_user";
     private static final String ROLE_NAME = "security_test_role";
     private static final String HEADER_CLIENT_SECRET = "client-shared-secret-string";
-    private static final String HEADER_JWT =
-        "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhdWQ4Iiwic3ViIjoic2VjdXJpdHlfdGVzdF91c2VyIiwicm9sZXMiOiJbc2VjdXJpdHlfdGVzdF9yb2xlXSIsImlzcyI6ImlzczgiLCJleHAiOjQwNzA5MDg4MDAsImlhdCI6OTQ2Njg0ODAwfQ.YbMbSEY8j3BdE_M71np-5Q9DFHGcjZcu7D4Kk1Ji0wE";
+    private static final String HEADER_JWT = "eyJhbGciOiJIUzI1NiJ9."
+        + "eyJhdWQiOiJhdWQ4Iiwic3ViIjoic2VjdXJpdHlfdGVzdF91c2VyIiwicm9sZXMiOiJbc2VjdXJpdHl"
+        + "fdGVzdF9yb2xlXSIsImlzcyI6ImlzczgiLCJleHAiOjQwNzA5MDg4MDAsImlhdCI6OTQ2Njg0ODAwfQ"
+        + ".YbMbSEY8j3BdE_M71np-5Q9DFHGcjZcu7D4Kk1Ji0wE";
 
     public void testAuthenticationUsingJwtRealm() throws IOException {
         final RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder()
@@ -37,17 +39,6 @@ public class JwtRealmAuthIT extends SecurityRealmSmokeTestCase {
                 JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET + " " + HEADER_CLIENT_SECRET
             )
             .addHeader(JwtRealm.HEADER_END_USER_AUTHENTICATION, JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + HEADER_JWT);
-
-        // TODO Remove debug log
-        LOGGER.info(
-            JwtRealm.HEADER_CLIENT_AUTHENTICATION
-                + ": "
-                + JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET
-                + " "
-                + HEADER_CLIENT_SECRET
-        );
-        LOGGER.info(JwtRealm.HEADER_END_USER_AUTHENTICATION + ": " + JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + HEADER_JWT);
-        LOGGER.info(options.build().toString());
 
         final Map<String, Object> authenticate = super.authenticate(options);
         assertUsername(authenticate, USERNAME);

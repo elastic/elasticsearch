@@ -29,6 +29,7 @@ import java.security.PrivilegedAction;
  * key is combined with the <code>X-Opaque-Id</code> request header value, if supplied, which allows for per-client
  * message limiting.
  */
+//TODO: PG  i wonder if we coudl expose an interface and inject this implementation? the same we would do for a regular Logger interface
 public final class DeprecationLogger {
     /**
      * Deprecation messages are logged at this level.
@@ -129,6 +130,7 @@ public final class DeprecationLogger {
      * The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
+
     public DeprecationLogger compatible(final Level level, final String key, final String msg, final Object... params) {
         String opaqueId = ServerSupportImpl.INSTANCE.getXOpaqueIdHeader();
         String productOrigin = ServerSupportImpl.INSTANCE.getProductOriginHeader();

@@ -10,6 +10,7 @@ package org.elasticsearch.logging;
 
 // TODO: This sucks ( to extends log4j type, but is temporary, until we replace new XXXMessage with factories )
 // TODO:
+// TODO PG: I wonder if we need this. I would prefer if logger users would use String as a message, possibly some parameters suppliers
 public interface Message { // } extends org.apache.logging.log4j.message.Message {
 
     String getFormattedMessage();

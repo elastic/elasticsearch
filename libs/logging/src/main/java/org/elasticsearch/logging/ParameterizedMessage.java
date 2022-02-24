@@ -13,6 +13,8 @@ import org.elasticsearch.logging.internal.ParameterizedMessageImpl;
 /** Handles messages that consist of a format string containing '{}' to represent each replaceable token, and the parameters. */
 // TODO: we don't really need the public type, just a factory on Message would be sufficient.
 // Done this way for now to avoid too much refactoring
+    // TODO: PG I would be tempted to have a refactroing in master first to get rid of these usages somehow..
+    // most of the usages probably could use a signature (String message, Supplier<?>... paramSuppliers)
 public final class ParameterizedMessage implements Message {
 
     private final ParameterizedMessageImpl impl;

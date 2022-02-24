@@ -14,6 +14,7 @@ import java.util.Set;
 /**
  * Format string for Elasticsearch log messages.
  */
+//TODO: PG  maybe we could remove it? https://github.com/elastic/elasticsearch/issues/37806#issuecomment-535916173
 public class LoggerMessageFormat {
 
     static final char DELIM_START = '{';

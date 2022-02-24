@@ -19,6 +19,7 @@ import static org.elasticsearch.logging.internal.Util.isNullOrEmpty;
  * named following ECS conventions. Carries x-opaque-id field if provided in the headers.
  * Will populate the x-opaque-id field in JSON logs.
  */
+//TODO: PG  I would prefer to hide it
 public final class DeprecatedMessage {
     public static final String ELASTIC_ORIGIN_FIELD_NAME = "elasticsearch.elastic_product_origin";
     public static final String KEY_FIELD_NAME = "event.code";

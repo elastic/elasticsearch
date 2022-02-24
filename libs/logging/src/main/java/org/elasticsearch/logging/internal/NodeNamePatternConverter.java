@@ -32,7 +32,7 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
      * The name of this node.
      */
     private static volatile String NODE_NAME;
-
+//TODO PG - nice. Maybe we could make this refactoring beforehand too?
     private static final VarHandle NAME_SETTER_HANDLE;
 
     static {

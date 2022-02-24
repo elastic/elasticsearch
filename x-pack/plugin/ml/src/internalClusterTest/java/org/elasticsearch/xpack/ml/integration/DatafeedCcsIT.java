@@ -23,6 +23,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -101,6 +102,10 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         return false;
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.ml.datafeed:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/84290"
+    )
     public void testDatafeedWithCcsRemoteHealthy() throws Exception {
         setSkipUnavailable(randomBoolean());
         String jobId = "ccs-healthy-job";

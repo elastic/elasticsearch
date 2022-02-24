@@ -29,7 +29,7 @@ import java.security.PrivilegedAction;
  * key is combined with the <code>X-Opaque-Id</code> request header value, if supplied, which allows for per-client
  * message limiting.
  */
-//TODO: PG  i wonder if we coudl expose an interface and inject this implementation? the same we would do for a regular Logger interface
+// TODO: PG i wonder if we coudl expose an interface and inject this implementation? the same we would do for a regular Logger interface
 public final class DeprecationLogger {
     /**
      * Deprecation messages are logged at this level.

@@ -94,7 +94,7 @@ public class FileUserRolesStore {
             return map == null ? emptyMap() : map;
         } catch (Exception e) {
             logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                     "failed to parse users_roles file [{}]. skipping/removing all entries...",
                     path.toAbsolutePath()
                 ),

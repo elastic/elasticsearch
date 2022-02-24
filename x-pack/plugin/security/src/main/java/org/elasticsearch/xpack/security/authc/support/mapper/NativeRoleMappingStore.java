@@ -376,7 +376,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             new ClearRealmCacheRequest().realms(realmNames),
             ActionListener.wrap(response -> {
                 logger.debug(
-                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                    (org.apache.logging.log4j.util.java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                         "Cleared cached in realms [{}] due to role mapping change",
                         Arrays.toString(realmNames)
                     )

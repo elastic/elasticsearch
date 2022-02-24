@@ -8,7 +8,7 @@
 
 package org.elasticsearch.reindex;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;

@@ -10,9 +10,9 @@ package org.elasticsearch.repositories.azure;
 
 import com.azure.storage.blob.models.BlobStorageException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.util.Throwables;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -62,7 +62,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         try {
             return blobStore.getInputStream(blobKey, position, length);
         } catch (Exception e) {
-            Throwable rootCause = Throwables.getRootCause(e);
+            Throwable rootCause = ExceptionsHelper.getRootCause(e);
             if (rootCause instanceof BlobStorageException blobStorageException) {
                 if (blobStorageException.getStatusCode() == 404) {
                     throw new NoSuchFileException("Blob [" + blobKey + "] not found");

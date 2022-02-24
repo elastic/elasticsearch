@@ -187,11 +187,11 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkNumberOfArgumentsParameterizedMessage3() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
+        logger.info((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
     }
 
     public void checkFailNumberOfArgumentsParameterizedMessage3() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
+        logger.info((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
     }
 
     public void checkOrderOfExceptionArgument() {
@@ -199,7 +199,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkOrderOfExceptionArgument1() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}", "world"), new Exception());
+        logger.info((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Hello {}", "world"), new Exception());
     }
 
     public void checkFailOrderOfExceptionArgument1() {
@@ -207,7 +207,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkOrderOfExceptionArgument2() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
+        logger.info((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
     }
 
     public void checkFailOrderOfExceptionArgument2() {
@@ -219,7 +219,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkFailNonConstantMessageWithArguments(boolean b) {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage(Boolean.toString(b), 42), new Exception());
+        logger.info((java.util.function.Supplier<?>) () -> new ParameterizedMessage(Boolean.toString(b), 42), new Exception());
     }
 
     public void checkComplexUsage(boolean b) {

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.repositories.azure;
 
-import org.apache.logging.log4j.core.util.Throwables;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ public final class SocketAccess {
         try {
             return AccessController.doPrivileged(operation);
         } catch (PrivilegedActionException e) {
-            Throwables.rethrow(e.getCause());
+            ExceptionsHelper.rethrow(e.getCause());
             assert false : "always throws";
             return null;
         }
@@ -47,7 +47,7 @@ public final class SocketAccess {
                 return null;
             });
         } catch (PrivilegedActionException e) {
-            Throwables.rethrow(e.getCause());
+            ExceptionsHelper.rethrow(e.getCause());
         }
     }
 

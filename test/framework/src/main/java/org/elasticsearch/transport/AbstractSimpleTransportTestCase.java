@@ -903,7 +903,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             listener.actionGet();
                         } catch (Exception e) {
                             logger.trace(
-                                (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", nodeA),
+                                (java.util.function.Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", nodeA),
                                 e
                             );
                         }
@@ -946,7 +946,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                                 // ok!
                             } catch (Exception e) {
                                 logger.error(
-                                    (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node),
+                                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node),
                                     e
                                 );
                                 sendingErrors.add(e);
@@ -2102,7 +2102,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("---> received exception for id {}", id), exp);
+                logger.debug((java.util.function.Supplier<?>) () -> new ParameterizedMessage("---> received exception for id {}", id), exp);
                 allRequestsDone.countDown();
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
                 assertNotNull(unwrap);

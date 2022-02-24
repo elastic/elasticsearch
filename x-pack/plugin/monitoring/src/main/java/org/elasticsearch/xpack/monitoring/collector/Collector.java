@@ -97,7 +97,7 @@ public abstract class Collector {
         } catch (ElasticsearchTimeoutException e) {
             logger.error("collector [{}] timed out when collecting data: {}", name(), e.getMessage());
         } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] failed to collect data", name()), e);
+            logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("collector [{}] failed to collect data", name()), e);
         }
         return null;
     }

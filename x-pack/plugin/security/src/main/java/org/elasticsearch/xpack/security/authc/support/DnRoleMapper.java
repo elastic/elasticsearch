@@ -97,7 +97,7 @@ public class DnRoleMapper implements UserRoleMapper {
             return parseFile(path, logger, realmType, realmName, false);
         } catch (Exception e) {
             logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                     "failed to parse role mappings file [{}]. skipping/removing all mappings...",
                     path.toAbsolutePath()
                 ),

@@ -78,7 +78,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
                     ? Collections.<Instance>emptyList()
                     : instanceList.getItems();
             } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
+                logger.warn((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
                 logger.debug("Full exception:", e);
                 // assist type inference
                 return Collections.<Instance>emptyList();

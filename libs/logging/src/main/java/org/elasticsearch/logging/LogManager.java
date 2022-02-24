@@ -20,4 +20,7 @@ public class LogManager {
 
     private LogManager() {}
 
+    public static Logger getLogger() {
+        return null;
+    }
 }

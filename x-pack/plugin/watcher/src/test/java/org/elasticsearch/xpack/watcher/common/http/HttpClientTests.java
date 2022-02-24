@@ -547,7 +547,7 @@ public class HttpClientTests extends ESTestCase {
                     socket.getOutputStream().flush();
                 } catch (Exception e) {
                     hasExceptionHappened.set(e);
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Error in writing non HTTP response"), e);
+                    logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Error in writing non HTTP response"), e);
                 }
             });
             HttpRequest request = HttpRequest.builder("localhost", serverSocket.getLocalPort()).path("/").build();

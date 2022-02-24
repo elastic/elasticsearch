@@ -8,13 +8,13 @@
 
 package org.elasticsearch.ingest.useragent;
 
-import org.elasticsearch.logging.DeprecationCategory;
-import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.useragent.UserAgentParser.Details;
+import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
 
 import java.util.Arrays;
 import java.util.EnumSet;

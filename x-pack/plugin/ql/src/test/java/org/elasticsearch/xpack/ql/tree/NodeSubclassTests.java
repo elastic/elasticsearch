@@ -390,7 +390,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                             if (obj == null || obj.getClass() != getClass()) {
                                 return false;
                             }
-                            Supplier<?> other = (Supplier<?>) obj;
+                            java.util.function.Supplier<?> other = (java.util.function.Supplier<?>) obj;
                             return Objects.equals(o, other.get());
                         }
                     };

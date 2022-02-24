@@ -101,7 +101,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(@Nullable Exception e) {
-        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE), e);
+        logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE), e);
     }
 
     private ClusterState extendBasic(ClusterState currentState, LicensesMetadata currentLicenseMetadata) {

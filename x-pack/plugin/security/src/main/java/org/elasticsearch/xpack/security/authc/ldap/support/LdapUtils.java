@@ -659,7 +659,7 @@ public final class LdapUtils {
                         );
                     } catch (LDAPException e) {
                         LOGGER.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
+                            (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                                 "caught exception while trying to follow referral [{}]",
                                 referralUrl
                             ),

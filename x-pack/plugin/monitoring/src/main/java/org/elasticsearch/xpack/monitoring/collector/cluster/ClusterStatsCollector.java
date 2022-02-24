@@ -140,7 +140,7 @@ public class ClusterStatsCollector extends Collector {
         } catch (ElasticsearchSecurityException e) {
             if (LicenseUtils.isLicenseExpiredException(e)) {
                 logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                         "collector [{}] - " + "unable to collect data because of expired license",
                         name()
                     ),

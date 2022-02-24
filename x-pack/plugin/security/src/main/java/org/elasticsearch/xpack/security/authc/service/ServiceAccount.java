@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
-import org.apache.logging.log4j.util.Strings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;

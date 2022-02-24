@@ -39,7 +39,7 @@ import java.util.List;
  */
 public class GeoWKTParser {
     public static final String EMPTY = "EMPTY";
-    public static final String SPACE = Loggers.SPACE;
+    public static final String SPACE = " ";//TODO PG - very odd usage of logger.
     public static final String LPAREN = "(";
     public static final String RPAREN = ")";
     public static final String COMMA = ",";

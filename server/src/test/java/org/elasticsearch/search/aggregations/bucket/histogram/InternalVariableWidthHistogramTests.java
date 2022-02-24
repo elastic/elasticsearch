@@ -46,6 +46,11 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         this.numBuckets = 3;
     }
 
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
     private InternalVariableWidthHistogram createEmptyTestInstance() {
         String name = randomAlphaOfLength(5);
         Map<String, Object> metadata = null;

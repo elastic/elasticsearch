@@ -261,8 +261,17 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs, minPrimaryShardSize,
-            minAge, minDocs);
+        return Objects.hash(
+            super.hashCode(),
+            maxSize,
+            maxPrimaryShardSize,
+            maxAge,
+            maxDocs,
+            maxPrimaryShardDocs,
+            minPrimaryShardSize,
+            minAge,
+            minDocs
+        );
     }
 
     @Override

@@ -170,6 +170,9 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     protected void doClose() throws IOException {
+        if (enabled == false) {
+            return;
+        }
         try {
             Files.deleteIfExists(getSocketPath());
         } catch (IOException e) {

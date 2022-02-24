@@ -64,8 +64,11 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         Map<String, Phase> phases1 = new HashMap<>();
         phases1.put(
             "hot",
-            new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null,
-                null)))
+            new Phase(
+                "hot",
+                TimeValue.ZERO,
+                singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null))
+            )
         );
         phases1.put(
             "warm",
@@ -79,8 +82,11 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         Map<String, Phase> phases2 = new HashMap<>();
         phases2.put(
             "hot",
-            new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L, null, null, null,
-                null)))
+            new Phase(
+                "hot",
+                TimeValue.ZERO,
+                singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L, null, null, null, null))
+            )
         );
         phases2.put(
             "warm",

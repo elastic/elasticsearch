@@ -1,0 +1,5 @@
+pr: 84333
+summary: keyword field supports truncation, default truncation length is 32766
+area: Mapping
+type: enhancement
+issues: [60329]

@@ -249,6 +249,7 @@ public class ProfileSingleNodeTests extends AbstractProfileSingleNodeTestCase {
             final PutUserRequest putUserRequest1 = new PutUserRequest();
             putUserRequest1.username(key);
             putUserRequest1.fullName(value);
+            putUserRequest1.email(key.substring(5) + "email@example.org");
             putUserRequest1.roles("rac_role");
             putUserRequest1.passwordHash(nativeRacUserPasswordHash.toCharArray());
             assertThat(client().execute(PutUserAction.INSTANCE, putUserRequest1).actionGet().created(), is(true));
@@ -274,6 +275,13 @@ public class ProfileSingleNodeTests extends AbstractProfileSingleNodeTestCase {
         // Match of different terms on different fields
         final SearchProfilesResponse.ProfileHit[] profiles5 = doSearch(randomFrom("admin very", "very admin"));
         assertThat(extractUsernames(profiles5), equalTo(users.keySet()));
+
+        // Match email
+        final SearchProfilesResponse.ProfileHit[] profiles6 = doSearch(randomFrom("fooem", "fooemail"));
+        assertThat(extractUsernames(profiles6), equalTo(Set.of("user_foo")));
+
+        final SearchProfilesResponse.ProfileHit[] profiles7 = doSearch("example.org");
+        assertThat(extractUsernames(profiles7), equalTo(users.keySet()));
     }
 
     public void testProfileAPIsWhenIndexNotCreated() {

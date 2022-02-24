@@ -16,8 +16,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
 import java.util.function.BooleanSupplier;
 
-import static org.elasticsearch.xpack.lucene.bwc.OldLuceneVersions.isArchiveIndex;
-
 public class ArchiveAllocationDecider extends AllocationDecider {
 
     static final String NAME = "archive";
@@ -49,7 +47,7 @@ public class ArchiveAllocationDecider extends AllocationDecider {
     }
 
     private Decision allowAllocation(IndexMetadata indexMetadata, RoutingAllocation allocation) {
-        if (isArchiveIndex(indexMetadata.getCreationVersion())) {
+        if (indexMetadata.getCreationVersion().isLegacyIndexVersion()) {
             if (hasValidLicenseSupplier.getAsBoolean()) {
                 return allocation.decision(Decision.YES, NAME, "valid license for archive functionality");
             } else {

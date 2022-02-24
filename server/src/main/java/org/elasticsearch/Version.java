@@ -387,6 +387,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     }
 
     /**
+     * Whether the current version is older than the current minimum compatible index version,
+     * see {@link #minimumIndexCompatibilityVersion()}
+     */
+    public boolean isLegacyIndexVersion() {
+        return before(Version.CURRENT.minimumIndexCompatibilityVersion());
+    }
+
+    /**
      * Returns <code>true</code> iff both version are compatible. Otherwise <code>false</code>
      */
     public boolean isCompatible(Version version) {

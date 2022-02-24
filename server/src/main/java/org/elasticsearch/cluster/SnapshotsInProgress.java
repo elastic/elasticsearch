@@ -130,8 +130,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return entries.values().stream().flatMap(Collection::stream);
     }
 
+    @Nullable
     public Entry snapshot(final Snapshot snapshot) {
-        for (Entry entry : forRepo(snapshot.getRepository())) {
+        return findInList(snapshot, forRepo(snapshot.getRepository()));
+    }
+
+    @Nullable
+    private static Entry findInList(Snapshot snapshot, List<Entry> forRepo) {
+        for (Entry entry : forRepo) {
             final Snapshot curr = entry.snapshot();
             if (curr.equals(snapshot)) {
                 return entry;
@@ -147,9 +153,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      */
     public Map<RepositoryShardId, Set<ShardGeneration>> obsoleteGenerations(String repository, SnapshotsInProgress old) {
         final Map<RepositoryShardId, Set<ShardGeneration>> obsoleteGenerations = new HashMap<>();
+        final List<Entry> updatedSnapshots = forRepo(repository);
         for (Entry entry : old.forRepo(repository)) {
-            final Entry updatedEntry = snapshot(entry.snapshot());
-            if (updatedEntry == null) {
+            final Entry updatedEntry = findInList(entry.snapshot(), updatedSnapshots);
+            if (updatedEntry == null || updatedEntry == entry) {
                 continue;
             }
             for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> oldShardAssignment : entry.shardsByRepoShardId().entrySet()) {

@@ -1,5 +1,5 @@
 pr: 84355
-summary: Node shutdown start time recorded for each node
+summary: Record node shutdown start time for each node
 area: Machine Learning
 type: bug
 issues: []

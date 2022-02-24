@@ -55,10 +55,10 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
 
     private ParsedDocument parseDocument(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
         // Add the @timestamp field required by DataStreamTimestampFieldMapper for all time series indices
-        return docMapper.parse(source(b -> {
+        return docMapper.parse(source(null, b -> {
             f.accept(b);
             b.field("@timestamp", "2021-10-01");
-        }));
+        }, null));
     }
 
     private BytesRef parseAndGetTsid(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {

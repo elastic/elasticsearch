@@ -8,6 +8,8 @@
 
 package org.elasticsearch.logging.internal;
 
+import org.elasticsearch.logging.Level;
+
 public final class LoggerImpl implements org.elasticsearch.logging.Logger {
 
     private final org.apache.logging.log4j.Logger log4jLogger;
@@ -27,6 +29,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     @Override
+    public void log(Level level, Object message, Object... params) {
+
+    }
+
+    @Override
     public void log(org.elasticsearch.logging.Level level, String message, Object... params) {
         log4jLogger.log(log4jLevel(level), message, params);
     }
@@ -37,7 +44,7 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     // @Override
-    // public void log(String message, Supplier<?>... paramSuppliers) {
+    // public void log(String message, java.util.function.Supplier<?>... paramSuppliers) {
     // log4jLogger.log(log4jLevel(level), message, throwable);
     // }
 

@@ -151,7 +151,7 @@ public class PkiRealm extends Realm implements CachingRealm {
             User user = cache.get(fingerprint);
             if (user != null) {
                 logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                         "Using cached authentication for DN [{}], as principal [{}]",
                         token.dn(),
                         user.principal()
@@ -173,7 +173,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                 final String principal = getPrincipalFromSubjectDN(principalPattern, token, logger);
                 if (principal == null) {
                     logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                             "the extracted principal after cert chain validation, from DN [{}], using pattern [{}] is null",
                             token.dn(),
                             principalPattern.toString()
@@ -191,7 +191,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                     }, listener::onFailure);
                     if (false == principal.equals(token.principal())) {
                         logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
+                            (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                                 "the extracted principal before [{}] and after [{}] cert chain validation, for DN [{}], are different",
                                 token.principal(),
                                 principal,
@@ -242,7 +242,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         Matcher matcher = principalPattern.matcher(dn);
         if (false == matcher.find()) {
             logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                     "could not extract principal from DN [{}] using pattern [{}]",
                     dn,
                     principalPattern.toString()
@@ -253,7 +253,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         String principal = matcher.group(1);
         if (Strings.isNullOrEmpty(principal)) {
             logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                     "the extracted principal from DN [{}] using pattern [{}] is empty",
                     dn,
                     principalPattern.toString()

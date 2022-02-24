@@ -174,7 +174,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                 scheduleExecution();
                 logger.debug("monitoring service started");
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to start monitoring service"), e);
+                logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to start monitoring service"), e);
                 started.set(false);
                 throw e;
             }
@@ -272,7 +272,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                             }
                         } catch (Exception e) {
                             logger.warn(
-                                (Supplier<?>) () -> new ParameterizedMessage(
+                                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                                     "monitoring collector [{}] failed to collect data",
                                     collector.name()
                                 ),

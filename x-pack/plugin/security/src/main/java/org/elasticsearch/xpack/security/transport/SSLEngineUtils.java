@@ -93,7 +93,7 @@ public class SSLEngineUtils {
             assert sslEngine.getWantClientAuth();
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage("SSL Peer did not present a certificate on channel [{}]", channel),
+                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage("SSL Peer did not present a certificate on channel [{}]", channel),
                     e
                 );
             } else if (logger.isDebugEnabled()) {

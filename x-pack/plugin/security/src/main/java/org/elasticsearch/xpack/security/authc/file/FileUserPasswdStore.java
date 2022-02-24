@@ -107,7 +107,7 @@ public class FileUserPasswdStore {
             return map == null ? emptyMap() : map;
         } catch (Exception e) {
             logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                     "failed to parse users file [{}]. skipping/removing all users...",
                     path.toAbsolutePath()
                 ),

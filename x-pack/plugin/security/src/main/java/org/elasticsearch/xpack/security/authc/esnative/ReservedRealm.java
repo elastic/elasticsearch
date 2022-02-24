@@ -281,7 +281,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             }
         }, (e) -> {
             logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username),
+                (java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username),
                 e
             );
             consumer.accept(null);

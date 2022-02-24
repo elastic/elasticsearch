@@ -112,6 +112,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         }
         this.allocationDelay = allocationDelay;
         if (targetNodeName != null && type != Type.REPLACE) {
+            //TODO PG possibly we could just use String.format?
             ParameterizedMessage msg = new ParameterizedMessage(
                 "target node name is only valid for REPLACE type shutdowns, " + "but was given type [{}] and target node name [{}]",
                 type,

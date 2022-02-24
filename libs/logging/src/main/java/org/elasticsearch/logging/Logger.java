@@ -17,11 +17,19 @@ public interface Logger {
 
     boolean isLoggable(Level level);
 
+    void log(Level level, Object message, Object... params);
+
     void log(Level level, String message, Object... params);
 
     void log(Level level, String message, Throwable throwable);
 
-    // void log(String message, Supplier<?>... paramSuppliers);
+    // void log(String message, java.util.function.Supplier<?>... paramSuppliers);
+    default void log(Level level, Object message) {
+        Objects.requireNonNull(message);
+        if (isLoggable(Objects.requireNonNull(level))) {
+            this.log(level, message, (Throwable) null);
+        }
+    }
 
     default void log(Level level, Message message) {
         Objects.requireNonNull(message);
@@ -37,7 +45,7 @@ public interface Logger {
         }
     }
 
-    default void log(Level level, Supplier<? extends Message> msgSupplier, Throwable thrown) {
+    default void log(Level level, java.util.function.Supplier<?> msgSupplier, Throwable thrown) {
         Objects.requireNonNull(msgSupplier);
         if (isLoggable(Objects.requireNonNull(level))) {
             this.log(level, msgSupplier.get(), thrown);
@@ -82,11 +90,7 @@ public interface Logger {
         log(Level.DEBUG, message, thrown);
     }
 
-    default void debug(Supplier<? extends Message> msgSupplier) {
-        log(Level.DEBUG, msgSupplier.get());
-    }
-
-    default void debug(Supplier<? extends Message> msgSupplier, Throwable thrown) {
+    default void debug(java.util.function.Supplier<?> msgSupplier, Throwable thrown) {
         log(Level.DEBUG, msgSupplier.get(), thrown);
     }
 
@@ -121,7 +125,9 @@ public interface Logger {
     default void debug(String message, Object... params) {
         log(Level.DEBUG, message, params);
     }
-
+    default void debug(java.util.function.Supplier<?> msgSupplier) {
+        log(Level.ERROR, msgSupplier.get());
+    }
     // -- error
     default void error(Message message) {
         log(Level.ERROR, message);
@@ -131,11 +137,12 @@ public interface Logger {
         log(Level.ERROR, message, thrown);
     }
 
-    default void error(Supplier<? extends Message> msgSupplier) {
+    default void error(java.util.function.Supplier<?> msgSupplier) {
         log(Level.ERROR, msgSupplier.get());
     }
 
-    default void error(Supplier<? extends Message> msgSupplier, Throwable thrown) {
+
+    default void error(java.util.function.Supplier<?> msgSupplier, Throwable thrown) {
         log(Level.ERROR, msgSupplier.get(), thrown);
     }
 
@@ -180,11 +187,11 @@ public interface Logger {
         log(Level.INFO, message, thrown);
     }
 
-    default void info(Supplier<? extends Message> msgSupplier) {
+    default void info(java.util.function.Supplier<?> msgSupplier) {
         log(Level.INFO, msgSupplier.get());
     }
 
-    default void info(Supplier<? extends Message> msgSupplier, Throwable thrown) {
+    default void info(java.util.function.Supplier<?> msgSupplier, Throwable thrown) {
         log(Level.INFO, msgSupplier.get(), thrown);
     }
 
@@ -229,11 +236,11 @@ public interface Logger {
         log(Level.TRACE, message, thrown);
     }
 
-    default void trace(Supplier<? extends Message> msgSupplier) {
+    default void trace(java.util.function.Supplier<?> msgSupplier) {
         log(Level.TRACE, msgSupplier.get());
     }
 
-    default void trace(Supplier<? extends Message> msgSupplier, Throwable thrown) {
+    default void trace(java.util.function.Supplier<?> msgSupplier, Throwable thrown) {
         log(Level.TRACE, msgSupplier.get(), thrown);
     }
 
@@ -278,11 +285,11 @@ public interface Logger {
         log(Level.WARN, message, thrown);
     }
 
-    default void warn(Supplier<? extends Message> msgSupplier) {
+    default void warn(java.util.function.Supplier<?> msgSupplier) {
         log(Level.WARN, msgSupplier.get());
     }
 
-    default void warn(Supplier<? extends Message> msgSupplier, Throwable thrown) {
+    default void warn(java.util.function.Supplier<?> msgSupplier, Throwable thrown) {
         log(Level.WARN, msgSupplier.get(), thrown);
     }
 

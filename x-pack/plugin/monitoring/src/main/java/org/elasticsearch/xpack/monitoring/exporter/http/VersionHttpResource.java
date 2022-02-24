@@ -73,7 +73,7 @@ public class VersionHttpResource extends HttpResource {
             @Override
             public void onFailure(final Exception exception) {
                 logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                         "failed to verify minimum version [{}] on the [{}] monitoring cluster",
                         minimumVersion,
                         resourceOwnerName

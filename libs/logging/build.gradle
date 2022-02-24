@@ -38,3 +38,4 @@ tasks.named("compileJava").configure {
   options.compilerArgs.add("-Xlint:-exports") // implements Message!!
 }
 
+disableTasks('forbiddenApisMain')

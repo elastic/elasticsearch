@@ -51,7 +51,7 @@ public class MockTaskManager extends TaskManager {
                 listener.onTaskRegistered(task);
             } catch (Exception e) {
                 logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                         "failed to notify task manager listener about registering the task with id {}",
                         task.getId()
                     ),
@@ -71,7 +71,7 @@ public class MockTaskManager extends TaskManager {
                     listener.onTaskUnregistered(task);
                 } catch (Exception e) {
                     logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                             "failed to notify task manager listener about unregistering the task with id {}",
                             task.getId()
                         ),
@@ -92,7 +92,7 @@ public class MockTaskManager extends TaskManager {
                 listener.waitForTaskCompletion(task);
             } catch (Exception e) {
                 logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                         "failed to notify task manager listener about waitForTaskCompletion the task with id {}",
                         task.getId()
                     ),

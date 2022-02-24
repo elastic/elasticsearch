@@ -184,7 +184,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                     } catch (final Exception e) {
                         final String finalAddress = address;
                         logger.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
+                            (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                                 "failed to add {}, address {}",
                                 instance.getInstanceId(),
                                 finalAddress

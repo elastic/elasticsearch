@@ -110,7 +110,7 @@ public final class TransportDelegatePkiAuthenticationAction extends HandledTrans
                     );
                 }, e -> {
                     logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                             "Delegated x509Token [{}] could not be authenticated",
                             x509DelegatedToken
                         ),

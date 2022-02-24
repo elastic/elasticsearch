@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
@@ -973,5 +974,22 @@ public class Strings {
             }
         }
         return out.toString();
+    }
+
+    //TODO PG methods from import org.apache.logging.log4j.util.Strings
+    public static boolean isBlank(String s) {
+        if (s == null || s.isEmpty()) {
+            return true;
+        }
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (!Character.isWhitespace(c)) {
+                return false;
+            }
+        }
+        return true;    }
+
+    public static String join(List<String> fields, char c) {
+        return fields.stream().collect(Collectors.joining(String.valueOf(c)));
     }
 }

@@ -156,7 +156,7 @@ public class Exporters extends AbstractLifecycleComponent {
             try {
                 exporter.close();
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to close exporter [{}]", exporter.name()), e);
+                logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to close exporter [{}]", exporter.name()), e);
             }
         }
     }
@@ -361,7 +361,7 @@ public class Exporters extends AbstractLifecycleComponent {
 
         @Override
         public void onFailure(Exception e) {
-            LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("exporter [{}] failed to open exporting bulk", name), e);
+            LOGGER.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("exporter [{}] failed to open exporting bulk", name), e);
 
             delegateIfComplete();
         }

@@ -461,7 +461,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         channel.sendResponse(e);
                     } catch (Exception e1) {
                         logger.warn(
-                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                            (org.apache.logging.log4j.util.java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                                 "Failed to send error response for action [{}] and request [{}]",
                                 actionName,
                                 request

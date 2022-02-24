@@ -74,7 +74,7 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
                     attachments.put(attachment.id(), attachment);
                 } catch (ElasticsearchException | IOException e) {
                     logger().error(
-                        (Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), actionId),
+                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), actionId),
                         e
                     );
                     return new EmailAction.Result.FailureWithException(action.type(), e);

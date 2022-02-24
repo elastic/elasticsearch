@@ -257,7 +257,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                     }
                 } catch (Exception e) {
                     final String finalIpPrivate = ip_private;
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to add {}, address {}", name, finalIpPrivate), e);
+                    logger.warn((java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to add {}, address {}", name, finalIpPrivate), e);
                 }
 
             }

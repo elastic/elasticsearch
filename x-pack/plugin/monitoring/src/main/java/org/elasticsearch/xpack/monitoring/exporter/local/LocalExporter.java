@@ -353,7 +353,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         if (missingTemplates.isEmpty() == false) {
             // Check to see if the template installation is disabled. If it isn't, then we should say so in the log.
             logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                     "monitoring index templates [{}] do not exist, so service " + "cannot start (waiting on registered templates)",
                     missingTemplates
                 )
@@ -748,7 +748,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         @Override
         public void onFailure(Exception e) {
             responseReceived(countDown, false, onComplete, setup);
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to set monitoring {} [{}]", type, name), e);
+            logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to set monitoring {} [{}]", type, name), e);
         }
     }
 
@@ -824,7 +824,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             responseReceived(countDown, false, () -> {}, watcherSetup);
 
             if ((e instanceof IndexNotFoundException) == false) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to get monitoring watch [{}]", uniqueWatchId), e);
+                logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to get monitoring watch [{}]", uniqueWatchId), e);
             }
         }
 

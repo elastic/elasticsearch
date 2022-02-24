@@ -301,7 +301,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             listener.onResponse(checkpointingInfoBuilder);
         }, e -> {
             logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                     "[{}] failed to retrieve source checkpoint for transform",
                     transformConfig.getId()
                 ),
@@ -316,7 +316,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             getIndexCheckpoints(checkpointsByIndexListener);
         }, e -> {
             logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                     "[{}] failed to retrieve next checkpoint [{}]",
                     transformConfig.getId(),
                     lastCheckpointNumber + 1
@@ -334,7 +334,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             transformConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber + 1, nextCheckpointListener);
         }, e -> {
             logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
+                (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                     "[{}] failed to retrieve last checkpoint [{}]",
                     transformConfig.getId(),
                     lastCheckpointNumber

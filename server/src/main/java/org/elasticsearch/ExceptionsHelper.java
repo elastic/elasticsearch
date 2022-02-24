@@ -187,6 +187,41 @@ public final class ExceptionsHelper {
         return null;
     }
 
+//TODO PG - moved from org.apache.logging.log4j.core.util.Throwables
+    public static Throwable getRootCause(final Throwable throwable) {
+
+        // Keep a second pointer that slowly walks the causal chain. If the fast
+        // pointer ever catches the slower pointer, then there's a loop.
+        Throwable slowPointer = throwable;
+        boolean advanceSlowPointer = false;
+
+        Throwable parent = throwable;
+        Throwable cause;
+        while ((cause = parent.getCause()) != null) {
+            parent = cause;
+            if (parent == slowPointer) {
+                throw new IllegalArgumentException("loop in causal chain");
+            }
+            if (advanceSlowPointer) {
+                slowPointer = slowPointer.getCause();
+            }
+            advanceSlowPointer = !advanceSlowPointer; // only advance every other iteration
+        }
+        return parent;
+
+    }
+
+    public static boolean rethrow(@Nullable Throwable e) {
+        if (e != null) {
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+        return true;
+    }
+
     /**
      * Throws the specified exception. If null if specified then <code>true</code> is returned.
      */

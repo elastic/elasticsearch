@@ -47,7 +47,7 @@ public class ExecutableChainTransform extends ExecutableTransform<ChainTransform
         try {
             return doExecute(ctx, payload, results);
         } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
+            logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
             return new ChainTransform.Result(e, results);
         }
     }

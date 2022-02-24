@@ -140,7 +140,7 @@ public class MockWebServer implements Closeable {
                 }
             } catch (Exception e) {
                 logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                         "failed to respond to request [{} {}]",
                         s.getRequestMethod(),
                         s.getRequestURI()

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.logging.core.util.Throwables;
 import org.elasticsearch.logging.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;

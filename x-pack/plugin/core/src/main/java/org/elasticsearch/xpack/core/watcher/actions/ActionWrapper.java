@@ -142,7 +142,7 @@ public class ActionWrapper implements ToXContentObject {
             } catch (RuntimeException e) {
                 action.logger()
                     .error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                             "failed to execute action [{}/{}]. failed to execute condition",
                             ctx.watch().id(),
                             id
@@ -175,7 +175,7 @@ public class ActionWrapper implements ToXContentObject {
             } catch (Exception e) {
                 action.logger()
                     .error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                             "failed to execute action [{}/{}]. failed to transform payload.",
                             ctx.watch().id(),
                             id
@@ -191,7 +191,7 @@ public class ActionWrapper implements ToXContentObject {
                 return new ActionWrapperResult(id, conditionResult, transformResult, actionResult);
             } catch (Exception e) {
                 action.logger()
-                    .error((Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
+                    .error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
                 return new ActionWrapperResult(id, new Action.Result.FailureWithException(action.type(), e));
             }
         } else {
@@ -248,7 +248,7 @@ public class ActionWrapper implements ToXContentObject {
                 });
             } catch (Exception e) {
                 action.logger()
-                    .error((Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
+                    .error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
                 return new ActionWrapperResult(id, new Action.Result.FailureWithException(action.type(), e));
             }
         }

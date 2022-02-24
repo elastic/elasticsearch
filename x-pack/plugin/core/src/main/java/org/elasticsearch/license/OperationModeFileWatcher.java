@@ -98,7 +98,7 @@ public final class OperationModeFileWatcher implements FileChangesListener {
                         content = Files.readAllBytes(licenseModePath);
                     } catch (IOException e) {
                         logger.error(
-                            (Supplier<?>) () -> new ParameterizedMessage(
+                            (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                                 "couldn't read operation mode from [{}]",
                                 licenseModePath.toAbsolutePath()
                             ),
@@ -112,7 +112,7 @@ public final class OperationModeFileWatcher implements FileChangesListener {
                         newOperationMode = OperationMode.parse(operationMode);
                     } catch (IllegalArgumentException e) {
                         logger.error(
-                            (Supplier<?>) () -> new ParameterizedMessage(
+                            (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                                 "invalid operation mode in [{}]",
                                 licenseModePath.toAbsolutePath()
                             ),

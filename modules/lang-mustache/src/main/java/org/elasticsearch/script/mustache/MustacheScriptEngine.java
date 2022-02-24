@@ -114,7 +114,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
                     return null;
                 });
             } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("Error running {}", template), e);
+
                 throw new GeneralScriptException("Error running " + template, e);
             }
             return writer.toString();

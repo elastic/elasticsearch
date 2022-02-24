@@ -63,7 +63,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to put user [{}]", request.username()), e);
+                    logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("failed to put user [{}]", request.username()), e);
                     listener.onFailure(e);
                 }
             });

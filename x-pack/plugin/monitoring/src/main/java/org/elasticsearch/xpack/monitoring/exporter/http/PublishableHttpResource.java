@@ -286,7 +286,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                     }
                 } catch (Exception e) {
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                             "failed to parse [{}/{}] on the [{}]",
                             resourceBasePath,
                             resourceName,
@@ -306,7 +306,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                     final int statusCode = response.getStatusLine().getStatusCode();
 
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                             "failed to verify {} [{}] on the [{}] {} with status code [{}]",
                             resourceType,
                             resourceName,
@@ -318,7 +318,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                     );
                 } else {
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                             "failed to verify {} [{}] on the [{}] {}",
                             resourceType,
                             resourceName,
@@ -397,7 +397,7 @@ public abstract class PublishableHttpResource extends HttpResource {
             @Override
             public void onFailure(final Exception exception) {
                 logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                         "failed to upload {} [{}] on the [{}] {}",
                         resourceType,
                         resourceName,
@@ -468,7 +468,7 @@ public abstract class PublishableHttpResource extends HttpResource {
             @Override
             public void onFailure(Exception exception) {
                 logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    (java.util.function.Supplier<?>) () -> new ParameterizedMessage(
                         "failed to delete {} [{}] on the [{}] {}",
                         resourceType,
                         resourceName,

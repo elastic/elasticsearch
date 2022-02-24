@@ -207,7 +207,7 @@ public class BackgroundIndexer implements AutoCloseable {
                         trackFailure(e);
                         final long docId = id;
                         logger.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage("**** failed indexing thread {} on doc id {}", indexerId, docId),
+                            (java.util.function.Supplier<?>) () -> new ParameterizedMessage("**** failed indexing thread {} on doc id {}", indexerId, docId),
                             e
                         );
                     } finally {

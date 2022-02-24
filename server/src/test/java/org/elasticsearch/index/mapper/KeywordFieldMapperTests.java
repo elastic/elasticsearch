@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
@@ -228,6 +229,41 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         fields = doc.rootDoc().getFields("_ignored");
         assertEquals(1, fields.length);
         assertEquals("field", fields[0].stringValue());
+    }
+
+    public void testTruncateAbove() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("truncate_above", 5)));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "elk")));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals("elk", fields[0].binaryValue().utf8ToString());
+
+        doc = mapper.parse(source(b -> b.field("field", "elasticsearch")));
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals("elast", fields[0].binaryValue().utf8ToString());
+
+        doc = mapper.parse(source(b -> b.field("field", "tencent cloud")));
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals("tence", fields[0].binaryValue().utf8ToString());
+
+        // test default truncate_above = 32766
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
+
+        String longFieldValue = RandomStringUtils.randomAlphabetic(65536);
+        doc = mapper.parse(source(b -> b.field("field", longFieldValue.substring(0, 32766))));
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals(32766, fields[0].binaryValue().utf8ToString().length());
+        assertEquals(longFieldValue.substring(0, 32766), fields[0].binaryValue().utf8ToString());
+
+        doc = mapper.parse(source(b -> b.field("field", longFieldValue)));
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals(32766, fields[0].binaryValue().utf8ToString().length());
+        assertEquals(longFieldValue.substring(0, 32766), fields[0].binaryValue().utf8ToString());
     }
 
     public void testNullValue() throws IOException {
@@ -612,10 +648,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         for (int i = 0; i < 32768; i++) {
             stringBuilder.append("a");
         }
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", stringBuilder.toString())))
-        );
-        assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", stringBuilder.toString())));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals(32766, fields[0].binaryValue().utf8ToString().length());
+        assertEquals(stringBuilder.substring(0, 32766), fields[0].binaryValue().utf8ToString());
     }
 }

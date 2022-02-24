@@ -78,6 +78,13 @@ The following parameters are accepted by `keyword` fields:
     dynamic mapping rules create a sub `keyword` field that overrides this
     default by setting `ignore_above: 256`.
 
+`truncate_above`::
+
+    Truncate any string longer than this value. Default to `32766` so that
+    all values can be written into lucene. This defualt value is useful for
+    protecting against Lucene's term byte-length limit of `32766`.
+    Any string will be truncated first, then apply `ignore_above` setting.
+
 <<mapping-index,`index`>>::
 
     Should the field be quickly searchable? Accepts `true` (default) and

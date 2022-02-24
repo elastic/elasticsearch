@@ -78,6 +78,7 @@ import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
 public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
+    public static final int MAX_TRUNCATE_LENGTH = 32766; // Lucene’s term byte-length limit of 32766
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
@@ -124,6 +125,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             true,
             m -> toType(m).ignoreAbove,
             Defaults.IGNORE_ABOVE
+        );
+        private final Parameter<Integer> truncateAbove = Parameter.intParam(
+            "truncate_above",
+            true,
+            m -> toType(m).truncateAbove,
+            MAX_TRUNCATE_LENGTH
         );
 
         private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
@@ -235,7 +242,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 script,
                 onScriptError,
                 meta,
-                dimension
+                dimension,
+                truncateAbove
             );
         }
 
@@ -282,6 +290,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final class KeywordFieldType extends StringFieldType {
 
         private final int ignoreAbove;
+        private final int truncateAbove;
         private final String nullValue;
         private final NamedAnalyzer normalizer;
         private final boolean eagerGlobalOrdinals;
@@ -307,6 +316,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
             this.normalizer = normalizer;
             this.ignoreAbove = builder.ignoreAbove.getValue();
+            this.truncateAbove = builder.truncateAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
@@ -316,6 +326,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             super(name, isIndexed, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
+            this.truncateAbove = MAX_TRUNCATE_LENGTH;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
@@ -337,6 +348,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
+            this.truncateAbove = MAX_TRUNCATE_LENGTH;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
@@ -347,6 +359,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
+            this.truncateAbove = MAX_TRUNCATE_LENGTH;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
@@ -809,6 +822,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                 );
             }
         }
+
+        /** Values that have more chars than the return value of this method will
+         *  be truncated at parsing time. */
+        public int truncateAbove() {
+            return truncateAbove;
+        }
     }
 
     private final boolean indexed;
@@ -816,6 +835,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final String nullValue;
     private final boolean eagerGlobalOrdinals;
     private final int ignoreAbove;
+    private final int truncateAbove;
     private final String indexOptions;
     private final FieldType fieldType;
     private final SimilarityProvider similarity;
@@ -851,6 +871,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
         this.ignoreAbove = builder.ignoreAbove.getValue();
+        this.truncateAbove = builder.truncateAbove.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = fieldType;
         this.similarity = builder.similarity.getValue();
@@ -894,6 +915,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     private void indexValue(DocumentParserContext context, String value) {
         if (value == null) {
             return;
+        }
+
+        // truncate before ignore
+        if (value.length() > truncateAbove) {
+            value = value.substring(0, truncateAbove);
         }
 
         if (value.length() > ignoreAbove) {

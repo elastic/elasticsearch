@@ -204,6 +204,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84204")
     public void test44WrongKeystorePasswordOnTty() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);

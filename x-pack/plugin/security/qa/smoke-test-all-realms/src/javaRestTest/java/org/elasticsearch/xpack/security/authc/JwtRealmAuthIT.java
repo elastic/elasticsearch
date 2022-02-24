@@ -25,7 +25,6 @@ public class JwtRealmAuthIT extends SecurityRealmSmokeTestCase {
 
     // Declared in build.gradle
     private static final String USERNAME = "security_test_user";
-    private static final String ROLE_NAME = "security_test_role";
     private static final String HEADER_CLIENT_SECRET = "client-shared-secret-string";
     private static final String HEADER_JWT = "eyJhbGciOiJIUzI1NiJ9."
         + "eyJhdWQiOiJhdWQ4Iiwic3ViIjoic2VjdXJpdHlfdGVzdF91c2VyIiwicm9sZXMiOiJbc2VjdXJpdHl"
@@ -43,7 +42,7 @@ public class JwtRealmAuthIT extends SecurityRealmSmokeTestCase {
         final Map<String, Object> authenticate = super.authenticate(options);
         assertUsername(authenticate, USERNAME);
         assertRealm(authenticate, "jwt", "jwt8");
-        assertRoles(authenticate, ROLE_NAME);
+        assertRoles(authenticate); // empty list
         assertNoApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
     }
 

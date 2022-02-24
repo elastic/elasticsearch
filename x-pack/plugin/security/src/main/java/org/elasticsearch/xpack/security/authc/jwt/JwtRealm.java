@@ -61,8 +61,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final List<String> allowedAudiences;
     final String jwkSetPath;
     final CloseableHttpAsyncClient httpClient;
-    JwtRealm.JwksAlgs jwksAlgsHmac;
-    JwtRealm.JwksAlgs jwksAlgsPkc;
+    final JwtRealm.JwksAlgs jwksAlgsHmac;
+    JwtRealm.JwksAlgs jwksAlgsPkc; // reloadable
     final TimeValue allowedClockSkew;
     final Boolean populateUserMetadata;
     final ClaimParser claimParserPrincipal;
@@ -107,18 +107,16 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.httpClient = null; // no setting means no HTTP client
         }
 
-        this.parseJwksAlgsHmac();
-        this.parseJwksAlgsPkc();
-        this.verifyAnyAvailableJwkAndAlgPair();
+        this.jwksAlgsHmac = this.parseJwksAlgsHmac(); // not reloadable
+        this.jwksAlgsPkc = this.parseJwksAlgsPkc(false); // reloadable
     }
 
     // must call parseAlgsAndJwksHmac() before parseAlgsAndJwksPkc()
-    private void parseJwksAlgsHmac() {
-        final JwtRealm.JwksAlgs jwksAlgsHmac;
+    private JwtRealm.JwksAlgs parseJwksAlgsHmac() {
         final SecureString hmacJwkSetContents = super.config.getSetting(JwtRealmSettings.HMAC_JWKSET);
         final SecureString hmacKeyContents = super.config.getSetting(JwtRealmSettings.HMAC_KEY);
+        // HMAC Key vs HMAC JWKSet settings are mutually exclusive
         if (Strings.hasText(hmacJwkSetContents) && Strings.hasText(hmacKeyContents)) {
-            // HMAC Key vs HMAC JWKSet settings must be mutually exclusive
             throw new SettingsException(
                 "Settings ["
                     + RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET)
@@ -127,78 +125,97 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     + "] are not allowed at the same time."
             );
         } else if ((Strings.hasText(hmacJwkSetContents) == false) && (Strings.hasText(hmacKeyContents) == false)) {
-            // If PKC JWKSet has at least one usable JWK, both HMAC Key vs HMAC JWKSet settings can be empty
-            jwksAlgsHmac = new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
-        } else {
-            // At this point, one-and-only-one of the HMAC Key or HMAC JWKSet settings are set
-            List<JWK> jwksHmac;
-            if (Strings.hasText(hmacJwkSetContents)) {
-                jwksHmac = JwkValidateUtil.loadJwksFromJwkSetString(
-                    RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
-                    hmacJwkSetContents.toString()
-                );
-            } else {
-                final OctetSequenceKey hmacKey = JwkValidateUtil.loadHmacJwkFromJwkString(
-                    RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
-                    hmacKeyContents
-                );
-                jwksHmac = List.of(hmacKey);
-            }
-            // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
-            final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-            final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
-            jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
+            return new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList()); // both empty OK, if PKC JWKSet non-empty
         }
-        LOGGER.info("Usable HMAC: JWKs [" + jwksAlgsHmac.jwks.size() + "]. Algorithms [" + String.join(",", jwksAlgsHmac.algs()) + "].");
-        this.jwksAlgsHmac = jwksAlgsHmac;
-    }
-
-    private void parseJwksAlgsPkc() {
-        final JwtRealm.JwksAlgs jwksAlgsPkc;
-        if (Strings.hasText(this.jwkSetPath) == false) {
-            jwksAlgsPkc = new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
-        } else {
-            // PKC JWKSet get contents from local file or remote HTTPS URL
-            final byte[] jwkSetContentBytesPkc;
-            if (this.httpClient == null) {
-                jwkSetContentBytesPkc = JwtUtil.readFileContents(
-                    RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.PKC_JWKSET_PATH),
-                    this.jwkSetPath,
-                    super.config.env()
-                );
-            } else {
-                final URI jwkSetPathPkcUri = JwtUtil.parseHttpsUri(this.jwkSetPath);
-                jwkSetContentBytesPkc = JwtUtil.readUriContents(
-                    RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.PKC_JWKSET_PATH),
-                    jwkSetPathPkcUri,
-                    this.httpClient
-                );
-            }
-            final String jwkSetContentsPkc = new String(jwkSetContentBytesPkc, StandardCharsets.UTF_8);
-
-            // PKC JWKSet parse contents
-            final List<JWK> jwksPkc = JwkValidateUtil.loadJwksFromJwkSetString(
-                RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.PKC_JWKSET_PATH),
-                jwkSetContentsPkc
+        // At this point, one-and-only-one of the HMAC Key or HMAC JWKSet settings are set
+        List<JWK> jwksHmac;
+        if (Strings.hasText(hmacJwkSetContents)) {
+            jwksHmac = JwkValidateUtil.loadJwksFromJwkSetString(
+                RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
+                hmacJwkSetContents.toString()
             );
-
-            // PKC JWKSet filter contents
-            final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-            final List<String> algsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
-            jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
+        } else {
+            final OctetSequenceKey hmacKey = JwkValidateUtil.loadHmacJwkFromJwkString(
+                RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
+                hmacKeyContents
+            );
+            jwksHmac = List.of(hmacKey);
         }
-        LOGGER.info("Usable PKC: JWKs [" + jwksAlgsPkc.jwks().size() + "]. Algorithms [" + String.join(",", jwksAlgsPkc.algs()) + "].");
-        this.jwksAlgsPkc = jwksAlgsPkc;
+        // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
+        final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
+        final List<String> algsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
+        final JwtRealm.JwksAlgs jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
+        LOGGER.debug("HMAC: JWKs [" + jwksAlgsHmac.jwks.size() + "]. Algorithms [" + String.join(",", jwksAlgsHmac.algs()) + "].");
+        return jwksAlgsHmac;
     }
 
-    private void verifyAnyAvailableJwkAndAlgPair() {
-        assert this.jwksAlgsHmac != null : "HMAC not initialized";
-        assert this.jwksAlgsPkc != null : "PKC not initialized";
-        if (((this.jwksAlgsHmac.jwks.isEmpty()) && (this.jwksAlgsPkc.jwks.isEmpty()))
-            || ((this.jwksAlgsHmac.algs.isEmpty()) && (this.jwksAlgsPkc.algs.isEmpty()))) {
-            final String msg = "No available JWK and algorithm for HMAC or PKC. Realm authentication expected to fail until this is fixed.";
-            throw new SettingsException(msg);
+    private JwtRealm.JwksAlgs parseJwksAlgsPkc(final boolean isReload) {
+        // ASSUME: parseJwksAlgsHmac() has been called at startup, before parseJwksAlgsPkc() during startup or reload
+        assert this.jwksAlgsHmac != null : "HMAC not initialized, PKC validation not available";
+        if (Strings.hasText(this.jwkSetPath) == false) {
+            return new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
         }
+        // PKC JWKSet get contents from local file or remote HTTPS URL
+        final byte[] jwkSetContentBytesPkc;
+        if (this.httpClient == null) {
+            jwkSetContentBytesPkc = JwtUtil.readFileContents(
+                RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.PKC_JWKSET_PATH),
+                this.jwkSetPath,
+                super.config.env()
+            );
+        } else {
+            final URI jwkSetPathPkcUri = JwtUtil.parseHttpsUri(this.jwkSetPath);
+            jwkSetContentBytesPkc = JwtUtil.readUriContents(
+                RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.PKC_JWKSET_PATH),
+                jwkSetPathPkcUri,
+                this.httpClient
+            );
+        }
+        final String jwkSetContentsPkc = new String(jwkSetContentBytesPkc, StandardCharsets.UTF_8);
+
+        // PKC JWKSet parse contents
+        final List<JWK> jwksPkc = JwkValidateUtil.loadJwksFromJwkSetString(
+            RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.PKC_JWKSET_PATH),
+            jwkSetContentsPkc
+        );
+
+        // PKC JWKSet filter contents
+        final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
+        final List<String> algsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
+        final JwtRealm.JwksAlgs newJwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
+        LOGGER.debug("PKC: JWKs [" + newJwksAlgsPkc.jwks().size() + "]. Algorithms [" + String.join(",", newJwksAlgsPkc.algs()) + "].");
+
+        // If HMAC has no content, PKC must have content. Fail hard during startup. Fail gracefully during reloads.
+        if (((this.jwksAlgsHmac.algs.isEmpty()) && (newJwksAlgsPkc.jwks().isEmpty()))
+            || ((this.jwksAlgsHmac.jwks.isEmpty()) && (newJwksAlgsPkc.algs().isEmpty()))) {
+            if (isReload) {
+                LOGGER.error("No usable PKC JWKs or algorithms. Realm authentication expected to fail until this is fixed.");
+                return newJwksAlgsPkc;
+            }
+            throw new SettingsException("No usable PKC JWKs or algorithms. Realm authentication expected to fail until this is fixed.");
+        }
+        if (isReload) {
+            // Only give delta feedback during reloads.
+            if ((this.jwksAlgsPkc.jwks.isEmpty()) && (newJwksAlgsPkc.jwks().isEmpty() == false)) {
+                LOGGER.info("PKC JWKs changed from none to [" + newJwksAlgsPkc.jwks().size() + "].");
+            } else if ((this.jwksAlgsPkc.jwks.isEmpty() == false) && (newJwksAlgsPkc.jwks().isEmpty())) {
+                LOGGER.warn("PKC JWKs changed from [" + this.jwksAlgsPkc.jwks.size() + "] to none.");
+            } else if (this.jwksAlgsPkc.jwks.stream().sorted().toList().equals(newJwksAlgsPkc.jwks().stream().sorted().toList())) {
+                LOGGER.debug("PKC JWKs changed from [" + this.jwksAlgsPkc.jwks.size() + "] to [" + newJwksAlgsPkc.jwks().size() + "].");
+            } else {
+                LOGGER.trace("PKC JWKs no change from [" + this.jwksAlgsPkc.algs + "].");
+            }
+            if ((newJwksAlgsPkc.jwks().isEmpty()) && (newJwksAlgsPkc.algs().isEmpty() == false)) {
+                LOGGER.info("PKC algorithms changed from no usable content to having usable content " + newJwksAlgsPkc.algs() + ".");
+            } else if ((this.jwksAlgsPkc.algs.isEmpty() == false) && (newJwksAlgsPkc.algs().isEmpty())) {
+                LOGGER.warn("PKC algorithms changed from having usable content " + this.jwksAlgsPkc.algs + " to no usable content.");
+            } else if (this.jwksAlgsPkc.algs.stream().sorted().toList().equals(newJwksAlgsPkc.algs().stream().sorted().toList())) {
+                LOGGER.debug("PKC algorithms changed from usable content " + this.jwksAlgsHmac.algs + " to " + newJwksAlgsPkc.algs() + ".");
+            } else {
+                LOGGER.trace("PKC algorithms did not change from usable content " + this.jwksAlgsHmac.algs + ".");
+            }
+        }
+        return newJwksAlgsPkc;
     }
 
     void ensureInitialized() {

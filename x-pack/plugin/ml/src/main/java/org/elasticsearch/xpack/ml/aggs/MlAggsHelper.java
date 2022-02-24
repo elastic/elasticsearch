@@ -36,7 +36,7 @@ public final class MlAggsHelper {
      * @return The double values and doc_counts extracted from the path if the bucket path exists and the value is a valid number
      */
     public static Optional<DoubleBucketValues> extractDoubleBucketedValues(String bucketPath, Aggregations aggregations) {
-        return extractDoubleBucketedValues(bucketPath, aggregations, BucketHelpers.GapPolicy.INSERT_ZEROS);
+        return extractDoubleBucketedValues(bucketPath, aggregations, BucketHelpers.GapPolicy.INSERT_ZEROS, false);
     }
 
     /**
@@ -46,12 +46,14 @@ public final class MlAggsHelper {
      * @param bucketPath The bucket path from which to extract values
      * @param aggregations The aggregations
      * @param gapPolicy the desired gap policy
+     * @param excludeLastBucket should the last bucket be excluded? This is useful when excluding potentially partial buckets
      * @return The double values, doc_counts, and bucket index positions extracted from the path if the bucket path exists
      */
     public static Optional<DoubleBucketValues> extractDoubleBucketedValues(
         String bucketPath,
         Aggregations aggregations,
-        BucketHelpers.GapPolicy gapPolicy
+        BucketHelpers.GapPolicy gapPolicy,
+        boolean excludeLastBucket
     ) {
         List<String> parsedPath = AggregationPath.parse(bucketPath).getPathElementsAsStringList();
         for (Aggregation aggregation : aggregations) {
@@ -63,8 +65,12 @@ public final class MlAggsHelper {
                 List<Long> docCounts = new ArrayList<>(buckets.size());
                 List<Integer> bucketIndexes = new ArrayList<>(buckets.size());
                 int bucketCount = 0;
+                int totalBuckets = buckets.size();
                 for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
                     Double bucketValue = BucketHelpers.resolveBucketValue(multiBucketsAgg, bucket, sublistedPath, gapPolicy);
+                    if (excludeLastBucket && bucketCount >= totalBuckets - 1) {
+                        continue;
+                    }
                     if (bucketValue == null || Double.isNaN(bucketValue)) {
                         if (gapPolicy.isSkippable) {
                             bucketCount++;

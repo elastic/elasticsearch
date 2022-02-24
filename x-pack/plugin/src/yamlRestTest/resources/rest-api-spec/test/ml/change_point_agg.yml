@@ -79,6 +79,10 @@ setup:
           {"cost":600,"time":1587501423000}
           {"index":{}}
           {"cost":600,"time":1587501433000}
+          {"index":{}}
+          {"cost":600,"time":1587501443000}
+          {"index":{}}
+          {"cost":600,"time":1587501453000}
 
 ---
 "Test change_point agg simple":
@@ -180,7 +184,7 @@ setup:
 "Test change_point with too few buckets":
 
   - do:
-      catch: /not enough buckets to calculate change_point. Requires at least \[21\], but found \[0\]/
+      catch: /not enough buckets to calculate change_point. Requires at least \[22\]/
       search:
         index: empty-store
         size: 0

@@ -14,30 +14,42 @@ import org.elasticsearch.common.Randomness;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 import static org.apache.commons.math3.stat.StatUtils.variance;
 
+/**
+ * Kernel Density Estimator
+ */
 final class KDE {
     private static final double SQRT2 = FastMath.sqrt(2.0);
 
+    /**
+     * Fit KDE choosing bandwidth by maximum likelihood cross validation.
+     * @param orderedValues the provided values, sorted
+     * @return the maximum likelihood bandwidth
+     */
     private static double maxLikelihoodBandwidth(double[] orderedValues) {
         int step = Math.max((int) (orderedValues.length / 10.0 + 0.5), 2);
-        SortedSet<Integer> trainingIndex = new TreeSet<>();
+        List<Integer> trainingIndex = new ArrayList<>();
         for (int i = 0; i < orderedValues.length; i += step) {
             int adjStep = Math.min(i + step, orderedValues.length) - i;
             List<Integer> indices = IntStream.range(i, i + adjStep).boxed().collect(Collectors.toList());
             Randomness.shuffle(indices);
             indices.stream().limit(Math.min(adjStep / 2, 4)).forEach(trainingIndex::add);
         }
-        int testStep = ((orderedValues.length - trainingIndex.size()) + 19) / 20;
-        int[] testIndices = IntStream.range(0, orderedValues.length)
-            .filter(i -> trainingIndex.contains(i) == false && i % testStep == 0)
+        Collections.sort(trainingIndex);
+        Set<Integer> trainingSet = new HashSet<>(trainingIndex);
+        int[] testIndices = IntStream.range(0, orderedValues.length).filter(i -> trainingSet.contains(i) == false).toArray();
+        int testStep = (testIndices.length + 19) / 20;
+        testIndices = IntStream.range(0, testIndices.length)
+            .filter(i -> i % testStep == 0)
             .toArray();
         double[] xTrain = trainingIndex.stream().mapToDouble(i -> orderedValues[i]).toArray();
         double maxLogLikeliHood = -Double.MAX_VALUE;
@@ -71,7 +83,7 @@ final class KDE {
             double y = (x - xs[i]) / bandwidth;
             return -0.5 * y * y - logBandwidth;
         }).toArray();
-        double maxLogPdf = DoubleStream.of(logPdfs).max().getAsDouble();
+        double maxLogPdf = DoubleStream.of(logPdfs).max().orElseThrow();
         double result = DoubleStream.of(logPdfs).map(logPdf -> Math.exp(logPdf - maxLogPdf)).sum();
         return Math.log(result) + maxLogPdf;
     }

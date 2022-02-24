@@ -95,10 +95,10 @@ public class ChangePointAggregatorTests extends ESTestCase {
     }
 
     public void testDip() {
-        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
+        NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
         double[] bucketValues = DoubleStream.concat(
             DoubleStream.generate(() -> 100 + normal.sample()).limit(25),
-            DoubleStream.concat(DoubleStream.of(50 + normal.sample()), DoubleStream.generate(() -> 100 + normal.sample()).limit(14))
+            DoubleStream.concat(DoubleStream.of(30 + normal.sample()), DoubleStream.generate(() -> 100 + normal.sample()).limit(14))
         ).toArray();
         ChangeType type = ChangePointAggregator.maxDeviationNormalModelPValue(values(bucketValues), P_VALUE_THRESHOLD);
         assertThat(Arrays.toString(bucketValues), type, instanceOf(ChangeType.Dip.class));

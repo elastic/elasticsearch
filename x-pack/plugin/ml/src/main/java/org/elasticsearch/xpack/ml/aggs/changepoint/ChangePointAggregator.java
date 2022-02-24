@@ -22,7 +22,9 @@ import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractBucket;
@@ -54,19 +56,16 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         MlAggsHelper.DoubleBucketValues maybeBucketsValue = extractDoubleBucketedValues(
             bucketsPaths()[0],
             aggregations,
-            BucketHelpers.GapPolicy.SKIP
+            BucketHelpers.GapPolicy.SKIP,
+            true
         ).orElseThrow(
             () -> new AggregationExecutionException(
                 "unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "] for agg [" + name() + "]"
             )
         );
-        if (maybeBucketsValue.getValues().length < (2 * MINIMUM_BUCKETS) + 1) {
+        if (maybeBucketsValue.getValues().length < (2 * MINIMUM_BUCKETS) + 2) {
             throw new AggregationExecutionException(
-                "not enough buckets to calculate change_point. Requires at least ["
-                    + ((2 * MINIMUM_BUCKETS) + 1)
-                    + "], but found ["
-                    + maybeBucketsValue.getValues().length
-                    + "]"
+                "not enough buckets to calculate change_point. Requires at least [" + ((2 * MINIMUM_BUCKETS) + 2) + "]"
             );
         }
         Tuple<int[], Integer> candidatePoints = candidateChangePoints(maybeBucketsValue.getValues());
@@ -159,6 +158,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         upperRange.addValues(timeWindow, candidateChangePoints[0], timeWindow.length);
         lowerRange.addValues(timeWindow, 0, candidateChangePoints[0]);
         vAlt = Double.MAX_VALUE;
+        Set<Integer> discoveredChangePoints = new HashSet<>(3, 1.0f);
         int changePoint = candidateChangePoints[candidateChangePoints.length - 1] + 1;
         for (int cp : candidateChangePoints) {
             double maybeVAlt = (cp * lowerRange.variance() + (n - cp) * upperRange.variance()) / n;
@@ -169,6 +169,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             lowerRange.addValues(timeWindow, cp, cp + step);
             upperRange.removeValues(timeWindow, cp, cp + step);
         }
+        discoveredChangePoints.add(changePoint);
         dfAlt = n - 2;
 
         pValueVsNull = independentTrialsPValue(fTestPValue(vNull, dfNull, vAlt, dfAlt), candidateChangePoints.length);
@@ -237,6 +238,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 upperMovingWindow++;
             }
         }
+        discoveredChangePoints.add(changePoint);
 
         dfAlt = n - 6;
         pValueVsNull = independentTrialsPValue(fTestPValue(vNull, dfNull, vAndR.variance, dfAlt), candidateChangePoints.length);
@@ -269,10 +271,18 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 lowerRange.addValues(timeWindow, cp, cp + step);
                 upperRange.removeValues(timeWindow, cp, cp + step);
             }
-            double pValue = KOLMOGOROV_SMIRNOV_TEST.kolmogorovSmirnovTest(
-                Arrays.copyOfRange(timeWindow, 0, changePoint),
-                Arrays.copyOfRange(timeWindow, changePoint, timeWindow.length)
-            );
+            discoveredChangePoints.add(changePoint);
+            double pValue = 1;
+            for (int i : discoveredChangePoints) {
+                double ksTestPValue = KOLMOGOROV_SMIRNOV_TEST.kolmogorovSmirnovTest(
+                    Arrays.copyOfRange(timeWindow, 0, i),
+                    Arrays.copyOfRange(timeWindow, i, timeWindow.length)
+                );
+                if (ksTestPValue < pValue) {
+                    changePoint = i;
+                    pValue = ksTestPValue;
+                }
+            }
             pValue = independentTrialsPValue(pValue, candidateChangePoints.length);
             if (pValue < Math.min(pValueThreshold, 0.1 * changeType.pValue())) {
                 changeType = new ChangeType.DistributionChange(pValue, bucketValues.getBucketIndex(changePoint));

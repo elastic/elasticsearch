@@ -16,7 +16,7 @@
         "action_id": {
           "type": "keyword"
         },
-        "input_type": {
+        "action_input_type": {
           "type": "keyword"
         },
         "agent_id": {

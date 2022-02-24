@@ -20,7 +20,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -47,10 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING;
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
-import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.checkRemovedSetting;
 
 public class ClusterDeprecationChecks {
     private static final Logger logger = LogManager.getLogger(ClusterDeprecationChecks.class);
@@ -568,38 +564,6 @@ public class ClusterDeprecationChecks {
         return false;
     }
 
-    static DeprecationIssue checkPollIntervalTooLow(ClusterState state) {
-        String pollIntervalString = state.metadata().settings().get(LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
-        if (Strings.isNullOrEmpty(pollIntervalString)) {
-            return null;
-        }
-
-        TimeValue pollInterval;
-        try {
-            pollInterval = TimeValue.parseTimeValue(pollIntervalString, LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
-        } catch (IllegalArgumentException e) {
-            logger.error("Failed to parse [{}] value: [{}]", LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollIntervalString);
-            return null;
-        }
-
-        if (pollInterval.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
-            return new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
-                "Index Lifecycle Management poll interval is set too low",
-                "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
-                String.format(
-                    Locale.ROOT,
-                    "The ILM [%s] setting is set to [%s]. Set the interval to at least 1s.",
-                    LIFECYCLE_POLL_INTERVAL_SETTING.getKey(),
-                    pollIntervalString
-                ),
-                false,
-                null
-            );
-        }
-        return null;
-    }
-
     static DeprecationIssue checkTemplatesWithCustomAndMultipleTypes(ClusterState state) {
         Set<String> templatesWithMultipleTypes = new TreeSet<>();
         Set<String> templatesWithCustomTypes = new TreeSet<>();
@@ -654,17 +618,6 @@ public class ClusterDeprecationChecks {
             );
         }
         return deprecationIssue;
-    }
-
-    static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState) {
-        return checkRemovedSetting(
-            clusterState.metadata().settings(),
-            null,
-            CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
-            "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
-            "Relocating shards are always taken into account in 8.0.",
-            DeprecationIssue.Level.WARNING
-        );
     }
 
     @SuppressWarnings("unchecked")

@@ -196,6 +196,7 @@ public abstract class DocumentParserContext {
 
     public final String id() {
         if (id == null) {
+            assert false : "id field mapper has not set the id";
             throw new IllegalStateException("id field mapper has not set the id");
         }
         return id;

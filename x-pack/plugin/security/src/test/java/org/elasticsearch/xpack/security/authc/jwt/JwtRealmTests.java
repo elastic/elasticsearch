@@ -9,15 +9,12 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.PlainJWT;
 import com.nimbusds.jwt.SignedJWT;
+import com.nimbusds.openid.connect.sdk.Nonce;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,7 +24,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -48,14 +44,14 @@ import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -109,6 +105,122 @@ public class JwtRealmTests extends JwtTestCase {
     }
 
     /**
+     * Generate a static JWT realm config, and request headers, which the realm can successfully authenticate.
+     *
+     * Print these artifacts, so they can be imported into this integration test project for verifying loading of JWT realm config:
+     *  - x-pack/plugin/security/qa/smoke-test-all-realms/build.gradle
+     *
+     * If something needs tweaking, change the code here and re-run it. The new artifacts can be used to update that smoke test project.
+     * @throws Exception Error if something goes wrong.
+     */
+    public void testCreateJwtSmokeTestRealm() throws Exception {
+        // static HMAC key (password UTF-8 bytes, for OIDC HMAC Key encoding compatibility)
+        final byte[] hmacKeyOidcBytes = "hmac-oidc-key-string-for-hs256-algorithm".getBytes(StandardCharsets.UTF_8);
+        final OctetSequenceKey hmacJwkOidc = new OctetSequenceKey.Builder(hmacKeyOidcBytes).build();
+
+        // Create JWT issuer with hard-coded HMAC signing key and HS256 algorithm, and a valid user from the smoke test project
+        final JwtIssuer jwtIssuer = new JwtIssuer(
+            "iss8",
+            List.of("aud8"),
+            JwtTestCase.randomJwks(Collections.emptyList()),
+            JwtTestCase.randomJwks(Collections.emptyList()),
+            new JwtIssuer.AlgJwkPair("HS256", hmacJwkOidc),
+            Collections.singletonMap("security_test_user", new User("security_test_user", new String[] { "security_test_role" }))
+        );
+
+        // Create JWT realm settings with hard-coded name, order, issuer, audiences, algorithms, principal claim, secret, HMAC verify key
+        final String realmName = "jwt8";
+        final int realmOrder = 8;
+        final Settings.Builder authcSettings = Settings.builder()
+            .put(this.globalSettings)
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuer)
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES), String.join(",", jwtIssuer.audiences))
+            .put(
+                RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
+                String.join(",", jwtIssuer.getAllAlgorithms())
+            )
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), "sub")
+            .put(
+                RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
+                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET
+            );
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(
+            RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HMAC_KEY),
+            new String(hmacKeyOidcBytes, StandardCharsets.UTF_8)
+        );
+        secureSettings.setString(
+            RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
+            "client-shared-secret-string"
+        );
+        authcSettings.setSecureSettings(secureSettings);
+
+        // Create JWT realm from the hard-coded settings
+        final RealmConfig config = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, authcSettings.build(), realmOrder);
+        final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(authcSettings.build()));
+        final UserRoleMapper userRoleMapper = super.buildRoleMapper(jwtIssuer.users);
+        final JwtRealm jwtRealm = new JwtRealm(config, sslService, userRoleMapper);
+        jwtRealm.initialize(Collections.singletonList(jwtRealm), this.licenseState);
+
+        // Register the JWT issuer and realm pair in this test class instance, so the realm is automatically closed
+        this.jwtIssuerAndRealms = Collections.singletonList(new JwtIssuerAndRealm(jwtIssuer, jwtRealm));
+
+        // Select the one JWT issuer and realm pair, and the one user from the issuer
+        final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
+        final User user = this.randomUser(jwtIssuerAndRealm.issuer);
+
+        // Sign a JWT for the one user, using the one HMAC key from the issuer, and claim settings from the realm
+        final SecureString jwt;
+        {   // Copied from randomJwt() and modified to hard-code exp far in the future
+            final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer.getAllAlgJwkPairs());
+            LOGGER.info("JWK=[" + algJwkPair.jwk().getKeyType() + "/" + algJwkPair.jwk().size() + "], alg=[" + algJwkPair.alg() + "].");
+
+            final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
+                algJwkPair.alg(), // alg
+                null, // jwtID
+                jwtIssuerAndRealm.realm.allowedIssuer, // iss
+                jwtIssuerAndRealm.realm.allowedAudiences, // aud
+                user.principal(), // sub
+                "sub", // principal claim name
+                user.principal(), // principal claim value
+                "roles", // group claim name
+                List.of("security_test_role"), // group claim value
+                null, // auth_time
+                Date.from(ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant()), // iat
+                null, // nbf
+                Date.from(ZonedDateTime.of(2099, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant()), // exp
+                null, // nonce
+                Collections.emptyMap() // other claims
+            );
+            jwt = JwtValidateUtil.signJwt(algJwkPair.jwk(), unsignedJwt);
+            assertThat(JwtValidateUtil.verifyJwt(algJwkPair.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
+        }
+        final SecureString clientSecret = jwtIssuerAndRealm.realm.clientAuthenticationSharedSecret;
+
+        // Verify the JWT realm successfully authenticates the JWT and client secret
+        final MinMax jwtAuthcRange = new MinMax(1, 1);
+        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm, user, jwt, clientSecret, jwtAuthcRange);
+
+        // Print the REST request headers and JWT realm settings. These static artifacts can be used in the integration smoke test.
+        LOGGER.info(
+            "\n===\nRequest Headers\n===\n"
+                + JwtRealm.HEADER_CLIENT_AUTHENTICATION
+                + ": "
+                + clientSecret
+                + "\n"
+                + JwtRealm.HEADER_END_USER_AUTHENTICATION
+                + ": "
+                + jwt
+                + "\n"
+                + JwtTestCase.printRealmSettings(config, true)
+        );
+
+        final SignedJWT signedJwt = SignedJWT.parse(new String(jwt.getChars()));
+        LOGGER.info("JWT Contents\n===\nHeader: " + signedJwt.getHeader() + "\nClaims: " + signedJwt.getJWTClaimsSet() + "\n===");
+    }
+
+    /**
      * Test with empty roles.
      * @throws Exception Unexpected test failure
      */
@@ -128,7 +240,7 @@ public class JwtRealmTests extends JwtTestCase {
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
         final SecureString clientSecret = jwtIssuerAndRealm.realm.clientAuthenticationSharedSecret;
         final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm, user, jwt, clientSecret, jwtAuthcRange);
+        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm, user, jwt, clientSecret, jwtAuthcRange);
     }
 
     /**
@@ -151,7 +263,7 @@ public class JwtRealmTests extends JwtTestCase {
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
         final SecureString clientSecret = jwtIssuerAndRealm.realm.clientAuthenticationSharedSecret;
         final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm, user, jwt, clientSecret, jwtAuthcRange);
+        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm, user, jwt, clientSecret, jwtAuthcRange);
     }
 
     /**
@@ -174,7 +286,7 @@ public class JwtRealmTests extends JwtTestCase {
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
         final SecureString clientSecret = jwtIssuerAndRealm.realm.clientAuthenticationSharedSecret;
         final MinMax jwtAuthcRange = new MinMax(2, 3);
-        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm, user, jwt, clientSecret, jwtAuthcRange);
+        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm, user, jwt, clientSecret, jwtAuthcRange);
     }
 
     /**
@@ -199,10 +311,10 @@ public class JwtRealmTests extends JwtTestCase {
         final MinMax jwtAuthcRange = new MinMax(2, 3);
 
         // Indirectly verify authentication works before performing any failure scenarios
-        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm, user, jwt, clientSecret, jwtAuthcRange);
+        this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm, user, jwt, clientSecret, jwtAuthcRange);
 
         {   // Directly verify SUCCESS scenario for token() and authenticate() validation, before checking any failure tests.
-            final ThreadContext requestThreadContext = this.createThreadContext(jwt, clientSecret);
+            final ThreadContext requestThreadContext = super.createThreadContext(jwt, clientSecret);
             final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm.token(requestThreadContext);
             final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
             jwtIssuerAndRealm.realm.authenticate(token, plainActionFuture);
@@ -213,32 +325,32 @@ public class JwtRealmTests extends JwtTestCase {
         // Directly verify FAILURE scenarios for token() parsing and authenticate() validation.
 
         // Null JWT
-        final ThreadContext tc1 = this.createThreadContext(null, clientSecret);
+        final ThreadContext tc1 = super.createThreadContext(null, clientSecret);
         final Exception e1 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm.token(tc1));
         assertThat(e1.getMessage(), equalTo("JWT bearer token must be non-null"));
 
         // Empty JWT string
-        final ThreadContext tc2 = this.createThreadContext("", clientSecret);
+        final ThreadContext tc2 = super.createThreadContext("", clientSecret);
         final Exception e2 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm.token(tc2));
         assertThat(e2.getMessage(), equalTo("JWT bearer token must be non-empty"));
 
         // Non-empty whitespace JWT string
-        final ThreadContext tc3 = this.createThreadContext("", clientSecret);
+        final ThreadContext tc3 = super.createThreadContext("", clientSecret);
         final Exception e3 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm.token(tc3));
         assertThat(e3.getMessage(), equalTo("JWT bearer token must be non-empty"));
 
         // Blank client secret
-        final ThreadContext tc4 = this.createThreadContext(jwt, "");
+        final ThreadContext tc4 = super.createThreadContext(jwt, "");
         final Exception e4 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm.token(tc4));
         assertThat(e4.getMessage(), equalTo("Client shared secret must be non-empty"));
 
         // Non-empty whitespace JWT client secret
-        final ThreadContext tc5 = this.createThreadContext(jwt, " ");
+        final ThreadContext tc5 = super.createThreadContext(jwt, " ");
         final Exception e5 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm.token(tc5));
         assertThat(e5.getMessage(), equalTo("Client shared secret must be non-empty"));
 
         // JWT parse exception
-        final ThreadContext tc6 = this.createThreadContext("Head.Body.Sig", clientSecret);
+        final ThreadContext tc6 = super.createThreadContext("Head.Body.Sig", clientSecret);
         final Exception e6 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm.token(tc6));
         assertThat(e6.getMessage(), equalTo("Failed to parse JWT bearer token"));
 
@@ -250,7 +362,7 @@ public class JwtRealmTests extends JwtTestCase {
 
         {   // Verify rejection of unsigned JWT
             final SecureString unsignedJwt = new SecureString(new PlainJWT(validClaimsSet).serialize().toCharArray());
-            final ThreadContext tc = this.createThreadContext(unsignedJwt, clientSecret);
+            final ThreadContext tc = super.createThreadContext(unsignedJwt, clientSecret);
             expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm.token(tc));
         }
 
@@ -272,14 +384,14 @@ public class JwtRealmTests extends JwtTestCase {
             // This check can only be executed if there is a flip algorithm available in the realm
             if (Strings.hasText(mixupAlg)) {
                 final JWSHeader tamperedHeader = new JWSHeader.Builder(JWSAlgorithm.parse(mixupAlg)).build();
-                final SecureString jwtTamperedHeader = super.buildJWT(tamperedHeader, validClaimsSet, validSignature);
+                final SecureString jwtTamperedHeader = JwtValidateUtil.buildJwt(tamperedHeader, validClaimsSet, validSignature);
                 this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtTamperedHeader, clientSecret);
             }
         }
 
         {   // Verify rejection of a tampered claim set
             final JWTClaimsSet tamperedClaimsSet = new JWTClaimsSet.Builder(validClaimsSet).claim("gr0up", "superuser").build();
-            final SecureString jwtTamperedClaimsSet = buildJWT(validHeader, tamperedClaimsSet, validSignature);
+            final SecureString jwtTamperedClaimsSet = JwtValidateUtil.buildJwt(validHeader, tamperedClaimsSet, validSignature);
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtTamperedClaimsSet, clientSecret);
         }
 
@@ -291,33 +403,32 @@ public class JwtRealmTests extends JwtTestCase {
         // Get read to re-sign JWTs for time claim failure tests
         final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer.getAllAlgJwkPairs());
         final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(algJwkPair.alg())).build();
-        final JWSSigner jwsSigner = JwtValidateUtil.createJwsSigner(algJwkPair.jwk());
         final Instant now = Instant.now();
         final Date past = Date.from(now.minusSeconds(86400));
         final Date future = Date.from(now.plusSeconds(86400));
 
         {   // Verify rejection of JWT auth_time > now
             final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).claim("auth_time", future).build();
-            final String jwtIatFuture = JwtValidateUtil.signJwt(jwsSigner, new SignedJWT(jwtHeader, claimsSet)).serialize();
-            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, new SecureString(jwtIatFuture.toCharArray()), clientSecret);
+            final SecureString jwtIatFuture = JwtValidateUtil.signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtIatFuture, clientSecret);
         }
 
         {   // Verify rejection of JWT iat > now
             final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).issueTime(future).build();
-            final String jwtIatFuture = JwtValidateUtil.signJwt(jwsSigner, new SignedJWT(jwtHeader, claimsSet)).serialize();
-            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, new SecureString(jwtIatFuture.toCharArray()), clientSecret);
+            final SecureString jwtIatFuture = JwtValidateUtil.signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtIatFuture, clientSecret);
         }
 
         {   // Verify rejection of JWT nbf > now
             final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).notBeforeTime(future).build();
-            final String jwtIatFuture = JwtValidateUtil.signJwt(jwsSigner, new SignedJWT(jwtHeader, claimsSet)).serialize();
-            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, new SecureString(jwtIatFuture.toCharArray()), clientSecret);
+            final SecureString jwtIatFuture = JwtValidateUtil.signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtIatFuture, clientSecret);
         }
 
         {   // Verify rejection of JWT now > exp
             final JWTClaimsSet claimsSet = new JWTClaimsSet.Builder(validClaimsSet).expirationTime(past).build();
-            final String jwtExpPast = JwtValidateUtil.signJwt(jwsSigner, new SignedJWT(jwtHeader, claimsSet)).serialize();
-            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, new SecureString(jwtExpPast.toCharArray()), clientSecret);
+            final SecureString jwtExpPast = JwtValidateUtil.signJwt(algJwkPair.jwk(), new SignedJWT(jwtHeader, claimsSet));
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtExpPast, clientSecret);
         }
     }
 
@@ -326,7 +437,7 @@ public class JwtRealmTests extends JwtTestCase {
         final SecureString jwt,
         final SecureString clientSecret
     ) throws InterruptedException, ExecutionException {
-        final ThreadContext tc = this.createThreadContext(jwt, clientSecret);
+        final ThreadContext tc = super.createThreadContext(jwt, clientSecret);
         final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm.token(tc);
         final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
         jwtIssuerAndRealm.realm.authenticate(token, plainActionFuture);
@@ -430,49 +541,77 @@ public class JwtRealmTests extends JwtTestCase {
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
                 String.join(",", jwtIssuer.getAllAlgorithms())
             )
-            .put(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_CLOCK_SKEW),
-                randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(1, 5) + randomFrom("s", "m", "h")
-            )
-            .put(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.PKC_JWKSET_PATH),
-                saveJwkSetToTempFile(jwtIssuer.getJwkSetPkc(), true)
-            )
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_AUDIENCES), randomFrom(jwtIssuer.audiences))
-            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE), clientAuthenticationType)
             .put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()),
                 randomBoolean() ? "sub" : authcRealmName + "_sub"
-            )
-            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()), "^(.*)$")
-            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.POPULATE_USER_METADATA), randomBoolean())
-            .put(
-                RealmSettings.getFullSettingKey(authcRealmName, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
-                String.join(",", authzRealmNames)
             );
+        if ((JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET.equals(clientAuthenticationType) == false) || (randomBoolean())) {
+            // always set "None", optionally set "SharedSecret" or let it get picked by default
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
+                clientAuthenticationType
+            );
+        }
         if (randomBoolean()) {
+            // optionally allow default, or set -1 disabled or non-zero for enabled
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_CLOCK_SKEW),
+                randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(1, 5) + randomFrom("s", "m", "h")
+            );
+        }
+        if ((jwtIssuer.getJwkSetPkc() != null) || (randomBoolean())) {
+            // always set non-empty JWKSet, or optionally set null if empty
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.PKC_JWKSET_PATH),
+                super.saveJwkSetToTempFile(jwtIssuer.getJwkSetPkc(), true)
+            );
+        }
+        if (randomBoolean()) {
+            // principal claim name is required, but principal claim pattern is optional
+            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()), "^(.*)$");
+        }
+        if (randomBoolean()) {
+            // groups claim name is optional
             authcSettings.put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_GROUPS.getClaim()),
                 authcRealmName + "_groups"
             );
-            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_GROUPS.getPattern()), "^(.*)$");
+            if (randomBoolean()) {
+                // if groups claim name is set, groups claim pattern is optional
+                authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_GROUPS.getPattern()), "^(.*)$");
+            }
+        }
+        if (randomBoolean()) {
+            // allow default to be picked, or explicitly set true or false
+            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.POPULATE_USER_METADATA), randomBoolean());
+        }
+        if ((authzRealmNames.length != 0) || (randomBoolean())) {
+            // always set non-empty list, otherwise leave it out or optionally set value to an empty list
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
+                String.join(",", authzRealmNames)
+            );
         }
         // JWT authc realm secure settings
         final MockSecureSettings secureSettings = new MockSecureSettings();
         if (jwtIssuer.algAndJwksHmac.isEmpty() == false) {
+            // always set if non-empty
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.HMAC_JWKSET),
                 JwtUtil.serializeJwkSet(jwtIssuer.getJwkSetHmac(), false)
             );
         }
         if (jwtIssuer.algAndJwkHmacOidc != null) {
+            // always set if non-empty
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.HMAC_KEY),
                 new String(jwtIssuer.algAndJwkHmacOidc.jwk().toOctetSequenceKey().toByteArray(), StandardCharsets.UTF_8)
             );
         }
         if (clientAuthenticationType.equals(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET)) {
-            final String clientAuthenticationSharedSecret = Base64.getUrlEncoder().encodeToString(randomByteArrayOfLength(32));
+            // always set if type is "SharedSecret"
+            final String clientAuthenticationSharedSecret = randomAlphaOfLength(64);
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
                 clientAuthenticationSharedSecret
@@ -555,42 +694,8 @@ public class JwtRealmTests extends JwtTestCase {
         return jwtIssuerAndRealm;
     }
 
-    private User randomUser(JwtIssuer jwtIssuer) {
-        final User user = randomFrom(jwtIssuer.users.values());
-        LOGGER.info("USER[" + user.principal() + "]: roles=[" + String.join(",", user.roles()) + "].");
-        return user;
-    }
-
-    private SecureString randomJwt(final JwtIssuerAndRealm jwtIssuerAndRealm, User user) throws Exception {
-        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer.getAllAlgJwkPairs());
-        LOGGER.info("JWK=[" + algJwkPair.jwk().getKeyType() + "/" + algJwkPair.jwk().size() + "], alg=[" + algJwkPair.alg() + "].");
-
-        // JWT needs user settings (i.e. principal, roles), and realm settings (ex: iss, aud, principal/groups claim parsers).
-        final SignedJWT signedJWT = this.buildSignedJWT(jwtIssuerAndRealm.realm, user, algJwkPair.alg(), algJwkPair.jwk());
-        return new SecureString(signedJWT.serialize().toCharArray());
-    }
-
-    private SignedJWT buildSignedJWT(final JwtRealm jwtRealm, final User user, final String signatureAlgorithm, final JWK jwk)
-        throws Exception {
-        final SignedJWT unsignedJwt = JwkValidateUtilTests.randomValidJwsHeaderAndJwtClaimsSet(
-            signatureAlgorithm,
-            jwtRealm.allowedIssuer,
-            jwtRealm.allowedAudiences,
-            jwtRealm.claimParserPrincipal.getClaimName(),
-            user.principal(),
-            jwtRealm.claimParserGroups.getClaimName(),
-            List.of(user.roles()),
-            Map.of("metadata", randomAlphaOfLength(10))
-        );
-        final JWSSigner jwsSigner = JwtValidateUtil.createJwsSigner(jwk);
-        final SignedJWT signedJWT = JwtValidateUtil.signJwt(jwsSigner, unsignedJwt);
-        final JWSVerifier jwkVerifier = JwtValidateUtil.createJwsVerifier(jwk);
-        assertThat(JwtValidateUtil.verifyJWT(jwkVerifier, signedJWT), is(equalTo(true)));
-        return signedJWT;
-    }
-
     private void multipleRealmsAuthenticateJwtHelper(
-        final JwtIssuerAndRealm jwtIssuerAndRealm,
+        final JwtRealm jwtRealm,
         final User user,
         final SecureString jwt,
         final SecureString sharedSecret,
@@ -606,7 +711,8 @@ public class JwtRealmTests extends JwtTestCase {
         for (int authcRun = 1; authcRun <= jwtAuthcRepeats; authcRun++) {
             // Create request with headers set
             LOGGER.info("RUN[" + authcRun + "/" + jwtAuthcRepeats + "], jwt=[" + jwt + "], secret=[" + sharedSecret + "].");
-            final ThreadContext requestThreadContext = this.createThreadContext(jwt, sharedSecret);
+            final ThreadContext requestThreadContext = super.createThreadContext(jwt, sharedSecret);
+            LOGGER.info(requestThreadContext.getHeaders().toString()); // TODO Remove debug log
 
             // Loop through all authc/authz realms. Confirm a JWT authc realm recognizes and extracts the request headers.
             JwtAuthenticationToken jwtAuthenticationToken = null;
@@ -650,9 +756,9 @@ public class JwtRealmTests extends JwtTestCase {
                         final String realmResult = "  realms=["
                             + allJwtRealms.size()
                             + "], expected=["
-                            + jwtIssuerAndRealm.realm.name()
+                            + jwtRealm.name()
                             + ","
-                            + jwtIssuerAndRealm.realm.order()
+                            + jwtRealm.order()
                             + "], current["
                             + candidateJwtRealm.name()
                             + ","
@@ -672,7 +778,7 @@ public class JwtRealmTests extends JwtTestCase {
                         realmFailureExceptions.add(new Exception(realmResult, authenticationResultException));
                         switch (authenticationResult.getStatus()) {
                             case SUCCESS:
-                                assertThat(candidateJwtRealm.name(), is(equalTo(jwtIssuerAndRealm.realm.name())));
+                                assertThat(candidateJwtRealm.name(), is(equalTo(jwtRealm.name())));
                                 assertThat(authenticationResult.isAuthenticated(), is(equalTo(true)));
                                 assertThat(authenticationResult.getException(), is(nullValue()));
                                 assertThat(authenticationResult.getMessage(), is(nullValue()));
@@ -681,11 +787,11 @@ public class JwtRealmTests extends JwtTestCase {
                                 assertThat(authenticatedUser, is(notNullValue()));
                                 break;
                             case CONTINUE:
-                                assertThat(candidateJwtRealm.name(), is(not(equalTo(jwtIssuerAndRealm.realm.name()))));
+                                assertThat(candidateJwtRealm.name(), is(not(equalTo(jwtRealm.name()))));
                                 assertThat(authenticationResult.isAuthenticated(), is(equalTo(false)));
                                 continue;
                             case TERMINATE:
-                                assertThat(candidateJwtRealm.name(), is(not(equalTo(jwtIssuerAndRealm.realm.name()))));
+                                assertThat(candidateJwtRealm.name(), is(not(equalTo(jwtRealm.name()))));
                                 assertThat(authenticationResult.isAuthenticated(), is(equalTo(false)));
                                 break;
                             default:
@@ -712,13 +818,13 @@ public class JwtRealmTests extends JwtTestCase {
                     }
                 }
                 // Loop ended. Confirm authenticatedUser is returned with expected principal and roles.
-                assertThat("Expected realm " + jwtIssuerAndRealm.realm.name() + " to authenticate.", authenticatedUser, is(notNullValue()));
+                assertThat("Expected realm " + jwtRealm.name() + " to authenticate.", authenticatedUser, is(notNullValue()));
                 assertThat(user.principal(), equalTo(authenticatedUser.principal()));
                 assertThat(new TreeSet<>(Arrays.asList(user.roles())), equalTo(new TreeSet<>(Arrays.asList(authenticatedUser.roles()))));
-                if (jwtIssuerAndRealm.realm.delegatedAuthorizationSupport.hasDelegation()) {
+                if (jwtRealm.delegatedAuthorizationSupport.hasDelegation()) {
                     assertThat(user.metadata(), is(equalTo(authenticatedUser.metadata()))); // delegated authz returns user's
                                                                                             // metadata
-                } else if (jwtIssuerAndRealm.realm.populateUserMetadata) {
+                } else if (jwtRealm.populateUserMetadata) {
                     assertThat(authenticatedUser.metadata(), is(not(anEmptyMap()))); // role mapping with flag true returns non-empty
                 } else {
                     assertThat(authenticatedUser.metadata(), is(anEmptyMap())); // role mapping with flag false returns empty
@@ -730,42 +836,45 @@ public class JwtRealmTests extends JwtTestCase {
                 LOGGER.error("Unexpected exception.", authcFailed);
                 throw authcFailed;
             } finally {
-                LOGGER.info("STATS: expected=[" + jwtIssuerAndRealm.realm.name() + "]\n" + String.join("\n", realmUsageStats));
+                LOGGER.info("STATS: expected=[" + jwtRealm.name() + "]\n" + String.join("\n", realmUsageStats));
                 if (authenticatedUser != null) {
-                    LOGGER.info(
-                        "RESULT: expected=[" + jwtIssuerAndRealm.realm.name() + "]\n" + String.join("\n", realmAuthenticationResults)
-                    );
+                    LOGGER.info("RESULT: expected=[" + jwtRealm.name() + "]\n" + String.join("\n", realmAuthenticationResults));
                 }
             }
         }
         LOGGER.info("Test succeeded");
     }
 
-    private ThreadContext createThreadContext(final CharSequence jwt, final CharSequence sharedSecret) {
-        final ThreadContext requestThreadContext = new ThreadContext(this.globalSettings);
-        if (jwt != null) {
-            requestThreadContext.putHeader(
-                JwtRealm.HEADER_END_USER_AUTHENTICATION,
-                JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + jwt
-            );
-        }
-        if (sharedSecret != null) {
-            requestThreadContext.putHeader(
-                JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET + " " + sharedSecret
-            );
-        }
-        return requestThreadContext;
+    private User randomUser(final JwtIssuer jwtIssuer) {
+        final User user = randomFrom(jwtIssuer.users.values());
+        LOGGER.info("USER[" + user.principal() + "]: roles=[" + String.join(",", user.roles()) + "].");
+        return user;
     }
 
-    private String saveJwkSetToTempFile(final JWKSet jwksetPkc, final boolean publicKeysOnly) throws IOException {
-        final String serializedJwkSet = JwtUtil.serializeJwkSet(jwksetPkc, publicKeysOnly);
-        if (serializedJwkSet == null) {
-            return null;
-        }
-        final Path path = Files.createTempFile(PathUtils.get(this.pathHome), "jwkset.", ".json");
-        Files.writeString(path, serializedJwkSet);
-        return path.toString();
-    }
+    private SecureString randomJwt(final JwtIssuerAndRealm jwtIssuerAndRealm, User user) throws Exception {
+        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer.getAllAlgJwkPairs());
+        LOGGER.info("JWK=[" + algJwkPair.jwk().getKeyType() + "/" + algJwkPair.jwk().size() + "], alg=[" + algJwkPair.alg() + "].");
 
+        final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
+            algJwkPair.alg(), // alg
+            randomAlphaOfLengthBetween(10, 20), // jwtID
+            jwtIssuerAndRealm.realm.allowedIssuer, // iss
+            jwtIssuerAndRealm.realm.allowedAudiences, // aud
+            randomBoolean() ? user.principal() : user.principal() + "_" + randomAlphaOfLength(8), // sub
+            jwtIssuerAndRealm.realm.claimParserPrincipal.getClaimName(), // principal claim name
+            user.principal(), // principal claim value
+            jwtIssuerAndRealm.realm.claimParserGroups.getClaimName(), // group claim name
+            List.of(user.roles()), // group claim value
+            Date.from(now.minusSeconds(randomLongBetween(10, 20))), // auth_time
+            Date.from(now), // iat
+            Date.from(now.minusSeconds(randomLongBetween(5, 10))), // nbf
+            Date.from(now.plusSeconds(randomLongBetween(3600, 7200))), // exp
+            randomBoolean() ? null : new Nonce(32),
+            randomBoolean() ? null : Map.of("other1", randomAlphaOfLength(10), "other2", randomAlphaOfLength(10))
+        );
+        final SecureString signedJWT = JwtValidateUtil.signJwt(algJwkPair.jwk(), unsignedJwt);
+        assertThat(JwtValidateUtil.verifyJwt(algJwkPair.jwk(), SignedJWT.parse(signedJWT.toString())), is(equalTo(true)));
+        return signedJWT;
+    }
 }

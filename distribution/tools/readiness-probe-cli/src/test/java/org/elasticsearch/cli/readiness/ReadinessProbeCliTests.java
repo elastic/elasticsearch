@@ -10,15 +10,19 @@ package org.elasticsearch.cli.readiness;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.readiness.ReadinessService;
+import org.elasticsearch.env.Environment;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -35,18 +39,24 @@ public class ReadinessProbeCliTests extends LuceneTestCase {
     }
 
     public void testNoArguments() throws Exception {
+        String readinessPath = PathUtils.get("tmp").resolve("socket.file").toString();
+
         MockTerminal terminal = new MockTerminal();
-        ReadinessProbeCli cli = new ReadinessProbeCli();
+        ReadinessProbeCli cli = new ReadinessProbeCli() {
+            @Override
+            protected Environment createEnv(final Map<String, String> settings) throws UserException {
+                settings.put(Environment.READINESS_SOCKET_FILE.getKey(), readinessPath);
+                return createEnv(Settings.EMPTY, settings);
+            }
+        };
         cli = spy(cli);
         doAnswer(i -> {
             Object arg0 = i.getArgument(0);
-
-            assertThat(arg0.toString(), containsString(ReadinessService.SOCKET_NAME));
+            assertThat(arg0.toString(), endsWith(readinessPath));
             return null;
         }).when(cli).tryConnect(any());
 
         cli.main(new String[] {}, terminal);
         assertThat(terminal.getErrorOutput(), emptyString());
     }
-
 }

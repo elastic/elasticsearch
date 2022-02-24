@@ -8,6 +8,7 @@
 
 package org.elasticsearch.readiness;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
@@ -54,6 +56,7 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.mockito.Mockito.spy;
 
+@LuceneTestCase.SuppressFileSystems("*")
 public class ReadinessServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private ReadinessService readinessService;
@@ -109,7 +112,10 @@ public class ReadinessServiceTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadpool
         );
-        Settings settings = Settings.builder().put(ReadinessService.ENABLED_SETTING.getKey(), true).build();
+        Path socketFilePath = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("readiness.socket");
+        Settings settings = Settings.builder()
+            .put(Environment.READINESS_SOCKET_FILE.getKey(), socketFilePath.normalize().toAbsolutePath())
+            .build();
         env = newEnvironment(settings);
 
         httpTransport = new FakeHttpTransport();
@@ -124,43 +130,39 @@ public class ReadinessServiceTests extends ESTestCase {
 
     public void testBasicSetup() {
         assertTrue(readinessService.enabled());
-        Path socketPath = readinessService.getSocketPath();
-        assertTrue(socketPath.startsWith(env.logsFile()));
-        assertTrue(socketPath.toString().endsWith(ReadinessService.SOCKET_NAME));
+        assertEquals(env.readinessSocketFile(), readinessService.getSocketPath());
     }
 
-    @SuppressForbidden(reason = "Must use Default System FS")
     public void testSocketChannelCreation() throws Exception {
         // Unix domain sockets need real file system, we can't use the Lucene Filter FS
-        Path truePath = Files.createTempFile("readiness", ".socket");
-        try (ServerSocketChannel channel = readinessService.setupUnixDomainSocket(truePath)) {
+        try (ServerSocketChannel channel = readinessService.setupUnixDomainSocket(readinessService.getSocketPath())) {
             assertTrue(channel.isOpen());
-            assertTrue(Files.exists(truePath));
+            assertTrue(Files.exists(readinessService.getSocketPath()));
         }
     }
 
-    @SuppressForbidden(reason = "Must use Default System FS")
-    public void testStartStop() throws Exception {
+    public void testStartStop() {
+        readinessService.start();
+        assertNotNull(readinessService.serverChannel());
+        readinessService.stop();
+        assertTrue(Files.exists(readinessService.getSocketPath()));
+        assertFalse(readinessService.ready());
+        readinessService.close();
+        assertFalse(Files.exists(readinessService.getSocketPath()));
+    }
+
+    public void testLongSocketPathName() {
         ReadinessService spied = spy(readinessService);
-        Path tempPath = Files.createTempFile("readiness", ".socket");
+        Path tempPath = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve(randomAlphaOfLength(108));
         Mockito.doReturn(tempPath).when(spied).getSocketPath();
-        spied.start();
-        assertNotNull(spied.serverChannel());
-        spied.stop();
-        assertTrue(Files.exists(tempPath));
-        assertFalse(spied.ready());
-        spied.close();
-        assertFalse(Files.exists(tempPath));
+        assertEquals("Unix domain path too long", expectThrows(IllegalStateException.class, () -> spied.start()).getCause().getMessage());
     }
 
     @SuppressForbidden(reason = "Intentional socket open")
     public void testSendStatus() throws Exception {
-        ReadinessService spied = spy(readinessService);
-        Path tempPath = Files.createTempFile("readiness", ".socket");
-        Mockito.doReturn(tempPath).when(spied).getSocketPath();
-        spied.start();
+        readinessService.start();
 
-        UnixDomainSocketAddress socketAddress = UnixDomainSocketAddress.of(tempPath);
+        UnixDomainSocketAddress socketAddress = UnixDomainSocketAddress.of(readinessService.getSocketPath());
 
         try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.UNIX)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -193,8 +195,8 @@ public class ReadinessServiceTests extends ESTestCase {
                         )
                         .build();
                     ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
-                    spied.clusterChanged(event);
-                    assertTrue(spied.ready());
+                    readinessService.clusterChanged(event);
+                    assertTrue(readinessService.ready());
                 } catch (IOException e) {
                     fail("Shouldn't reach here");
                 }
@@ -202,18 +204,15 @@ public class ReadinessServiceTests extends ESTestCase {
                 return null;
             });
         }
-        spied.stop();
-        spied.close();
+        readinessService.stop();
+        readinessService.close();
     }
 
     @SuppressForbidden(reason = "Intentional socket open")
     public void testStatusChange() throws Exception {
-        ReadinessService spied = spy(readinessService);
-        Path tempPath = Files.createTempFile("readiness", ".socket");
-        Mockito.doReturn(tempPath).when(spied).getSocketPath();
-        spied.start();
+        readinessService.start();
 
-        assertFalse(spied.ready());
+        assertFalse(readinessService.ready());
 
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(
@@ -231,12 +230,12 @@ public class ReadinessServiceTests extends ESTestCase {
             )
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
-        spied.clusterChanged(event);
-        assertTrue(spied.ready());
+        readinessService.clusterChanged(event);
+        assertTrue(readinessService.ready());
 
         previousState = newState;
 
-        UnixDomainSocketAddress socketAddress = UnixDomainSocketAddress.of(tempPath);
+        UnixDomainSocketAddress socketAddress = UnixDomainSocketAddress.of(readinessService.getSocketPath());
 
         try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.UNIX)) {
 
@@ -256,18 +255,15 @@ public class ReadinessServiceTests extends ESTestCase {
         }
 
         ClusterState noMasterState = ClusterState.builder(previousState)
-            .nodes(
-                DiscoveryNodes.builder(previousState.nodes())
-                    .masterNodeId(null)
-            )
+            .nodes(DiscoveryNodes.builder(previousState.nodes()).masterNodeId(null))
             .build();
         event = new ClusterChangedEvent("test", noMasterState, previousState);
-        spied.clusterChanged(event);
-        assertFalse(spied.ready());
+        readinessService.clusterChanged(event);
+        assertFalse(readinessService.ready());
 
         event = new ClusterChangedEvent("test", previousState, noMasterState);
-        spied.clusterChanged(event);
-        assertTrue(spied.ready());
+        readinessService.clusterChanged(event);
+        assertTrue(readinessService.ready());
 
         newState = ClusterState.builder(previousState)
             .metadata(
@@ -291,11 +287,10 @@ public class ReadinessServiceTests extends ESTestCase {
             .build();
 
         event = new ClusterChangedEvent("test", newState, previousState);
-        spied.clusterChanged(event);
-        assertFalse(spied.ready());
+        readinessService.clusterChanged(event);
+        assertFalse(readinessService.ready());
 
-        spied.stop();
-        spied.close();
+        readinessService.stop();
+        readinessService.close();
     }
-
 }

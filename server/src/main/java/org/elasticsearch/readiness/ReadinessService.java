@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -44,14 +43,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
     private static final int RESPONSE_TIMEOUT_MILLIS = 1_000;
 
-    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
-        "readiness.service.enabled",
-        true,
-        Setting.Property.NodeScope
-    );
-
-    public static final String SOCKET_NAME = "readiness.socket";
-
     private final Environment environment;
     private final ExecutorService workerExecutor;
 
@@ -66,7 +57,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         this.httpTransport = httpTransport;
         this.serverChannel = null;
         this.environment = environment;
-        this.enabled = ENABLED_SETTING.get(environment.settings());
+        this.enabled = environment.readinessSocketFile() != null;
 
         if (enabled) {
             clusterService.addListener(this);
@@ -100,7 +91,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     }
 
     Path getSocketPath() {
-        return environment.logsFile().resolve(SOCKET_NAME);
+        return environment.readinessSocketFile();
     }
 
     ServerSocketChannel setupUnixDomainSocket(Path socketPath) {

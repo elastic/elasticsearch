@@ -122,7 +122,10 @@ public class TumblingWindow implements Executable {
     public void execute(ActionListener<Payload> listener) {
         log.trace("Starting sequence window w/ fetch size [{}]", windowSize);
         startTime = System.currentTimeMillis();
-        tumbleWindow(0, listener);
+        tumbleWindow(0, wrap(listener::onResponse, e -> {
+            close(listener); // in case of exception (of any kind), clear the memory
+            listener.onFailure(e);
+        }));
     }
 
     /**

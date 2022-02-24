@@ -466,11 +466,12 @@ public class IndexRoutingTests extends ESTestCase {
         };
     }
 
-    public void testRoutingPathRejectsId() {
+    public void testRoutingAllowsId() {
         IndexRouting indexRouting = indexRoutingForPath(between(1, 5), randomAlphaOfLength(5));
-        IndexRequest req = new IndexRequest().id(randomAlphaOfLength(5));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> indexRouting.process(req));
-        assertThat(e.getMessage(), equalTo("_id may not be specified for index [test]"));
+        String id = randomAlphaOfLength(5);
+        IndexRequest req = new IndexRequest().id(id);
+        indexRouting.process(req);
+        assertThat(req.id(), equalTo(id));
     }
 
     /**

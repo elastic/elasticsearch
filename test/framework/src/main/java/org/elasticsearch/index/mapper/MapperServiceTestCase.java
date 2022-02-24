@@ -240,7 +240,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected final SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
-        return source("1", build, null);
+        return source(null, build, null);
     }
 
     protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)

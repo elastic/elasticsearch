@@ -37,10 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -81,19 +78,13 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     protected static final String ENDPOINT = System.getProperty("geoip_endpoint");
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
-            ReindexPlugin.class,
-            IngestGeoIpPlugin.class,
-            GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class,
-            MockTransportService.TestPlugin.class
-        );
+        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class);
     }
 
     @Override

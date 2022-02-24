@@ -104,6 +104,21 @@ Transform::
 
 Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 
+[discrete]
+=== Known issues
+
+* {es} fails to parse system index migration data from the cluster
+  state (issue: {es-issue}84115[#84115])
+* Feature migration refuses to run if all features requiring upgrade have
+  encountered errors (issue: {es-issue}83917[#83917])
+* Migrating system indices fails for tasks with `mapper_parsing_exception`
+  (issue: {es-isue}83779[#83779])
+
+These issues will impact any subsequent upgrade to v8.0, and are fixed in
+v7.17.1. We strongly recommend that all users upgrade to a later patch
+release of v7.17 before upgrading to v8.0.
+
+
 [[deprecation-7.17.0]]
 [float]
 === Deprecations

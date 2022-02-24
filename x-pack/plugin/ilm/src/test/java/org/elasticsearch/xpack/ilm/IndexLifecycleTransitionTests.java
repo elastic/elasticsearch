@@ -603,8 +603,19 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         try (Client client = new NoOpClient(getTestName())) {
             Step.StepKey currentStepKey = new Step.StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
             Step.StepKey nextStepKey = new Step.StepKey("hot", RolloverAction.NAME, RolloverStep.NAME);
-            Step currentStep = new WaitForRolloverReadyStep(currentStepKey, nextStepKey, client, null, null, null, 1L, null, null, null,
-                null);
+            Step currentStep = new WaitForRolloverReadyStep(
+                currentStepKey,
+                nextStepKey,
+                client,
+                null,
+                null,
+                null,
+                1L,
+                null,
+                null,
+                null,
+                null
+            );
             try {
                 IndexLifecycleTransition.validateTransition(
                     meta,

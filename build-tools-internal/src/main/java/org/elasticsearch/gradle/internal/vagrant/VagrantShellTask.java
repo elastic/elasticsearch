@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.vagrant;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.initialization.layout.BuildLayout;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,16 +29,14 @@ import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertWi
  */
 public abstract class VagrantShellTask extends DefaultTask {
 
-    private final VagrantExtension extension;
-    private final VagrantMachine service;
-    private UnaryOperator<String> progressHandler = UnaryOperator.identity();
+    private VagrantExtension extension;
+    private VagrantMachine service;
 
-    public VagrantShellTask() {
-        extension = getProject().getExtensions().findByType(VagrantExtension.class);
-        if (extension == null) {
-            throw new IllegalStateException("elasticsearch.vagrant-base must be applied to create " + getClass().getName());
-        }
-        service = getProject().getExtensions().getByType(VagrantMachine.class);
+    private UnaryOperator<String> progressHandler = UnaryOperator.identity();
+    private BuildLayout buildLayout;
+
+    public VagrantShellTask(BuildLayout buildLayout) {
+        this.buildLayout = buildLayout;
     }
 
     @Input
@@ -55,16 +54,22 @@ public abstract class VagrantShellTask extends DefaultTask {
         this.progressHandler = progressHandler;
     }
 
+    public void setExtension(VagrantExtension extension) {
+        this.extension = extension;
+    }
+
+    public void setService(VagrantMachine service) {
+        this.service = service;
+    }
+
     @TaskAction
     public void runScript() {
-        String rootDir = getProject().getRootDir().toString();
         if (extension.isWindowsVM()) {
             service.execute(spec -> {
                 spec.setCommand("winrm");
-
                 List<String> script = new ArrayList<>();
                 script.add("try {");
-                script.add("cd " + convertWindowsPath(getProject(), rootDir));
+                script.add("cd " + convertWindowsPath(buildLayout.getRootDirectory(), buildLayout.getRootDirectory().toString()));
                 extension.getVmEnv().forEach((k, v) -> script.add("$Env:" + k + " = \"" + v + "\""));
                 script.addAll(getWindowsScript().stream().map(s -> "    " + s).collect(Collectors.toList()));
                 script.addAll(
@@ -83,11 +88,10 @@ public abstract class VagrantShellTask extends DefaultTask {
         } else {
             service.execute(spec -> {
                 spec.setCommand("ssh");
-
                 List<String> script = new ArrayList<>();
                 script.add("sudo bash -c '"); // start inline bash script
                 script.add("pwd");
-                script.add("cd " + convertLinuxPath(getProject(), rootDir));
+                script.add("cd " + convertLinuxPath(buildLayout.getRootDirectory(), buildLayout.getRootDirectory().toString()));
                 extension.getVmEnv().forEach((k, v) -> script.add("export " + k + "=" + v));
                 script.addAll(getLinuxScript());
                 script.add("'"); // end inline bash script

@@ -68,7 +68,9 @@ public interface MapReducer extends NamedWriteable, ToXContent {
      *
      * @param partitions
      */
-    default void combine(Stream<MapReducer> partitions) {}
+    default void combine(Stream<MapReducer> partitions) {
+        reduce(partitions);
+    }
 
     /**
      * Definition of code to execute before the mapper processes any input.

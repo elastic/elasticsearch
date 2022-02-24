@@ -123,14 +123,14 @@ public class AprioriMapReducer implements MapReducer {
 
     @Override
     public void reduce(Stream<MapReducer> partitions) {
+        Map<String, Long> itemSetsReduced = new HashMap<>();
+
         partitions.forEach(p -> {
-            // we reuse itemSets, therefore must skip the one we already have
-            if (this != p) {
-                logger.info("reduce itemSets: " + itemSets.size());
-                AprioriMapReducer apprioriPartition = (AprioriMapReducer) p;
-                apprioriPartition.itemSets.forEach((key, value) -> itemSets.merge(key, value, (v1, v2) -> v1 + v2));
-            }
+            AprioriMapReducer apprioriPartition = (AprioriMapReducer) p;
+            apprioriPartition.itemSets.forEach((key, value) -> itemSetsReduced.merge(key, value, (v1, v2) -> v1 + v2));
         });
+
+        itemSets = itemSetsReduced;
     }
 
     @Override

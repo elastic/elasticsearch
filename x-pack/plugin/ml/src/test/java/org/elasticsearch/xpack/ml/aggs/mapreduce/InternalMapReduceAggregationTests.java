@@ -47,9 +47,6 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
 
         private Map<String, Long> frequencies = new HashMap<>();
 
-        // for testing
-        private Map<String, Long> reducedFrequencies;
-
         WordCountMapReducer() {}
 
         WordCountMapReducer(StreamInput in) throws IOException {
@@ -86,20 +83,20 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
 
         @Override
         public void reduce(Stream<MapReducer> partitions) {
-            reducedFrequencies = new HashMap<>();
+
+            Map<String, Long> frequenciesMerged = new HashMap<>();
 
             partitions.forEach(p -> {
                 WordCountMapReducer wc = (WordCountMapReducer) p;
-                wc.frequencies.forEach((key, value) -> reducedFrequencies.merge(key, value, (v1, v2) -> v1 + v2));
+                wc.frequencies.forEach((key, value) -> frequenciesMerged.merge(key, value, (v1, v2) -> v1 + v2));
             });
+
+            // reuse this instance
+            frequencies = frequenciesMerged;
         }
 
         public Map<String, Long> getFrequencies() {
             return frequencies;
-        }
-
-        public Map<String, Long> getReducedFrequencies() {
-            return reducedFrequencies;
         }
     }
 
@@ -145,9 +142,11 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         }
     }
 
+    Map<String, Long> expectedFrequencies = new HashMap<>();
+
     @Override
     protected InternalMapReduceAggregation createTestInstance(String name, Map<String, Object> metadata) {
-        MapReducer mr = new WordCountMapReducer();
+        WordCountMapReducer mr = new WordCountMapReducer();
         int randomTextLength = randomIntBetween(1, 100);
         List<String> randomText = new ArrayList<>(randomTextLength);
 
@@ -156,18 +155,16 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         }
 
         mr.map(randomText.stream().map(word -> Tuple.tuple("text", Collections.singletonList(word))));
+
+        mr.getFrequencies().forEach((key, value) -> expectedFrequencies.merge(key, value, (v1, v2) -> v1 + v2));
+
         return new InternalMapReduceAggregation(name, metadata, mr);
     }
 
     @Override
     protected void assertReduced(InternalMapReduceAggregation reduced, List<InternalMapReduceAggregation> inputs) {
-        Map<String, Long> expectedFrequencies = new HashMap<>();
-        for (InternalMapReduceAggregation in : inputs) {
-            WordCountMapReducer wc = (WordCountMapReducer) in.getMapReducer();
-            wc.frequencies.forEach((key, value) -> expectedFrequencies.merge(key, value, (v1, v2) -> v1 + v2));
-        }
         WordCountMapReducer wc = (WordCountMapReducer) reduced.getMapReducer();
-        assertMapEquals(expectedFrequencies, wc.getReducedFrequencies());
+        assertMapEquals(expectedFrequencies, wc.getFrequencies());
     }
 
     @Override
@@ -214,7 +211,7 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
         assertThat(expected.size(), equalTo(actual.size()));
         for (Entry<String, Long> entry : expected.entrySet()) {
             assertTrue(actual.containsKey(entry.getKey()));
-            assertEquals(entry.getValue(), actual.get(entry.getKey()));
+            assertEquals(entry.getKey(), entry.getValue(), actual.get(entry.getKey()));
         }
     }
 }

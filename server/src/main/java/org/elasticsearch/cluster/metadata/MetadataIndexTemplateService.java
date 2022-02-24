@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -139,6 +140,11 @@ public class MetadataIndexTemplateService {
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
     }
 
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
+    }
+
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
         clusterService.submitStateUpdateTask(
             "remove-index-template [" + request.name + "]",
@@ -179,7 +185,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -214,7 +220,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -386,7 +392,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -503,7 +509,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -845,7 +851,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -974,7 +980,7 @@ public class MetadataIndexTemplateService {
                     listener.onResponse(new PutResponse(true));
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 

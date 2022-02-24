@@ -229,6 +229,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
@@ -1082,6 +1083,7 @@ public class Security extends Plugin
         Set<RestHeaderDefinition> headers = new HashSet<>();
         headers.add(new RestHeaderDefinition(UsernamePasswordToken.BASIC_AUTH_HEADER, false));
         headers.add(new RestHeaderDefinition(SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME, false));
+        headers.add(new RestHeaderDefinition(JwtRealm.HEADER_CLIENT_AUTHENTICATION, false));
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {
             headers.add(new RestHeaderDefinition(AuditTrail.X_FORWARDED_FOR_HEADER, true));
         }

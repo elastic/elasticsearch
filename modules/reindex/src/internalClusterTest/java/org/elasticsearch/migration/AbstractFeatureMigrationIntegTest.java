@@ -117,15 +117,15 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final String ASSOCIATED_INDEX_NAME = ".my-associated-idx";
 
     @Before
-    public void setupTestPlugin() throws InterruptedException {
-        TestPlugin testPlugin = getTestPlugin();
+    public void setupTestPlugin() {
+        TestPlugin testPlugin = getPlugin(TestPlugin.class);
         testPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
         testPlugin.postMigrationHook.set((state, metadata) -> {});
     }
 
-    public TestPlugin getTestPlugin() {
+    public <T extends Plugin> T getPlugin(Class<T> type) {
         final PluginsService pluginsService = internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
-        return pluginsService.filterPlugins(TestPlugin.class).stream().findFirst().get();
+        return pluginsService.filterPlugins(type).stream().findFirst().get();
     }
 
     public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {

@@ -130,7 +130,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         SetOnce<Boolean> preUpgradeHookCalled = new SetOnce<>();
         SetOnce<Boolean> postUpgradeHookCalled = new SetOnce<>();
-        getTestPlugin().preMigrationHook.set(clusterState -> {
+        getPlugin(TestPlugin.class).preMigrationHook.set(clusterState -> {
             // Check that the ordering of these calls is correct.
             assertThat(postUpgradeHookCalled.get(), nullValue());
             Map<String, Object> metadata = new HashMap<>();
@@ -147,7 +147,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             return metadata;
         });
 
-        getTestPlugin().postMigrationHook.set((clusterState, metadata) -> {
+        getPlugin(TestPlugin.class).postMigrationHook.set((clusterState, metadata) -> {
             assertThat(preUpgradeHookCalled.get(), is(true));
 
             assertThat(metadata, hasEntry("stringKey", "stringValue"));

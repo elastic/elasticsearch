@@ -45,10 +45,8 @@ public class StatsRequestLimiterTests extends ESTestCase {
             thread.start();
         };
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        StatsRequestLimiter statsRequestLimiter = new StatsRequestLimiter(
-            Settings.builder().put(MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.getKey(), maxPermits).build(),
-            clusterSettings
-        );
+        Settings settings = Settings.builder().put(MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.getKey(), maxPermits).build();
+        StatsRequestLimiter statsRequestLimiter = new StatsRequestLimiter(settings, clusterSettings);
 
         for (int i = 0; i < maxPermits; i++) {
             PlainActionFuture<Integer> listener = new PlainActionFuture<>();
@@ -56,7 +54,12 @@ public class StatsRequestLimiterTests extends ESTestCase {
         }
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         statsRequestLimiter.tryToExecute(createTask(), maxPermits, listener, execute);
-        expectThrows(EsRejectedExecutionException.class, listener::actionGet);
+        String expectedExceptionMessage = "this node is already coordinating ["
+            + MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.get(settings)
+            + "] stats requests and has reached the limit set by ["
+            + MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.getKey()
+            + "]";
+        expectThrows(EsRejectedExecutionException.class, expectedExceptionMessage, listener::actionGet);
         StatsRequestStats.Stats stats = getStats(statsRequestLimiter);
         assertEquals(maxPermits, stats.getCurrent());
 

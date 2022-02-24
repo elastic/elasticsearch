@@ -81,7 +81,13 @@ public class StatsRequestLimiter {
             }
         } else {
             listener.onFailure(
-                new EsRejectedExecutionException("too concurrent stats requests (limit: " + maxConcurrentStatsRequestsPerNode + ")")
+                new EsRejectedExecutionException(
+                    "this node is already coordinating ["
+                        + maxConcurrentStatsRequestsPerNode
+                        + "] stats requests and has reached the limit set by ["
+                        + MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.getKey()
+                        + "]"
+                )
             );
             statsHolder.rejected.inc();
         }

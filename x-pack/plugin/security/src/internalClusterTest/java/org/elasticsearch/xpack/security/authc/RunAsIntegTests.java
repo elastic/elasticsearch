@@ -175,6 +175,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         );
         assertThat(authenticateJsonView.get("username"), equalTo(runAsTestUser ? SecuritySettingsSource.TEST_USER_NAME : NO_ROLE_USER));
         assertThat(authenticateJsonView.get("authentication_realm.type"), equalTo("_es_api_key"));
+        assertThat(authenticateJsonView.get("lookup_realm.type"), equalTo("file"));
         assertThat(authenticateJsonView.get("authentication_type"), equalTo("api_key"));
 
         final Request getUserRequest = new Request("GET", "/_security/user");
@@ -195,7 +196,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testRunAsUsingOAuthToken() throws IOException {
+    public void testRunAsIgnoredForOAuthToken() throws IOException {
         final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
         createTokenRequest.setJsonEntity("{\"grant_type\":\"client_credentials\"}");
         createTokenRequest.setOptions(
@@ -208,41 +209,19 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             createTokenResponse.getEntity().getContent()
         );
 
-        final boolean runAsTestUser = randomBoolean();
-
         final Request authenticateRequest = new Request("GET", "/_security/_authenticate");
         authenticateRequest.setOptions(
             authenticateRequest.getOptions()
                 .toBuilder()
                 .addHeader("Authorization", "Bearer " + tokenMapView.get("access_token"))
-                .addHeader(
-                    AuthenticationServiceField.RUN_AS_USER_HEADER,
-                    runAsTestUser ? SecuritySettingsSource.TEST_USER_NAME : NO_ROLE_USER
-                )
+                .addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME)
         );
         final Response authenticateResponse = getRestClient().performRequest(authenticateRequest);
         final XContentTestUtils.JsonMapView authenticateJsonView = XContentTestUtils.createJsonMapView(
             authenticateResponse.getEntity().getContent()
         );
-        assertThat(authenticateJsonView.get("username"), equalTo(runAsTestUser ? SecuritySettingsSource.TEST_USER_NAME : NO_ROLE_USER));
+        assertThat(authenticateJsonView.get("username"), equalTo(RUN_AS_USER));
         assertThat(authenticateJsonView.get("authentication_type"), equalTo("token"));
-
-        final Request getUserRequest = new Request("GET", "/_security/user");
-        getUserRequest.setOptions(
-            getUserRequest.getOptions()
-                .toBuilder()
-                .addHeader("Authorization", "Bearer " + tokenMapView.get("access_token"))
-                .addHeader(
-                    AuthenticationServiceField.RUN_AS_USER_HEADER,
-                    runAsTestUser ? SecuritySettingsSource.TEST_USER_NAME : NO_ROLE_USER
-                )
-        );
-        if (runAsTestUser) {
-            assertThat(getRestClient().performRequest(getUserRequest).getStatusLine().getStatusCode(), equalTo(200));
-        } else {
-            final ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(getUserRequest));
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        }
     }
 
     private static Request requestForUserRunAsUser(String user) {

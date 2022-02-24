@@ -207,9 +207,6 @@ public class AuthenticationTests extends ESTestCase {
         RealmRef lookupRealmRef = randomRealmRef(true);
         // realm/token run-as
         Authentication test = Authentication.newRealmAuthentication(randomUser(), authnRealmRef);
-        if (randomBoolean()) {
-            test = test.token();
-        }
         test = test.runAs(randomUser(), lookupRealmRef);
         if (randomBoolean()) {
             test = test.token();
@@ -217,9 +214,6 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(test.isAssignedToDomain(), is(true));
         assertThat(test.getDomain(), is(lookupRealmRef.getDomain()));
         test = Authentication.newRealmAuthentication(randomUser(), randomRealmRef(false));
-        if (randomBoolean()) {
-            test = test.token();
-        }
         test = test.runAs(randomUser(), lookupRealmRef);
         if (randomBoolean()) {
             test = test.token();
@@ -227,9 +221,6 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(test.isAssignedToDomain(), is(true));
         assertThat(test.getDomain(), is(lookupRealmRef.getDomain()));
         test = Authentication.newRealmAuthentication(randomUser(), authnRealmRef);
-        if (randomBoolean()) {
-            test = test.token();
-        }
         test = test.runAs(randomUser(), randomRealmRef(false));
         if (randomBoolean()) {
             test = test.token();
@@ -237,9 +228,6 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(test.isAssignedToDomain(), is(false));
         assertThat(test.getDomain(), nullValue());
         test = Authentication.newRealmAuthentication(randomUser(), randomRealmRef(false));
-        if (randomBoolean()) {
-            test = test.token();
-        }
         test = test.runAs(randomUser(), lookupRealmRef);
         if (randomBoolean()) {
             test = test.token();
@@ -248,9 +236,6 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(test.getDomain(), is(lookupRealmRef.getDomain()));
         // api key run-as
         test = randomApiKeyAuthentication(randomUser(), randomAlphaOfLengthBetween(10, 20), Version.CURRENT);
-        if (randomBoolean()) {
-            test = test.token();
-        }
         assertThat(test.isAssignedToDomain(), is(false));
         assertThat(test.getDomain(), nullValue());
         if (randomBoolean()) {
@@ -268,25 +253,10 @@ public class AuthenticationTests extends ESTestCase {
             assertThat(test.isAssignedToDomain(), is(false));
             assertThat(test.getDomain(), nullValue());
         }
-        // service account run-as
+        // service account cannot run-as
         test = randomServiceAccountAuthentication();
         assertThat(test.isAssignedToDomain(), is(false));
         assertThat(test.getDomain(), nullValue());
-        if (randomBoolean()) {
-            test = test.runAs(randomUser(), lookupRealmRef);
-            if (randomBoolean()) {
-                test = test.token();
-            }
-            assertThat(test.isAssignedToDomain(), is(true));
-            assertThat(test.getDomain(), is(lookupRealmRef.getDomain()));
-        } else {
-            test = test.runAs(randomUser(), randomRealmRef(false));
-            if (randomBoolean()) {
-                test = test.token();
-            }
-            assertThat(test.isAssignedToDomain(), is(false));
-            assertThat(test.getDomain(), nullValue());
-        }
     }
 
     public void testDomainSerialize() throws Exception {

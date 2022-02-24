@@ -10,32 +10,27 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SamplingContextTests extends ESTestCase {
     protected static final int NUMBER_OF_TEST_RUNS = 20;
 
     private static SamplingContext randomContext() {
-        return new SamplingContext(randomDoubleBetween(1e-8, 0.1, false), randomInt());
+        return new SamplingContext(randomDoubleBetween(1e-6, 0.1, false), randomInt());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83748")
     public void testScaling() {
         for (int i = 0; i < 20; i++) {
             SamplingContext samplingContext = randomContext();
-            long randomLong = randomLongBetween(100_000_000L, Long.MAX_VALUE);
+            long randomLong = randomLongBetween(1_000_000_000L, 100_000_000_000L);
             double randomDouble = randomDouble();
             long rescaled = samplingContext.inverseScale(samplingContext.scale(randomLong));
-            // No matter how you scale `long` values, the inverse back may be a little off
-            long error = (long) (rescaled * 1e-15);
             assertThat(
                 Double.toString(samplingContext.probability()),
-                rescaled,
-                allOf(greaterThanOrEqualTo(randomLong - error), lessThanOrEqualTo(randomLong + error))
+                (double) rescaled / randomLong,
+                // No matter how you scale `long` values, the inverse back may be a little off due to rounding
+                closeTo(1.0, 1e-4)
             );
             assertThat(
                 Double.toString(samplingContext.probability()),

@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -31,6 +32,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation> extends
     InternalAggregationTestCase<T> {
@@ -71,9 +73,9 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
             subAggregationsSupplier = () -> InternalAggregations.EMPTY;
         } else {
             subAggregationsSupplier = () -> {
-                final int numAggregations = randomIntBetween(1, 3);
+                int numSubAggs = randomIntBetween(1, 3);
                 List<InternalAggregation> aggs = new ArrayList<>();
-                for (int i = 0; i < numAggregations; i++) {
+                for (int i = 0; i < numSubAggs; i++) {
                     aggs.add(createTestInstanceForXContent(randomAlphaOfLength(5), emptyMap(), InternalAggregations.EMPTY));
                 }
                 return InternalAggregations.from(aggs);
@@ -209,6 +211,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
             BigArrays.NON_RECYCLING_INSTANCE,
             null,
+            () -> false,
+            mock(AggregationBuilder.class),
             new IntConsumer() {
                 int buckets;
 
@@ -220,8 +224,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                     }
                 }
             },
-            PipelineTree.EMPTY,
-            () -> false
+            PipelineTree.EMPTY
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> agg.reduce(List.of(agg), reduceContext));
         assertThat(e.getMessage(), equalTo("too big!"));

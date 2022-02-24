@@ -290,6 +290,9 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
      * @throws IllegalArgumentException if the name is invalid
      */
     public static void validatePolicyName(String policy) {
+        if (Strings.isNullOrEmpty(policy)) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not be null or empty");
+        }
         if (policy.contains(",")) {
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain ','");
         }

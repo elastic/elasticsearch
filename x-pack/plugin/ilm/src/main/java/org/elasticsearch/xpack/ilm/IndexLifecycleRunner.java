@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.ilm.AsyncWaitStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -62,13 +61,11 @@ class IndexLifecycleRunner {
         for (IndexLifecycleClusterStateUpdateTask task : tasks) {
             try {
                 state = task.execute(state);
-                builder.success(task);
+                builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
             } catch (Exception e) {
                 builder.failure(task, e);
             }
         }
-        // Trigger indices lookup creation and related validation
-        state.metadata().getIndicesLookup();
         return builder.build(state);
     };
 
@@ -601,7 +598,7 @@ class IndexLifecycleRunner {
         ilmHistoryStore.putAsync(
             ILMHistoryItem.success(
                 indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()),
+                indexMetadata.getLifecyclePolicyName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
                 indexMetadata.getLifecycleExecutionState()
@@ -621,7 +618,7 @@ class IndexLifecycleRunner {
         ilmHistoryStore.putAsync(
             ILMHistoryItem.success(
                 metadataBeforeDeletion.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadataBeforeDeletion.getSettings()),
+                metadataBeforeDeletion.getLifecyclePolicyName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
                 LifecycleExecutionState.builder(metadataBeforeDeletion.getLifecycleExecutionState())
@@ -645,7 +642,7 @@ class IndexLifecycleRunner {
         ilmHistoryStore.putAsync(
             ILMHistoryItem.failure(
                 indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()),
+                indexMetadata.getLifecyclePolicyName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
                 indexMetadata.getLifecycleExecutionState(),

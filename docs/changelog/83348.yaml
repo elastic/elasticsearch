@@ -1,0 +1,6 @@
+pr: 83348
+summary: Handle bounds properly when grid tiles crosses the dateline
+area: Geo
+type: bug
+issues:
+ - 83299

@@ -1,0 +1,5 @@
+pr: 83566
+summary: Upgrade jANSI dependency to 2.4.0
+area: Security
+type: bug
+issues: []

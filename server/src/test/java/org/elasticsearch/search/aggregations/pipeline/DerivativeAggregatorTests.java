@@ -12,11 +12,11 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
@@ -220,7 +220,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                 Sum sum = bucket.getAggregations().get("sum");
                 assertThat(sum, notNullValue());
                 long expectedSum = valueCounts[i] * (i * interval);
-                assertThat(sum.getValue(), equalTo((double) expectedSum));
+                assertThat(sum.value(), equalTo((double) expectedSum));
                 SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
                 if (i > 0) {
                     assertThat(sumDeriv, notNullValue());

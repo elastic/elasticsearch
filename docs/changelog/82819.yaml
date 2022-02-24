@@ -1,5 +1,5 @@
 pr: 82819
-summary: "[Draft] Adjust `indices.recovery.max_bytes_per_sec` according to external\
+summary: "Adjust `indices.recovery.max_bytes_per_sec` according to external\
   \ settings"
 area: Recovery
 type: enhancement

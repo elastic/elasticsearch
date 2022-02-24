@@ -49,7 +49,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
@@ -229,10 +228,10 @@ public class RestIndicesAction extends AbstractCatAction {
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
                     ClusterStateResponse stateResponse = extractResponse(responses, ClusterStateResponse.class);
-                    Map<String, IndexMetadata> indicesStates = StreamSupport.stream(
-                        stateResponse.getState().getMetadata().spliterator(),
-                        false
-                    ).collect(Collectors.toMap(indexMetadata -> indexMetadata.getIndex().getName(), Function.identity()));
+                    Map<String, IndexMetadata> indicesStates = stateResponse.getState()
+                        .getMetadata()
+                        .stream()
+                        .collect(Collectors.toMap(indexMetadata -> indexMetadata.getIndex().getName(), Function.identity()));
 
                     ClusterHealthResponse healthResponse = extractResponse(responses, ClusterHealthResponse.class);
                     Map<String, ClusterIndexHealth> indicesHealths = healthResponse.getIndices();

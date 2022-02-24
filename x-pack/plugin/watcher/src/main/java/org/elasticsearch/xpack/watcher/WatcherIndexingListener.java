@@ -222,7 +222,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                     checkWatchIndexHasChanged(metadata, event);
                 }
             } catch (IllegalStateException e) {
-                logger.error("error loading watches index: [{}]", e.getMessage());
+                logger.error("error loading watches index", e);
                 configuration = INACTIVE;
             }
         }

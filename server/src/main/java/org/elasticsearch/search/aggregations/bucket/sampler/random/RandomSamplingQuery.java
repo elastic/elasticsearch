@@ -32,7 +32,6 @@ import java.util.function.IntSupplier;
 public final class RandomSamplingQuery extends Query {
 
     private final double p;
-    private final SplittableRandom splittableRandom;
     private final int seed;
     private final int hash;
 
@@ -49,7 +48,6 @@ public final class RandomSamplingQuery extends Query {
         this.p = p;
         this.seed = seed;
         this.hash = hash;
-        this.splittableRandom = new SplittableRandom(BitMixer.mix(hash, seed));
     }
 
     @Override
@@ -78,7 +76,7 @@ public final class RandomSamplingQuery extends Query {
 
             @Override
             public Scorer scorer(LeafReaderContext context) {
-                final SplittableRandom random = splittableRandom.split();
+                final SplittableRandom random = new SplittableRandom(BitMixer.mix(hash, seed));
                 int maxDoc = context.reader().maxDoc();
                 return new ConstantScoreScorer(
                     this,

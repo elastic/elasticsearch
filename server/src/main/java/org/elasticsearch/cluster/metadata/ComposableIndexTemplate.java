@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -312,7 +313,12 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             "data_stream_template",
             false,
             args -> {
-                IndexMode indexMode = args[2] != null ? IndexMode.fromString((String) args[2]) : null;
+                IndexMode indexMode;
+                if (IndexSettings.isTimeSeriesModeEnabled()) {
+                    indexMode = args[2] != null ? IndexMode.fromString((String) args[2]) : null;
+                } else {
+                    indexMode = null;
+                }
                 return new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1], indexMode);
             }
         );
@@ -320,7 +326,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
+            if (IndexSettings.isTimeSeriesModeEnabled()) {
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
+            }
         }
 
         private final boolean hidden;

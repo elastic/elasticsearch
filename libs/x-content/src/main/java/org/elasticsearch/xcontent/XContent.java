@@ -26,6 +26,12 @@ public interface XContent {
 
     byte streamSeparator();
 
+    @Deprecated
+    boolean detectContent(byte[] bytes, int offset, int length);
+
+    @Deprecated
+    boolean detectContent(CharSequence chars);
+
     /**
      * Creates a new generator using the provided output stream.
      */

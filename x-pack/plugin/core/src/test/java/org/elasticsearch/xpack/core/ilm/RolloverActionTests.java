@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -15,6 +16,9 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> {
 
@@ -39,6 +43,9 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
+        Long maxPrimaryShardDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null || randomBoolean())
+            ? randomNonNegativeLong()
+            : null;
         ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue minPrimaryShardSize = randomBoolean()
             ? null
@@ -47,7 +54,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         TimeValue minAge = (minDocs == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, minPrimaryShardSize, minAge, minDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs, minPrimaryShardSize, minAge, minDocs);
     }
 
     @Override
@@ -61,10 +68,11 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
+        Long maxPrimaryShardDocs = instance.getMaxPrimaryShardDocs();
         ByteSizeValue minPrimaryShardSize = instance.getMinPrimaryShardSize();
         TimeValue minAge = instance.getMinAge();
         Long minDocs = instance.getMinDocs();
-        switch (between(0, 6)) {
+        switch (between(0, 7)) {
             case 0 -> maxSize = randomValueOtherThan(maxSize, () -> {
                 ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
@@ -77,27 +85,28 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
                 maxAge,
                 () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             );
-            case 3 -> minDocs = minDocs == null ? randomNonNegativeLong() : minDocs + 1;
-            case 4 -> minPrimaryShardSize = randomValueOtherThan(minPrimaryShardSize, () -> {
+            case 3 -> maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
+            case 4 -> maxPrimaryShardDocs = maxPrimaryShardDocs == null ? randomNonNegativeLong() : maxPrimaryShardDocs + 1;
+            case 5 -> minPrimaryShardSize = randomValueOtherThan(minPrimaryShardSize, () -> {
                 ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
             });
-            case 5 -> minAge = randomValueOtherThan(
+            case 6 -> minAge = randomValueOtherThan(
                 minAge,
                 () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             );
-            case 6 -> minDocs = minDocs == null ? randomNonNegativeLong() : minDocs + 1;
+            case 7 -> minDocs = minDocs == null ? randomNonNegativeLong() : minDocs + 1;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, minPrimaryShardSize, minAge, minDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs, minPrimaryShardSize, minAge, minDocs);
     }
 
     public void testNoConditions() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new RolloverAction(null, null, null, null, null, null, null)
+            () -> new RolloverAction(null, null, null, null, null, null, null, null)
         );
-        assertEquals("At least one max_* rollover condition must be set.", exception.getMessage());
+        assertEquals("At least one rollover condition must be set.", exception.getMessage());
     }
 
     public void testToSteps() {
@@ -134,6 +143,20 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         assertEquals(action.getMaxPrimaryShardSize(), firstStep.getMaxPrimaryShardSize());
         assertEquals(action.getMaxAge(), firstStep.getMaxAge());
         assertEquals(action.getMaxDocs(), firstStep.getMaxDocs());
+        assertEquals(action.getMaxPrimaryShardDocs(), firstStep.getMaxPrimaryShardDocs());
         assertEquals(nextStepKey, fifthStep.getNextStepKey());
+    }
+
+    public void testBwcSerializationWithMaxPrimaryShardDocs() throws Exception {
+        // In case of serializing to node with older version, replace maxPrimaryShardDocs with maxDocs.
+        RolloverAction instance = new RolloverAction(null, null, null, null, 1L);
+        RolloverAction deserializedInstance = copyInstance(instance, Version.V_8_1_0);
+        assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());
+
+        // But not if maxSize is also specified:
+        instance = new RolloverAction(null, null, null, 2L, 1L);
+        deserializedInstance = copyInstance(instance, Version.V_8_1_0);
+        assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());
+        assertThat(deserializedInstance.getMaxDocs(), equalTo(instance.getMaxDocs()));
     }
 }

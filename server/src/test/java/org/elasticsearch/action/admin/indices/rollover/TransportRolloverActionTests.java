@@ -107,6 +107,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
             ByteSizeValue.ofMb(randomIntBetween(10, 100))
         );
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(10L);
         MinAgeCondition minAgeCondition = new MinAgeCondition(TimeValue.timeValueHours(2));
         MinDocsCondition minDocsCondition = new MinDocsCondition(100L);
         MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(
@@ -117,6 +118,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             maxDocsCondition,
             maxSizeCondition,
             maxPrimaryShardSizeCondition,
+            maxPrimaryShardDocsCondition,
             minAgeCondition,
             minDocsCondition,
             minPrimaryShardSizeCondition
@@ -126,32 +128,34 @@ public class TransportRolloverActionTests extends ESTestCase {
         long notMatchMaxDocs = randomIntBetween(0, 99);
         ByteSizeValue notMatchMaxSize = ByteSizeValue.ofMb(randomIntBetween(0, 9));
         long indexCreated = TimeValue.timeValueHours(3).getMillis();
+        long matchMaxPrimaryShardDocs = randomIntBetween(10, 100);
+        long notMatchMaxPrimaryShardDocs = randomIntBetween(0, 9);
 
         expectThrows(
             NullPointerException.class,
-            () -> evaluateConditions(null, new Condition.Stats(0, 0, ByteSizeValue.ofMb(0), ByteSizeValue.ofMb(0)))
+            () -> evaluateConditions(null, new Condition.Stats(0, 0, ByteSizeValue.ofMb(0), ByteSizeValue.ofMb(0), 0))
         );
 
         Map<String, Boolean> results = evaluateConditions(conditions, null);
-        assertThat(results.size(), equalTo(7));
+        assertThat(results.size(), equalTo(8));
         for (Boolean matched : results.values()) {
             assertThat(matched, equalTo(false));
         }
 
         results = evaluateConditions(
             conditions,
-            new Condition.Stats(matchMaxDocs, indexCreated, ByteSizeValue.ofMb(120), ByteSizeValue.ofMb(120))
+            new Condition.Stats(matchMaxDocs, indexCreated, ByteSizeValue.ofMb(120), ByteSizeValue.ofMb(120), matchMaxPrimaryShardDocs)
         );
-        assertThat(results.size(), equalTo(7));
+        assertThat(results.size(), equalTo(8));
         for (Boolean matched : results.values()) {
             assertThat(matched, equalTo(true));
         }
 
         results = evaluateConditions(
             conditions,
-            new Condition.Stats(notMatchMaxDocs, indexCreated, notMatchMaxSize, ByteSizeValue.ofMb(0))
+            new Condition.Stats(notMatchMaxDocs, indexCreated, notMatchMaxSize, ByteSizeValue.ofMb(0), notMatchMaxPrimaryShardDocs)
         );
-        assertThat(results.size(), equalTo(7));
+        assertThat(results.size(), equalTo(8));
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
             if (entry.getKey().equals(maxAgeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(true));
@@ -160,6 +164,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxPrimaryShardDocsCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(minDocsCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
@@ -180,6 +186,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
             new ByteSizeValue(randomNonNegativeLong())
         );
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(randomNonNegativeLong());
         MinAgeCondition minAgeCondition = new MinAgeCondition(TimeValue.timeValueHours(2));
         MinDocsCondition minDocsCondition = new MinDocsCondition(100L);
         MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(
@@ -190,6 +197,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             maxDocsCondition,
             maxSizeCondition,
             maxPrimaryShardSizeCondition,
+            maxPrimaryShardDocsCondition,
             minAgeCondition,
             minDocsCondition,
             minPrimaryShardSizeCondition
@@ -207,7 +215,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .settings(settings)
             .build();
         Map<String, Boolean> results = evaluateConditions(conditions, buildStats(metadata, null));
-        assertThat(results.size(), equalTo(7));
+        assertThat(results.size(), equalTo(8));
 
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
             if (entry.getKey().equals(maxAgeCondition.toString())) {
@@ -217,6 +225,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxPrimaryShardDocsCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(minDocsCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
@@ -237,6 +247,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
             ByteSizeValue.ofMb(randomIntBetween(10, 100))
         );
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(10L);
         MinAgeCondition minAgeCondition = new MinAgeCondition(TimeValue.timeValueHours(2));
         MinDocsCondition minDocsCondition = new MinDocsCondition(100L);
         MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(
@@ -247,6 +258,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             maxDocsCondition,
             maxSizeCondition,
             maxPrimaryShardSizeCondition,
+            maxPrimaryShardDocsCondition,
             minAgeCondition,
             minDocsCondition,
             minPrimaryShardSizeCondition
@@ -265,7 +277,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .build();
         IndicesStatsResponse indicesStats = randomIndicesStatsResponse(new IndexMetadata[] { metadata });
         Map<String, Boolean> results = evaluateConditions(conditions, buildStats(null, indicesStats));
-        assertThat(results.size(), equalTo(7));
+        assertThat(results.size(), equalTo(8));
         results.forEach((k, v) -> assertFalse(v));
     }
 

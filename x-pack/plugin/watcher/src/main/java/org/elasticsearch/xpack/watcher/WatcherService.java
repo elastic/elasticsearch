@@ -385,13 +385,7 @@ public class WatcherService {
                             watches.add(watch);
                         }
                     } catch (Exception e) {
-                        logger.error(
-                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                "couldn't load watch [{}], ignoring it...",
-                                id
-                            ),
-                            e
-                        );
+                        logger.error(new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
                     }
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());

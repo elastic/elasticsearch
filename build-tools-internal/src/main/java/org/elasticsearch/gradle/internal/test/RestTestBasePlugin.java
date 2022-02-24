@@ -78,6 +78,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
     }
 
     private String systemProperty(String propName) {
-        return providerFactory.systemProperty(propName).forUseAtConfigurationTime().getOrNull();
+        return providerFactory.systemProperty(propName).getOrNull();
     }
 }

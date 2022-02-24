@@ -131,7 +131,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
 
         if (metadataBuilder != null) {
             Metadata newMetadata = metadataBuilder.build();
-            assert oldMetadata.getIndicesLookup() == newMetadata.getIndicesLookup();
+            assert oldMetadata.sameIndicesLookup(newMetadata);
             return newMetadata;
         } else {
             return oldMetadata;

@@ -51,6 +51,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -626,6 +627,7 @@ public class MetadataIndexTemplateService {
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
         var finalTemplate = Optional.ofNullable(indexTemplate.template());
         var finalSettings = Settings.builder();
+        final var now = Instant.now();
 
         // First apply settings sourced from index setting providers:
         for (var provider : indexSettingProviders) {
@@ -635,7 +637,7 @@ public class MetadataIndexTemplateService {
                     indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
                     indexTemplate.getDataStreamTemplate() != null ? indexTemplate.getDataStreamTemplate().getIndexMode() : null,
                     currentState.getMetadata(),
-                    System.currentTimeMillis(),
+                    now,
                     finalTemplate.map(Template::settings).orElse(Settings.EMPTY)
                 )
             );

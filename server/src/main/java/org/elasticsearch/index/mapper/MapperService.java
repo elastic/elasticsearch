@@ -510,6 +510,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
     }
 
+    public boolean isMultiField(String field) {
+        return mappingLookup().isMultiField(field);
+    }
+
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
         logger.info("reloading search analyzers");
         // refresh indexAnalyzers and search analyzers

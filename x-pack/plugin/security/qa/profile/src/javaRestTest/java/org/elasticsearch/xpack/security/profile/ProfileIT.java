@@ -24,6 +24,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ProfileIT extends ESRestTestCase {
 
@@ -52,7 +54,6 @@ public class ProfileIT extends ESRestTestCase {
               },
               "email": "foo@example.com",
               "full_name": "User Foo",
-              "display_name": "Curious Foo",
               "active": true
             },
             "last_synchronized": %s,
@@ -99,6 +100,8 @@ public class ProfileIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(indexRequest));
 
         final Map<String, Object> profileMap1 = doGetProfile(uid);
+        assertThat(castToMap(profileMap1.get("user")).get("realm_name"), equalTo("realm_name_1"));
+        assertThat(castToMap(profileMap1.get("user")).get("realm_domain"), equalTo("domainA"));
         assertThat(castToMap(profileMap1.get("data")), anEmptyMap());
 
         // Retrieve application data along the profile
@@ -133,6 +136,26 @@ public class ProfileIT extends ESRestTestCase {
         final Map<String, Object> profileMap1 = doGetProfile(uid, "app1");
         assertThat(castToMap(profileMap1.get("access")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
         assertThat(castToMap(profileMap1.get("data")), equalTo(Map.of("app1", Map.of("theme", "default"))));
+    }
+
+    public void testSearchProfile() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String uid = (String) activateProfileMap.get("uid");
+        final Request searchProfilesRequest1 = new Request(randomFrom("GET", "POST"), "_security/profile/_search");
+        searchProfilesRequest1.setJsonEntity("""
+            {
+              "name": "rac",
+              "size": 10
+            }""");
+        final Response searchProfilesResponse1 = adminClient().performRequest(searchProfilesRequest1);
+        assertOK(searchProfilesResponse1);
+        final Map<String, Object> searchProfileResponseMap1 = responseAsMap(searchProfilesResponse1);
+        assertThat(searchProfileResponseMap1, hasKey("took"));
+        assertThat(searchProfileResponseMap1.get("total"), equalTo(Map.of("value", 1, "relation", "eq")));
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> users = (List<Map<String, Object>>) searchProfileResponseMap1.get("profiles");
+        assertThat(users, hasSize(1));
+        assertThat(users.get(0).get("uid"), equalTo(uid));
     }
 
     private Map<String, Object> doActivateProfile() throws IOException {

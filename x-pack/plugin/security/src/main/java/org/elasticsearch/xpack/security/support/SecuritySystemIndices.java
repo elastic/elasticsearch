@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 
 import java.io.IOException;
@@ -64,7 +65,11 @@ public class SecuritySystemIndices {
     }
 
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
+        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
+            return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
+        } else {
+            return List.of(mainDescriptor, tokenDescriptor);
+        }
     }
 
     public void init(Client client, ClusterService clusterService) {
@@ -275,6 +280,27 @@ public class SecuritySystemIndices {
                                 builder.startObject("properties");
                                 {
                                     builder.startObject("manage");
+                                    {
+                                        builder.field("type", "object");
+                                        builder.startObject("properties");
+                                        {
+                                            builder.startObject("applications");
+                                            builder.field("type", "keyword");
+                                            builder.endObject();
+                                        }
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                            builder.startObject("profile");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("write");
                                     {
                                         builder.field("type", "object");
                                         builder.startObject("properties");
@@ -822,10 +848,6 @@ public class SecuritySystemIndices {
                                     builder.endObject();
 
                                     builder.startObject("full_name");
-                                    builder.field("type", "search_as_you_type");
-                                    builder.endObject();
-
-                                    builder.startObject("display_name");
                                     builder.field("type", "search_as_you_type");
                                     builder.endObject();
 

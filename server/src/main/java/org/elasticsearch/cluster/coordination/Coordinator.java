@@ -497,7 +497,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         final StartJoinRequest startJoinRequest = new StartJoinRequest(newMaster, Math.max(getCurrentTerm(), maxTermSeen) + 1);
         logger.info("abdicating to {} with term {}", newMaster, startJoinRequest.getTerm());
         getLastAcceptedState().nodes().mastersFirstStream().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
-        // handling of start join messages on the local node will be dispatched to the generic thread-pool
+        // handling of start join messages on the local node will be dispatched to the coordination thread-pool
         assert mode == Mode.LEADER : "should still be leader after sending abdication messages " + mode;
         // explicitly move node to candidate state so that the next cluster state update task yields an onNoLongerMaster event
         becomeCandidate("after abdicating to " + newMaster);
@@ -635,7 +635,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
                 logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
                 listener.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
-            }), i -> Empty.INSTANCE, Names.GENERIC)
+            }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
         );
     }
 
@@ -651,7 +651,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     e
                 );
                 listener.onFailure(new IllegalStateException("failure when sending a join ping request to node", e));
-            }), i -> Empty.INSTANCE, Names.GENERIC)
+            }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
         );
     }
 
@@ -1085,7 +1085,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // ... and also automatically exclude the node IDs of master-ineligible nodes that were previously master-eligible and are still in
         // the voting config. We could exclude all the master-ineligible nodes here, but there could be quite a few of them and that makes
         // the logging much harder to follow.
-        final Stream<String> masterIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+        final Stream<String> masterIneligibleNodeIdsInVotingConfig = clusterState.nodes()
+            .stream()
             .filter(
                 n -> n.isMasterNode() == false
                     && (clusterState.getLastAcceptedConfiguration().getNodeIds().contains(n.getId())
@@ -1093,7 +1094,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             )
             .map(DiscoveryNode::getId);
 
-        final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+        final Set<DiscoveryNode> liveNodes = clusterState.nodes()
+            .stream()
             .filter(DiscoveryNode::isMasterNode)
             .filter(coordinationState.get()::containsJoinVoteFor)
             .collect(Collectors.toSet());
@@ -1581,7 +1583,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 public String toString() {
                     return "scheduled timeout for " + CoordinatorPublication.this;
                 }
-            }, publishTimeout, Names.GENERIC);
+            }, publishTimeout, Names.CLUSTER_COORDINATION);
 
             this.infoTimeoutHandler = transportService.getThreadPool().schedule(new Runnable() {
                 @Override
@@ -1595,7 +1597,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 public String toString() {
                     return "scheduled timeout for reporting on " + CoordinatorPublication.this;
                 }
-            }, publishInfoTimeout, Names.GENERIC);
+            }, publishInfoTimeout, Names.CLUSTER_COORDINATION);
         }
 
         private void removePublicationAndPossiblyBecomeCandidate(String reason) {

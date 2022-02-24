@@ -33,7 +33,6 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 The create trained model API enables you to supply a trained model that is not
 created by {dfanalytics}.
 
-
 [[ml-put-trained-models-path-params]]
 == {api-path-parms-title}
 
@@ -893,7 +892,7 @@ Appropriate types are:
 * `tree_ensemble`: The model definition is an ensemble model of decision trees.
 * `lang_ident`: A special type reserved for language identification models.
 * `pytorch`: The stored definition is a PyTorch (specifically a TorchScript) model. Currently only
-NLP models are supported.
+NLP models are supported. For more information, refer to {ml-docs}/ml-nlp.html[{nlp-cap}].
 --
 
 `tags`::

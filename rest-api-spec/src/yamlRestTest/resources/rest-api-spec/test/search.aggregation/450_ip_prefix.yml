@@ -22,31 +22,31 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "ipv4": "192.168.1.10", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f10", "value": 10, ip: "192.168.1.10" }
+          - { "ipv4": "192.168.1.10", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f10", "value": 10, "ip": "192.168.1.10" }
           - { "index": { } }
-          - { "ipv4": "192.168.1.12", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f12", "value": 20, ip: "2001:db8:a4f8:112a:6001:0:12:7f12" }
+          - { "ipv4": "192.168.1.12", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f12", "value": 20, "ip": "2001:db8:a4f8:112a:6001:0:12:7f12" }
           - { "index": { } }
-          - { "ipv4": "192.168.1.33", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f33", "value": 40, ip: "192.168.1.33" }
+          - { "ipv4": "192.168.1.33", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f33", "value": 40, "ip": "192.168.1.33" }
           - { "index": { } }
-          - { "ipv4": "192.168.1.10", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f10", "value": 20, ip: "2001:db8:a4f8:112a:6001:0:12:7f10" }
+          - { "ipv4": "192.168.1.10", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f10", "value": 20, "ip": "2001:db8:a4f8:112a:6001:0:12:7f10" }
           - { "index": { } }
-          - { "ipv4": "192.168.1.33", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f33", "value": 70, ip: "192.168.1.33" }
+          - { "ipv4": "192.168.1.33", "ipv6": "2001:db8:a4f8:112a:6001:0:12:7f33", "value": 70, "ip": "192.168.1.33" }
           - { "index": { } }
-          - { "ipv4": "192.168.2.41", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f41", "value": 20, ip: "2001:db8:a4f8:112c:6001:0:12:7f41" }
+          - { "ipv4": "192.168.2.41", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f41", "value": 20, "ip": "2001:db8:a4f8:112c:6001:0:12:7f41" }
           - { "index": { } }
-          - { "ipv4": "192.168.2.10", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f10", "value": 30, ip: "192.168.2.10" }
+          - { "ipv4": "192.168.2.10", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f10", "value": 30, "ip": "192.168.2.10" }
           - { "index": { } }
-          - { "ipv4": "192.168.2.23", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f23", "value": 50, ip: "2001:db8:a4f8:112c:6001:0:12:7f23" }
+          - { "ipv4": "192.168.2.23", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f23", "value": 50, "ip": "2001:db8:a4f8:112c:6001:0:12:7f23" }
           - { "index": { } }
-          - { "ipv4": "192.168.2.41", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f41", "value": 60, ip: "192.168.2.41" }
+          - { "ipv4": "192.168.2.41", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f41", "value": 60, "ip": "192.168.2.41" }
           - { "index": { } }
-          - { "ipv4": "192.168.2.10", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f10", "value": 10, ip: "2001:db8:a4f8:112c:6001:0:12:7f10" }
+          - { "ipv4": "192.168.2.10", "ipv6": "2001:db8:a4f8:112c:6001:0:12:7f10", "value": 10, "ip": "2001:db8:a4f8:112c:6001:0:12:7f10" }
 
 ---
 "IPv4 prefix":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:
@@ -79,8 +79,8 @@ setup:
 # network part will just 0s.
 "IPv4 prefix with incorrect is_ipv6":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:
@@ -104,8 +104,8 @@ setup:
 ---
 "IPv4 short prefix":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:
@@ -141,8 +141,8 @@ setup:
 ---
 "IPv6 prefix":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:
@@ -175,8 +175,8 @@ setup:
 # with everything else being 0s.
 "IPv6 prefix with incorrect is_ipv6":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:
@@ -201,8 +201,8 @@ setup:
 ---
 "Invalid IPv4 prefix":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       catch: /\[prefix_length\] must be in range \[0, 32\] while value is \[44\]/
       search:
@@ -219,8 +219,8 @@ setup:
 ---
 "Invalid IPv6 prefix":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       catch: /\[prefix_length] must be in range \[0, 128\] while value is \[170]/
       search:
@@ -236,8 +236,8 @@ setup:
 ---
 "IPv4 prefix sub aggregation":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:
@@ -278,8 +278,8 @@ setup:
 ---
 "IPv6 prefix sub aggregation":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:
@@ -319,8 +319,8 @@ setup:
 ---
 "IPv6 prefix metric sub aggregation":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:
@@ -356,8 +356,8 @@ setup:
 ---
 "IPv4 prefix appended":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:
@@ -388,8 +388,8 @@ setup:
 ---
 "IPv6 prefix appended":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:
@@ -420,8 +420,8 @@ setup:
 ---
 "Mixed IPv4 and IPv6 with is_ipv6 false":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:
@@ -451,8 +451,8 @@ setup:
 ---
 "Mixed IPv4 and IPv6 with is_ipv6 true":
   - skip:
-      version: " - 8.0.99"
-      reason: "added in 8.1.0"
+      version: " - 8.2.0"
+      reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
         body:

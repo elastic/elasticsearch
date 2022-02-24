@@ -62,6 +62,7 @@ public class RolloverRequestTests extends ESTestCase {
             .field("max_docs", 100)
             .field("max_size", "45gb")
             .field("max_primary_shard_size", "55gb")
+            .field("max_primary_shard_docs", 10)
             .field("min_age", "10d")
             .field("min_docs", 100)
             .field("min_primary_shard_size", "55gb")
@@ -69,7 +70,7 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject();
         request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
-        assertThat(conditions.size(), equalTo(7));
+        assertThat(conditions.size(), equalTo(8));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition) conditions.get(MaxAgeCondition.NAME);
         assertThat(maxAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
         MaxDocsCondition maxDocsCondition = (MaxDocsCondition) conditions.get(MaxDocsCondition.NAME);
@@ -80,6 +81,10 @@ public class RolloverRequestTests extends ESTestCase {
             MaxPrimaryShardSizeCondition.NAME
         );
         assertThat(maxPrimaryShardSizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(55)));
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = (MaxPrimaryShardDocsCondition) conditions.get(
+            MaxPrimaryShardDocsCondition.NAME
+        );
+        assertThat(maxPrimaryShardDocsCondition.value, equalTo(10L));
         MinAgeCondition minAgeCondition = (MinAgeCondition) conditions.get(MinAgeCondition.NAME);
         assertThat(minAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
         MinDocsCondition minDocsCondition = (MinDocsCondition) conditions.get(MinDocsCondition.NAME);
@@ -97,6 +102,7 @@ public class RolloverRequestTests extends ESTestCase {
             .startObject("conditions")
             .field("max_age", "10d")
             .field("max_docs", 100)
+            .field("max_primary_shard_docs", 10)
             .endObject()
             .startObject("mappings")
             .startObject("properties")
@@ -116,7 +122,7 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject();
         request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
-        assertThat(conditions.size(), equalTo(2));
+        assertThat(conditions.size(), equalTo(3));
         assertThat(request.getCreateIndexRequest().mappings(), containsString("not_analyzed"));
         assertThat(request.getCreateIndexRequest().aliases().size(), equalTo(1));
         assertThat(request.getCreateIndexRequest().settings().getAsInt("number_of_shards", 0), equalTo(10));
@@ -154,6 +160,7 @@ public class RolloverRequestTests extends ESTestCase {
         originalRequest.addMaxIndexDocsCondition(randomNonNegativeLong());
         originalRequest.addMaxIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()));
         originalRequest.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        originalRequest.addMaxPrimaryShardDocsCondition(randomNonNegativeLong());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();

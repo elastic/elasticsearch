@@ -175,7 +175,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDevia
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
@@ -188,6 +187,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationB
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
@@ -382,7 +382,7 @@ public class SearchModule {
         );
         registerAggregation(
             new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder.PARSER).addResultReader(
-                InternalSum::new
+                Sum::new
             ).setAggregatorRegistrar(SumAggregationBuilder::registerAggregators),
             builder
         );

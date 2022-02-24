@@ -32,11 +32,11 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.apache.lucene.util.TestRuleMarkFailure;
-import org.apache.lucene.util.TestUtil;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.TestRuleMarkFailure;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
@@ -492,8 +492,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertWarnings(true, Stream.concat(Arrays.stream(settings).map(setting -> {
             String warningMessage = String.format(
                 Locale.ROOT,
-                "[%s] setting was deprecated in Elasticsearch and will be "
-                    + "removed in a future release! See the breaking changes documentation for the next major version.",
+                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release.",
                 setting.getKey()
             );
             return new DeprecationWarning(

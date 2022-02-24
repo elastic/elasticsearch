@@ -55,7 +55,8 @@ public final class IngestDocument {
     private final Set<String> executedPipelines = new LinkedHashSet<>();
 
     public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
-        this.sourceAndMetadata = new HashMap<>();
+        // source + at max 5 extra fields
+        this.sourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
         this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);

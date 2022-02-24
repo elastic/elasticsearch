@@ -46,6 +46,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
@@ -98,6 +99,7 @@ public class SqlDataTypes {
         ODBC_TO_ES.put("SQL_SMALLINT", SHORT);
         ODBC_TO_ES.put("SQL_INTEGER", INTEGER);
         ODBC_TO_ES.put("SQL_BIGINT", LONG);
+        ODBC_TO_ES.put("SQL_UBIGINT", UNSIGNED_LONG);
         ODBC_TO_ES.put("SQL_REAL", FLOAT);
         ODBC_TO_ES.put("SQL_FLOAT", DOUBLE);
         ODBC_TO_ES.put("SQL_DOUBLE", DOUBLE);
@@ -334,6 +336,9 @@ public class SqlDataTypes {
         if (dataType == LONG) {
             return JDBCType.BIGINT;
         }
+        if (dataType == UNSIGNED_LONG) {
+            return JDBCType.NUMERIC;
+        }
         if (dataType == DOUBLE) {
             return JDBCType.DOUBLE;
         }
@@ -457,6 +462,9 @@ public class SqlDataTypes {
         if (dataType == LONG) {
             return 19;
         }
+        if (dataType == UNSIGNED_LONG) {
+            return 20;
+        }
         if (dataType == DOUBLE) {
             return 15;
         }
@@ -574,7 +582,7 @@ public class SqlDataTypes {
         if (dataType == INTEGER) {
             return 11;
         }
-        if (dataType == LONG) {
+        if (dataType == LONG || dataType == UNSIGNED_LONG) {
             return 20;
         }
         if (dataType == DOUBLE) {

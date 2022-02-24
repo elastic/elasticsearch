@@ -782,13 +782,11 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey())
                         || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
                         bw.newLine();
-                        bw.write("# Allow HTTP API connections from localhost and local networks");
+                        bw.write("# Allow HTTP API connections from anywhere");
                         bw.newLine();
                         bw.write("# Connections are encrypted and require user authentication");
                         bw.newLine();
-                        bw.write(
-                            HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses())
-                        );
+                        bw.write(HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": 0.0.0.0");
                         bw.newLine();
                     }
                     if (false == (localFinalEnv.settings().hasValue(TransportSettings.HOST.getKey())
@@ -798,7 +796,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey())
                         || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
                         bw.newLine();
-                        bw.write("# Allow other nodes to join the cluster from localhost and local networks");
+                        bw.write("# Allow other nodes to join the cluster from anywhere");
                         bw.newLine();
                         bw.write("# Connections are encrypted and mutually authenticated");
                         bw.newLine();
@@ -806,7 +804,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                             || false == anyRemoteHostNodeAddress(transportAddresses, NetworkUtils.getAllAddresses())) {
                             bw.write("#");
                         }
-                        bw.write(TransportSettings.HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses()));
+                        bw.write(TransportSettings.HOST.getKey() + ": 0.0.0.0");
                         bw.newLine();
                     }
                     bw.newLine();
@@ -878,14 +876,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             }
         }
         return false;
-    }
-
-    protected String hostSettingValue(InetAddress[] allAddresses) {
-        if (Arrays.stream(allAddresses).anyMatch(InetAddress::isSiteLocalAddress)) {
-            return "[_local_, _site_]";
-        } else {
-            return "[_local_]";
-        }
     }
 
     private Environment possiblyReconfigureNode(Environment env, Terminal terminal) throws UserException {

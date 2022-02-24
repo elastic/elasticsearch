@@ -123,7 +123,7 @@ public class LifecyclePolicyUtils {
             .indices()
             .values()
             .stream()
-            .filter(indexMetadata -> policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())))
+            .filter(indexMetadata -> policyName.equals(indexMetadata.getLifecyclePolicyName()))
             .map(indexMetadata -> indexMetadata.getIndex().getName())
             .collect(Collectors.toList());
 

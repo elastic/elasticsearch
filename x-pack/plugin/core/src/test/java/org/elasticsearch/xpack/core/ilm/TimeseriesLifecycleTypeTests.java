@@ -66,7 +66,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
-    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null, null, null, null);
+    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null, null, null, null,
+        null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
@@ -325,7 +326,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null, null, null),
+                    new RolloverAction(null, null, null, 1L, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))
                 )
@@ -1100,6 +1101,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                     ByteSizeValue.parseBytesSizeValue("0b", "test"),
                     ByteSizeValue.parseBytesSizeValue("0b", "test"),
                     TimeValue.ZERO,
+                    1L,
                     1L,
                     null,
                     null,

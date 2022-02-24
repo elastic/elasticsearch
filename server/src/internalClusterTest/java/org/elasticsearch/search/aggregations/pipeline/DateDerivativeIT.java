@@ -432,7 +432,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(1.0));
+        assertThat(sum.value(), equalTo(1.0));
         SimpleValue deriv = bucket.getAggregations().get("deriv");
         assertThat(deriv, nullValue());
         assertThat((ZonedDateTime) propertiesKeys[0], equalTo(key));
@@ -447,7 +447,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(5.0));
+        assertThat(sum.value(), equalTo(5.0));
         deriv = bucket.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.value(), equalTo(4.0));
@@ -470,7 +470,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(15.0));
+        assertThat(sum.value(), equalTo(15.0));
         deriv = bucket.getAggregations().get("deriv");
         assertThat(deriv, notNullValue());
         assertThat(deriv.value(), equalTo(10.0));

@@ -23,7 +23,7 @@ accountability gaps that could render illegitimate actions undetectable.
 Please take time to review these policies whenever your system architecture changes.
 
 A policy is a named set of filter rules. Each filter rule applies to a single event attribute,
-one of the `users`, `realms`, `roles` or `indices` attributes. The filter rule defines
+one of the `users`, `realms`, `actions`, `roles` or `indices` attributes. The filter rule defines
 a list of <<regexp-syntax,Lucene regexp>>, *any* of which has to match the value of the audit
 event attribute for the rule to match.
 A policy matches an event if *all* the rules comprising it match the event.

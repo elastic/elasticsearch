@@ -104,6 +104,7 @@ import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -1400,6 +1401,30 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
+    public static void assertAcknowledged(Response response) throws IOException {
+        assertOK(response);
+        String jsonBody = EntityUtils.toString(response.getEntity());
+        assertThat(jsonBody, containsString("\"acknowledged\":true"));
+    }
+
+    /**
+     * Updates the cluster with the provided settings (as persistent settings)
+     **/
+    public static void updateClusterSettings(Settings settings) throws IOException {
+        updateClusterSettings(client(), settings);
+    }
+
+    /**
+     * Updates the cluster with the provided settings (as persistent settings)
+     **/
+    public static void updateClusterSettings(RestClient client, Settings settings) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        String entity = "{ \"persistent\":" + Strings.toString(settings) + "}";
+        request.setJsonEntity(entity);
+        Response response = client.performRequest(request);
+        assertOK(response);
+    }
+
     /**
      * Permits subclasses to increase the default timeout when waiting for green health
      */
@@ -1431,6 +1456,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
         ensureHealth(client(), index, requestConsumer);
+    }
+
+    public static void ensureHealth(RestClient restClient, Consumer<Request> requestConsumer) throws IOException {
+        ensureHealth(restClient, "", requestConsumer);
     }
 
     protected static void ensureHealth(RestClient restClient, String index, Consumer<Request> requestConsumer) throws IOException {
@@ -1597,7 +1626,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
-        Response response = client().performRequest(new Request("GET", endpoint));
+        return getAsMap(client(), endpoint);
+    }
+
+    protected static Map<String, Object> getAsMap(RestClient client, final String endpoint) throws IOException {
+        Response response = client.performRequest(new Request("GET", endpoint));
         return responseAsMap(response);
     }
 

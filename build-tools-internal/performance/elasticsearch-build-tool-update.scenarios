@@ -69,10 +69,9 @@ precommit_master {
 
 single_project_branch {
     title = "single project (@testGitCommit@)"
-    cleanup-tasks = [":server:clean"]
-    tasks = [":server:spotlessApply", ":server:precommit"]
+    tasks = [":server:precommit"]
     gradle-args = ["--no-scan"]
-    apply-abi-change-to = "server/src/main/java/org/elasticsearch/Build.java"
+    apply-abi-change-to = "server/src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java"
     run-using = cli // value can be "cli" or "tooling-api"
     daemon = warm // value can be "warm", "cold", or "none"
     warm-ups = 5
@@ -87,10 +86,9 @@ single_project_branch {
 
 single_project_master {
     title = "single project (master)"
-    cleanup-tasks = [":server:clean"]
-    tasks = [":server:spotlessApply", ":server:precommit"]
+    tasks = [":server:precommit"]
     gradle-args = ["--no-scan"]
-    apply-abi-change-to = "server/src/main/java/org/elasticsearch/Build.java"
+    apply-abi-change-to = "server/src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java"
     run-using = cli // value can be "cli" or "tooling-api"
     daemon = warm // value can be "warm", "cold", or "none"
     warm-ups = 5

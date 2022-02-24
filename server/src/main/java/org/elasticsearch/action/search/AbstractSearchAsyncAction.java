@@ -193,18 +193,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 : request.source().trackTotalHitsUpTo();
             // total hits is null in the response if the tracking of total hits is disabled
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
-            listener.onResponse(
-                new SearchResponse(
-                    withTotalHits ? InternalSearchResponse.EMPTY_WITH_TOTAL_HITS : InternalSearchResponse.EMPTY_WITHOUT_TOTAL_HITS,
-                    null,
-                    0,
-                    0,
-                    0,
-                    buildTookInMillis(),
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    clusters,
-                    null
-                )
+            sendSearchResponse(
+                withTotalHits ? InternalSearchResponse.EMPTY_WITH_TOTAL_HITS : InternalSearchResponse.EMPTY_WITHOUT_TOTAL_HITS,
+                new AtomicArray<>(0)
             );
             return;
         }

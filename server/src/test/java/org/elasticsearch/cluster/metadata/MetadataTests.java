@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
@@ -52,15 +53,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
-import static org.elasticsearch.cluster.metadata.Metadata.Builder.validateDataStreams;
+import static org.elasticsearch.cluster.metadata.Metadata.Builder.assertDataStreams;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1178,7 +1179,7 @@ public class MetadataTests extends ESTestCase {
             .put(idx, false)
             .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        AssertionError e = expectThrows(AssertionError.class, b::build);
         assertThat(e.getMessage(), containsString("aliases [" + conflictingName + "] cannot refer to backing indices of data streams"));
     }
 
@@ -1399,7 +1400,7 @@ public class MetadataTests extends ESTestCase {
     public void testValidateDataStreamsNoConflicts() {
         Metadata metadata = createIndices(5, 10, "foo-datastream").metadata;
         // don't expect any exception when validating a system without indices that would conflict with future backing indices
-        validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsIgnoresIndicesWithoutCounter() {
@@ -1423,7 +1424,7 @@ public class MetadataTests extends ESTestCase {
             .build();
         // don't expect any exception when validating against non-backing indices that don't conform to the backing indices naming
         // convention
-        validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsAllowsNamesThatStartsWithPrefix() {
@@ -1437,51 +1438,7 @@ public class MetadataTests extends ESTestCase {
             .build();
         // don't expect any exception when validating against (potentially backing) indices that can't create conflict because of
         // additional text before number
-        validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
-    }
-
-    public void testValidateDataStreamsAllowsPrefixedBackingIndices() {
-        String dataStreamName = "foo-datastream";
-        int generations = 10;
-        List<IndexMetadata> backingIndices = new ArrayList<>(generations);
-        for (int i = 1; i <= generations; i++) {
-            IndexMetadata idx;
-            if (i % 2 == 0 && i < generations) {
-                idx = IndexMetadata.builder("shrink-" + DataStream.getDefaultBackingIndexName(dataStreamName, i))
-                    .settings(ESTestCase.settings(Version.CURRENT).put("index.hidden", true))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
-                    .build();
-            } else {
-                idx = createBackingIndex(dataStreamName, i).build();
-            }
-            backingIndices.add(idx);
-        }
-        DataStream dataStream = newInstance(
-            dataStreamName,
-            createTimestampField("@timestamp"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
-        );
-
-        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, List.of());
-        // manually building the indices lookup as going through Metadata.Builder#build would trigger the validate method already
-        SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
-        for (IndexMetadata indexMeta : backingIndices) {
-            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.ConcreteIndex(indexMeta, dataStreamAbstraction));
-        }
-
-        for (int i = 1; i <= generations; i++) {
-            // for the indices that we added in the data stream with a "shrink-" prefix, add the non-prefixed indices to the lookup
-            if (i % 2 == 0 && i < generations) {
-                IndexMetadata indexMeta = createBackingIndex(dataStreamName, i).build();
-                indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.ConcreteIndex(indexMeta, dataStreamAbstraction));
-            }
-        }
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream), Map.of());
-
-        // prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, matching the
-        // data stream backing indices naming pattern, indices are already in the system
-        validateDataStreams(indicesLookup, dataStreamMetadata);
+        assertDataStreams(metadata.getIndices(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsForNullDataStreamMetadata() {
@@ -1490,7 +1447,7 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         try {
-            validateDataStreams(metadata.getIndicesLookup(), null);
+            assertDataStreams(metadata.getIndices(), null);
         } catch (Exception e) {
             fail("did not expect exception when validating a system without any data streams but got " + e.getMessage());
         }
@@ -1893,6 +1850,114 @@ public class MetadataTests extends ESTestCase {
             assertThat(previous.getIndicesLookup(), sameInstance(metadata.getIndicesLookup()));
             previous = metadata;
         }
+    }
+
+    public void testAliasedIndices() {
+        int numAliases = randomIntBetween(32, 64);
+        int numIndicesPerAlias = randomIntBetween(8, 16);
+
+        Metadata.Builder builder = Metadata.builder();
+        for (int i = 0; i < numAliases; i++) {
+            String aliasName = "alias-" + i;
+            for (int j = 0; j < numIndicesPerAlias; j++) {
+                AliasMetadata.Builder alias = new AliasMetadata.Builder(aliasName);
+                if (j == 0) {
+                    alias.writeIndex(true);
+                }
+
+                String indexName = aliasName + "-" + j;
+                builder.put(
+                    IndexMetadata.builder(indexName)
+                        .settings(settings(Version.CURRENT))
+                        .creationDate(randomNonNegativeLong())
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .putAlias(alias)
+                );
+            }
+        }
+
+        Metadata metadata = builder.build();
+        for (int i = 0; i < numAliases; i++) {
+            String aliasName = "alias-" + i;
+            Set<Index> result = metadata.aliasedIndices(aliasName);
+            Index[] expected = IntStream.range(0, numIndicesPerAlias)
+                .mapToObj(j -> aliasName + "-" + j)
+                .map(name -> new Index(name, ClusterState.UNKNOWN_UUID))
+                .toArray(Index[]::new);
+            assertThat(result, containsInAnyOrder(expected));
+        }
+
+        // Add a new alias and index
+        builder = Metadata.builder(metadata);
+        String newAliasName = "alias-new";
+        {
+            builder.put(
+                IndexMetadata.builder(newAliasName + "-1")
+                    .settings(settings(Version.CURRENT))
+                    .creationDate(randomNonNegativeLong())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(new AliasMetadata.Builder(newAliasName).writeIndex(true))
+            );
+        }
+        metadata = builder.build();
+        assertThat(metadata.aliasedIndices(), hasSize(numAliases + 1));
+        assertThat(metadata.aliasedIndices(newAliasName), contains(new Index(newAliasName + "-1", ClusterState.UNKNOWN_UUID)));
+
+        // Remove the new alias/index
+        builder = Metadata.builder(metadata);
+        {
+            builder.remove(newAliasName + "-1");
+        }
+        metadata = builder.build();
+        assertThat(metadata.aliasedIndices(), hasSize(numAliases));
+        assertThat(metadata.aliasedIndices(newAliasName), empty());
+
+        // Add a new alias that points to existing indices
+        builder = Metadata.builder(metadata);
+        {
+            IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(metadata.index("alias-1-0"));
+            imBuilder.putAlias(new AliasMetadata.Builder(newAliasName));
+            builder.put(imBuilder);
+
+            imBuilder = new IndexMetadata.Builder(metadata.index("alias-2-1"));
+            imBuilder.putAlias(new AliasMetadata.Builder(newAliasName));
+            builder.put(imBuilder);
+
+            imBuilder = new IndexMetadata.Builder(metadata.index("alias-3-2"));
+            imBuilder.putAlias(new AliasMetadata.Builder(newAliasName));
+            builder.put(imBuilder);
+        }
+        metadata = builder.build();
+        assertThat(metadata.aliasedIndices(), hasSize(numAliases + 1));
+        assertThat(
+            metadata.aliasedIndices(newAliasName),
+            containsInAnyOrder(
+                new Index("alias-1-0", ClusterState.UNKNOWN_UUID),
+                new Index("alias-2-1", ClusterState.UNKNOWN_UUID),
+                new Index("alias-3-2", ClusterState.UNKNOWN_UUID)
+            )
+        );
+
+        // Remove the new alias that points to existing indices
+        builder = Metadata.builder(metadata);
+        {
+            IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(metadata.index("alias-1-0"));
+            imBuilder.removeAlias(newAliasName);
+            builder.put(imBuilder);
+
+            imBuilder = new IndexMetadata.Builder(metadata.index("alias-2-1"));
+            imBuilder.removeAlias(newAliasName);
+            builder.put(imBuilder);
+
+            imBuilder = new IndexMetadata.Builder(metadata.index("alias-3-2"));
+            imBuilder.removeAlias(newAliasName);
+            builder.put(imBuilder);
+        }
+        metadata = builder.build();
+        assertThat(metadata.aliasedIndices(), hasSize(numAliases));
+        assertThat(metadata.aliasedIndices(newAliasName), empty());
     }
 
     public static final String SYSTEM_ALIAS_NAME = "system_alias";

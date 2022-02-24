@@ -336,7 +336,6 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         // want to assign a persistent task to a node that will shortly be
         // leaving the cluster
         final List<DiscoveryNode> candidateNodes = currentState.nodes()
-            .getAllNodes()
             .stream()
             .filter(dn -> isNodeShuttingDown(currentState, dn.getId()) == false)
             .collect(Collectors.toList());

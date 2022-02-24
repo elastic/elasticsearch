@@ -178,7 +178,6 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             null,
-            null,
             Set.of(),
             Set.of()
         );
@@ -207,7 +206,6 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         state = randomAllocate(state);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             state,
-            null,
             null,
             null,
             randomClusterInfo(state),
@@ -252,7 +250,6 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             state,
-            null,
             null,
             null,
             info,

@@ -27,14 +27,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {field1: "123.42 400 <foo>"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.val: 123.42 }
   - match: { _source.status: 400 }
   - match: { _source.msg: "foo" }
@@ -64,14 +64,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {field1: "<foo>"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.msg: "foo" }
 
 ---
@@ -99,14 +99,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {field1: "<foo>"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.msg: "foo" }
 
 ---

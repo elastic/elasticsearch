@@ -147,7 +147,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                     .masterNodeTimeout(request.masterNodeTimeout())
                     .indices(concreteIndices)
                     .waitForActiveShards(request.waitForActiveShards());
-                indexStateService.openIndex(
+                indexStateService.openIndices(
                     updateRequest,
                     delegate.delegateFailure(
                         (l, openIndexClusterStateUpdateResponse) -> l.onResponse(

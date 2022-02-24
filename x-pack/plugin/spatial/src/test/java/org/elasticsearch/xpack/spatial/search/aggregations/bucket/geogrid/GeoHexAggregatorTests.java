@@ -6,7 +6,12 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
@@ -17,12 +22,15 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
-import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeoHexGridBucket> {
@@ -39,7 +47,8 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
 
     @Override
     protected int randomPrecision() {
-        return randomIntBetween(0, H3.MAX_H3_RES);
+        // avoid too big cells, so we don't go over the pole
+        return randomIntBetween(2, H3.MAX_H3_RES);
     }
 
     @Override
@@ -54,12 +63,33 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
 
     @Override
     protected Point randomPoint() {
-        return GeometryTestUtils.randomPoint();
+        // don't go close to the poles
+        return new Point(
+            randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true),
+            randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, false)
+        );
     }
 
     @Override
     protected GeoBoundingBox randomBBox() {
-        return GeoTestUtils.randomBBox();
+        GeoBoundingBox bbox = randomValueOtherThanMany(
+            (b) -> b.top() > GeoTileUtils.LATITUDE_MASK || b.bottom() < -GeoTileUtils.LATITUDE_MASK,
+            () -> {
+                Rectangle rectangle = GeometryTestUtils.randomRectangle();
+                return new GeoBoundingBox(
+                    new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+                    new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+                );
+            }
+        );
+        // Avoid numerical errors for sub-atomic values
+        double left = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(bbox.left()));
+        double right = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(bbox.right()));
+        double top = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(bbox.top()));
+        double bottom = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(bbox.bottom()));
+        bbox.topLeft().reset(top, left);
+        bbox.bottomRight().reset(bottom, right);
+        return bbox;
     }
 
     @Override
@@ -77,11 +107,30 @@ public class GeoHexAggregatorTests extends GeoGridAggregatorTestCase<InternalGeo
             minLat = Math.min(minLat, boundaryLat);
             maxLat = Math.max(maxLat, boundaryLat);
         }
-        return new Rectangle(minLon, maxLon, maxLat, minLat);
+        if (maxLon - minLon > 180) {
+            return new Rectangle(maxLon, minLon, maxLat, minLat);
+        } else {
+            return new Rectangle(minLon, maxLon, maxLat, minLat);
+        }
     }
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
         return createBuilder("foo").field(fieldName);
+    }
+
+    public void testHexCrossesDateline() throws IOException {
+        GeoBoundingBox bbox = new GeoBoundingBox(new GeoPoint(10, 179.5), new GeoPoint(0, 179.6));
+        double y = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(5));
+        double x = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(179.9));
+        LatLonDocValuesField field = new LatLonDocValuesField("bar", y, x);
+        testCase(
+            new MatchAllDocsQuery(),
+            "bar",
+            0,
+            bbox,
+            geoGrid -> assertTrue(AggregationInspectionHelper.hasValue(geoGrid)),
+            iw -> iw.addDocument(Collections.singletonList(field))
+        );
     }
 }

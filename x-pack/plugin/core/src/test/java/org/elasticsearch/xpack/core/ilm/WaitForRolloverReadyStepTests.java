@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MinAgeCondition;
@@ -64,6 +65,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
+        Long maxPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
         ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue minPrimaryShardSize = randomBoolean()
             ? null
@@ -80,6 +82,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             maxPrimaryShardSize,
             maxAge,
             maxDocs,
+            maxPrimaryShardDocs,
             minPrimaryShardSize,
             minAge,
             minDocs
@@ -94,11 +97,12 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
+        Long maxPrimaryShardDocs = instance.getMaxPrimaryShardDocs();
         ByteSizeValue minPrimaryShardSize = instance.getMinPrimaryShardSize();
         TimeValue minAge = instance.getMinAge();
         Long minDocs = instance.getMinDocs();
 
-        switch (between(0, 8)) {
+        switch (between(0, 9)) {
             case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             case 2 -> maxSize = randomValueOtherThan(maxSize, () -> {
@@ -113,16 +117,17 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 maxAge,
                 () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             );
-            case 5 -> maxDocs = randomValueOtherThan(maxDocs, ESTestCase::randomNonNegativeLong);
-            case 6 -> minPrimaryShardSize = randomValueOtherThan(minPrimaryShardSize, () -> {
+            case 5 -> maxDocs = randomValueOtherThan(maxDocs, () -> randomNonNegativeLong());
+            case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, () -> randomNonNegativeLong());
+            case 7 -> minPrimaryShardSize = randomValueOtherThan(minPrimaryShardSize, () -> {
                 ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
             });
-            case 7 -> minAge = randomValueOtherThan(
+            case 8 -> minAge = randomValueOtherThan(
                 minAge,
                 () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             );
-            case 8 -> minDocs = randomValueOtherThan(minDocs, ESTestCase::randomNonNegativeLong);
+            case 9 -> minDocs = randomValueOtherThan(minDocs, ESTestCase::randomNonNegativeLong);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new WaitForRolloverReadyStep(
@@ -133,6 +138,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             maxPrimaryShardSize,
             maxAge,
             maxDocs,
+            maxPrimaryShardDocs,
             minPrimaryShardSize,
             minAge,
             minDocs
@@ -149,6 +155,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             instance.getMaxPrimaryShardSize(),
             instance.getMaxAge(),
             instance.getMaxDocs(),
+            instance.getMaxPrimaryShardDocs(),
             instance.getMinPrimaryShardSize(),
             instance.getMinAge(),
             instance.getMinDocs()
@@ -302,6 +309,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+            }
+            if (step.getMaxPrimaryShardDocs() != null) {
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
             }
             if (step.getMinPrimaryShardSize() != null) {
                 expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));
@@ -514,6 +524,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
             }
+            if (step.getMaxPrimaryShardDocs() != null) {
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
+            }
             if (step.getMinPrimaryShardSize() != null) {
                 expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));
             }
@@ -578,6 +591,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+            }
+            if (step.getMaxPrimaryShardDocs() != null) {
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
             }
             if (step.getMinPrimaryShardSize() != null) {
                 expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));

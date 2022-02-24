@@ -90,7 +90,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -368,14 +367,7 @@ public final class TokenService {
                 traceLog("create token", new IllegalArgumentException("originating client authentication must be provided"))
             );
         } else {
-            final Authentication tokenAuth = new Authentication(
-                authentication.getUser(),
-                authentication.getAuthenticatedBy(),
-                authentication.getLookedUpBy(),
-                tokenVersion,
-                AuthenticationType.TOKEN,
-                authentication.getMetadata()
-            );
+            final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
             final String storedAccessToken;
             final String storedRefreshToken;
             if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {

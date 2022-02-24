@@ -24,7 +24,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.StreamSupport;
 
 /**
  * This class upgrades frozen indices to apply the index.shard_limit.group=frozen setting after all nodes have been upgraded to 7.13+
@@ -91,8 +90,11 @@ public class SearchableSnapshotIndexMetadataUpgrader {
     }
 
     static boolean needsUpgrade(ClusterState state) {
-        return StreamSupport.stream(state.metadata().spliterator(), false)
-            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
+        return state.metadata()
+            .stream()
+            .filter(
+                imd -> imd.getCompatibilityVersion().onOrAfter(Version.V_7_12_0) && imd.getCompatibilityVersion().before(Version.V_8_0_0)
+            )
             .filter(IndexMetadata::isPartialSearchableSnapshot)
             .map(IndexMetadata::getSettings)
             .anyMatch(SearchableSnapshotIndexMetadataUpgrader::notFrozenShardLimitGroup);
@@ -103,8 +105,11 @@ public class SearchableSnapshotIndexMetadataUpgrader {
             return currentState;
         }
         Metadata.Builder builder = Metadata.builder(currentState.metadata());
-        StreamSupport.stream(currentState.metadata().spliterator(), false)
-            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
+        currentState.metadata()
+            .stream()
+            .filter(
+                imd -> imd.getCompatibilityVersion().onOrAfter(Version.V_7_12_0) && imd.getCompatibilityVersion().before(Version.V_8_0_0)
+            )
             .filter(imd -> imd.isPartialSearchableSnapshot() && notFrozenShardLimitGroup(imd.getSettings()))
             .map(SearchableSnapshotIndexMetadataUpgrader::setShardLimitGroupFrozen)
             .forEach(imd -> builder.put(imd, true));

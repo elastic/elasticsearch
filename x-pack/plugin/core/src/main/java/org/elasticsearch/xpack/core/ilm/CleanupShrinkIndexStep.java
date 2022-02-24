@@ -43,7 +43,7 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
             if (currentClusterState.metadata().index(shrunkenIndexSource) == null) {
                 // if the source index does not exist, we'll skip deleting the
                 // (managed) shrunk index as that will cause data loss
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                String policyName = indexMetadata.getLifecyclePolicyName();
                 logger.warn(
                     "managed index [{}] as part of policy [{}] is a shrunk index and the source index [{}] does not exist "
                         + "anymore. will skip the [{}] step",

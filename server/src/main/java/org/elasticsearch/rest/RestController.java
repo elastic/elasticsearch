@@ -59,6 +59,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
+    /**
+     * list of browser safelisted media types - not allowed on Content-Type header
+     * https://fetch.spec.whatwg.org/#cors-safelisted-request-header
+     */
+    static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
+
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
 
@@ -334,7 +340,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
-            if (handler.mediaTypesValid(request) == false) {
+            if (isContentTypeDisallowed(request) || handler.mediaTypesValid(request) == false) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
@@ -386,6 +392,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
         } catch (Exception e) {
             responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
         }
+    }
+
+    /**
+     * in order to prevent CSRF we have to reject all media types that are from a browser safelist
+     * see https://fetch.spec.whatwg.org/#cors-safelisted-request-header
+     * see https://www.elastic.co/blog/strict-content-type-checking-for-elasticsearch-rest-requests
+     * @param request
+     */
+    private boolean isContentTypeDisallowed(RestRequest request) {
+        return request.getParsedContentType() != null
+            && SAFELISTED_MEDIA_TYPES.contains(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
     private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {

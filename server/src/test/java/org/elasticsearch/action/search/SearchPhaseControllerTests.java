@@ -44,7 +44,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -115,12 +115,12 @@ public class SearchPhaseControllerTests extends ESTestCase {
             @Override
             public AggregationReduceContext forPartialReduction() {
                 reductions.add(false);
-                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t);
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, s.source().aggregations());
             }
 
             public AggregationReduceContext forFinalReduction() {
                 reductions.add(true);
-                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineTree.EMPTY, t);
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, s.source().aggregations(), b -> {});
             };
         });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
@@ -467,12 +467,11 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     private void consumerTestCase(int numEmptyResponses) throws Exception {
-        long beforeCompletedTasks = fixedExecutor.getCompletedTaskCount();
         int numShards = 3 + numEmptyResponses;
         int bufferSize = randomIntBetween(2, 3);
         CountDownLatch latch = new CountDownLatch(numShards);
         SearchRequest request = randomSearchRequest();
-        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
+        request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")));
         request.setBatchedReduceSize(bufferSize);
         ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
@@ -581,7 +580,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int bufferSize = randomIntBetween(2, 200);
 
         SearchRequest request = randomSearchRequest();
-        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
+        request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")));
         request.setBatchedReduceSize(bufferSize);
         ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
@@ -646,7 +645,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int expectedNumResults = randomIntBetween(1, 100);
         int bufferSize = randomIntBetween(2, 200);
         SearchRequest request = randomSearchRequest();
-        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
+        request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")).size(0));
         request.setBatchedReduceSize(bufferSize);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
@@ -1017,7 +1016,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int expectedNumResults = randomIntBetween(10, 100);
         for (int bufferSize : new int[] { expectedNumResults, expectedNumResults / 2, expectedNumResults / 4, 2 }) {
             SearchRequest request = randomSearchRequest();
-            request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
+            request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")));
             request.setBatchedReduceSize(bufferSize);
             AtomicInteger numQueryResultListener = new AtomicInteger();
             AtomicInteger numQueryFailureListener = new AtomicInteger();
@@ -1124,7 +1123,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
     private void testReduceCase(int numShards, int bufferSize, boolean shouldFail) throws Exception {
         SearchRequest request = new SearchRequest();
-        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
+        request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")).size(0));
         request.setBatchedReduceSize(bufferSize);
         AtomicBoolean hasConsumedFailure = new AtomicBoolean();
         AssertingCircuitBreaker circuitBreaker = new AssertingCircuitBreaker(CircuitBreaker.REQUEST);
@@ -1180,7 +1179,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertThat(exc.getMessage(), containsString("<reduce_aggs>"));
             circuitBreaker.shouldBreak.set(false);
         } else {
-            SearchPhaseController.ReducedQueryPhase phase = consumer.reduce();
+            consumer.reduce();
         }
         consumer.close();
         assertThat(circuitBreaker.allocated, equalTo(0L));

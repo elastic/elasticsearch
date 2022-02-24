@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.transform.integration;
 
+import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.feature.ResetFeaturesRequest;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
@@ -86,8 +86,7 @@ public class TestFeatureResetIT extends TransformIntegTestCase {
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
-        TestRestHighLevelClient highLevelClient = new TestRestHighLevelClient();
-        highLevelClient.features().resetFeatures(new ResetFeaturesRequest(), RequestOptions.DEFAULT);
+        client().performRequest(new Request(HttpPost.METHOD_NAME, "/_features/_reset"));
 
         Response response = adminClient().performRequest(new Request("GET", "/_cluster/state?metric=metadata"));
         Map<String, Object> metadata = (Map<String, Object>) ESRestTestCase.entityAsMap(response).get("metadata");

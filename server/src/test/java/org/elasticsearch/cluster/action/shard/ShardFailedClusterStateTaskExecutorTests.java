@@ -51,6 +51,8 @@ import static org.hamcrest.Matchers.contains;
 
 public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCase {
 
+    private static final ActionListener<ClusterState> NO_OP_TASK_LISTENER = ActionListener.wrap(() -> {});
+
     private static final String INDEX = "INDEX";
     private AllocationService allocationService;
     private int numberOfReplicas;
@@ -136,7 +138,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             );
         }
         for (FailedShardUpdateTask nonExistentTask : nonExistentTasks) {
-            taskResultList.add(Tuple.tuple(nonExistentTask, ClusterStateTaskExecutor.TaskResult.success()));
+            taskResultList.add(Tuple.tuple(nonExistentTask, ClusterStateTaskExecutor.TaskResult.success(NO_OP_TASK_LISTENER)));
         }
         assertTaskResults(taskResultList, result, currentState, false);
     }
@@ -303,7 +305,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         boolean clusterStateChanged
     ) {
         List<Tuple<FailedShardUpdateTask, ClusterStateTaskExecutor.TaskResult>> taskResultList = tasks.stream()
-            .map(t -> Tuple.tuple(t, ClusterStateTaskExecutor.TaskResult.success()))
+            .map(t -> Tuple.tuple(t, ClusterStateTaskExecutor.TaskResult.success(NO_OP_TASK_LISTENER)))
             .collect(Collectors.toList());
         assertTaskResults(taskResultList, result, clusterState, clusterStateChanged);
     }

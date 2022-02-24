@@ -39,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -208,6 +209,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
         // First apply settings sourced from index settings providers
+        final var now = Instant.now();
         Settings.Builder additionalSettings = Settings.builder();
         for (var provider : indexSettingProviders) {
             Settings result = provider.getAdditionalIndexSettings(
@@ -215,7 +217,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 template.getDataStreamTemplate() != null ? indexName : null,
                 template.getDataStreamTemplate() != null ? template.getDataStreamTemplate().getIndexMode() : null,
                 simulatedState.getMetadata(),
-                System.currentTimeMillis(),
+                now,
                 templateSettings
             );
             dummySettings.put(result);

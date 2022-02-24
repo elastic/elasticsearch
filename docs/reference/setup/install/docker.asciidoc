@@ -249,7 +249,7 @@ Settings (Windows).
 
 Create the following configuration files in a new, empty directory. These files
 are also available from the
-https://github.com/elastic/elasticsearch/tree/master/docs/reference/setup/install[elasticsearch]
+https://github.com/elastic/elasticsearch/tree/master/docs/reference/setup/install/docker[elasticsearch]
 repository on GitHub.
 
 --
@@ -276,7 +276,7 @@ referenced by the `docker-compose.yml` file.
 
 ["source","txt",subs="attributes"]
 ----
-include::.env[]
+include::docker/.env[]
 ----
 
 [discrete]
@@ -297,7 +297,7 @@ then only be accessible from the host machine itself.
 
 [source,yaml,subs="attributes"]
 ----
-include::docker-compose.yml[]
+include::docker/docker-compose.yml[]
 ----
 
 endif::[]

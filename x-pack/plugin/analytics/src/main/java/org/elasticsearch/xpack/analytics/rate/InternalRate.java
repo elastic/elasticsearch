@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -82,6 +83,11 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
             }
         }
         return new InternalRate(name, kahanSummation.value(), firstDivisor, format, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalRate(name, samplingContext.inverseScale(sum), divisor, format, getMetadata());
     }
 
     @Override

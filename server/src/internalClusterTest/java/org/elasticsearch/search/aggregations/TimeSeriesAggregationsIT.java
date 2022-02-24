@@ -317,7 +317,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
 
         Global global = aggregations.get("everything");
         Sum allSum = global.getAggregations().get("all_sum");
-        assertThat(allSum.getValue(), closeTo(sumByMetric(data, "metric_" + metric), allSum.getValue() * 0.0001));
+        assertThat(allSum.value(), closeTo(sumByMetric(data, "metric_" + metric), allSum.value() * 0.0001));
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,

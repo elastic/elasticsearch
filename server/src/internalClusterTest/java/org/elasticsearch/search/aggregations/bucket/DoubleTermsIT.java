@@ -955,7 +955,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
             assertThat(avg.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("avg_l")));
             Sum sum = bucket.getAggregations().get("sum_d");
             assertThat(sum, notNullValue());
-            assertThat(sum.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("sum_d")));
+            assertThat(sum.value(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("sum_d")));
             i++;
         }
     }

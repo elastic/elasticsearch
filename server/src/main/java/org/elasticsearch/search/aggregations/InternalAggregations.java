@@ -152,7 +152,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             aggregations.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
             if (first.mustReduceOnSingleInternalAgg() || aggregations.size() > 1) {
-                reducedAggregations.add(first.reduce(aggregations, context));
+                reducedAggregations.add(first.reduce(aggregations, context.forAgg(entry.getKey())));
             } else {
                 // no need for reduce phase
                 reducedAggregations.add(first);

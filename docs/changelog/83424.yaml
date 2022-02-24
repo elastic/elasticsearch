@@ -1,0 +1,5 @@
+pr: 83424
+summary: Returns valid PIT when no index matched
+area: Search
+type: bug
+issues: []

@@ -13,6 +13,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
 
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
     protected InternalAutoDateHistogram createTestInstance(
@@ -108,7 +110,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     }
 
     @Override
-    protected List<InternalAutoDateHistogram> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalAutoDateHistogram> randomResultsToReduce(String name, int size) {
         long startingDate = randomLongBetween(0, utcMillis("2050-01-01"));
         RoundingInfo[] roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null, null);
         int roundingIndex = between(0, roundingInfos.length - 1);
@@ -119,7 +121,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             thisResultStart += usually() ? 0 : randomFrom(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS).toMillis(between(1, 10000));
             result.add(createTestInstance(name, null, InternalAggregations.EMPTY, thisResultStart, roundingInfos, roundingIndex, format));
         }
-        return result;
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), result);
     }
 
     @Override

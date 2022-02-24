@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase<InternalTDigestPercentiles> {
 
@@ -52,6 +54,20 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         if (totalCount > 0) {
             assertEquals(expectedState.quantile(0), reduced.state.quantile(0), 0d);
             assertEquals(expectedState.quantile(1), reduced.state.quantile(1), 0d);
+        }
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalTDigestPercentiles sampled, InternalTDigestPercentiles reduced, SamplingContext samplingContext) {
+        Iterator<Percentile> it1 = sampled.iterator();
+        Iterator<Percentile> it2 = reduced.iterator();
+        while (it1.hasNext() && it2.hasNext()) {
+            assertThat(it1.next(), equalTo(it2.next()));
         }
     }
 

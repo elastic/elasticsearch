@@ -103,14 +103,12 @@ public class RecoverySettings {
         DEFAULT_FACTOR_VALUE
     );
 
-    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING = factorSetting(
-        "node.bandwidth.recovery.operator.factor.write",
-        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING = operatorFactorSetting(
+        "node.bandwidth.recovery.operator.factor.write"
     );
 
-    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING = factorSetting(
-        "node.bandwidth.recovery.operator.factor.read",
-        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING = operatorFactorSetting(
+        "node.bandwidth.recovery.operator.factor.read"
     );
 
     public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING = Setting.doubleSetting(
@@ -178,6 +176,14 @@ public class RecoverySettings {
      */
     private static Setting<Double> operatorFactorSetting(String key, double defaultValue) {
         return new Setting<>(key, Double.toString(defaultValue), s -> Setting.parseDouble(s, 0d, 1d, key), v -> {
+            if (v == 0d) {
+                throw new IllegalArgumentException("Failed to validate value [" + v + "] for factor setting [" + key + "] must be > [0]");
+            }
+        }, Property.NodeScope, Property.OperatorDynamic);
+    }
+
+    private static Setting<Double> operatorFactorSetting(String key) {
+        return new Setting<>(key, NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING, s -> Setting.parseDouble(s, 0d, 1d, key), v -> {
             if (v == 0d) {
                 throw new IllegalArgumentException("Failed to validate value [" + v + "] for factor setting [" + key + "] must be > [0]");
             }
@@ -459,6 +465,10 @@ public class RecoverySettings {
             INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
             this::setInternalActionLongTimeout
         );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING,
+            this::setInternalActionRetryTimeout
+        );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING, this::setUseSnapshotsDuringRecovery);
         clusterSettings.addSettingsUpdateConsumer(
@@ -597,6 +607,10 @@ public class RecoverySettings {
 
     public void setInternalActionLongTimeout(TimeValue internalActionLongTimeout) {
         this.internalActionLongTimeout = internalActionLongTimeout;
+    }
+
+    public void setInternalActionRetryTimeout(TimeValue internalActionRetryTimeout) {
+        this.internalActionRetryTimeout = internalActionRetryTimeout;
     }
 
     private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {

@@ -35,6 +35,19 @@ public class IndexFieldCapabilities implements Writeable {
     private final TimeSeriesParams.MetricType metricType;
     private final Map<String, String> meta;
 
+    public static IndexFieldCapabilities withMetadata(IndexFieldCapabilities input, boolean isMetadata) {
+        return new IndexFieldCapabilities(
+            input.getName(),
+            input.getType(),
+            isMetadata,
+            input.isSearchable,
+            input.isAggregatable,
+            input.isDimension,
+            input.metricType,
+            input.meta
+        );
+    }
+
     /**
      * @param name The name of the field.
      * @param type The type associated with the field.

@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -643,6 +644,11 @@ public class TransportSearchIT extends ESIntegTestCase {
         @Override
         public long bytesToPreallocate() {
             return 0;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
     }
 

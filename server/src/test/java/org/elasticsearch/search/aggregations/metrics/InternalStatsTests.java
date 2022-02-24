@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -72,6 +73,19 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         assertEquals(expectedSum, reduced.getSum(), 1e-7);
         assertEquals(expectedMin, reduced.getMin(), 0d);
         assertEquals(expectedMax, reduced.getMax(), 0d);
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalStats sampled, InternalStats reduced, SamplingContext samplingContext) {
+        assertEquals(sampled.getCount(), samplingContext.inverseScale(reduced.getCount()));
+        assertEquals(sampled.getSum(), samplingContext.inverseScale(reduced.getSum()), 1e-7);
+        assertEquals(sampled.getMin(), reduced.getMin(), 0d);
+        assertEquals(sampled.getMax(), reduced.getMax(), 0d);
     }
 
     public void testSummationAccuracy() {

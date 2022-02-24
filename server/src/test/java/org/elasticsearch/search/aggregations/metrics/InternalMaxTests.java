@@ -11,11 +11,14 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
 
@@ -29,6 +32,16 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
     @Override
     protected void assertReduced(InternalMax reduced, List<InternalMax> inputs) {
         assertEquals(inputs.stream().mapToDouble(InternalMax::value).max().getAsDouble(), reduced.value(), 0);
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalMax sampled, InternalMax reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getValue(), equalTo(reduced.getValue()));
     }
 
     @Override

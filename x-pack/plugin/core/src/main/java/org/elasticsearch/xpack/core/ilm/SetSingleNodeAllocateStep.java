@@ -73,7 +73,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                     clusterState.getMetadata().settings(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 ),
-                new DataTierAllocationDecider(),
+                DataTierAllocationDecider.INSTANCE,
                 new NodeVersionAllocationDecider(),
                 new NodeShutdownAllocationDecider(),
                 new NodeReplacementAllocationDecider()

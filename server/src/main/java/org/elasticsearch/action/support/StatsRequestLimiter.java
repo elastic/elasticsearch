@@ -19,10 +19,9 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.tasks.Task;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * This class guards the amount of stats requests a node can concurrently coordinate.
@@ -38,18 +37,18 @@ public class StatsRequestLimiter {
     );
 
     private final AdjustableSemaphore maxConcurrentStatsRequestsPerNodeSemaphore;
+    private volatile int maxConcurrentStatsRequestsPerNode;
     private final Map<String, StatsHolder> stats = new ConcurrentHashMap<>();
 
     public StatsRequestLimiter(Settings settings, ClusterSettings clusterSettings) {
-        this.maxConcurrentStatsRequestsPerNodeSemaphore = new AdjustableSemaphore(
-            MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.get(settings),
-            false
-        );
+        maxConcurrentStatsRequestsPerNode = MAX_CONCURRENT_STATS_REQUESTS_PER_NODE.get(settings);
+        this.maxConcurrentStatsRequestsPerNodeSemaphore = new AdjustableSemaphore(maxConcurrentStatsRequestsPerNode, false);
         clusterSettings.addSettingsUpdateConsumer(MAX_CONCURRENT_STATS_REQUESTS_PER_NODE, this::setMaxConcurrentStatsRequestsPerNode);
     }
 
-    private void setMaxConcurrentStatsRequestsPerNode(int maxConcurrentBoundedDiagnosticRequestsPerNode) {
-        this.maxConcurrentStatsRequestsPerNodeSemaphore.setMaxPermits(maxConcurrentBoundedDiagnosticRequestsPerNode);
+    private void setMaxConcurrentStatsRequestsPerNode(int maxConcurrentStatsRequestsPerNode) {
+        this.maxConcurrentStatsRequestsPerNode = maxConcurrentStatsRequestsPerNode;
+        this.maxConcurrentStatsRequestsPerNodeSemaphore.setMaxPermits(maxConcurrentStatsRequestsPerNode);
     }
 
     /**
@@ -81,13 +80,15 @@ public class StatsRequestLimiter {
                 }
             }
         } else {
-            listener.onFailure(new EsRejectedExecutionException("too concurrent stats requests"));
+            listener.onFailure(
+                new EsRejectedExecutionException("too concurrent stats requests (limit: " + maxConcurrentStatsRequestsPerNode + ")")
+            );
             statsHolder.rejected.inc();
         }
     }
 
     public StatsRequestStats stats() {
-        return new StatsRequestStats(List.copyOf(stats.values()));
+        return new StatsRequestStats(stats.values().stream().map(StatsHolder::stats).collect(Collectors.toList()));
     }
 
     // visible for testing

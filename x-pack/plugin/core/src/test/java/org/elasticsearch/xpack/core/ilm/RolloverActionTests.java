@@ -106,7 +106,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
             IllegalArgumentException.class,
             () -> new RolloverAction(null, null, null, null, null, null, null, null)
         );
-        assertEquals("At least one rollover condition must be set.", exception.getMessage());
+        assertEquals("At least one max_* rollover condition must be set.", exception.getMessage());
     }
 
     public void testToSteps() {

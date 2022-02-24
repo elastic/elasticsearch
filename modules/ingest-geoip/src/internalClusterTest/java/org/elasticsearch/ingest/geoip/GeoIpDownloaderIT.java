@@ -85,7 +85,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     protected static final String ENDPOINT = System.getProperty("geoip_endpoint");
-    private NetworkDisruption partition;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -108,11 +107,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @After
     public void cleanUp() throws Exception {
-        if (partition != null) {
-            partition.stopDisrupting();
-        }
-        internalCluster().clearDisruptionScheme();
-
         deleteDatabasesInConfigDirectory();
 
         ClusterUpdateSettingsResponse settingsResponse = client().admin()

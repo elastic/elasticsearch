@@ -10,11 +10,16 @@ typically share the same hardware profile:
 and hold your most recent, most-frequently-accessed data.
 * <<warm-tier, Warm tier>> nodes hold time series data that is accessed less-frequently
 and rarely needs to be updated.
-* <<cold-tier, Cold tier>> nodes hold time series data that is accessed 
-infrequently and not normally updated. <<fully-mounted,Fully mounted
-indices>> of <<ilm-searchable-snapshot,{search-snaps}>> may be kept on the
-cold tier, eliminating the need for replicas with approximately 50% storage
-reduction compared to the warm tier.
+* <<cold-tier,Cold tier>> nodes hold time series data that is accessed
+infrequently and not normally updated. To save space, you can keep
+<<fully-mounted,fully mounted indices>> of
+<<ilm-searchable-snapshot,{search-snaps}>> on the cold tier. These fully mounted
+indices eliminate the need for replicas, reducing required disk space by
+approximately 50% compared to the regular indices.
++
+Alternatively, you can use the cold tier to store regular indices with replicas instead
+of using {search-snaps}. This lets you store older data on less expensive hardware
+but doesn't reduce required disk space compared to the warm tier.
 * <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed 
 rarely and never updated. It is necessary to have a snapshot repository setup
 in order to use frozen tier. The frozen tier stores

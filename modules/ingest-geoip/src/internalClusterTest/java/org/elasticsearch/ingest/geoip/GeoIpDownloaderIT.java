@@ -150,12 +150,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     public void testTaskRemovedAfterCancellation() throws Exception {
         for (int i = 0; i < 2; i++) {
-            ClusterUpdateSettingsResponse settingsResponse = client().admin()
+            assertAcked(client().admin()
                 .cluster()
                 .prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-                .get();
-            assertTrue(settingsResponse.isAcknowledged());
+                .get());
             assertBusy(() -> {
                 GeoIpTaskState state = getGeoIpTaskState();
                 assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
@@ -165,12 +164,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
                 .actionGet();
             assertEquals(1, tasks.getTasks().size());
-            settingsResponse = client().admin()
+            assertAcked(client().admin()
                 .cluster()
                 .prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false))
-                .get();
-            assertTrue(settingsResponse.isAcknowledged());
+                .get());
             assertBusy(() -> {
                 ListTasksResponse tasks2 = client().admin()
                     .cluster()

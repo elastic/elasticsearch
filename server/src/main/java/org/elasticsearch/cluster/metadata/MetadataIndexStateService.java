@@ -122,6 +122,7 @@ public class MetadataIndexStateService {
     private final ClusterStateTaskExecutor<OpenIndicesTask> opensExecutor;
     private final ClusterStateTaskExecutor<AddBlocksToCloseTask> addBlocksToCloseExecutor;
     private final ClusterStateTaskExecutor<CloseIndicesTask> closesExecutor;
+    private final ClusterStateTaskExecutor<AddBlocksTask> addBlocksExecutor;
 
     @Inject
     public MetadataIndexStateService(
@@ -144,6 +145,7 @@ public class MetadataIndexStateService {
         this.opensExecutor = new OpenIndicesExecutor();
         this.addBlocksToCloseExecutor = new AddBlocksToCloseExecutor();
         this.closesExecutor = new CloseIndicesExecutor();
+        this.addBlocksExecutor = new AddBlocksExecutor();
     }
 
     /**
@@ -486,78 +488,106 @@ public class MetadataIndexStateService {
 
         clusterService.submitStateUpdateTask(
             "add-index-block-[" + request.getBlock().name + "]-" + Arrays.toString(concreteIndices),
-            new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
-
-                private Map<Index, ClusterBlock> blockedIndices;
-
-                @Override
-                public ClusterState execute(final ClusterState currentState) {
-                    final Tuple<ClusterState, Map<Index, ClusterBlock>> tup = addIndexBlock(
-                        concreteIndices,
-                        currentState,
-                        request.getBlock()
-                    );
-                    blockedIndices = tup.v2();
-                    return tup.v1();
-                }
-
-                @Override
-                public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
-                    if (oldState == newState) {
-                        assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
-                        listener.onResponse(AddIndexBlockResponse.EMPTY);
-                    } else {
-                        assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
-                        threadPool.executor(ThreadPool.Names.MANAGEMENT)
-                            .execute(
-                                new WaitForBlocksApplied(blockedIndices, request, listener.delegateFailure((delegate, verifyResults) -> {
-                                    clusterService.submitStateUpdateTask(
-                                        "finalize-index-block-["
-                                            + request.getBlock().name
-                                            + "]-["
-                                            + blockedIndices.keySet().stream().map(Index::getName).collect(Collectors.joining(", "))
-                                            + "]",
-                                        new ClusterStateUpdateTask(Priority.URGENT) {
-                                            private final List<AddBlockResult> indices = new ArrayList<>();
-
-                                            @Override
-                                            public ClusterState execute(final ClusterState currentState) throws Exception {
-                                                Tuple<ClusterState, List<AddBlockResult>> addBlockResult = finalizeBlock(
-                                                    currentState,
-                                                    blockedIndices,
-                                                    verifyResults,
-                                                    request.getBlock()
-                                                );
-                                                assert verifyResults.size() == addBlockResult.v2().size();
-                                                indices.addAll(addBlockResult.v2());
-                                                return addBlockResult.v1();
-                                            }
-
-                                            @Override
-                                            public void onFailure(final Exception e) {
-                                                delegate.onFailure(e);
-                                            }
-
-                                            @Override
-                                            public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
-                                                final boolean acknowledged = indices.stream().noneMatch(AddBlockResult::hasFailures);
-                                                delegate.onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
-                                            }
-                                        },
-                                        ClusterStateTaskExecutor.unbatched()
-                                    );
-                                }))
-                            );
-                    }
-                }
-
-                @Override
-                public void onFailure(final Exception e) {
-                    listener.onFailure(e);
-                }
-            },
-            ClusterStateTaskExecutor.unbatched()
+            new AddBlocksTask(request, listener),
+            ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
+            addBlocksExecutor
         );
+    }
+
+    private class AddBlocksExecutor implements ClusterStateTaskExecutor<AddBlocksTask> {
+
+        @Override
+        public ClusterTasksResult<AddBlocksTask> execute(ClusterState currentState, List<AddBlocksTask> tasks) throws Exception {
+            ClusterTasksResult.Builder<AddBlocksTask> builder = ClusterTasksResult.builder();
+            ClusterState state = currentState;
+
+            for (AddBlocksTask task : tasks) {
+                try {
+                    final Tuple<ClusterState, Map<Index, ClusterBlock>> blockResult = addIndexBlock(
+                        task.request.indices(),
+                        currentState,
+                        task.request.getBlock()
+                    );
+                    state = blockResult.v1();
+                    final Map<Index, ClusterBlock> blockedIndices = blockResult.v2();
+                    builder.success(task, task.listener.delegateFailure((delegate1, clusterState) -> {
+                        if (blockedIndices.isEmpty()) {
+                            delegate1.onResponse(AddIndexBlockResponse.EMPTY);
+                        } else {
+                            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                                .execute(
+                                    new WaitForBlocksApplied(
+                                        blockedIndices,
+                                        task.request,
+                                        delegate1.delegateFailure((delegate2, verifyResults) -> {
+                                            clusterService.submitStateUpdateTask(
+                                                "finalize-index-block-["
+                                                    + task.request.getBlock().name
+                                                    + "]-["
+                                                    + blockedIndices.keySet().stream().map(Index::getName).collect(Collectors.joining(", "))
+                                                    + "]",
+                                                new ClusterStateUpdateTask(Priority.URGENT) {
+                                                    private final List<AddBlockResult> indices = new ArrayList<>();
+
+                                                    @Override
+                                                    public ClusterState execute(final ClusterState currentState) throws Exception {
+                                                        Tuple<ClusterState, List<AddBlockResult>> addBlockResult = finalizeBlock(
+                                                            currentState,
+                                                            blockedIndices,
+                                                            verifyResults,
+                                                            task.request.getBlock()
+                                                        );
+                                                        assert verifyResults.size() == addBlockResult.v2().size();
+                                                        indices.addAll(addBlockResult.v2());
+                                                        return addBlockResult.v1();
+                                                    }
+
+                                                    @Override
+                                                    public void onFailure(final Exception e) {
+                                                        delegate2.onFailure(e);
+                                                    }
+
+                                                    @Override
+                                                    public void clusterStateProcessed(
+                                                        final ClusterState oldState,
+                                                        final ClusterState newState
+                                                    ) {
+                                                        final boolean acknowledged = indices.stream()
+                                                            .noneMatch(AddBlockResult::hasFailures);
+                                                        delegate2.onResponse(
+                                                            new AddIndexBlockResponse(acknowledged, acknowledged, indices)
+                                                        );
+                                                    }
+                                                },
+                                                ClusterStateTaskExecutor.unbatched()
+                                            );
+                                        })
+                                    )
+                                );
+                        }
+                    }));
+                } catch (Exception e) {
+                    builder.failure(task, e);
+                }
+            }
+
+            return builder.build(state);
+        }
+    }
+
+    private record AddBlocksTask(AddIndexBlockClusterStateUpdateRequest request, ActionListener<AddIndexBlockResponse> listener)
+        implements
+            ClusterStateTaskListener {
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "not called";
+        }
     }
 
     /**

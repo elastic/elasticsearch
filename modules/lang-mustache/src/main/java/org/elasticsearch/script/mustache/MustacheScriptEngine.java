@@ -11,10 +11,9 @@ import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheFactory;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
@@ -115,7 +114,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
                     return null;
                 });
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("Error running {}", template), e);
+                logger.error(() -> new ParameterizedMessage("Error running {}", template), e);
                 throw new GeneralScriptException("Error running " + template, e);
             }
             return writer.toString();

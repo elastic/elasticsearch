@@ -28,7 +28,7 @@ public class ExpressionModel {
 
     public static final Predicate<FieldExpression.FieldValue> NULL_PREDICATE = field -> field.getValue() == null;
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(ExpressionModel.class);
 
     private final Map<String, Object> fieldValues;
     private final Map<String, Predicate<FieldExpression.FieldValue>> fieldPredicates;

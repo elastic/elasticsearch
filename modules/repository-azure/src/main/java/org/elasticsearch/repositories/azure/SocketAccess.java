@@ -8,7 +8,7 @@
 
 package org.elasticsearch.repositories.azure;
 
-import org.apache.logging.log4j.core.util.Throwables;
+import org.elasticsearch.logging.core.util.Throwables;
 import org.elasticsearch.SpecialPermission;
 
 import java.io.IOException;

@@ -1156,10 +1156,9 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                 return false;
             }
             UnassignedShards that = (UnassignedShards) o;
-            return primaries == that.primaries
-                && ignoredPrimaries == that.ignoredPrimaries
-                // Equality is only checked in testing, so the performance here does not matter. The
-                // underlying members must remain lists, but the order should not matter for equality.
+            return primaries == that.primaries && ignoredPrimaries == that.ignoredPrimaries
+            // Equality is only checked in testing, so the performance here does not matter. The
+            // underlying members must remain lists, but the order should not matter for equality.
                 && new HashSet<>(unassigned).equals(new HashSet<>(that.unassigned))
                 && new HashSet<>(ignored).equals(new HashSet<>(that.ignored));
         }

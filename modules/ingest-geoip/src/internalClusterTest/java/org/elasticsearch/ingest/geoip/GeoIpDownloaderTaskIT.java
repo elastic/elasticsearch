@@ -41,16 +41,18 @@ public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
 
     @After
     public void cleanUp() throws Exception {
-        assertAcked(client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
-                    .putNull(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey())
-                    .putNull("ingest.geoip.database_validity")
-            )
-            .get());
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
+                        .putNull(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey())
+                        .putNull("ingest.geoip.database_validity")
+                )
+                .get()
+        );
     }
 
     public void testTaskRemovedAfterCancellation() throws Exception {

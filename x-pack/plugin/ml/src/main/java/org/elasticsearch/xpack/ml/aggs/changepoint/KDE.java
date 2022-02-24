@@ -48,9 +48,7 @@ final class KDE {
         Set<Integer> trainingSet = new HashSet<>(trainingIndex);
         int[] testIndices = IntStream.range(0, orderedValues.length).filter(i -> trainingSet.contains(i) == false).toArray();
         int testStep = (testIndices.length + 19) / 20;
-        testIndices = IntStream.range(0, testIndices.length)
-            .filter(i -> i % testStep == 0)
-            .toArray();
+        testIndices = IntStream.range(0, testIndices.length).filter(i -> i % testStep == 0).toArray();
         double[] xTrain = trainingIndex.stream().mapToDouble(i -> orderedValues[i]).toArray();
         double maxLogLikeliHood = -Double.MAX_VALUE;
         double result = 0;

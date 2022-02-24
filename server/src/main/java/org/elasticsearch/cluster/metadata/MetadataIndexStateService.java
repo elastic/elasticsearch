@@ -510,52 +510,44 @@ public class MetadataIndexStateService {
                         assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)
                             .execute(
-                                new WaitForBlocksApplied(
-                                    blockedIndices,
-                                    request,
-                                    ActionListener.wrap(
-                                        verifyResults -> clusterService.submitStateUpdateTask(
-                                            "finalize-index-block-["
-                                                + request.getBlock().name
-                                                + "]-["
-                                                + blockedIndices.keySet().stream().map(Index::getName).collect(Collectors.joining(", "))
-                                                + "]",
-                                            new ClusterStateUpdateTask(Priority.URGENT) {
-                                                private final List<AddBlockResult> indices = new ArrayList<>();
+                                new WaitForBlocksApplied(blockedIndices, request, listener.delegateFailure((delegate, verifyResults) -> {
+                                    clusterService.submitStateUpdateTask(
+                                        "finalize-index-block-["
+                                            + request.getBlock().name
+                                            + "]-["
+                                            + blockedIndices.keySet().stream().map(Index::getName).collect(Collectors.joining(", "))
+                                            + "]",
+                                        new ClusterStateUpdateTask(Priority.URGENT) {
+                                            private final List<AddBlockResult> indices = new ArrayList<>();
 
-                                                @Override
-                                                public ClusterState execute(final ClusterState currentState) throws Exception {
-                                                    Tuple<ClusterState, List<AddBlockResult>> addBlockResult = finalizeBlock(
-                                                        currentState,
-                                                        blockedIndices,
-                                                        verifyResults,
-                                                        request.getBlock()
-                                                    );
-                                                    assert verifyResults.size() == addBlockResult.v2().size();
-                                                    indices.addAll(addBlockResult.v2());
-                                                    return addBlockResult.v1();
-                                                }
+                                            @Override
+                                            public ClusterState execute(final ClusterState currentState) throws Exception {
+                                                Tuple<ClusterState, List<AddBlockResult>> addBlockResult = finalizeBlock(
+                                                    currentState,
+                                                    blockedIndices,
+                                                    verifyResults,
+                                                    request.getBlock()
+                                                );
+                                                assert verifyResults.size() == addBlockResult.v2().size();
+                                                indices.addAll(addBlockResult.v2());
+                                                return addBlockResult.v1();
+                                            }
 
-                                                @Override
-                                                public void onFailure(final Exception e) {
-                                                    listener.onFailure(e);
-                                                }
+                                            @Override
+                                            public void onFailure(final Exception e) {
+                                                delegate.onFailure(e);
+                                            }
 
-                                                @Override
-                                                public void clusterStateProcessed(
-                                                    final ClusterState oldState,
-                                                    final ClusterState newState
-                                                ) {
+                                            @Override
+                                            public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
 
-                                                    final boolean acknowledged = indices.stream().noneMatch(AddBlockResult::hasFailures);
-                                                    listener.onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
-                                                }
-                                            },
-                                            ClusterStateTaskExecutor.unbatched()
-                                        ),
-                                        listener::onFailure
-                                    )
-                                )
+                                                final boolean acknowledged = indices.stream().noneMatch(AddBlockResult::hasFailures);
+                                                delegate.onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
+                                            }
+                                        },
+                                        ClusterStateTaskExecutor.unbatched()
+                                    );
+                                }))
                             );
                     }
                 }
@@ -922,7 +914,7 @@ public class MetadataIndexStateService {
     }
 
     public void openIndices(final OpenIndexClusterStateUpdateRequest request, final ActionListener<ShardsAcknowledgedResponse> listener) {
-        onlyOpenIndices(request, ActionListener.wrap(response -> {
+        onlyOpenIndices(request, listener.delegateFailure((delegate, response) -> {
             if (response.isAcknowledged()) {
                 String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
                 activeShardsObserver.waitForActiveShards(
@@ -936,14 +928,14 @@ public class MetadataIndexStateService {
                                 Arrays.toString(indexNames)
                             );
                         }
-                        listener.onResponse(ShardsAcknowledgedResponse.of(true, shardsAcknowledged));
+                        delegate.onResponse(ShardsAcknowledgedResponse.of(true, shardsAcknowledged));
                     },
                     listener::onFailure
                 );
             } else {
-                listener.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
+                delegate.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void onlyOpenIndices(final OpenIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {

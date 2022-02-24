@@ -8,12 +8,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.Appender;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.appender.ConsoleAppender;
-import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.Build;
@@ -21,11 +15,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.plugins.PluginsManager;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.LogSettings;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +28,11 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.internal.LogConfigurator;
+import org.elasticsearch.logging.internal.LogConfigurator.ConsoleAppenderMode;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -51,6 +50,8 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -196,8 +197,7 @@ final class Bootstrap {
                 public void run() {
                     try {
                         IOUtils.close(node, spawner);
-                        LoggerContext context = (LoggerContext) LogManager.getContext(false);
-                        Configurator.shutdown(context);
+                        LogConfigurator.shutdown();
                         if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
                             throw new IllegalStateException(
                                 "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
@@ -308,9 +308,18 @@ final class Bootstrap {
         final Runnable sysOutCloser = getSysOutCloser();
         final Runnable sysErrorCloser = getSysErrorCloser();
 
-        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
+        Settings settings = environment.settings();
+        String clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings).value();
+        String nodeName = Node.NODE_NAME_SETTING.get(settings);
+        Optional<Level> defaultLogLevel = LogSettings.defaultLogLevel(settings);
+        Map<String, Level> logLevelSettingsMap = LogSettings.logLevelSettingsMap(settings);
+        Path configFile = environment.configFile();
+        Path logsFile = environment.logsFile();
+
+        LogConfigurator.init();
+        LogConfigurator.setNodeName(nodeName);
         try {
-            LogConfigurator.configure(environment);
+            LogConfigurator.configure(clusterName, nodeName, defaultLogLevel, logLevelSettingsMap, configFile, logsFile);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -325,11 +334,7 @@ final class Bootstrap {
         try {
             final boolean closeStandardStreams = (foreground == false) || quiet;
             if (closeStandardStreams) {
-                final Logger rootLogger = LogManager.getRootLogger();
-                final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
-                if (maybeConsoleAppender != null) {
-                    Loggers.removeAppender(rootLogger, maybeConsoleAppender);
-                }
+                LogConfigurator.consoleAppender().accept(ConsoleAppenderMode.DISABLE);
                 sysOutCloser.run();
             }
 
@@ -377,10 +382,8 @@ final class Bootstrap {
 
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
-            final Logger rootLogger = LogManager.getRootLogger();
-            final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
-            if (foreground && maybeConsoleAppender != null) {
-                Loggers.removeAppender(rootLogger, maybeConsoleAppender);
+            if (foreground) {
+                LogConfigurator.consoleAppender().accept(ConsoleAppenderMode.DISABLE);
             }
             Logger logger = LogManager.getLogger(Bootstrap.class);
             // HACK, it sucks to do this, but we will run users out of disk space otherwise
@@ -409,8 +412,8 @@ final class Bootstrap {
                 logger.error("Exception", e);
             }
             // re-enable it if appropriate, so they can see any logging during the shutdown process
-            if (foreground && maybeConsoleAppender != null) {
-                Loggers.addAppender(rootLogger, maybeConsoleAppender);
+            if (foreground) {
+                LogConfigurator.consoleAppender().accept(LogConfigurator.ConsoleAppenderMode.ENABLE);
             }
 
             throw e;

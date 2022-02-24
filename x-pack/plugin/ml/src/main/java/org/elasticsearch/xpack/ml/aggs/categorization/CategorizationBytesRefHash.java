@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;

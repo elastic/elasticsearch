@@ -8,10 +8,7 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -19,6 +16,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.internal.Loggers;
 
 import java.util.Collection;
 import java.util.List;
@@ -38,7 +38,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             }
         }
         this.listeners = List.copyOf(listeners);
-        this.logger = Loggers.getLogger(getClass(), indexSettings.getIndex());
+        this.logger = Loggers.getLogger(getClass(), indexSettings.getIndex().getName());
     }
 
     @Override

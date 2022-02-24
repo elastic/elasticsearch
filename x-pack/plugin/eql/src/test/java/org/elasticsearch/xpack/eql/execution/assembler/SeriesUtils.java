@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.LoggerMessageFormat.format;
 
 class SeriesUtils {
 

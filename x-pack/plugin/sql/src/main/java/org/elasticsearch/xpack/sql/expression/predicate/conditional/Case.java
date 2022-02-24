@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**

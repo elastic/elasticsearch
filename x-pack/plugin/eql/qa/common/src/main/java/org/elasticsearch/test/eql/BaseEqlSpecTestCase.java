@@ -21,7 +21,7 @@ import org.elasticsearch.client.eql.EqlSearchResponse.Event;
 import org.elasticsearch.client.eql.EqlSearchResponse.Hits;
 import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.junit.AfterClass;
 import org.junit.Before;

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.scheduler;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;

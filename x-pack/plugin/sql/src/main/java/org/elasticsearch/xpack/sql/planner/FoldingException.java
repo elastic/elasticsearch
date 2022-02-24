@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.sql.SqlClientException;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.LoggerMessageFormat.format;
 
 public class FoldingException extends SqlClientException {
 

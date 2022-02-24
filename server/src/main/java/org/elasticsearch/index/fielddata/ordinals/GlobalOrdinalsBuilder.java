@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.OrdinalMap;
@@ -21,6 +20,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.field.ToScriptField;
 
 import java.io.IOException;

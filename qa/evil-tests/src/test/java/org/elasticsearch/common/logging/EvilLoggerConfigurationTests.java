@@ -19,6 +19,8 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.logging.internal.LogConfigurator;
+import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

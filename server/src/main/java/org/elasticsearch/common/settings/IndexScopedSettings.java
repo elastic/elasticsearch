@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.logging.internal.Loggers;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -198,7 +198,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     }
 
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetadata metadata) {
-        super(settings, metadata.getSettings(), other, Loggers.getLogger(IndexScopedSettings.class, metadata.getIndex()));
+        super(settings, metadata.getSettings(), other, Loggers.getLogger(IndexScopedSettings.class, metadata.getIndex().getName()));
     }
 
     public IndexScopedSettings copy(Settings settings, IndexMetadata metadata) {

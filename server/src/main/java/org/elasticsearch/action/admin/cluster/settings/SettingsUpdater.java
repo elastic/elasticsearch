@@ -8,15 +8,14 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.ParameterizedMessage;
 
 import java.util.Map;
 
@@ -169,7 +168,7 @@ final class SettingsUpdater {
         final Logger logger
     ) {
         logger.warn(
-            (Supplier<?>) () -> new ParameterizedMessage(
+            new ParameterizedMessage(
                 "ignoring existing invalid {} setting: [{}] with value [{}]; archiving",
                 settingType,
                 e.getKey(),

@@ -19,8 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -31,6 +29,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.internal.ESLogMessageImpl;
+import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
@@ -211,7 +211,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
+        ESLogMessageImpl p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
 
         assertThat(p.get("elasticsearch.slowlog.message"), equalTo("[foo/123]"));
         assertThat(p.get("elasticsearch.slowlog.took"), equalTo("10nanos"));
@@ -239,7 +239,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         );
         Index index = new Index("foo", "123");
 
-        ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
+        ESLogMessageImpl p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
         assertThat(p.get("routing"), nullValue());
     }
 
@@ -257,7 +257,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
+        ESLogMessageImpl p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
         assertThat(p.getFormattedMessage(), not(containsString("source[")));
 
         // Turning on document logging logs the whole thing

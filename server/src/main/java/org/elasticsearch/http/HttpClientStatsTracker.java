@@ -8,13 +8,13 @@
 
 package org.elasticsearch.http;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.net.InetSocketAddress;
@@ -35,7 +35,7 @@ import static org.elasticsearch.http.HttpStats.ClientStats.NOT_CLOSED;
  */
 public class HttpClientStatsTracker {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(HttpClientStatsTracker.class);
 
     private final ThreadPool threadPool;
 

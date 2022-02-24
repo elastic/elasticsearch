@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.transform;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;

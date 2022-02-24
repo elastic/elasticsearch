@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

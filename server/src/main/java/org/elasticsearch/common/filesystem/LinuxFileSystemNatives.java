@@ -13,10 +13,10 @@ import com.sun.jna.Native;
 import com.sun.jna.Platform;
 import com.sun.jna.Structure;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.ParameterizedMessage;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

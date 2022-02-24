@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isBoolean;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;

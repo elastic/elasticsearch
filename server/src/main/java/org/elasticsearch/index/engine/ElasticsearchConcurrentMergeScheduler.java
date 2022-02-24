@@ -8,11 +8,9 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +23,8 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.internal.Loggers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,7 +58,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
-        this.logger = Loggers.getLogger(getClass(), shardId);
+        this.logger = Loggers.getLogger(getClass(), shardId.getId());
         refreshConfig();
     }
 

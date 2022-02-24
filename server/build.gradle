@@ -25,6 +25,7 @@ archivesBaseName = 'elasticsearch'
 dependencies {
 
   moduleApi project(':libs:elasticsearch-core')
+  moduleApi project(":libs:elasticsearch-logging")
   moduleApi project(':libs:elasticsearch-secure-sm')
   moduleApi project(':libs:elasticsearch-x-content')
   moduleApi project(":libs:elasticsearch-geo")
@@ -57,13 +58,13 @@ dependencies {
   moduleApi 'org.hdrhistogram:HdrHistogram:2.1.9'
 
   // logging
-  moduleApi "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  moduleApi "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+//  moduleApi "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+//  moduleApi "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   moduleApi "net.java.dev.jna:jna:${versions.jna}"
 
-  moduleApi "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
-  moduleApi "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
+//  moduleApi "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
+//  moduleApi "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server

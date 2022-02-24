@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.actions.throttler;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 
 import static org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler.Type.NONE;

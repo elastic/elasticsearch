@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
 
 import java.time.Clock;
 import java.time.Duration;

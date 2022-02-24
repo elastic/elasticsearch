@@ -38,6 +38,8 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 public class Strings {
 
+    public static final String EMPTY = "";
+
     public static final String[] EMPTY_ARRAY = new String[0];
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
@@ -169,6 +171,10 @@ public class Strings {
      */
     public static boolean isEmpty(CharSequence str) {
         return hasLength(str) == false;
+    }
+
+    public static boolean isNotEmpty(CharSequence str) {
+        return isEmpty(str) == false;
     }
 
     /**

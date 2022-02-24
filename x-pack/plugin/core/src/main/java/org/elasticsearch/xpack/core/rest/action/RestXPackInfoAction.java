@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.rest.BaseRestHandler;

@@ -11,6 +11,7 @@ package org.elasticsearch.common.logging;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.tasks.Task;
 
 import java.nio.charset.Charset;
@@ -308,6 +309,14 @@ public class HeaderWarning {
 
     public static String getXOpaqueId() {
         return getSingleValue(Task.X_OPAQUE_ID_HTTP_HEADER);
+    }
+
+    public static String getTraceId() {
+        return HeaderWarning.THREAD_CONTEXT.stream()
+            .map(t -> t.<String>getHeader(Task.TRACE_ID))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
     }
 
     private static String getSingleValue(String headerName) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.logging;
 
+import org.elasticsearch.logging.internal.PrefixLogger;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;

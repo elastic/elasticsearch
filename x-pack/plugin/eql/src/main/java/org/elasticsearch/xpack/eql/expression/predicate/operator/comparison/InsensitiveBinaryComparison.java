@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.eql.expression.predicate.operator.comparison;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;

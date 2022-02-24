@@ -25,7 +25,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.ql.expression.gen.script.Scripts.PARAM;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;

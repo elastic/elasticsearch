@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;

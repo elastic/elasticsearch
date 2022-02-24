@@ -8,13 +8,13 @@
 
 package org.elasticsearch.cluster.service;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Logger;
 
 import java.util.ArrayList;
 import java.util.Collections;

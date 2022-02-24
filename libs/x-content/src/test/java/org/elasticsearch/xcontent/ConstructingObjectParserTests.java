@@ -8,10 +8,10 @@
 
 package org.elasticsearch.xcontent;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ObjectParserTests.NamedObject;
 import org.elasticsearch.xcontent.json.JsonXContent;

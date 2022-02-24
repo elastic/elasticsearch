@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

@@ -10,7 +10,6 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.nio.file.Path;

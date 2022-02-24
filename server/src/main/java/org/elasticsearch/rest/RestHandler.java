@@ -8,10 +8,10 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.xcontent.XContent;
 

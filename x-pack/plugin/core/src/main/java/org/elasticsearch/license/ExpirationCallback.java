@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.UUID;

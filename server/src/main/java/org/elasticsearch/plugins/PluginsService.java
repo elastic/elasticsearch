@@ -8,8 +8,6 @@
 
 package org.elasticsearch.plugins;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -25,6 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -402,10 +402,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         logger.trace(
-            () -> "findBundles("
-                + type
-                + ") returning: "
-                + bundles.stream().map(b -> b.plugin.getName()).sorted().collect(Collectors.toList())
+            // TODO: for now, is this the only one of these Supplier<String> ??
+            "findBundles(" + type + ") returning: " + bundles.stream().map(b -> b.plugin.getName()).sorted().collect(Collectors.toList())
         );
 
         return bundles;

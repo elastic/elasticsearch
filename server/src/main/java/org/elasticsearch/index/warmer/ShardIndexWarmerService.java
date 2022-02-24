@@ -8,12 +8,12 @@
 
 package org.elasticsearch.index.warmer;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.Logger;
 
 import java.util.concurrent.TimeUnit;
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.logging;
 
+import org.elasticsearch.logging.internal.LoggingOutputStream;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -17,8 +18,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.logging.LoggingOutputStream.DEFAULT_BUFFER_LENGTH;
-import static org.elasticsearch.common.logging.LoggingOutputStream.MAX_BUFFER_LENGTH;
+import static org.elasticsearch.logging.internal.LoggingOutputStream.DEFAULT_BUFFER_LENGTH;
+import static org.elasticsearch.logging.internal.LoggingOutputStream.MAX_BUFFER_LENGTH;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

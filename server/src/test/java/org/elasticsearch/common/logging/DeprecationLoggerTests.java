@@ -13,6 +13,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.spi.LoggerContextFactory;
+import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
+import org.elasticsearch.logging.internal.ESLogMessageImpl;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
@@ -61,7 +64,7 @@ public class DeprecationLoggerTests extends ESTestCase {
                 supplierCalled.set(true);
                 createTempDir(); // trigger file permission, like rolling logs would
                 return null;
-            }).when(mockLogger).log(eq(Level.WARN), any(ESLogMessage.class));
+            }).when(mockLogger).log(eq(Level.WARN), any(ESLogMessageImpl.class));
 
             final LoggerContext context = Mockito.mock(LoggerContext.class);
             when(context.getLogger(anyString())).thenReturn(mockLogger);

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
@@ -44,13 +43,14 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.internal.Loggers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -69,7 +69,7 @@ final class IndexDiskUsageAnalyzer {
     private final CancellationChecker cancellationChecker;
 
     private IndexDiskUsageAnalyzer(ShardId shardId, IndexCommit commit, Runnable checkForCancellation) {
-        this.logger = Loggers.getLogger(IndexDiskUsageAnalyzer.class, shardId);
+        this.logger = Loggers.getLogger(IndexDiskUsageAnalyzer.class, shardId.getId(), shardId.getIndexName());
         this.directory = new TrackingReadBytesDirectory(commit.getDirectory());
         this.commit = new FilterIndexCommit(commit) {
             @Override

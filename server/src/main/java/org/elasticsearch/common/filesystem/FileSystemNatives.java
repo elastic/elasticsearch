@@ -8,9 +8,9 @@
 
 package org.elasticsearch.common.filesystem;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.nio.file.Path;
 import java.util.OptionalLong;

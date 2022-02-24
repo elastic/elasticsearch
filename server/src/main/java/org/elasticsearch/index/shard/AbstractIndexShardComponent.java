@@ -8,9 +8,9 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.internal.Loggers;
 
 public abstract class AbstractIndexShardComponent implements IndexShardComponent {
 
@@ -21,7 +21,7 @@ public abstract class AbstractIndexShardComponent implements IndexShardComponent
     protected AbstractIndexShardComponent(ShardId shardId, IndexSettings indexSettings) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
-        this.logger = Loggers.getLogger(getClass(), shardId);
+        this.logger = Loggers.getLogger(getClass(), shardId.getId());
     }
 
     @Override

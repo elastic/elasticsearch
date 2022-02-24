@@ -9,10 +9,10 @@ package org.elasticsearch.xcontent;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;

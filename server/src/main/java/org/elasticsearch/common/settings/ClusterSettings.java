@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -48,7 +47,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.LogSettings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -79,6 +78,8 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
@@ -128,7 +129,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
     }
 
     private static final class LoggingSettingUpdater implements SettingUpdater<Settings> {
-        final Predicate<String> loggerPredicate = Loggers.LOG_LEVEL_SETTING::match;
+        final Predicate<String> loggerPredicate = LogSettings.LOG_LEVEL_SETTING::match;
         private final Settings settings;
 
         LoggingSettingUpdater(Settings settings) {
@@ -146,10 +147,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             builder.put(current.filter(loggerPredicate));
             for (String key : previous.keySet()) {
                 if (loggerPredicate.test(key) && builder.keys().contains(key) == false) {
-                    if (Loggers.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
+                    if (LogSettings.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {
-                        builder.put(key, Loggers.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).toString());
+                        builder.put(key, LogSettings.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).toString());
                     }
                 }
             }
@@ -167,9 +168,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        Loggers.setLevel(LogManager.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        Loggers.setRootLoggerLevel(LogSettings.LOG_DEFAULT_LEVEL_SETTING.get(settings));
                     } else {
-                        Loggers.setLevel(LogManager.getRootLogger(), rootLevel);
+                        Loggers.setRootLoggerLevel(rootLevel);
                     }
                 } else {
                     Loggers.setLevel(LogManager.getLogger(component), value.get(key));
@@ -435,8 +436,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
         EsExecutors.NODE_PROCESSORS_SETTING,
         ThreadContext.DEFAULT_HEADERS_SETTING,
-        Loggers.LOG_DEFAULT_LEVEL_SETTING,
-        Loggers.LOG_LEVEL_SETTING,
+        LogSettings.LOG_DEFAULT_LEVEL_SETTING,
+        LogSettings.LOG_LEVEL_SETTING,
         NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
         OsService.REFRESH_INTERVAL_SETTING,
         ProcessService.REFRESH_INTERVAL_SETTING,

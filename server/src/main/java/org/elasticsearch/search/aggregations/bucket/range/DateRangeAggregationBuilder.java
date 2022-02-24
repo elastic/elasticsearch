@@ -10,8 +10,8 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;

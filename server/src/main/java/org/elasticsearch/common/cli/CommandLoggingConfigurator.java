@@ -8,9 +8,10 @@
 
 package org.elasticsearch.common.cli;
 
-import org.apache.logging.log4j.Level;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.LogSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.internal.LogConfigurator;
 
 /**
  * Holder class for method to configure logging without Elasticsearch configuration files for use in CLI tools that will not read such
@@ -26,7 +27,7 @@ public final class CommandLoggingConfigurator {
         // initialize default for es.logger.level because we will not read the log4j2.properties
         final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
         final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
-        LogConfigurator.configureWithoutConfig(settings);
+        LogConfigurator.configureWithoutConfig(LogSettings.defaultLogLevel(settings), LogSettings.logLevelSettingsMap(settings));
     }
 
 }

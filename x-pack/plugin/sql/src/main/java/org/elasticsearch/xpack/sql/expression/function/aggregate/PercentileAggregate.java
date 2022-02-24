@@ -29,7 +29,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.fromIndex;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;

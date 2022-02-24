@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.common.logging;
 
+import org.elasticsearch.logging.internal.ESJsonLayout;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;

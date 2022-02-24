@@ -23,7 +23,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.CountRequest;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.logging.internal.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;

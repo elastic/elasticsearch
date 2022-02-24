@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -17,10 +15,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 /**
  * The {@link NodeAndClusterIdStateListener} listens to cluster state changes and ONLY when receives the first update
- * it sets the clusterUUID and nodeID in log4j pattern converter {@link NodeIdConverter}.
+ * it sets the clusterUUID and nodeID in log4j pattern converter {@link org.elasticsearch.logging.internal.NodeIdConverter}.
  * Once the first update is received, it will automatically be de-registered from subsequent updates.
  */
 public class NodeAndClusterIdStateListener implements ClusterStateObserver.Listener {
@@ -31,7 +31,7 @@ public class NodeAndClusterIdStateListener implements ClusterStateObserver.Liste
 
     /**
      * Subscribes for the first cluster state update where nodeId and clusterId is present
-     * and sets these values in {@link NodeIdConverter}.
+     * and sets these values in {@link org.elasticsearch.logging.internal.NodeIdConverter}.
      */
     public static void getAndSetNodeIdAndClusterId(ClusterService clusterService, ThreadContext threadContext) {
         ClusterState clusterState = clusterService.state();
@@ -63,6 +63,10 @@ public class NodeAndClusterIdStateListener implements ClusterStateObserver.Liste
 
     void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
         nodeAndClusterId.set(Tuple.tuple(nodeId, clusterUUID));
+    }
+
+    public static Tuple<String, String> getNodeIdAndClusterId() {
+        return nodeAndClusterId.get();
     }
 
     @Override

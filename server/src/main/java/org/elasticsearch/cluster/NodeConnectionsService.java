@@ -7,10 +7,6 @@
  */
 package org.elasticsearch.cluster;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
@@ -25,6 +21,10 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -276,7 +276,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                         final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
                         logger.log(
                             level,
-                            new ParameterizedMessage("failed to connect to {} (tried [{}] times)", discoveryNode, currentFailureCount),
+                            () -> new ParameterizedMessage(
+                                "failed to connect to {} (tried [{}] times)",
+                                discoveryNode,
+                                currentFailureCount
+                            ),
                             e
                         );
                         setConnectionRef(null);

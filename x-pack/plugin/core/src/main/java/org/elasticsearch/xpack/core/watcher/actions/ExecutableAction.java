@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.actions;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;

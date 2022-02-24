@@ -9,8 +9,8 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 

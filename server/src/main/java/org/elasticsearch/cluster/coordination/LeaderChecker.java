@@ -8,10 +8,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -22,6 +18,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
@@ -329,7 +330,7 @@ public class LeaderChecker {
             );
         }
 
-        void leaderFailed(MessageSupplier messageSupplier, Exception e) {
+        void leaderFailed(Supplier<Message> messageSupplier, Exception e) {
             if (isClosed.compareAndSet(false, true)) {
                 transportService.getThreadPool().generic().execute(new Runnable() {
                     @Override
@@ -428,6 +429,6 @@ public class LeaderChecker {
          * @param messageSupplier The message to log if prior to this failure there was a known master in the cluster.
          * @param exception       An exception that gives more detail of the leader failure.
          */
-        void onLeaderFailure(MessageSupplier messageSupplier, Exception exception);
+        void onLeaderFailure(Supplier<Message> messageSupplier, Exception exception);
     }
 }

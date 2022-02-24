@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -112,13 +112,13 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         }
         this.allocationDelay = allocationDelay;
         if (targetNodeName != null && type != Type.REPLACE) {
-            throw new IllegalArgumentException(
-                new ParameterizedMessage(
-                    "target node name is only valid for REPLACE type shutdowns, " + "but was given type [{}] and target node name [{}]",
-                    type,
-                    targetNodeName
-                ).getFormattedMessage()
+            ParameterizedMessage msg = new ParameterizedMessage(
+                "target node name is only valid for REPLACE type shutdowns, " + "but was given type [{}] and target node name [{}]",
+                type,
+                targetNodeName
             );
+            String fm = msg.getFormattedMessage();
+            throw new IllegalArgumentException(fm);
         } else if (Strings.hasText(targetNodeName) == false && type == Type.REPLACE) {
             throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");
         }

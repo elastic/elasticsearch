@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.common.logging;
 
+import org.elasticsearch.logging.internal.LogConfigurator;
+
 public class JsonLogsTestSetup {
     private static boolean initialized = false;
 

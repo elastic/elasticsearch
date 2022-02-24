@@ -9,9 +9,9 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.DeprecationLogger;
 
 import java.time.Instant;
 import java.time.LocalDate;

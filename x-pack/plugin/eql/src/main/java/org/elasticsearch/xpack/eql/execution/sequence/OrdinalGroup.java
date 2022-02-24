@@ -17,7 +17,7 @@ import java.util.LinkedList;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.LoggerMessageFormat.format;
 
 /**
  * List of in-flight ordinals for a given key. For fast lookup, typically associated with a stage.

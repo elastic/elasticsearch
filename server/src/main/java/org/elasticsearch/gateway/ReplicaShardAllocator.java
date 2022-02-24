@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,6 +28,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
+import org.elasticsearch.logging.Logger;
 
 import java.util.ArrayList;
 import java.util.Collections;

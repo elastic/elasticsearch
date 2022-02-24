@@ -22,6 +22,16 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.DeprecatedMessage;
+import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
+import org.elasticsearch.logging.ESLogMessage;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.internal.ESLogMessageImpl;
+import org.elasticsearch.logging.internal.LogConfigurator;
+import org.elasticsearch.logging.internal.Loggers;
+import org.elasticsearch.logging.internal.PrefixLogger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParseField;
@@ -381,7 +391,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void testCustomMessageWithMultipleFields() throws IOException {
         // If a field is defined to be overridden, it has to always be overridden in that appender.
         final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new ESLogMessage("some message").with("field1", "value1").with("field2", "value2"));
+        testLogger.info(new ESLogMessageImpl("some message").with("field1", "value1").with("field2", "value2"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".json");
         try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {

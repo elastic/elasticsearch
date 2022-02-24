@@ -24,6 +24,7 @@ configure(subprojects - project('elasticsearch-log4j')) {
         if (depProject != null
           && false == depProject.path.equals(':libs:elasticsearch-x-content')
           && false == depProject.path.equals(':libs:elasticsearch-core')
+          && false == depProject.path.equals(':libs:elasticsearch-cli')
           && depProject.path.startsWith(':libs')
           && depProject.name.startsWith('elasticsearch-')) {
           throw new InvalidUserDataException("projects in :libs "

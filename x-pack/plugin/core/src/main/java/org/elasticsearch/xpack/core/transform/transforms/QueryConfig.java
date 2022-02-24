@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.bytes.BytesReference;

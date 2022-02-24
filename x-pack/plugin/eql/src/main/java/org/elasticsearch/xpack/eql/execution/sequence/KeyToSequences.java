@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Iterator;

@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.ParameterizedMessage;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.watcher.FileChangesListener;

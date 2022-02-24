@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import com.unboundid.ldap.sdk.DN;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

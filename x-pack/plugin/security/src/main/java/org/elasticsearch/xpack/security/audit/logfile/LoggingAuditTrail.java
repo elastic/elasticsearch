@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
-import org.apache.logging.log4j.MarkerManager;
-import org.apache.logging.log4j.core.Filter.Result;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.filter.MarkerFilter;
-import org.apache.logging.log4j.message.StringMapMessage;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.Marker;
+import org.elasticsearch.logging.MarkerManager;
+import org.elasticsearch.logging.core.Filter.Result;
+import org.elasticsearch.logging.core.LoggerContext;
+import org.elasticsearch.logging.core.filter.MarkerFilter;
+import org.elasticsearch.logging.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;

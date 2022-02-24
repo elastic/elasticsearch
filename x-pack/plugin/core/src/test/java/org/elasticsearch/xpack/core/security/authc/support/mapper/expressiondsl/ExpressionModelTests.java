@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.message.Message;
+import org.elasticsearch.logging.core.LogEvent;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.ESTestCase;

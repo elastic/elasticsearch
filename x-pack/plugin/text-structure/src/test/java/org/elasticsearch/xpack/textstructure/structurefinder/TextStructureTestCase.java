@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;

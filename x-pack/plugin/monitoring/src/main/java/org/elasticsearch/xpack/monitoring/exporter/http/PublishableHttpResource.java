@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.HttpEntity;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;

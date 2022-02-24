@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;

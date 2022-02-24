@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;

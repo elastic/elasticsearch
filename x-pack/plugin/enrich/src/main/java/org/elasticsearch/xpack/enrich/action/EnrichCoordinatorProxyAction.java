@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
-import org.apache.logging.log4j.util.BiConsumer;
+import org.elasticsearch.logging.util.BiConsumer;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.MultiSearchRequest;

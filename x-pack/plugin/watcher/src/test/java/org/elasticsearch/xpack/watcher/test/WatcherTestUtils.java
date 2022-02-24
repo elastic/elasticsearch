@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;

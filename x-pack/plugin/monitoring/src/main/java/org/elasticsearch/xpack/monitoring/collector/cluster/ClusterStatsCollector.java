@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;

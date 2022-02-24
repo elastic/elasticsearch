@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;

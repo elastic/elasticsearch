@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.MockLicenseState;

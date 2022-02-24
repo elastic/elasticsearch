@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.action.role;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;

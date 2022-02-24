@@ -6,17 +6,17 @@
  */
 package org.elasticsearch.xpack.core.security.audit.logfile;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.apache.logging.log4j.core.Layout;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.StringLayout;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.config.Configuration;
-import org.apache.logging.log4j.core.config.LoggerConfig;
-import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.elasticsearch.logging.core.Layout;
+import org.elasticsearch.logging.core.LogEvent;
+import org.elasticsearch.logging.core.LoggerContext;
+import org.elasticsearch.logging.core.StringLayout;
+import org.elasticsearch.logging.core.appender.AbstractAppender;
+import org.elasticsearch.logging.core.config.Configuration;
+import org.elasticsearch.logging.core.config.LoggerConfig;
+import org.elasticsearch.logging.core.filter.RegexFilter;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.core.Nullable;
 

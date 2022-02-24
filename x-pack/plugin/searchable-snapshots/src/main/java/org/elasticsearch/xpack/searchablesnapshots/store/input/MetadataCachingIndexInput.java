@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.core.TimeValue;
 import org.opensaml.saml.common.SAMLObject;

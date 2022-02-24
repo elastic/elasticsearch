@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.transform.script;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;

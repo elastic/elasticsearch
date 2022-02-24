@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.transform.transforms.DestConfig;

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.client.methods.HttpGet;
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.pagerduty;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;

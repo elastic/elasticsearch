@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;

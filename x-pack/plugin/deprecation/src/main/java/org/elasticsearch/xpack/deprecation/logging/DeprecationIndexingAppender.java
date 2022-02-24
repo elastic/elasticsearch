@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.deprecation.logging;
 
-import org.apache.logging.log4j.core.Appender;
-import org.apache.logging.log4j.core.Core;
-import org.apache.logging.log4j.core.Filter;
-import org.apache.logging.log4j.core.Layout;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.config.plugins.Plugin;
+import org.elasticsearch.logging.core.Appender;
+import org.elasticsearch.logging.core.Core;
+import org.elasticsearch.logging.core.Filter;
+import org.elasticsearch.logging.core.Layout;
+import org.elasticsearch.logging.core.LogEvent;
+import org.elasticsearch.logging.core.appender.AbstractAppender;
+import org.elasticsearch.logging.core.config.plugins.Plugin;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.xcontent.XContentType;

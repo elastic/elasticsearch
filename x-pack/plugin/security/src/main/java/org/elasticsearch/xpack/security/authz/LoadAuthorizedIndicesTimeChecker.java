@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

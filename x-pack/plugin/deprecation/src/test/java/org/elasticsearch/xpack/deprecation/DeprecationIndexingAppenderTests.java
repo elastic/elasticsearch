@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.apache.logging.log4j.core.Layout;
-import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.logging.core.Layout;
+import org.elasticsearch.logging.core.LogEvent;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingAppender;

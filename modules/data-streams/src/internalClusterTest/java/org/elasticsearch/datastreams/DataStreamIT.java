@@ -80,6 +80,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -663,6 +664,25 @@ public class DataStreamIT extends ESIntegTestCase {
                 )
         );
         assertTrue(maybeE.isPresent());
+
+        // Now replace it with a higher-priority template and delete the old one
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id2");
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                Collections.singletonList("metrics-foobar*"), // Match the other data stream with a slightly different pattern
+                new Template(null, null, null),
+                null,
+                2L, // Higher priority than the other composable template
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            )
+        );
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+
+        DeleteComposableIndexTemplateAction.Request deleteRequest = new DeleteComposableIndexTemplateAction.Request("id");
+        client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteRequest).get();
     }
 
     public void testAliasActionsOnDataStreams() throws Exception {
@@ -1043,6 +1063,7 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testUpdateIndexSettingsViaDataStream() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-*"));
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
+
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet();
 
         String backingIndex1 = DataStream.getDefaultBackingIndexName("logs-foobar", 1);

@@ -11,8 +11,6 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.geoip2.DatabaseReader;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
@@ -146,41 +144,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 }
             }
         });
-    }
-
-    public void testTaskRemovedAfterCancellation() throws Exception {
-        for (int i = 0; i < 2; i++) {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-                    .get()
-            );
-            assertBusy(() -> {
-                GeoIpTaskState state = getGeoIpTaskState();
-                assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
-            }, 2, TimeUnit.MINUTES);
-            ListTasksResponse tasks = client().admin()
-                .cluster()
-                .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
-                .actionGet();
-            assertEquals(1, tasks.getTasks().size());
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false))
-                    .get()
-            );
-            assertBusy(() -> {
-                ListTasksResponse tasks2 = client().admin()
-                    .cluster()
-                    .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
-                    .actionGet();
-                assertEquals(0, tasks2.getTasks().size());
-            });
-        }
     }
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")

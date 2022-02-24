@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin
 import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditTask
+import org.gradle.internal.jvm.Jvm
 
 
 plugins {
@@ -41,10 +42,12 @@ dependencies {
 
 tasks.register("empty", ThirdPartyAuditTask) {
   targetCompatibility = JavaVersion.VERSION_11
+  javaHome = Jvm.current().getJavaHome().getPath()
   signatureFile = file('third-party-audit-empty.txt')
 }
 
 tasks.register("absurd", ThirdPartyAuditTask) {
   targetCompatibility = JavaVersion.VERSION_11
+  javaHome = Jvm.current().getJavaHome().getPath()
   signatureFile = file('third-party-audit-absurd.txt')
 }

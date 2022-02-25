@@ -983,7 +983,7 @@ public class Strings {
         }
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
-            if (!Character.isWhitespace(c)) {
+            if (Character.isWhitespace(c) == false) {
                 return false;
             }
         }

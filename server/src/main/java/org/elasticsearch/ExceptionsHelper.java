@@ -205,7 +205,7 @@ public final class ExceptionsHelper {
             if (advanceSlowPointer) {
                 slowPointer = slowPointer.getCause();
             }
-            advanceSlowPointer = !advanceSlowPointer; // only advance every other iteration
+            advanceSlowPointer = advanceSlowPointer == false; // only advance every other iteration
         }
         return parent;
 

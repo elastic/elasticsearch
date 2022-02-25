@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.logging.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -66,6 +65,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;

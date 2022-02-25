@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
@@ -84,11 +86,13 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_NAME_PREFIX;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRINCIPAL_ATTRIBUTE;
 
 class NodeDeprecationChecks {
 
+    private static final Logger logger = LogManager.getLogger(NodeDeprecationChecks.class);
     static final String JAVA_DEPRECATION_MESSAGE = "Java 11 is required in 8.0";
 
     static DeprecationIssue checkPidfile(
@@ -602,7 +606,9 @@ class NodeDeprecationChecks {
         }
         final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", removedSettingKey);
         final String details = String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetailMessage);
-        return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
+        boolean canAutoRemoveSetting = removedSetting.exists(clusterSettings) && removedSetting.exists(nodeSettings) == false;
+        Map<String, Object> meta = createMetaMapForRemovableSettings(canAutoRemoveSetting, removedSettingKey);
+        return new DeprecationIssue(deprecationLevel, message, url, details, false, meta);
     }
 
     static DeprecationIssue javaVersionCheck(
@@ -2455,5 +2461,46 @@ class NodeDeprecationChecks {
             false,
             null
         );
+    }
+
+    static DeprecationIssue checkPollIntervalTooLow(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Settings clusterSettings = clusterState.metadata().settings();
+        String pollIntervalString = clusterSettings.get(LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
+        if (Strings.isNullOrEmpty(pollIntervalString)) {
+            return null;
+        }
+
+        TimeValue pollInterval;
+        try {
+            pollInterval = TimeValue.parseTimeValue(pollIntervalString, LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
+        } catch (IllegalArgumentException e) {
+            logger.error("Failed to parse [{}] value: [{}]", LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollIntervalString);
+            return null;
+        }
+
+        if (pollInterval.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
+            boolean canAutoRemoveSetting = LIFECYCLE_POLL_INTERVAL_SETTING.exists(clusterSettings)
+                && LIFECYCLE_POLL_INTERVAL_SETTING.exists(settings) == false;
+            Map<String, Object> meta = createMetaMapForRemovableSettings(canAutoRemoveSetting, LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Index Lifecycle Management poll interval is set too low",
+                "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
+                String.format(
+                    Locale.ROOT,
+                    "The ILM [%s] setting is set to [%s]. Set the interval to at least 1s.",
+                    LIFECYCLE_POLL_INTERVAL_SETTING.getKey(),
+                    pollIntervalString
+                ),
+                false,
+                meta
+            );
+        }
+        return null;
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -657,7 +658,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                         + "The translog has not been used in peer recoveries with soft-deletes enabled since 7.0 and these settings "
                         + "have no effect.",
                     false,
-                    null
+                    DeprecationIssue.createMetaMapForRemovableSettings(
+                        Arrays.asList("index.translog.retention.size", "index.translog.retention.age")
+                    )
                 )
             )
         );

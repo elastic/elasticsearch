@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.build'
 archivesBaseName = 'elasticsearch-geoip-cli'
 
 dependencies {
-  moduleCompileOnly project(":server")
+  compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
   compileOnly project(":libs:elasticsearch-x-content")
   testImplementation project(":test:framework")

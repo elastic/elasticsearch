@@ -32,7 +32,6 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
         // Clear default dependencies added by public PluginBuildPlugin as we add our
         // own project dependencies for internal builds
         // TODO remove once we removed default dependencies from PluginBuildPlugin
-        project.getConfigurations().getByName("moduleCompileOnly").getDependencies().clear();
         project.getConfigurations().getByName("compileOnly").getDependencies().clear();
         project.getConfigurations().getByName("testImplementation").getDependencies().clear();
 

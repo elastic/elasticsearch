@@ -9,8 +9,8 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  moduleApi 'net.sf.jopt-simple:jopt-simple:5.0.2'
-  moduleApi project(':libs:elasticsearch-core')
+  api 'net.sf.jopt-simple:jopt-simple:5.0.2'
+  api project(':libs:elasticsearch-core')
 }
 
 tasks.named("test").configure { enabled = false }

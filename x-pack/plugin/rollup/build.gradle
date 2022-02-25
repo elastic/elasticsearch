@@ -11,7 +11,7 @@ esplugin {
 archivesBaseName = 'x-pack-rollup'
 
 dependencies {
-  moduleCompileOnly project(":server")
+  compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('analytics'))
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))

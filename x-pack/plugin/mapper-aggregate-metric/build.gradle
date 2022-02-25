@@ -20,7 +20,7 @@ esplugin {
 archivesBaseName = 'x-pack-aggregate-metric'
 
 dependencies {
-  moduleCompileOnly project(":server")
+  compileOnly project(":server")
 
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))

@@ -10,7 +10,7 @@ apply plugin: 'elasticsearch.build'
 archivesBaseName = 'preallocate'
 
 dependencies {
-  moduleCompileOnly project(":server")
+  compileOnly project(":server")
 }
 
 tasks.named("testingConventions").configure { enabled = false }

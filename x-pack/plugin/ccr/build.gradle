@@ -28,7 +28,7 @@ tasks.named('internalClusterTest').configure {
 addQaCheckDependencies()
 
 dependencies {
-  moduleCompileOnly project(":server")
+  compileOnly project(":server")
 
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))

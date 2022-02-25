@@ -96,11 +96,6 @@ actions.
 Ensure that bulk actions are well-formed JSON objects containing a single entry
 with the correct key.
 ====
-// end::notable-breaking-changes[]
-
-[discrete]
-[[deprecations_81_rest_api]]
-==== REST API deprecations
 
 [[deprecate_index_include_frozen_request_parameter_in_sql_api]]
 .Deprecate `index_include_frozen` request parameter in `_sql` API
@@ -118,4 +113,5 @@ queries. For some use cases, the frozen tier may be a suitable
 replacement for frozen indices. See {ref}/data-tiers.html[data tiers]
 for more information.
 ====
+// end::notable-breaking-changes[]
 

@@ -284,14 +284,13 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
         // Verify destination index contents
         Request searchRequest = new Request("GET", destIndexName + "/_search");
         searchRequest.addParameter("size", "1000");
-        assertOK(client().performRequest(searchRequest));
         Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
         var searchMap = entityAsMap(searchResponse);
         assertThat((Integer) XContentMapValues.extractValue("hits.total.value", searchMap), is(equalTo(NUM_USERS)));
         var hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", searchMap);
         var searchDocs = hits.stream().map(h -> (Map<String, Object>) h.get("_source")).collect(Collectors.toList());
-        assertThat(searchDocs, containsInAnyOrder(docsWithOrdinaryFields));
+        assertThat(searchDocs, is(equalTo(docsWithOrdinaryFields)));
     }
 
     public void testLatestTransform_BadRuntimeFieldScript() throws Exception {

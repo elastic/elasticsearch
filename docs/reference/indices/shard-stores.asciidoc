@@ -158,6 +158,7 @@ The API returns the following response:
                             "name": "node_t0",
                             "ephemeral_id" : "9NlXRFGCT1m8tkvYCMK-8A",
                             "transport_address": "local[1]",
+                            "external_id": "node_t0",
                             "attributes": {},
                             "roles": [...]
                         },

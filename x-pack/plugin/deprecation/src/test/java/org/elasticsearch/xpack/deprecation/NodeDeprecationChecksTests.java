@@ -81,12 +81,15 @@ import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.JAVA_DEPRECATION_MESSAGE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -2510,5 +2513,54 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             null
         );
         assertThat(issues, hasItem(expected));
+    }
+
+    public void testPollIntervalTooLow() throws JsonProcessingException {
+        {
+            Settings settings = Settings.builder()
+                .put(LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.getKey(), randomTimeValue())
+                .build();
+            final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+            final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+            final String tooLowInterval = randomTimeValue(1, 999, "ms", "micros", "nanos");
+            Metadata badMetaDtata = Metadata.builder()
+                .persistentSettings(Settings.builder().put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), tooLowInterval).build())
+                .build();
+            ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetaDtata).build();
+            final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+                DeprecationChecks.NODE_SETTINGS_CHECKS,
+                c -> c.apply(settings, pluginsAndModules, badState, licenseState)
+            );
+
+            DeprecationIssue expected = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Index Lifecycle Management poll interval is set too low",
+                "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
+                "The ILM ["
+                    + LIFECYCLE_POLL_INTERVAL_SETTING.getKey()
+                    + "] setting is set to ["
+                    + tooLowInterval
+                    + "]. "
+                    + "Set the interval to at least 1s.",
+                false,
+                buildMetaObjectForRemovableSettings("indices.lifecycle.poll_interval")
+            );
+            assertThat(issues, hasItem(expected));
+            assertWarnings(
+                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed "
+                    + "in a future release! See the breaking changes documentation for the next major version."
+            );
+        }
+
+        // Test that other values are ok
+        {
+            final String okInterval = randomTimeValue(1, 9999, "d", "h", "s");
+            Metadata okMetadata = Metadata.builder()
+                .persistentSettings(Settings.builder().put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), okInterval).build())
+                .build();
+            ClusterState okState = ClusterState.builder(new ClusterName("test")).metadata(okMetadata).build();
+            List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(okState));
+            assertThat(noIssues, hasSize(0));
+        }
     }
 }

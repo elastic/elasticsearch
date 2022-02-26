@@ -56,8 +56,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -65,6 +67,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -470,10 +473,18 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     .put("index.routing.allocation.require._id", "unknown")
             ).setWaitForActiveShards(ActiveShardCount.NONE).setMapping("timestamp", "type=date", "field1", "type=keyword")
         );
+        assertAcked(
+            prepareCreate("log-index-another").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put("index.routing.allocation.require._id", "unknown")
+            ).setWaitForActiveShards(ActiveShardCount.NONE).setMapping("timestamp", "type=date", "another_field", "type=keyword")
+        );
         {
             final ElasticsearchException ex = expectThrows(
                 ElasticsearchException.class,
-                () -> client().prepareFieldCaps("log-index-*").setFields("*").get()
+                () -> client().prepareFieldCaps("log-index-in*").setFields("*").get()
             );
             assertThat(ex.getMessage(), equalTo("index [log-index-inactive] has no active shard copy"));
         }
@@ -486,15 +497,48 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
             final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
-            assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
+            // log-index-inactive can be resolved by either log-index-1
+            assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2", "log-index-inactive"));
             assertThat(response.getField("field1"), aMapWithSize(2));
             assertThat(response.getField("field1"), hasKey("long"));
             assertThat(response.getField("field1"), hasKey("long"));
 
             assertThat(response.getFailures(), hasSize(1));
             final FieldCapabilitiesFailure failure = response.getFailures().get(0);
-            assertThat(failure.getIndices(), arrayContainingInAnyOrder("log-index-inactive"));
-            assertThat(failure.getException().getMessage(), equalTo("index [log-index-inactive] has no active shard copy"));
+            assertThat(failure.getIndices(), arrayContainingInAnyOrder("log-index-another"));
+            assertThat(failure.getException().getMessage(), equalTo("index [log-index-another] has no active shard copy"));
+        }
+    }
+
+    public void testSingleNodeRequest() {
+        String[] indices = IntStream.range(0, randomIntBetween(1, 5)).mapToObj(n -> "event_index_" + n).toArray(String[]::new);
+        for (String index : indices) {
+            assertAcked(prepareCreate(index).setMapping("timestamp", "type=date", "message", "type=text"));
+        }
+        FieldCapabilitiesRequest fieldCapRequest = new FieldCapabilitiesRequest();
+        fieldCapRequest.indices("event_index_*");
+        fieldCapRequest.fields("*");
+
+        AtomicInteger receivedRequests = new AtomicInteger();
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+            transportService.addRequestHandlingBehavior(
+                TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
+                (handler, request, channel, task) -> {
+                    receivedRequests.incrementAndGet();
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+        }
+        final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, fieldCapRequest).actionGet();
+        assertThat(response.getIndices(), equalTo(indices));
+        assertThat(response.getField("message"), aMapWithSize(1));
+        assertThat(response.getField("message"), hasKey("text"));
+        assertThat(response.getFailures(), empty());
+        assertThat(receivedRequests.get(), equalTo(1));
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+            transportService.clearAllRules();
         }
     }
 

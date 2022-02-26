@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -80,7 +82,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -103,34 +104,17 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     static final Logger logger = LogManager.getLogger(RequestDispatcherTests.class);
 
     public void testHappyCluster() throws Exception {
-        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
-        final ClusterState clusterState;
-        {
-            DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-            int numNodes = randomIntBetween(1, 10);
-            for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, randomVersion(random())));
-            }
-            Metadata.Builder metadata = Metadata.builder();
-            for (String index : allIndices) {
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 2))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadata.put(IndexMetadata.builder(index).settings(settings));
-            }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
-        }
+        final boolean withIndexFilter = randomBoolean();
+        final ClusterState clusterState = randomClusterState(withIndexFilter && randomBoolean(), 1, 0);
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
-            final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
+            final List<String> indices = randomIndices(clusterState);
             logger.debug("--> test with indices {}", indices);
-            final boolean withFilter = randomBoolean();
             final ResponseCollector responseCollector = new ResponseCollector();
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
                 newRandomParentTask(),
-                randomFieldCapRequest(withFilter),
+                randomFieldCapRequest(withIndexFilter),
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
@@ -139,7 +123,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 responseCollector::addIndexFailure,
                 responseCollector::onComplete
             );
-            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withIndexFilter);
             transportService.requestTracker.set(requestTracker);
             dispatcher.execute();
             responseCollector.awaitCompletion();
@@ -151,7 +135,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
             for (String index : indices) {
                 final List<NodeRequest> nodeRequests = requestTracker.nodeRequests(index);
-                if (withFilter) {
+                if (withIndexFilter) {
                     Set<ShardId> requestedShardIds = new HashSet<>();
                     for (NodeRequest nodeRequest : nodeRequests) {
                         for (ShardId shardId : nodeRequest.requestedShardIds(index)) {
@@ -174,34 +158,17 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     public void testRetryThenOk() throws Exception {
-        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
-        final ClusterState clusterState;
-        {
-            DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-            int numNodes = randomIntBetween(2, 10);
-            for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, randomVersion(random())));
-            }
-            Metadata.Builder metadata = Metadata.builder();
-            for (String index : allIndices) {
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(1, 3))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadata.put(IndexMetadata.builder(index).settings(settings));
-            }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
-        }
+        final boolean withIndexFilter = randomBoolean();
+        final ClusterState clusterState = randomClusterState(withIndexFilter && randomBoolean(), 1, 1);
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
-            final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
+            final List<String> indices = randomIndices(clusterState);
             logger.debug("--> test with indices {}", indices);
-            final boolean withFilter = randomBoolean();
             final ResponseCollector responseCollector = new ResponseCollector();
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
                 newRandomParentTask(),
-                randomFieldCapRequest(withFilter),
+                randomFieldCapRequest(withIndexFilter),
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
@@ -210,12 +177,12 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 responseCollector::addIndexFailure,
                 responseCollector::onComplete
             );
-            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withIndexFilter);
             transportService.requestTracker.set(requestTracker);
 
             final Map<String, Integer> maxFailedRounds = new HashMap<>();
             for (String index : randomSubsetOf(between(1, indices.size()), indices)) {
-                maxFailedRounds.put(index, randomIntBetween(1, maxPossibleRounds(clusterState, index, withFilter) - 1));
+                maxFailedRounds.put(index, randomIntBetween(1, maxPossibleRounds(clusterState, index, withIndexFilter) - 1));
             }
 
             final AtomicInteger failedTimes = new AtomicInteger();
@@ -260,7 +227,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             int maxRound = maxFailedRounds.values().stream().mapToInt(n -> n).max().getAsInt();
             assertThat(dispatcher.executionRound(), equalTo(maxRound + 1));
             for (String index : indices) {
-                if (withFilter) {
+                if (withIndexFilter) {
                     ObjectIntMap<ShardId> copies = new ObjectIntHashMap<>();
                     for (ShardRouting shardRouting : clusterState.routingTable().index(index).randomAllActiveShardsIt()) {
                         copies.addTo(shardRouting.shardId(), 1);
@@ -296,34 +263,17 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     public void testRetryButFails() throws Exception {
-        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
-        final ClusterState clusterState;
-        {
-            DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-            int numNodes = randomIntBetween(1, 10);
-            for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, randomVersion(random())));
-            }
-            Metadata.Builder metadata = Metadata.builder();
-            for (String index : allIndices) {
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 3))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadata.put(IndexMetadata.builder(index).settings(settings));
-            }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
-        }
+        final boolean withIndexFilter = randomBoolean();
+        final ClusterState clusterState = randomClusterState(withIndexFilter && randomBoolean(), 1, 1);
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
-            final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
+            final List<String> indices = randomIndices(clusterState);
             logger.debug("--> test with indices {}", indices);
-            final boolean withFilter = randomBoolean();
             final ResponseCollector responseCollector = new ResponseCollector();
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
                 newRandomParentTask(),
-                randomFieldCapRequest(withFilter),
+                randomFieldCapRequest(withIndexFilter),
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
@@ -332,7 +282,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 responseCollector::addIndexFailure,
                 responseCollector::onComplete
             );
-            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withIndexFilter);
             transportService.requestTracker.set(requestTracker);
 
             List<String> failedIndices = randomSubsetOf(between(1, indices.size()), indices);
@@ -377,10 +327,13 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             );
             assertThat(responseCollector.failures.keySet(), equalTo(Sets.newHashSet(failedIndices)));
 
-            int maxRound = failedIndices.stream().mapToInt(index -> maxPossibleRounds(clusterState, index, withFilter)).max().getAsInt();
+            int maxRound = failedIndices.stream()
+                .mapToInt(index -> maxPossibleRounds(clusterState, index, withIndexFilter))
+                .max()
+                .getAsInt();
             assertThat(dispatcher.executionRound(), equalTo(maxRound));
             for (String index : indices) {
-                if (withFilter) {
+                if (withIndexFilter) {
                     ObjectIntMap<ShardId> copies = new ObjectIntHashMap<>();
                     for (ShardRouting shardRouting : clusterState.routingTable().index(index).randomAllActiveShardsIt()) {
                         copies.addTo(shardRouting.shardId(), 1);
@@ -420,34 +373,16 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     public void testSuccessWithAnyMatch() throws Exception {
-        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
-        final ClusterState clusterState;
-        {
-            DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-            int numNodes = randomIntBetween(1, 10);
-            for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, randomVersion(random())));
-            }
-            Metadata.Builder metadata = Metadata.builder();
-            for (String index : allIndices) {
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(2, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 2))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadata.put(IndexMetadata.builder(index).settings(settings));
-            }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
-        }
+        final ClusterState clusterState = randomClusterState(randomBoolean(), 2, 0);
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
-            final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
+            final List<String> indices = randomIndices(clusterState);
             logger.debug("--> test with indices {}", indices);
-            final boolean withFilter = true;
             final ResponseCollector responseCollector = new ResponseCollector();
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
                 newRandomParentTask(),
-                randomFieldCapRequest(withFilter),
+                randomFieldCapRequest(true),
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
@@ -456,9 +391,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 responseCollector::addIndexFailure,
                 responseCollector::onComplete
             );
-            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), true);
             transportService.requestTracker.set(requestTracker);
-            final AtomicInteger failedTimes = new AtomicInteger();
             final Set<ShardId> allUnmatchedShardIds = new HashSet<>();
             for (String index : indices) {
                 final Set<ShardId> shardIds = new HashSet<>();
@@ -519,35 +453,16 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     public void testStopAfterAllShardsUnmatched() throws Exception {
-        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
-        final ClusterState clusterState;
-        final boolean newVersionOnly = randomBoolean();
-        {
-            DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-            int numNodes = randomIntBetween(1, 10);
-            for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, randomVersion(random())));
-            }
-            Metadata.Builder metadata = Metadata.builder();
-            for (String index : allIndices) {
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 2))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadata.put(IndexMetadata.builder(index).settings(settings));
-            }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
-        }
+        final ClusterState clusterState = randomClusterState(randomBoolean(), 1, 1);
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
-            final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
+            final List<String> indices = randomIndices(clusterState);
             logger.debug("--> test with indices {}", indices);
-            final boolean withFilter = true;
             final ResponseCollector responseCollector = new ResponseCollector();
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
                 newRandomParentTask(),
-                randomFieldCapRequest(withFilter),
+                randomFieldCapRequest(true),
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
@@ -556,9 +471,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 responseCollector::addIndexFailure,
                 responseCollector::onComplete
             );
-            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), true);
             transportService.requestTracker.set(requestTracker);
-            final AtomicInteger failedTimes = new AtomicInteger();
             final List<String> unmatchedIndices = randomSubsetOf(between(1, indices.size()), indices);
             transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
                 @Override
@@ -613,6 +527,210 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         }
     }
 
+    public void testSingleRoundWithGroup() throws Exception {
+        final ClusterState clusterState = randomClusterState(true, 1, 0);
+        try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
+            final List<String> testGroups = randomSubsetOf(between(1, INDEX_GROUPS.size()), INDEX_GROUPS);
+            final List<String> testIndices = clusterState.metadata().indices().keySet().stream().filter(index -> {
+                String g = getIndexGroup(index);
+                return g != null && testGroups.contains(g);
+            }).toList();
+            logger.debug("--> test with indices {}", testIndices);
+            final ResponseCollector responseCollector = new ResponseCollector();
+            final RequestDispatcher dispatcher = new RequestDispatcher(
+                mockClusterService(clusterState),
+                transportService,
+                newRandomParentTask(),
+                randomFieldCapRequest(false),
+                OriginalIndices.NONE,
+                randomNonNegativeLong(),
+                testIndices.toArray(new String[0]),
+                transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                responseCollector::addIndexResponse,
+                responseCollector::addIndexFailure,
+                responseCollector::onComplete
+            );
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), true);
+            transportService.requestTracker.set(requestTracker);
+            dispatcher.execute();
+            responseCollector.awaitCompletion();
+            assertThat(responseCollector.responses.keySet(), equalTo(Sets.newHashSet(testIndices)));
+            assertThat(responseCollector.failures, anEmptyMap());
+            assertThat("Happy case should complete after one round", dispatcher.executionRound(), equalTo(1));
+            for (NodeRequest nodeRequest : requestTracker.sentNodeRequests) {
+                assertThat("All requests occur in round 0", nodeRequest.round, equalTo(0));
+            }
+            for (String group : testGroups) {
+                Set<NodeRequest> requests = requestTracker.nodeRequestsPerGroup(group);
+                assertThat("Group sent more than one node request", requests, hasSize(1));
+            }
+        }
+    }
+
+    public void testGroupRetryAndOk() throws Exception {
+        final ClusterState clusterState = randomClusterState(true, 1, 0);
+        try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
+            final List<String> testGroups = randomSubsetOf(between(1, INDEX_GROUPS.size()), INDEX_GROUPS);
+            final List<String> testIndices = clusterState.metadata().indices().keySet().stream().filter(index -> {
+                String g = getIndexGroup(index);
+                return g != null && testGroups.contains(g);
+            }).toList();
+            logger.debug("--> test with indices {}", testIndices);
+            final ResponseCollector responseCollector = new ResponseCollector();
+            final RequestDispatcher dispatcher = new RequestDispatcher(
+                mockClusterService(clusterState),
+                transportService,
+                newRandomParentTask(),
+                randomFieldCapRequest(false),
+                OriginalIndices.NONE,
+                randomNonNegativeLong(),
+                testIndices.toArray(new String[0]),
+                transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                responseCollector::addIndexResponse,
+                responseCollector::addIndexFailure,
+                responseCollector::onComplete
+            );
+            final Map<String, Integer> toFailRounds = new HashMap<>();
+            for (String group : randomSubsetOf(between(1, testGroups.size()), testGroups)) {
+                toFailRounds.put(group, randomIntBetween(1, assignedNodes(clusterState, group).size() - 1));
+            }
+            transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
+                @Override
+                public <T extends TransportResponse> void sendRequest(
+                    Transport.Connection connection,
+                    String action,
+                    TransportRequest request,
+                    TransportRequestOptions options,
+                    TransportResponseHandler<T> handler
+                ) {
+                    final int currentRound = dispatcher.executionRound();
+                    FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
+                    Set<String> requestedGroups = nodeRequest.shardIds()
+                        .stream()
+                        .map(shr -> getIndexGroup(shr.getIndexName()))
+                        .collect(Collectors.toSet());
+                    if (currentRound > 0) {
+                        assertThat(
+                            "Only failed groups are retried after the first found",
+                            requestedGroups,
+                            everyItem(in(toFailRounds.keySet()))
+                        );
+                    }
+                    Set<String> successIndices = new HashSet<>();
+                    List<ShardId> failedShards = new ArrayList<>();
+                    for (ShardId shardId : nodeRequest.shardIds()) {
+                        final Integer maxRound = toFailRounds.get(getIndexGroup(shardId.getIndexName()));
+                        if (maxRound == null || currentRound >= maxRound) {
+                            successIndices.add(shardId.getIndexName());
+                        } else {
+                            failedShards.add(shardId);
+                        }
+                    }
+                    transportService.sendResponse(handler, randomNodeResponse(successIndices, failedShards, Collections.emptySet()));
+                }
+            });
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), true);
+            transportService.requestTracker.set(requestTracker);
+            dispatcher.execute();
+            responseCollector.awaitCompletion();
+            assertThat(responseCollector.responses.keySet(), equalTo(Sets.newHashSet(testIndices)));
+            assertThat(responseCollector.failures, anEmptyMap());
+            int maxRound = toFailRounds.values().stream().mapToInt(n -> n).max().orElseThrow();
+            assertThat(dispatcher.executionRound(), equalTo(maxRound + 1));
+            for (String group : testGroups) {
+                int expectedRequests = toFailRounds.getOrDefault(group, 0) + 1;
+                assertThat(requestTracker.nodeRequestsPerGroup(group), hasSize(expectedRequests));
+            }
+        }
+    }
+
+    public void testGroupRetryButFail() throws Exception {
+        final ClusterState clusterState = randomClusterState(true, 1, 0);
+        try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
+            final List<String> testGroups = randomSubsetOf(between(1, INDEX_GROUPS.size()), INDEX_GROUPS);
+            final List<String> testIndices = clusterState.metadata().indices().keySet().stream().filter(index -> {
+                String g = getIndexGroup(index);
+                return g != null && testGroups.contains(g);
+            }).toList();
+            logger.debug("--> test with indices {}", testIndices);
+            final ResponseCollector responseCollector = new ResponseCollector();
+            final RequestDispatcher dispatcher = new RequestDispatcher(
+                mockClusterService(clusterState),
+                transportService,
+                newRandomParentTask(),
+                randomFieldCapRequest(false),
+                OriginalIndices.NONE,
+                randomNonNegativeLong(),
+                testIndices.toArray(new String[0]),
+                transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                responseCollector::addIndexResponse,
+                responseCollector::addIndexFailure,
+                responseCollector::onComplete
+            );
+            final List<String> toFailGroups = randomSubsetOf(between(1, testGroups.size()), testGroups);
+            transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
+                @Override
+                public <T extends TransportResponse> void sendRequest(
+                    Transport.Connection connection,
+                    String action,
+                    TransportRequest request,
+                    TransportRequestOptions options,
+                    TransportResponseHandler<T> handler
+                ) {
+                    final int currentRound = dispatcher.executionRound();
+                    FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
+                    Set<String> requestedGroups = nodeRequest.shardIds()
+                        .stream()
+                        .map(shr -> getIndexGroup(shr.getIndexName()))
+                        .collect(Collectors.toSet());
+                    if (currentRound > 0) {
+                        assertThat("Only failed groups are retried after the first found", requestedGroups, everyItem(in(toFailGroups)));
+                    }
+                    Set<String> successIndices = new HashSet<>();
+                    List<ShardId> failedShards = new ArrayList<>();
+                    for (ShardId shardId : nodeRequest.shardIds()) {
+                        if (toFailGroups.contains(getIndexGroup(shardId.getIndexName()))) {
+                            failedShards.add(shardId);
+                        } else {
+                            successIndices.add(shardId.getIndexName());
+                        }
+                    }
+                    transportService.sendResponse(handler, randomNodeResponse(successIndices, failedShards, Collections.emptySet()));
+                }
+            });
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), true);
+            transportService.requestTracker.set(requestTracker);
+            dispatcher.execute();
+            responseCollector.awaitCompletion();
+            final Set<String> successfulIndices = new HashSet<>();
+            final Set<String> failedIndices = new HashSet<>();
+            for (String index : testIndices) {
+                if (toFailGroups.contains(getIndexGroup(index))) {
+                    failedIndices.add(index);
+                } else {
+                    successfulIndices.add(index);
+                }
+            }
+            assertThat(responseCollector.responses.keySet(), equalTo(successfulIndices));
+            assertThat(responseCollector.failures.keySet(), equalTo(failedIndices));
+            int maxRound = 0;
+            for (String group : testGroups) {
+                if (toFailGroups.contains(group)) {
+                    Set<String> assignedNodes = assignedNodes(clusterState, group);
+                    Set<String> sentNodes = requestTracker.nodeRequestsPerGroup(group)
+                        .stream()
+                        .map(r -> r.node.getId())
+                        .collect(Collectors.toSet());
+                    assertThat(sentNodes, equalTo(assignedNodes));
+                    maxRound = Math.max(maxRound, assignedNodes.size() - 1);
+                } else {
+                    assertThat(requestTracker.nodeRequestsPerGroup(group), hasSize(1));
+                }
+            }
+            assertThat(dispatcher.executionRound(), equalTo(maxRound + 1));
+        }
+    }
+
     private static class NodeRequest {
         final int round;
         final DiscoveryNode node;
@@ -631,19 +749,24 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         Set<ShardId> requestedShardIds(String index) {
             return request.shardIds().stream().filter(s -> s.getIndexName().equals(index)).collect(Collectors.toSet());
         }
+
+        @Override
+        public String toString() {
+            return "NodeRequest{" + "round=" + round + ", node=" + node + ", indices=" + indices() + '}';
+        }
     }
 
     private static class RequestTracker {
         private final RequestDispatcher dispatcher;
         private final RoutingTable routingTable;
-        private final boolean withFilter;
+        private final boolean withIndexFilter;
         private final AtomicInteger currentRound = new AtomicInteger();
         final List<NodeRequest> sentNodeRequests = new CopyOnWriteArrayList<>();
 
-        RequestTracker(RequestDispatcher dispatcher, RoutingTable routingTable, boolean withFilter) {
+        RequestTracker(RequestDispatcher dispatcher, RoutingTable routingTable, boolean withIndexFilter) {
             this.dispatcher = dispatcher;
             this.routingTable = routingTable;
-            this.withFilter = withFilter;
+            this.withIndexFilter = withIndexFilter;
         }
 
         void verifyAfterComplete() {
@@ -655,7 +778,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             for (int i = 0; i < lastRound; i++) {
                 int round = i;
                 List<NodeRequest> nodeRequests = sentNodeRequests.stream().filter(r -> r.round == round).toList();
-                if (withFilter == false) {
+                if (withIndexFilter == false) {
                     // Without filter, each index is requested once in each round.
                     ObjectIntMap<String> requestsPerIndex = new ObjectIntHashMap<>();
                     nodeRequests.forEach(r -> r.indices().forEach(index -> requestsPerIndex.addTo(index, 1)));
@@ -716,6 +839,18 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
 
         List<NodeRequest> nodeRequests(String index) {
             return sentNodeRequests.stream().filter(r -> r.indices().contains(index)).toList();
+        }
+
+        Set<NodeRequest> nodeRequestsPerGroup(String group) {
+            Set<NodeRequest> requests = new HashSet<>();
+            for (NodeRequest r : sentNodeRequests) {
+                for (String index : r.indices()) {
+                    if (group.equals(getIndexGroup(index))) {
+                        requests.add(r);
+                    }
+                }
+            }
+            return requests;
         }
     }
 
@@ -825,9 +960,9 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         }
     }
 
-    static FieldCapabilitiesRequest randomFieldCapRequest(boolean withFilter) {
-        final QueryBuilder filter = withFilter ? new RangeQueryBuilder("timestamp").from(randomNonNegativeLong()) : null;
-        return new FieldCapabilitiesRequest().fields("*").indexFilter(filter);
+    static FieldCapabilitiesRequest randomFieldCapRequest(boolean withIndexFilter) {
+        final QueryBuilder indexFilter = withIndexFilter ? new RangeQueryBuilder("timestamp").from(randomNonNegativeLong()) : null;
+        return new FieldCapabilitiesRequest().fields("*").indexFilter(indexFilter);
     }
 
     static FieldCapabilitiesNodeResponse randomNodeResponse(
@@ -897,13 +1032,74 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         return new Task(0, "type", "action", randomAlphaOfLength(10), TaskId.EMPTY_TASK_ID, Collections.emptyMap());
     }
 
-    private ClusterState newClusterState(Metadata metadata, DiscoveryNodes discoveryNodes) {
+    private static List<String> randomIndices(ClusterState clusterState) {
+        Set<String> indices = clusterState.metadata().indices().keySet();
+        return randomSubsetOf(randomIntBetween(1, indices.size()), indices);
+    }
+
+    private static final List<String> INDEX_GROUPS = List.of("red", "yellow", "green");
+
+    private static String getIndexGroup(String index) {
+        for (String group : INDEX_GROUPS) {
+            if (index.startsWith(group)) {
+                return group;
+            }
+        }
+        return null;
+    }
+
+    private static Map<String, Set<NodeRequest>> requestsPerGroupIndex(List<NodeRequest> requests) {
+        final Map<String, Set<NodeRequest>> groups = new HashMap<>();
+        for (NodeRequest r : requests) {
+            for (String index : r.indices()) {
+                String group = getIndexGroup(index);
+                groups.computeIfAbsent(group, k -> new HashSet<>()).add(r);
+            }
+        }
+        return groups;
+    }
+
+    private ClusterState randomClusterState(boolean includeGroupMappingHash, int minNumberOfShards, int minNumberOfReplicas) {
+        final DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
+        final int numNodes = randomIntBetween(2, 10);
+        for (int i = 0; i < numNodes; i++) {
+            discoNodes.add(newNode("node_" + i, randomVersion(random())));
+        }
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        if (includeGroupMappingHash) {
+            for (String group : INDEX_GROUPS) {
+                MappingMetadata mapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("mapping", group));
+                int numIndices = between(1, 5);
+                for (int i = 0; i < numIndices; i++) {
+                    final String index = group + "_" + i;
+                    final Settings.Builder settings = Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(minNumberOfShards, 10))
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(minNumberOfReplicas, 3))
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
+                    metadataBuilder.put(IndexMetadata.builder(index).settings(settings).putMapping(mapping));
+                }
+            }
+        }
+        // indices without mapping hash
+        {
+            int oldIndices = randomIntBetween(includeGroupMappingHash ? 0 : 1, 5);
+            for (int i = 0; i < oldIndices; i++) {
+                final String index = "index_" + i;
+                final Settings.Builder settings = Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(minNumberOfShards, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(minNumberOfReplicas, 3))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
+                metadataBuilder.put(IndexMetadata.builder(index).settings(settings));
+            }
+        }
+
+        Metadata metadata = metadataBuilder.build();
         final RoutingTable.Builder routingTable = RoutingTable.builder();
         for (IndexMetadata imd : metadata) {
             routingTable.addAsNew(metadata.index(imd.getIndex()));
         }
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
+            .nodes(discoNodes)
             .metadata(metadata)
             .routingTable(routingTable.build())
             .build();
@@ -950,6 +1146,22 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
             return totalRequests;
         }
+    }
+
+    static Set<String> assignedNodes(ClusterState clusterState, String indexGroup) {
+        List<String> indices = clusterState.metadata()
+            .indices()
+            .keySet()
+            .stream()
+            .filter(index -> indexGroup.equals(getIndexGroup(index)))
+            .toList();
+        Set<String> assignedNodes = new HashSet<>();
+        for (String index : indices) {
+            for (ShardRouting shard : clusterState.routingTable().index(index).randomAllActiveShardsIt()) {
+                assignedNodes.add(shard.currentNodeId());
+            }
+        }
+        return assignedNodes;
     }
 
     static ClusterService mockClusterService(ClusterState clusterState) {

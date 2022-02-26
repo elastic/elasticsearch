@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -403,8 +402,8 @@ public interface IndexAbstraction {
                             )
                         );
                 }
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Error extracting timestamp: " + e.getMessage(), e);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
             }
             Index result = dataStream.selectTimeSeriesWriteIndex(timestamp, metadata);
             if (result == null) {

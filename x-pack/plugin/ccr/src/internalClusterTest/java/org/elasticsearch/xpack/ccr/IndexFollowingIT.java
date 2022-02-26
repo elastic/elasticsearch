@@ -1365,8 +1365,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 new Index("index1", leaderUUID)
             );
 
-            for (final ObjectCursor<IndexShardRoutingTable> shardRoutingTable : leaderRoutingTable.index("index1").shards().values()) {
-                final ShardId shardId = shardRoutingTable.value.shardId();
+            for (final IndexShardRoutingTable shardRoutingTable : leaderRoutingTable.index("index1").shards().values()) {
+                final ShardId shardId = shardRoutingTable.shardId();
                 leaderClient().execute(
                     RetentionLeaseActions.Remove.INSTANCE,
                     new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId)

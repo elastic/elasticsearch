@@ -95,8 +95,8 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         int allocationPendingAllShards = 0;
 
         ImmutableOpenIntMap<IndexShardRoutingTable> allShards = clusterState.getRoutingTable().index(index).getShards();
-        for (ObjectCursor<IndexShardRoutingTable> shardRoutingTable : allShards.values()) {
-            for (ShardRouting shardRouting : shardRoutingTable.value.shards()) {
+        for (IndexShardRoutingTable shardRoutingTable : allShards.values()) {
+            for (ShardRouting shardRouting : shardRoutingTable.shards()) {
                 String currentNodeId = shardRouting.currentNodeId();
                 boolean canRemainOnCurrentNode = allocationDeciders.canRemain(
                     shardRouting,

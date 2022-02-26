@@ -132,8 +132,8 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
         }
 
         if (indexRoutingTable.allPrimaryShardsActive()) {
-            for (ObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards().values()) {
-                boolean replicaIndexIsGreen = shardRouting.value.replicaShards().stream().allMatch(ShardRouting::active);
+            for (IndexShardRoutingTable shardRouting : indexRoutingTable.getShards().values()) {
+                boolean replicaIndexIsGreen = shardRouting.replicaShards().stream().allMatch(ShardRouting::active);
                 if (replicaIndexIsGreen == false) {
                     return new Result(false, new Info("index is yellow; not all replica shards are active"));
                 }

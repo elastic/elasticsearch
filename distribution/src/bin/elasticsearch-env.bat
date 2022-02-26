@@ -15,7 +15,7 @@ for %%I in ("%ES_HOME%..") do set ES_HOME=%%~dpfI
 
 rem now set the classpath
 set ES_CLASSPATH=!ES_HOME!\lib\*
-set ES_MODULEPATH=!ES_HOME!\lib\
+set ES_MODULEPATH=!ES_HOME!\lib
 
 set HOSTNAME=%COMPUTERNAME%
 

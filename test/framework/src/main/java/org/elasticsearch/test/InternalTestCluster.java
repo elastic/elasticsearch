@@ -135,8 +135,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
-import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.tests.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -248,7 +248,18 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
     private final Function<Client, Client> clientWrapper;
 
-    private int bootstrapMasterNodeIndex = -1;
+    /**
+     * Default value of bootstrapMasterNodeIndex, indicating that bootstrapping should happen automatically.
+     */
+    public static final int BOOTSTRAP_MASTER_NODE_INDEX_AUTO = -1;
+
+    /**
+     * Sentinel value of bootstrapMasterNodeIndex, indicating that bootstrapMasterNodeIndex was set explicitly and has been used.
+     */
+    public static final int BOOTSTRAP_MASTER_NODE_INDEX_DONE = -2;
+
+    // index of node to bootstrap as master, or BOOTSTRAP_MASTER_NODE_INDEX_AUTO or BOOTSTRAP_MASTER_NODE_INDEX_DONE
+    private int bootstrapMasterNodeIndex = BOOTSTRAP_MASTER_NODE_INDEX_AUTO;
 
     public InternalTestCluster(
         final long clusterSeed,
@@ -441,8 +452,9 @@ public final class InternalTestCluster extends TestCluster {
      * It's only possible to change {@link #bootstrapMasterNodeIndex} value if autoManageMasterNodes is false.
      */
     public void setBootstrapMasterNodeIndex(int bootstrapMasterNodeIndex) {
-        assert autoManageMasterNodes == false || bootstrapMasterNodeIndex == -1
-            : "bootstrapMasterNodeIndex should be -1 if autoManageMasterNodes is true, but was " + bootstrapMasterNodeIndex;
+        assert autoManageMasterNodes == false || bootstrapMasterNodeIndex == BOOTSTRAP_MASTER_NODE_INDEX_AUTO
+            : "bootstrapMasterNodeIndex should be BOOTSTRAP_MASTER_NODE_INDEX_AUTO if autoManageMasterNodes is true, but was "
+                + bootstrapMasterNodeIndex;
         this.bootstrapMasterNodeIndex = bootstrapMasterNodeIndex;
     }
 
@@ -2024,7 +2036,8 @@ public final class InternalTestCluster extends TestCluster {
      */
     private List<Settings> bootstrapMasterNodeWithSpecifiedIndex(List<Settings> allNodesSettings) {
         assert Thread.holdsLock(this);
-        if (bootstrapMasterNodeIndex == -1) { // fast-path
+        if (bootstrapMasterNodeIndex == BOOTSTRAP_MASTER_NODE_INDEX_AUTO || bootstrapMasterNodeIndex == BOOTSTRAP_MASTER_NODE_INDEX_DONE) {
+            // fast-path
             return allNodesSettings;
         }
 
@@ -2060,7 +2073,7 @@ public final class InternalTestCluster extends TestCluster {
                             .build()
                     );
 
-                    setBootstrapMasterNodeIndex(-1);
+                    setBootstrapMasterNodeIndex(BOOTSTRAP_MASTER_NODE_INDEX_DONE);
                 }
             }
         }
@@ -2110,6 +2123,9 @@ public final class InternalTestCluster extends TestCluster {
         final int newMasterCount = Math.toIntExact(Stream.of(extraSettings).filter(DiscoveryNode::isMasterNode).count());
         final List<NodeAndClient> nodeList = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
+        assert autoManageMasterNodes || bootstrapMasterNodeIndex != BOOTSTRAP_MASTER_NODE_INDEX_AUTO : """
+            if autoManageMasterNodes is false you must configure bootstrapping by calling setBootstrapMasterNodeIndex before starting the \
+            first node""";
         int autoBootstrapMasterNodeIndex = autoManageMasterNodes
             && prevMasterCount == 0
             && newMasterCount > 0

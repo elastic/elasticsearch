@@ -298,7 +298,7 @@ public class RestoreService implements ClusterStateApplier {
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
         // Make sure that we can restore from this snapshot
-        validateSnapshotRestorable(request, repository.getMetadata(), snapshotInfo);
+        validateSnapshotRestorable(request, repository.getMetadata(), snapshotInfo, repositoriesService.getPreRestoreVersionChecks());
 
         // Get the global state if necessary
         Metadata globalMetadata = null;
@@ -957,10 +957,16 @@ public class RestoreService implements ClusterStateApplier {
 
     /**
      * Checks that snapshots can be restored and have compatible version
-     *  @param repository      repository name
+     * @param repository      repository name
      * @param snapshotInfo    snapshot metadata
+     * @param preRestoreVersionChecks
      */
-    static void validateSnapshotRestorable(RestoreSnapshotRequest request, RepositoryMetadata repository, SnapshotInfo snapshotInfo) {
+    static void validateSnapshotRestorable(
+        RestoreSnapshotRequest request,
+        RepositoryMetadata repository,
+        SnapshotInfo snapshotInfo,
+        List<BiConsumer<Snapshot, Version>> preRestoreVersionChecks
+    ) {
         if (snapshotInfo.state().restorable() == false) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
@@ -977,17 +983,8 @@ public class RestoreService implements ClusterStateApplier {
                     + "]"
             );
         }
-        if (ALLOW_BWC_INDICES_SETTING.get(repository.settings()) == false
-            && snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
-            throw new SnapshotRestoreException(
-                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
-                "the snapshot was created with Elasticsearch version ["
-                    + snapshotInfo.version()
-                    + "] which is below the current versions minimum index compatibility version ["
-                    + Version.CURRENT.minimumIndexCompatibilityVersion()
-                    + "]"
-            );
-        }
+        Snapshot snapshot = new Snapshot(repository.name(), snapshotInfo.snapshotId());
+        preRestoreVersionChecks.forEach(c -> c.accept(snapshot, snapshotInfo.version()));
         if (request.includeGlobalState() && snapshotInfo.includeGlobalState() == Boolean.FALSE) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
@@ -995,12 +992,6 @@ public class RestoreService implements ClusterStateApplier {
             );
         }
     }
-
-    public static final Setting<Boolean> ALLOW_BWC_INDICES_SETTING = Setting.boolSetting(
-        "allow_bwc_indices",
-        false,
-        Setting.Property.NodeScope
-    );
 
     public static boolean failed(SnapshotInfo snapshot, String index) {
         for (SnapshotShardFailure failure : snapshot.shardFailures()) {
@@ -1277,7 +1268,8 @@ public class RestoreService implements ClusterStateApplier {
             for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
                 final IndexId index = indexEntry.getValue();
                 final IndexMetadata originalIndexMetadata = metadata.index(index.getName());
-                repositoriesService.getPreRestoreChecks().forEach(check -> check.accept(originalIndexMetadata));
+                repositoriesService.getPreRestoreVersionChecks()
+                    .forEach(check -> check.accept(snapshot, originalIndexMetadata.getCreationVersion()));
                 IndexMetadata snapshotIndexMetadata = updateIndexSettings(
                     snapshot,
                     originalIndexMetadata,

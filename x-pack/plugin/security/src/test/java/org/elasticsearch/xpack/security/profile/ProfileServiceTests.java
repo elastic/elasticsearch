@@ -78,7 +78,6 @@ public class ProfileServiceTests extends ESTestCase {
               },
               "email": "foo@example.com",
               "full_name": "User Foo",
-              "display_name": "Curious Foo",
               "active": true
             },
             "last_synchronized": %s,
@@ -166,7 +165,6 @@ public class ProfileServiceTests extends ESTestCase {
                         "domainA",
                         "foo@example.com",
                         "User Foo",
-                        "Curious Foo",
                         true
                     ),
                     Map.of(),

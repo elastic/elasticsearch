@@ -123,7 +123,9 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
-[[rpm-security-configuration]]
+// Set a `distro` attribute so we can reuse files containing anchors
+:distro: rpm
+[id="rpm-security-configuration"]
 include::package-security.asciidoc[]
 
 ifdef::include-xpack[]
@@ -135,7 +137,7 @@ include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
-[[rpm-running-systemd]]
+[id="{distro}-running-systemd"]
 include::systemd.asciidoc[]
 
 [[rpm-check-running]]

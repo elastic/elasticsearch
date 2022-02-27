@@ -268,17 +268,15 @@ public class MasterServiceTests extends ESTestCase {
                 ClusterStateTaskConfig.build(Priority.NORMAL),
                 new ClusterStateTaskExecutor<>() {
                     @Override
-                    public ClusterTasksResult<ExpectSuccessTask> execute(ClusterState currentState, List<ExpectSuccessTask> tasks) {
-                        var builder = ClusterTasksResult.<ExpectSuccessTask>builder();
-                        for (final var task : tasks) {
-                            builder.success(
-                                task,
+                    public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts) {
+                        for (final var taskContext : taskContexts) {
+                            taskContext.success(
                                 EXPECT_SUCCESS_LISTENER.delegateFailure(
                                     (delegate, cs) -> { throw new RuntimeException("testing exception handling"); }
                                 )
                             );
                         }
-                        return builder.build(ClusterState.builder(currentState).build());
+                        return ClusterState.builder(currentState).build();
                     }
 
                     @Override
@@ -475,16 +473,14 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public ClusterTasksResult<ExpectSuccessTask> execute(ClusterState currentState, List<ExpectSuccessTask> tasks)
-                throws Exception {
+            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts) {
                 assertTrue("Should execute all tasks at once", executed.compareAndSet(false, true));
-                assertThat("Should execute all tasks at once", tasks.size(), equalTo(expectedTaskCount));
+                assertThat("Should execute all tasks at once", taskContexts.size(), equalTo(expectedTaskCount));
                 executionCountDown.countDown();
-                var builder = ClusterTasksResult.<ExpectSuccessTask>builder();
-                for (final var task : tasks) {
-                    builder.success(task, EXPECT_SUCCESS_LISTENER);
+                for (final var taskContext : taskContexts) {
+                    taskContext.success(EXPECT_SUCCESS_LISTENER);
                 }
-                return builder.build(currentState);
+                return currentState;
             }
         }
 
@@ -503,15 +499,14 @@ public class MasterServiceTests extends ESTestCase {
                 ClusterStateTaskConfig.build(Priority.NORMAL),
                 new ClusterStateTaskExecutor<>() {
                     @Override
-                    public ClusterTasksResult<ExpectSuccessTask> execute(ClusterState currentState, List<ExpectSuccessTask> tasks)
+                    public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts)
                         throws Exception {
                         executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
                         executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
-                        var builder = ClusterTasksResult.<ExpectSuccessTask>builder();
-                        for (final var task : tasks) {
-                            builder.success(task, EXPECT_SUCCESS_LISTENER);
+                        for (final var taskContext : taskContexts) {
+                            taskContext.success(EXPECT_SUCCESS_LISTENER);
                         }
-                        return builder.build(currentState);
+                        return currentState;
                     }
                 }
             );
@@ -647,12 +642,16 @@ public class MasterServiceTests extends ESTestCase {
             private final List<Task> assignments = new ArrayList<>();
 
             @Override
-            public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
-                for (Task task : tasks) {
-                    assertThat("All tasks should belong to this executor", assignments, hasItem(task));
+            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
+                for (final var taskContext : taskContexts) {
+                    assertThat("All tasks should belong to this executor", assignments, hasItem(taskContext.getTask()));
                 }
-                tasks.forEach(Task::execute);
-                executed.addAndGet(tasks.size());
+
+                for (final var taskContext : taskContexts) {
+                    taskContext.getTask().execute();
+                }
+
+                executed.addAndGet(taskContexts.size());
                 ClusterState maybeUpdatedClusterState = currentState;
                 if (randomBoolean()) {
                     maybeUpdatedClusterState = ClusterState.builder(currentState).build();
@@ -663,9 +662,9 @@ public class MasterServiceTests extends ESTestCase {
                         equalTo(true)
                     );
                 }
-                var builder = ClusterTasksResult.<Task>builder();
-                for (final var task : tasks) {
-                    builder = builder.success(task, new ActionListener<>() {
+
+                for (final var taskContext : taskContexts) {
+                    taskContext.success(new ActionListener<>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
                             processedStates.incrementAndGet();
@@ -679,7 +678,7 @@ public class MasterServiceTests extends ESTestCase {
                     });
                 }
 
-                return builder.build(maybeUpdatedClusterState);
+                return maybeUpdatedClusterState;
             }
 
             @Override
@@ -791,11 +790,14 @@ public class MasterServiceTests extends ESTestCase {
 
         final ClusterStateTaskExecutor<Task> executor = new ClusterStateTaskExecutor<>() {
             @Override
-            public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) {
+            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
                 if (randomBoolean()) {
                     throw new RuntimeException("simulated");
                 } else {
-                    return ClusterTasksResult.<Task>builder().failures(tasks, new RuntimeException("simulated")).build(currentState);
+                    for (final var taskContext : taskContexts) {
+                        taskContext.onFailure(new RuntimeException("simulated"));
+                    }
+                    return currentState;
                 }
             }
         };
@@ -867,12 +869,11 @@ public class MasterServiceTests extends ESTestCase {
 
         final ClusterStateTaskExecutor<Task> executor = new ClusterStateTaskExecutor<>() {
             @Override
-            public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) {
-                final ClusterTasksResult.Builder<Task> builder = ClusterTasksResult.builder();
-                for (Task task : tasks) {
-                    builder.success(task, task.publishListener);
+            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
+                for (final var taskContext : taskContexts) {
+                    taskContext.success(taskContext.getTask().publishListener);
                 }
-                return builder.build(ClusterState.builder(currentState).build());
+                return ClusterState.builder(currentState).build();
             }
         };
 
@@ -989,10 +990,9 @@ public class MasterServiceTests extends ESTestCase {
                 ClusterStateTaskConfig.build(Priority.NORMAL),
                 new ClusterStateTaskExecutor<>() {
                     @Override
-                    public ClusterTasksResult<ExpectSuccessTask> execute(ClusterState currentState, List<ExpectSuccessTask> tasks) {
-                        var builder = ClusterTasksResult.<ExpectSuccessTask>builder();
-                        for (final var task : tasks) {
-                            builder = builder.success(task, EXPECT_SUCCESS_LISTENER.delegateFailure((delegate, cs) -> {
+                    public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts) {
+                        for (final var taskContext : taskContexts) {
+                            taskContext.success(EXPECT_SUCCESS_LISTENER.delegateFailure((delegate, cs) -> {
                                 BaseFuture<Void> future = new BaseFuture<Void>() {
                                 };
                                 try {
@@ -1009,7 +1009,7 @@ public class MasterServiceTests extends ESTestCase {
                                 }
                             }));
                         }
-                        return builder.build(ClusterState.builder(currentState).build());
+                        return ClusterState.builder(currentState).build();
                     }
                 }
             );
@@ -1331,10 +1331,9 @@ public class MasterServiceTests extends ESTestCase {
                     ClusterStateTaskConfig.build(Priority.NORMAL),
                     new ClusterStateTaskExecutor<>() {
                         @Override
-                        public ClusterTasksResult<Task> execute(ClusterState state, List<Task> tasks) {
-                            final var builder = ClusterTasksResult.<Task>builder();
-                            for (Task task : tasks) {
-                                builder.success(task, new ActionListener<>() {
+                        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
+                            for (final var taskContext : taskContexts) {
+                                taskContext.success(new ActionListener<>() {
                                     @Override
                                     public void onResponse(ClusterState clusterState) {
                                         latch.countDown();
@@ -1344,9 +1343,9 @@ public class MasterServiceTests extends ESTestCase {
                                     public void onFailure(Exception e) {
                                         throw new AssertionError(e);
                                     }
-                                }, task);
+                                }, taskContext.getTask());
                             }
-                            return builder.build(randomBoolean() ? state : ClusterState.builder(state).build());
+                            return randomBoolean() ? currentState : ClusterState.builder(currentState).build();
                         }
                     }
                 );
@@ -1384,11 +1383,11 @@ public class MasterServiceTests extends ESTestCase {
                     new Task(),
                     ClusterStateTaskConfig.build(Priority.NORMAL),
                     new ClusterStateTaskExecutor<>() {
+
                         @Override
-                        public ClusterTasksResult<Task> execute(ClusterState state, List<Task> tasks) {
-                            final var builder = ClusterTasksResult.<Task>builder();
-                            for (Task task : tasks) {
-                                builder.success(task, new ActionListener<>() {
+                        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
+                            for (final var taskContext : taskContexts) {
+                                taskContext.success(new ActionListener<>() {
                                     @Override
                                     public void onResponse(ClusterState clusterState) {
                                         latch.countDown();
@@ -1421,7 +1420,7 @@ public class MasterServiceTests extends ESTestCase {
                                     }
                                 });
                             }
-                            return builder.build(randomBoolean() ? state : ClusterState.builder(state).build());
+                            return randomBoolean() ? currentState : ClusterState.builder(currentState).build();
                         }
                     }
                 );

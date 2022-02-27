@@ -3015,12 +3015,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = new ClusterStateTaskExecutor<>() {
         @Override
-        public ClusterTasksResult<ShardSnapshotUpdate> execute(ClusterState currentState, List<ShardSnapshotUpdate> tasks) {
-            final var builder = ClusterStateTaskExecutor.ClusterTasksResult.<ShardSnapshotUpdate>builder();
-            for (var task : tasks) {
-                builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ShardSnapshotUpdate>> taskContexts) {
+            for (var taskContext : taskContexts) {
+                taskContext.success(
+                    new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(taskContext.getTask(), currentState)
+                );
             }
-            return builder.build(new SnapshotShardsUpdateContext(currentState, tasks).computeUpdatedState());
+            return new SnapshotShardsUpdateContext(currentState, () -> taskContexts.stream().map(TaskContext::getTask).iterator())
+                .computeUpdatedState();
         }
     };
 
@@ -3049,7 +3051,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // updates that were used to update an existing in-progress shard snapshot
         private final Set<ShardSnapshotUpdate> executedUpdates = new HashSet<>();
 
-        SnapshotShardsUpdateContext(ClusterState currentState, List<ShardSnapshotUpdate> updates) {
+        SnapshotShardsUpdateContext(ClusterState currentState, Iterable<ShardSnapshotUpdate> updates) {
             this.currentState = currentState;
             updatesByRepo = new HashMap<>();
             for (ShardSnapshotUpdate update : updates) {

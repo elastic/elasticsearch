@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -43,7 +44,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -107,11 +107,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.autoCreateIndex = autoCreateIndex;
             executor = new ClusterStateTaskExecutor<>() {
                 @Override
-                public ClusterTasksResult<CreateIndexTask> execute(ClusterState currentState, List<CreateIndexTask> tasks) {
-                    ClusterTasksResult.Builder<CreateIndexTask> builder = ClusterTasksResult.builder();
+                public ClusterState executeInContext(ClusterState currentState, List<TaskContext<CreateIndexTask>> taskContexts) {
                     ClusterState state = currentState;
-                    final Map<CreateIndexRequest, CreateIndexTask> successfulRequests = new HashMap<>(tasks.size());
-                    for (CreateIndexTask task : tasks) {
+                    final Map<CreateIndexRequest, CreateIndexTask> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
+                    for (final var taskContext : taskContexts) {
+                        final var task = taskContext.getTask();
                         try {
                             final CreateIndexTask successfulBefore = successfulRequests.putIfAbsent(task.request, task);
                             if (successfulBefore == null) {
@@ -122,19 +122,18 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                 // each duplicate task
                                 task.indexNameRef.set(successfulBefore.indexNameRef.get());
                             }
-                            builder.success(
-                                task,
+                            taskContext.success(
                                 new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState),
                                 task
                             );
                         } catch (Exception e) {
-                            builder.failure(task, e);
+                            taskContext.onFailure(e);
                         }
                     }
                     if (state != currentState) {
                         state = allocationService.reroute(state, "auto-create");
                     }
-                    return builder.build(state);
+                    return state;
                 }
             };
         }

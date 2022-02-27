@@ -21,7 +21,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
      * should be changed.
      */
-    ClusterTasksResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception;
+    default ClusterTasksResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception {
+        throw new AssertionError("should not be called");
+    }
 
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state

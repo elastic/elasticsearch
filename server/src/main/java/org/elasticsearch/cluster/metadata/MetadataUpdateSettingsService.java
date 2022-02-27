@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -37,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -72,22 +72,28 @@ public class MetadataUpdateSettingsService {
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
         this.threadPool = threadPool;
-        this.executor = (currentState, tasks) -> {
-            ClusterTasksResult.Builder<AckedClusterStateUpdateTask> builder = ClusterTasksResult.builder();
-            ClusterState state = currentState;
-            for (AckedClusterStateUpdateTask task : tasks) {
-                try {
-                    state = task.execute(state);
-                    builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState), task);
-                } catch (Exception e) {
-                    builder.failure(task, e);
+        this.executor = new ClusterStateTaskExecutor<>() {
+            @Override
+            public ClusterTasksResult<AckedClusterStateUpdateTask> execute(
+                ClusterState currentState,
+                List<AckedClusterStateUpdateTask> tasks
+            ) {
+                ClusterTasksResult.Builder<AckedClusterStateUpdateTask> builder = ClusterTasksResult.builder();
+                ClusterState state = currentState;
+                for (AckedClusterStateUpdateTask task : tasks) {
+                    try {
+                        state = task.execute(state);
+                        builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState), task);
+                    } catch (Exception e) {
+                        builder.failure(task, e);
+                    }
                 }
+                if (state != currentState) {
+                    // reroute in case things change that require it (like number of replicas)
+                    state = allocationService.reroute(state, "settings update");
+                }
+                return builder.build(state);
             }
-            if (state != currentState) {
-                // reroute in case things change that require it (like number of replicas)
-                state = allocationService.reroute(state, "settings update");
-            }
-            return builder.build(state);
         };
     }
 

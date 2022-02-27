@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.LongSupplier;
@@ -54,20 +55,27 @@ class IndexLifecycleRunner {
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
 
-    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (currentState, tasks) -> {
-        ClusterStateTaskExecutor.ClusterTasksResult.Builder<IndexLifecycleClusterStateUpdateTask> builder =
-            ClusterStateTaskExecutor.ClusterTasksResult.builder();
-        ClusterState state = currentState;
-        for (IndexLifecycleClusterStateUpdateTask task : tasks) {
-            try {
-                state = task.execute(state);
-                builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
-            } catch (Exception e) {
-                builder.failure(task, e);
+    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR =
+        new ClusterStateTaskExecutor<>() {
+            @Override
+            public ClusterTasksResult<IndexLifecycleClusterStateUpdateTask> execute(
+                ClusterState currentState,
+                List<IndexLifecycleClusterStateUpdateTask> tasks
+            ) {
+                ClusterStateTaskExecutor.ClusterTasksResult.Builder<IndexLifecycleClusterStateUpdateTask> builder =
+                    ClusterStateTaskExecutor.ClusterTasksResult.builder();
+                ClusterState state = currentState;
+                for (IndexLifecycleClusterStateUpdateTask task : tasks) {
+                    try {
+                        state = task.execute(state);
+                        builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+                    } catch (Exception e) {
+                        builder.failure(task, e);
+                    }
+                }
+                return builder.build(state);
             }
-        }
-        return builder.build(state);
-    };
+        };
 
     IndexLifecycleRunner(
         PolicyStepsRegistry stepRegistry,

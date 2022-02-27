@@ -16,10 +16,6 @@ infrequently and not normally updated. To save space, you can keep
 <<ilm-searchable-snapshot,{search-snaps}>> on the cold tier. These fully mounted
 indices eliminate the need for replicas, reducing required disk space by
 approximately 50% compared to the regular indices.
-+
-Alternatively, you can use the cold tier to store regular indices with replicas instead
-of using {search-snaps}. This lets you store older data on less expensive hardware
-but doesn't reduce required disk space compared to the warm tier.
 * <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed 
 rarely and never updated. The frozen tier stores <<partially-mounted,partially
 mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> exclusively.

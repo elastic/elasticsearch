@@ -21,11 +21,10 @@ Alternatively, you can use the cold tier to store regular indices with replicas 
 of using {search-snaps}. This lets you store older data on less expensive hardware
 but doesn't reduce required disk space compared to the warm tier.
 * <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed 
-rarely and never updated. It is necessary to have a snapshot repository setup
-in order to use frozen tier. The frozen tier stores
-<<partially-mounted,Partially mounted indices>> of
-<<ilm-searchable-snapshot,{search-snaps}>> exclusively.  This extends the
-storage capacity even further by up to 20 times compare to the warm tier. 
+rarely and never updated. The frozen tier stores <<partially-mounted,partially
+mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> exclusively.
+This extends the storage capacity even further — by up to 20 times compared to
+the warm tier. 
 
 When you index documents directly to a specific index, they remain on content tier nodes indefinitely.
 

@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -30,6 +31,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash.WILD_CARD_REF;
 
@@ -428,6 +430,28 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 Arrays.asList(bucketList)
             );
         }
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalCategorizationAggregation(
+            name,
+            requiredSize,
+            minDocCount,
+            maxUniqueTokens,
+            maxMatchTokens,
+            similarityThreshold,
+            metadata,
+            buckets.stream()
+                .map(
+                    b -> new Bucket(
+                        b.key,
+                        samplingContext.scaleUp(b.docCount),
+                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
+                    )
+                )
+                .collect(Collectors.toList())
+        );
     }
 
     public int getMaxUniqueTokens() {

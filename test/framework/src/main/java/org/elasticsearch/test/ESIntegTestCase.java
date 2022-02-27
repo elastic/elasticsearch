@@ -2202,7 +2202,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // need to check that there are no more in-flight search contexts before
         // we remove indices
         if (isInternalCluster()) {
-            internalCluster().setBootstrapMasterNodeIndex(-1);
+            internalCluster().setBootstrapMasterNodeIndex(InternalTestCluster.BOOTSTRAP_MASTER_NODE_INDEX_AUTO);
         }
         super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {

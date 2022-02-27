@@ -36,7 +36,7 @@ public class ClusterStateTaskExecutorTests extends ESTestCase {
     public void testDescribeTasks() {
         final ClusterStateTaskExecutor<TestTask> executor = new ClusterStateTaskExecutor<>() {
             @Override
-            public ClusterTasksResult<TestTask> execute(ClusterState currentState, List<TestTask> tasks) {
+            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<TestTask>> taskContexts) {
                 throw new AssertionError("should not be called");
             }
         };

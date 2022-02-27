@@ -134,6 +134,78 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
+    public void testTokenAccessResourceOf() {
+        final User user = randomUser();
+        final RealmRef realmRef = randomRealmRef(false);
+        Authentication original = Authentication.newRealmAuthentication(user, realmRef);
+        Authentication token = original.token();
+        assertCanAccessResources(original, token);
+        assertCanAccessResources(original, token.token());
+        assertCanAccessResources(token, token.token());
+
+        Authentication original2 = randomApiKeyAuthentication(user, randomAlphaOfLengthBetween(10, 20));
+        Authentication token2 = original2.token();
+        assertCannotAccessResources(original2, token2);
+        assertCannotAccessResources(original2, token2.token());
+        assertCanAccessResources(token2, token2.token());
+
+        assertCannotAccessResources(token, token2);
+        assertCannotAccessResources(token.token(), token2);
+        assertCannotAccessResources(token, token2.token());
+
+        Authentication original3 = Authentication.newAnonymousAuthentication(
+            new AnonymousUser(Settings.EMPTY),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+        Authentication token3 = original3.token();
+        assertCanAccessResources(original3, token3);
+        assertCanAccessResources(original3, token3.token());
+        assertCanAccessResources(token3, token3.token());
+    }
+
+    public void testRunAsAccessResourceOf() {
+        final User user = randomUser();
+        final User otherUser = randomValueOtherThan(user, () -> randomUser());
+        final RealmRef realmRef = randomRealmRef(false);
+        final RealmRef otherRealmRef = randomValueOtherThan(realmRef, () -> randomRealmRef(false));
+        Authentication original = Authentication.newRealmAuthentication(user, realmRef);
+
+        // can
+        Authentication runAs1 = Authentication.newRealmAuthentication(otherUser, otherRealmRef).runAs(user, realmRef);
+        assertCanAccessResources(original, runAs1);
+        assertCanAccessResources(original.token(), runAs1);
+        assertCanAccessResources(original, runAs1.token());
+        assertCanAccessResources(original.token(), runAs1.token());
+
+        Authentication runAs2 = randomApiKeyAuthentication(otherUser, randomAlphaOfLength(8)).runAs(user, realmRef);
+        assertCanAccessResources(original, runAs2);
+        assertCanAccessResources(original.token(), runAs2);
+        assertCanAccessResources(original, runAs2.token());
+        assertCanAccessResources(original.token(), runAs2.token());
+
+        assertCanAccessResources(runAs1, runAs2);
+        assertCanAccessResources(runAs1.token(), runAs2);
+        assertCanAccessResources(runAs1, runAs2.token());
+        assertCanAccessResources(runAs1.token(), runAs2.token());
+
+        // cannot
+        Authentication runAs3 = original.runAs(otherUser, realmRef);
+        assertCannotAccessResources(original, runAs3);
+        assertCannotAccessResources(original.token(), runAs3);
+        assertCannotAccessResources(original, runAs3.token());
+        assertCannotAccessResources(original.token(), runAs3.token());
+
+        if ((false == FileRealmSettings.TYPE.equals(realmRef.getType()) && false == FileRealmSettings.TYPE.equals(otherRealmRef.getType()))
+            || (false == NativeRealmSettings.TYPE.equals(realmRef.getType())
+                && false == NativeRealmSettings.TYPE.equals(otherRealmRef.getType()))) {
+            Authentication runAs4 = original.runAs(user, otherRealmRef);
+            assertCannotAccessResources(original, runAs4);
+            assertCannotAccessResources(original.token(), runAs4);
+            assertCannotAccessResources(original, runAs4.token());
+            assertCannotAccessResources(original.token(), runAs4.token());
+        }
+    }
+
     public void testIsServiceAccount() {
         final User user = new User(
             randomAlphaOfLengthBetween(3, 8),
@@ -327,7 +399,11 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public static RealmRef randomRealmRef(boolean underDomain) {
-        final Supplier<String> randomRealmTypeSupplier = () -> randomFrom(
+        return randomRealmRef(underDomain, true);
+    }
+
+    public static RealmRef randomRealmRef(boolean underDomain, boolean includeSingletons) {
+        final Supplier<String> randomAllRealmTypeSupplier = () -> randomFrom(
             FileRealmSettings.TYPE,
             NativeRealmSettings.TYPE,
             LdapRealmSettings.AD_TYPE,
@@ -338,6 +414,15 @@ public class AuthenticationTests extends ESTestCase {
             KerberosRealmSettings.TYPE,
             randomAlphaOfLengthBetween(3, 8)
         );
+        final Supplier<String> randomRealmTypeSupplier;
+        if (includeSingletons) {
+            randomRealmTypeSupplier = randomAllRealmTypeSupplier;
+        } else {
+            randomRealmTypeSupplier = () -> randomValueOtherThanMany(
+                value -> value.equals(FileRealmSettings.TYPE) || value.equals(NativeRealmSettings.TYPE),
+                randomAllRealmTypeSupplier
+            );
+        }
         if (underDomain) {
             final Set<RealmConfig.RealmIdentifier> domainRealms = Set.of(
                 randomArray(

@@ -1065,15 +1065,14 @@ public class MetadataIndexStateService {
     private class OpenIndicesExecutor implements ClusterStateTaskExecutor<OpenIndicesTask> {
 
         @Override
-        public ClusterTasksResult<OpenIndicesTask> execute(ClusterState currentState, List<OpenIndicesTask> tasks) throws Exception {
-            ClusterTasksResult.Builder<OpenIndicesTask> builder = ClusterTasksResult.builder();
+        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<OpenIndicesTask>> taskContexts) {
             ClusterState state = currentState;
 
             try {
                 // build an in-order de-duplicated array of all the indices to open
-                final Set<Index> indicesToOpen = new LinkedHashSet<>(tasks.size());
-                for (OpenIndicesTask task : tasks) {
-                    Collections.addAll(indicesToOpen, task.request.indices());
+                final Set<Index> indicesToOpen = new LinkedHashSet<>(taskContexts.size());
+                for (final var taskContext : taskContexts) {
+                    Collections.addAll(indicesToOpen, taskContext.getTask().request.indices());
                 }
                 Index[] indices = indicesToOpen.toArray(Index.EMPTY_ARRAY);
 
@@ -1083,8 +1082,9 @@ public class MetadataIndexStateService {
                 // do a final reroute
                 state = allocationService.reroute(state, "indices opened");
 
-                for (OpenIndicesTask task : tasks) {
-                    builder.success(task, new ActionListener<>() {
+                for (final var taskContext : taskContexts) {
+                    final var task = taskContext.getTask();
+                    taskContext.success(new ActionListener<>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
                             // listener is notified at the end of acking
@@ -1097,12 +1097,12 @@ public class MetadataIndexStateService {
                     }, task);
                 }
             } catch (Exception e) {
-                for (OpenIndicesTask task : tasks) {
-                    builder.failure(task, e);
+                for (final var taskContext : taskContexts) {
+                    taskContext.onFailure(e);
                 }
             }
 
-            return builder.build(state);
+            return state;
         }
 
         private ClusterState openIndices(final Index[] indices, final ClusterState currentState) {

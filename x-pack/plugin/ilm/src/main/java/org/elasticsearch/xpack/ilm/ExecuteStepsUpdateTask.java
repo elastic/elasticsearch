@@ -33,7 +33,9 @@ import java.util.Optional;
 import java.util.function.LongSupplier;
 
 public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask {
+
     private static final Logger logger = LogManager.getLogger(ExecuteStepsUpdateTask.class);
+
     private final String policy;
     private final Step startStep;
     private final PolicyStepsRegistry policyStepsRegistry;

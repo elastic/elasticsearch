@@ -20,6 +20,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTask {
+
     private static final Logger logger = LogManager.getLogger(MoveToNextStepUpdateTask.class);
 
     private final String policy;

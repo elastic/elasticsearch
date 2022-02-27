@@ -74,25 +74,22 @@ public class MetadataUpdateSettingsService {
         this.threadPool = threadPool;
         this.executor = new ClusterStateTaskExecutor<>() {
             @Override
-            public ClusterTasksResult<AckedClusterStateUpdateTask> execute(
-                ClusterState currentState,
-                List<AckedClusterStateUpdateTask> tasks
-            ) {
-                ClusterTasksResult.Builder<AckedClusterStateUpdateTask> builder = ClusterTasksResult.builder();
+            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<AckedClusterStateUpdateTask>> taskContexts) {
                 ClusterState state = currentState;
-                for (AckedClusterStateUpdateTask task : tasks) {
+                for (final var taskContext : taskContexts) {
                     try {
+                        final var task = taskContext.getTask();
                         state = task.execute(state);
-                        builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState), task);
+                        taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState), task);
                     } catch (Exception e) {
-                        builder.failure(task, e);
+                        taskContext.onFailure(e);
                     }
                 }
                 if (state != currentState) {
                     // reroute in case things change that require it (like number of replicas)
                     state = allocationService.reroute(state, "settings update");
                 }
-                return builder.build(state);
+                return state;
             }
         };
     }

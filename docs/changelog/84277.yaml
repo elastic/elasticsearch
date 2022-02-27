@@ -1,0 +1,5 @@
+pr: 84277
+summary: Fix can access resource checks for API Keys with run as
+area: Authorization
+type: bug
+issues: []

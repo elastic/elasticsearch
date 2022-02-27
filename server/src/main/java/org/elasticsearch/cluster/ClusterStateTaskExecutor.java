@@ -20,37 +20,10 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
      * should be changed.
-     */
-    default ClusterTasksResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception {
-        throw new AssertionError("should not be called");
-    }
-
-    /**
-     * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
-     * should be changed.
      *
      * @param taskContexts A {@link TaskContext} for each task in the batch. Implementations must complete every context in the list.
      */
-    default ClusterState executeInContext(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception {
-        // temporary adapter for the duration of the refactoring, will be removed once all implementations are migrated
-        final var bareTasks = taskContexts.stream().map(TaskContext::getTask).toList();
-        final var result = execute(currentState, bareTasks);
-        for (final var taskContext : taskContexts) {
-            final var taskResult = result.executionResults().remove(taskContext.getTask());
-            assert taskResult != null;
-            if (taskResult.isSuccess()) {
-                if (taskResult.clusterStateAckListener() == null) {
-                    taskContext.success(taskResult.publishListener());
-                } else {
-                    taskContext.success(taskResult.publishListener(), taskResult.clusterStateAckListener());
-                }
-            } else {
-                taskContext.onFailure(taskResult.getFailure());
-            }
-        }
-        assert result.executionResults().isEmpty() : result.executionResults();
-        return result.resultingState();
-    }
+    ClusterState executeInContext(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception;
 
     /**
      * indicates whether this executor should only run if the current node is master
@@ -72,7 +45,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
      * Builds a concise description of a list of tasks (to be used in logging etc.).
      *
-     * Note that the tasks given are not necessarily the same as those that will be passed to {@link #execute(ClusterState, List)}.
+     * Note that the tasks given are not necessarily the same as those that will be passed to {@link #executeInContext(ClusterState, List)}.
      * but are guaranteed to be a subset of them. This method can be called multiple times with different lists before execution.
      * This allows groupd task description but the submitting source.
      */

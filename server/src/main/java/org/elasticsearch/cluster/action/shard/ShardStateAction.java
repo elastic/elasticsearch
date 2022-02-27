@@ -639,14 +639,14 @@ public class ShardStateAction {
         }
 
         @Override
-        public ClusterTasksResult<StartedShardUpdateTask> execute(ClusterState currentState, List<StartedShardUpdateTask> tasks)
+        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<StartedShardUpdateTask>> taskContexts)
             throws Exception {
-            ClusterTasksResult.Builder<StartedShardUpdateTask> builder = ClusterTasksResult.builder();
-            List<StartedShardUpdateTask> tasksToBeApplied = new ArrayList<>();
-            List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
+            List<TaskContext<StartedShardUpdateTask>> tasksToBeApplied = new ArrayList<>();
+            List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(taskContexts.size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
             final Map<Index, IndexLongFieldRange> updatedTimestampRanges = new HashMap<>();
-            for (StartedShardUpdateTask task : tasks) {
+            for (var taskContext : taskContexts) {
+                final var task = taskContext.getTask();
                 StartedShardEntry entry = task.getEntry();
                 final ShardRouting matched = currentState.getRoutingTable().getByAllocationId(entry.shardId, entry.allocationId);
                 if (matched == null) {
@@ -655,7 +655,7 @@ public class ShardStateAction {
                     // requests might still be in flight even after the shard has already been started or failed on the master. We just
                     // ignore these requests for now.
                     logger.debug("{} ignoring shard started task [{}] (shard does not exist anymore)", entry.shardId, entry);
-                    builder.success(task, task.newPublicationListener());
+                    taskContext.success(task.newPublicationListener());
                 } else {
                     if (matched.primary() && entry.primaryTerm > 0) {
                         final IndexMetadata indexMetadata = currentState.metadata().index(entry.shardId.getIndex());
@@ -676,7 +676,7 @@ public class ShardStateAction {
                                 entry.primaryTerm,
                                 currentPrimaryTerm
                             );
-                            builder.success(task, task.newPublicationListener());
+                            taskContext.success(task.newPublicationListener());
                             continue;
                         }
                     }
@@ -689,7 +689,7 @@ public class ShardStateAction {
                             entry,
                             matched
                         );
-                        builder.success(task, task.newPublicationListener());
+                        taskContext.success(task.newPublicationListener());
                     } else {
                         // remove duplicate actions as allocation service expects a clean list without duplicates
                         if (seenShardRoutings.contains(matched)) {
@@ -699,10 +699,10 @@ public class ShardStateAction {
                                 entry,
                                 matched
                             );
-                            tasksToBeApplied.add(task);
+                            tasksToBeApplied.add(taskContext);
                         } else {
                             logger.debug("{} starting shard {} (shard started task: [{}])", entry.shardId, matched, entry);
-                            tasksToBeApplied.add(task);
+                            tasksToBeApplied.add(taskContext);
                             shardRoutingsToBeApplied.add(matched);
                             seenShardRoutings.add(matched);
 
@@ -745,15 +745,17 @@ public class ShardStateAction {
 
                 assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
 
-                for (var task : tasksToBeApplied) {
-                    builder.success(task, task.newPublicationListener());
+                for (final var taskContext : tasksToBeApplied) {
+                    taskContext.success(taskContext.getTask().newPublicationListener());
                 }
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);
-                builder.failures(tasksToBeApplied, e);
+                for (final var taskContext : tasksToBeApplied) {
+                    taskContext.onFailure(e);
+                }
             }
 
-            return builder.build(maybeUpdatedState);
+            return maybeUpdatedState;
         }
 
         private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {

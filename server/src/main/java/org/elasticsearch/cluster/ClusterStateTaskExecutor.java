@@ -253,11 +253,11 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> unbatched() {
         return new ClusterStateTaskExecutor<>() {
             @Override
-            public ClusterTasksResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception {
-                assert tasks.size() == 1 : "this only supports a single task but received " + tasks;
-                final T task = tasks.get(0);
+            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception {
+                assert taskContexts.size() == 1 : "this only supports a single task but received " + taskContexts;
+                final var taskContext = taskContexts.get(0);
+                final var task = taskContext.getTask();
                 final var newState = task.execute(currentState);
-                final var builder = ClusterTasksResult.<T>builder();
                 final var publishListener = new ActionListener<ClusterState>() {
                     @Override
                     public void onResponse(ClusterState publishedState) {
@@ -270,11 +270,11 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
                     }
                 };
                 if (task instanceof ClusterStateAckListener ackListener) {
-                    builder.success(task, publishListener, ackListener);
+                    taskContext.success(publishListener, ackListener);
                 } else {
-                    builder.success(task, publishListener);
+                    taskContext.success(publishListener);
                 }
-                return builder.build(newState);
+                return newState;
             }
 
             @Override

@@ -93,7 +93,7 @@ public final class IndexLifecycleTransition {
         if (isNewStepCached == false
             && (stepRegistry.stepExists(policyName, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false)) {
             throw new IllegalArgumentException(
-                "step [" + newStepKey + "] for index [" + idxMeta.getIndex().getName() + "] with policy [" + policyName + "] does not exist"
+                "step [" + newStepKey + "] for index [" + indexName + "] with policy [" + policyName + "] does not exist"
             );
         }
     }
@@ -334,13 +334,14 @@ public final class IndexLifecycleTransition {
         Client client,
         XPackLicenseState licenseState
     ) {
+        String indexName = indexMetadata.getIndex().getName();
         String policyName = indexMetadata.getLifecyclePolicyName();
         Step.StepKey currentStepKey = Step.getCurrentStepKey(existingState);
         if (currentStepKey == null) {
             logger.warn(
                 "unable to identify what the current step is for index [{}] as part of policy [{}]. the "
                     + "cached phase definition will not be updated for this index",
-                indexMetadata.getIndex().getName(),
+                indexName,
                 policyName
             );
             return existingState;
@@ -354,7 +355,7 @@ public final class IndexLifecycleTransition {
                 "unable to find current step [{}] for index [{}] as part of policy [{}]. the cached phase definition will not be "
                     + "updated for this index",
                 currentStepKey,
-                indexMetadata.getIndex().getName(),
+                indexName,
                 policyName
             );
             return existingState;
@@ -370,13 +371,7 @@ public final class IndexLifecycleTransition {
 
         assert nextStepInActionAfterCurrent.isPresent() : "there should always be a complete step at the end of every phase";
         Step.StepKey nextStep = nextStepInActionAfterCurrent.get().getKey();
-        logger.debug(
-            "moving index [{}] in policy [{}] out of step [{}] to new step [{}]",
-            indexMetadata.getIndex().getName(),
-            policyName,
-            currentStepKey,
-            nextStep
-        );
+        logger.debug("moving index [{}] in policy [{}] out of step [{}] to new step [{}]", indexName, policyName, currentStepKey, nextStep);
 
         long nowAsMillis = nowSupplier.getAsLong();
         LifecycleExecutionState.Builder updatedState = LifecycleExecutionState.builder(existingState);

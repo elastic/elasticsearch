@@ -145,8 +145,8 @@ public class AuthenticationTests extends ESTestCase {
 
         Authentication original2 = randomApiKeyAuthentication(user, randomAlphaOfLengthBetween(10, 20));
         Authentication token2 = original2.token();
-        assertCannotAccessResources(original2, token2);
-        assertCannotAccessResources(original2, token2.token());
+        assertCanAccessResources(original2, token2);
+        assertCanAccessResources(original2, token2.token());
         assertCanAccessResources(token2, token2.token());
 
         assertCannotAccessResources(token, token2);

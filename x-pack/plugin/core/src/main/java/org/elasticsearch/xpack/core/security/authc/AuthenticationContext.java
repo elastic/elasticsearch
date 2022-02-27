@@ -48,13 +48,6 @@ public class AuthenticationContext {
         return effectiveSubject;
     }
 
-    /**
-     * Authenticated with an API key and no run-as
-     */
-    public boolean isApiKey() {
-        return AuthenticationType.API_KEY.equals(type) && false == isRunAs();
-    }
-
     public static AuthenticationContext fromAuthentication(Authentication authentication) {
         final Builder builder = new Builder(authentication.getVersion());
         builder.authenticationType(authentication.getAuthenticationType());

@@ -223,11 +223,10 @@ public class MetadataIndexStateService {
     private class CloseIndicesExecutor implements ClusterStateTaskExecutor<CloseIndicesTask> {
 
         @Override
-        public ClusterTasksResult<CloseIndicesTask> execute(ClusterState currentState, List<CloseIndicesTask> tasks) throws Exception {
-            ClusterTasksResult.Builder<CloseIndicesTask> builder = ClusterTasksResult.builder();
+        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<CloseIndicesTask>> taskContexts) throws Exception {
             ClusterState state = currentState;
-
-            for (CloseIndicesTask task : tasks) {
+            for (final var taskContext : taskContexts) {
+                final var task = taskContext.getTask();
                 try {
                     final Tuple<ClusterState, List<IndexResult>> closingResult = closeRoutingTable(
                         state,
@@ -238,7 +237,7 @@ public class MetadataIndexStateService {
                     final List<IndexResult> indices = closingResult.v2();
                     assert indices.size() == task.verifyResults.size();
 
-                    builder.success(task, task.listener.delegateFailure((delegate, clusterState) -> {
+                    taskContext.success(task.listener.delegateFailure((delegate, clusterState) -> {
                         final boolean acknowledged = indices.stream().noneMatch(IndexResult::hasFailures);
                         final String[] waitForIndices = indices.stream()
                             .filter(result -> result.hasFailures() == false)
@@ -272,13 +271,11 @@ public class MetadataIndexStateService {
                         }
                     }));
                 } catch (Exception e) {
-                    builder.failure(task, e);
+                    taskContext.onFailure(e);
                 }
             }
 
-            state = allocationService.reroute(state, "indices closed");
-
-            return builder.build(state);
+            return allocationService.reroute(state, "indices closed");
         }
     }
 

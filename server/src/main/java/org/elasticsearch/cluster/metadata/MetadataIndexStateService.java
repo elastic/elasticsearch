@@ -168,8 +168,7 @@ public class MetadataIndexStateService {
     private class AddBlocksToCloseExecutor implements ClusterStateTaskExecutor<AddBlocksToCloseTask> {
 
         @Override
-        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<AddBlocksToCloseTask>> taskContexts)
-            throws Exception {
+        public ClusterState execute(ClusterState currentState, List<TaskContext<AddBlocksToCloseTask>> taskContexts) throws Exception {
             ClusterState state = currentState;
             for (final var taskContext : taskContexts) {
                 final var task = taskContext.getTask();
@@ -223,7 +222,7 @@ public class MetadataIndexStateService {
     private class CloseIndicesExecutor implements ClusterStateTaskExecutor<CloseIndicesTask> {
 
         @Override
-        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<CloseIndicesTask>> taskContexts) throws Exception {
+        public ClusterState execute(ClusterState currentState, List<TaskContext<CloseIndicesTask>> taskContexts) throws Exception {
             ClusterState state = currentState;
             for (final var taskContext : taskContexts) {
                 final var task = taskContext.getTask();
@@ -1065,7 +1064,7 @@ public class MetadataIndexStateService {
     private class OpenIndicesExecutor implements ClusterStateTaskExecutor<OpenIndicesTask> {
 
         @Override
-        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<OpenIndicesTask>> taskContexts) {
+        public ClusterState execute(ClusterState currentState, List<TaskContext<OpenIndicesTask>> taskContexts) {
             ClusterState state = currentState;
 
             try {

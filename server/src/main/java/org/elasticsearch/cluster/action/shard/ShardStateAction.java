@@ -316,7 +316,7 @@ public class ShardStateAction {
         }
 
         @Override
-        public ClusterState executeInContext(
+        public ClusterState execute(
             ClusterState currentState,
             List<ClusterStateTaskExecutor.TaskContext<FailedShardUpdateTask>> taskContexts
         ) throws Exception {
@@ -642,8 +642,7 @@ public class ShardStateAction {
         }
 
         @Override
-        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<StartedShardUpdateTask>> taskContexts)
-            throws Exception {
+        public ClusterState execute(ClusterState currentState, List<TaskContext<StartedShardUpdateTask>> taskContexts) throws Exception {
             List<TaskContext<StartedShardUpdateTask>> tasksToBeApplied = new ArrayList<>();
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(taskContexts.size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates

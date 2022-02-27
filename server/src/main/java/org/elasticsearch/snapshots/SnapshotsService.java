@@ -3015,7 +3015,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = new ClusterStateTaskExecutor<>() {
         @Override
-        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ShardSnapshotUpdate>> taskContexts) {
+        public ClusterState execute(ClusterState currentState, List<TaskContext<ShardSnapshotUpdate>> taskContexts) {
             for (var taskContext : taskContexts) {
                 taskContext.success(
                     new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(taskContext.getTask(), currentState)

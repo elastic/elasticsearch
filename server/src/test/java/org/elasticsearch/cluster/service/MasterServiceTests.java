@@ -268,7 +268,7 @@ public class MasterServiceTests extends ESTestCase {
                 ClusterStateTaskConfig.build(Priority.NORMAL),
                 new ClusterStateTaskExecutor<>() {
                     @Override
-                    public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts) {
+                    public ClusterState execute(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts) {
                         for (final var taskContext : taskContexts) {
                             taskContext.success(
                                 EXPECT_SUCCESS_LISTENER.delegateFailure(
@@ -473,7 +473,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts) {
+            public ClusterState execute(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts) {
                 assertTrue("Should execute all tasks at once", executed.compareAndSet(false, true));
                 assertThat("Should execute all tasks at once", taskContexts.size(), equalTo(expectedTaskCount));
                 executionCountDown.countDown();
@@ -499,7 +499,7 @@ public class MasterServiceTests extends ESTestCase {
                 ClusterStateTaskConfig.build(Priority.NORMAL),
                 new ClusterStateTaskExecutor<>() {
                     @Override
-                    public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts)
+                    public ClusterState execute(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts)
                         throws Exception {
                         executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
                         executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
@@ -642,7 +642,7 @@ public class MasterServiceTests extends ESTestCase {
             private final List<Task> assignments = new ArrayList<>();
 
             @Override
-            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
+            public ClusterState execute(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
                 for (final var taskContext : taskContexts) {
                     assertThat("All tasks should belong to this executor", assignments, hasItem(taskContext.getTask()));
                 }
@@ -790,7 +790,7 @@ public class MasterServiceTests extends ESTestCase {
 
         final ClusterStateTaskExecutor<Task> executor = new ClusterStateTaskExecutor<>() {
             @Override
-            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
+            public ClusterState execute(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
                 if (randomBoolean()) {
                     throw new RuntimeException("simulated");
                 } else {
@@ -869,7 +869,7 @@ public class MasterServiceTests extends ESTestCase {
 
         final ClusterStateTaskExecutor<Task> executor = new ClusterStateTaskExecutor<>() {
             @Override
-            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
+            public ClusterState execute(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
                 for (final var taskContext : taskContexts) {
                     taskContext.success(taskContext.getTask().publishListener);
                 }
@@ -990,7 +990,7 @@ public class MasterServiceTests extends ESTestCase {
                 ClusterStateTaskConfig.build(Priority.NORMAL),
                 new ClusterStateTaskExecutor<>() {
                     @Override
-                    public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts) {
+                    public ClusterState execute(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts) {
                         for (final var taskContext : taskContexts) {
                             taskContext.success(EXPECT_SUCCESS_LISTENER.delegateFailure((delegate, cs) -> {
                                 BaseFuture<Void> future = new BaseFuture<Void>() {
@@ -1331,7 +1331,7 @@ public class MasterServiceTests extends ESTestCase {
                     ClusterStateTaskConfig.build(Priority.NORMAL),
                     new ClusterStateTaskExecutor<>() {
                         @Override
-                        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
+                        public ClusterState execute(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
                             for (final var taskContext : taskContexts) {
                                 taskContext.success(new ActionListener<>() {
                                     @Override
@@ -1385,7 +1385,7 @@ public class MasterServiceTests extends ESTestCase {
                     new ClusterStateTaskExecutor<>() {
 
                         @Override
-                        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
+                        public ClusterState execute(ClusterState currentState, List<TaskContext<Task>> taskContexts) {
                             for (final var taskContext : taskContexts) {
                                 taskContext.success(new ActionListener<>() {
                                     @Override

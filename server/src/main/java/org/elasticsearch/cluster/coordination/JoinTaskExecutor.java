@@ -49,7 +49,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
     }
 
     @Override
-    public ClusterState executeInContext(ClusterState currentState, List<TaskContext<JoinTask>> joinTaskContexts) throws Exception {
+    public ClusterState execute(ClusterState currentState, List<TaskContext<JoinTask>> joinTaskContexts) throws Exception {
 
         final boolean isBecomingMaster = joinTaskContexts.stream().anyMatch(t -> t.getTask().isBecomingMaster());
 

@@ -107,7 +107,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.autoCreateIndex = autoCreateIndex;
             executor = new ClusterStateTaskExecutor<>() {
                 @Override
-                public ClusterState executeInContext(ClusterState currentState, List<TaskContext<CreateIndexTask>> taskContexts) {
+                public ClusterState execute(ClusterState currentState, List<TaskContext<CreateIndexTask>> taskContexts) {
                     ClusterState state = currentState;
                     final Map<CreateIndexRequest, CreateIndexTask> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
                     for (final var taskContext : taskContexts) {

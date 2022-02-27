@@ -103,7 +103,7 @@ public class JoinHelper {
             private final long term = currentTermSupplier.getAsLong();
 
             @Override
-            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<JoinTask>> joinTaskContexts) throws Exception {
+            public ClusterState execute(ClusterState currentState, List<TaskContext<JoinTask>> joinTaskContexts) throws Exception {
                 // The current state that MasterService uses might have been updated by a (different) master in a higher term already
                 // Stop processing the current cluster state update, as there's no point in continuing to compute it as
                 // it will later be rejected by Coordinator.publish(...) anyhow
@@ -125,7 +125,7 @@ public class JoinHelper {
                     } else if (currentState.nodes().isLocalNodeElectedMaster()) {
                         assert currentState.term() == term : "term should be stable for the same master";
                     }
-                return super.executeInContext(currentState, joinTaskContexts);
+                return super.execute(currentState, joinTaskContexts);
             }
         };
 

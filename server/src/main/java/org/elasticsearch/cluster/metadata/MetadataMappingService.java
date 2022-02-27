@@ -90,7 +90,7 @@ public class MetadataMappingService {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateTask> {
         @Override
-        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<PutMappingClusterStateUpdateTask>> taskContexts)
+        public ClusterState execute(ClusterState currentState, List<TaskContext<PutMappingClusterStateUpdateTask>> taskContexts)
             throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             try {

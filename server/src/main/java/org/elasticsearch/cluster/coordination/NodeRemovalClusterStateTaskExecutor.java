@@ -57,7 +57,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
     }
 
     @Override
-    public ClusterState executeInContext(ClusterState currentState, List<TaskContext<Task>> taskContexts) throws Exception {
+    public ClusterState execute(ClusterState currentState, List<TaskContext<Task>> taskContexts) throws Exception {
         final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
         boolean removed = false;
         for (final var taskContext : taskContexts) {

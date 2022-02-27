@@ -74,7 +74,7 @@ public class MetadataUpdateSettingsService {
         this.threadPool = threadPool;
         this.executor = new ClusterStateTaskExecutor<>() {
             @Override
-            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<AckedClusterStateUpdateTask>> taskContexts) {
+            public ClusterState execute(ClusterState currentState, List<TaskContext<AckedClusterStateUpdateTask>> taskContexts) {
                 ClusterState state = currentState;
                 for (final var taskContext : taskContexts) {
                     try {

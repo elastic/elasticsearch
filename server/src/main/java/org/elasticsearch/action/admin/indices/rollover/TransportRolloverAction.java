@@ -373,7 +373,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
 
         @Override
-        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<RolloverTask>> taskContexts) throws Exception {
+        public ClusterState execute(ClusterState currentState, List<TaskContext<RolloverTask>> taskContexts) throws Exception {
             ClusterState state = currentState;
             for (final var taskContext : taskContexts) {
                 try {

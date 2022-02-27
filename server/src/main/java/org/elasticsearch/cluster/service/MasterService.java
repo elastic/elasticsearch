@@ -935,7 +935,7 @@ public class MasterService extends AbstractLifecycleComponent {
         final var executionResults = taskInputs.updateTasks.stream().map(ExecutionResult::new).toList();
         final var taskContexts = castTaskContexts(executionResults);
         try {
-            return new BatchExecutionResult(taskInputs.executor.executeInContext(previousClusterState, taskContexts), executionResults);
+            return new BatchExecutionResult(taskInputs.executor.execute(previousClusterState, taskContexts), executionResults);
         } catch (Exception e) {
             logger.trace(
                 () -> new ParameterizedMessage(

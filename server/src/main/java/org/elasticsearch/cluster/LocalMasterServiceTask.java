@@ -53,7 +53,7 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
                 }
 
                 @Override
-                public ClusterState executeInContext(ClusterState currentState, List<TaskContext<LocalMasterServiceTask>> taskContexts)
+                public ClusterState execute(ClusterState currentState, List<TaskContext<LocalMasterServiceTask>> taskContexts)
                     throws Exception {
                     final LocalMasterServiceTask thisTask = LocalMasterServiceTask.this;
                     assert taskContexts.size() == 1 && taskContexts.get(0).getTask() == thisTask

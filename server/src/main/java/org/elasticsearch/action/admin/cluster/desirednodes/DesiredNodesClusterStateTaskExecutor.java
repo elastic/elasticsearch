@@ -16,8 +16,7 @@ import java.util.List;
 
 public class DesiredNodesClusterStateTaskExecutor implements ClusterStateTaskExecutor<ClusterStateUpdateTask> {
     @Override
-    public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ClusterStateUpdateTask>> taskContexts)
-        throws Exception {
+    public ClusterState execute(ClusterState currentState, List<TaskContext<ClusterStateUpdateTask>> taskContexts) throws Exception {
         ClusterState clusterState = currentState;
         for (final var taskContext : taskContexts) {
             try {

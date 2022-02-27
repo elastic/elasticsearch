@@ -19,7 +19,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      *
      * @param taskContexts A {@link TaskContext} for each task in the batch. Implementations must complete every context in the list.
      */
-    ClusterState executeInContext(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception;
+    ClusterState execute(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception;
 
     /**
      * indicates whether this executor should only run if the current node is master
@@ -41,7 +41,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
      * Builds a concise description of a list of tasks (to be used in logging etc.).
      *
-     * Note that the tasks given are not necessarily the same as those that will be passed to {@link #executeInContext(ClusterState, List)}.
+     * Note that the tasks given are not necessarily the same as those that will be passed to {@link #execute(ClusterState, List)}.
      * but are guaranteed to be a subset of them. This method can be called multiple times with different lists before execution.
      * This allows groupd task description but the submitting source.
      */
@@ -67,7 +67,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> unbatched() {
         return new ClusterStateTaskExecutor<>() {
             @Override
-            public ClusterState executeInContext(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception {
+            public ClusterState execute(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception {
                 assert taskContexts.size() == 1 : "this only supports a single task but received " + taskContexts;
                 final var taskContext = taskContexts.get(0);
                 final var task = taskContext.getTask();

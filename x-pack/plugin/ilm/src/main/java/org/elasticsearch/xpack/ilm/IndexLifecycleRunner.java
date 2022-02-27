@@ -58,10 +58,7 @@ class IndexLifecycleRunner {
     private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR =
         new ClusterStateTaskExecutor<>() {
             @Override
-            public ClusterState executeInContext(
-                ClusterState currentState,
-                List<TaskContext<IndexLifecycleClusterStateUpdateTask>> taskContexts
-            ) {
+            public ClusterState execute(ClusterState currentState, List<TaskContext<IndexLifecycleClusterStateUpdateTask>> taskContexts) {
                 ClusterState state = currentState;
                 for (final var taskContext : taskContexts) {
                     try {

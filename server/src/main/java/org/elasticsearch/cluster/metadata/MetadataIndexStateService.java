@@ -168,16 +168,15 @@ public class MetadataIndexStateService {
     private class AddBlocksToCloseExecutor implements ClusterStateTaskExecutor<AddBlocksToCloseTask> {
 
         @Override
-        public ClusterTasksResult<AddBlocksToCloseTask> execute(ClusterState currentState, List<AddBlocksToCloseTask> tasks)
+        public ClusterState executeInContext(ClusterState currentState, List<TaskContext<AddBlocksToCloseTask>> taskContexts)
             throws Exception {
-            ClusterTasksResult.Builder<AddBlocksToCloseTask> builder = ClusterTasksResult.builder();
             ClusterState state = currentState;
-
-            for (AddBlocksToCloseTask task : tasks) {
+            for (final var taskContext : taskContexts) {
+                final var task = taskContext.getTask();
                 try {
                     final Map<Index, ClusterBlock> blockedIndices = new HashMap<>(task.request.indices().length);
                     state = addIndexClosedBlocks(task.request.indices(), blockedIndices, state);
-                    builder.success(task, task.listener.delegateFailure((delegate1, clusterState) -> {
+                    taskContext.success(task.listener.delegateFailure((delegate1, clusterState) -> {
                         if (blockedIndices.isEmpty()) {
                             delegate1.onResponse(CloseIndexResponse.EMPTY);
                         } else {
@@ -199,11 +198,10 @@ public class MetadataIndexStateService {
                         }
                     }));
                 } catch (Exception e) {
-                    builder.failure(task, e);
+                    taskContext.onFailure(e);
                 }
             }
-
-            return builder.build(state);
+            return state;
         }
     }
 

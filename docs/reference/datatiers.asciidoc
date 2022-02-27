@@ -107,7 +107,7 @@ but doesn't reduce required disk space compared to the warm tier.
 Once data is no longer being queried, or being queried rarely, it may move from
 the cold tier to the frozen tier where it stays for the rest of its life.
 
-It is necessary to have a snapshot repository setup in order to use frozen tier.
+The frozen tier requires a snapshot repository.
 The frozen tier uses <<partially-mounted,partially mounted indices>> to store
 and load data from a snapshot repository. This reduces local storage and
 operating costs while still letting you search frozen data. Because {es} must

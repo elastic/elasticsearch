@@ -16,19 +16,18 @@ import java.util.List;
 
 public class DesiredNodesClusterStateTaskExecutor implements ClusterStateTaskExecutor<ClusterStateUpdateTask> {
     @Override
-    public ClusterTasksResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks)
+    public ClusterState executeInContext(ClusterState currentState, List<TaskContext<ClusterStateUpdateTask>> taskContexts)
         throws Exception {
-        ClusterStateTaskExecutor.ClusterTasksResult.Builder<ClusterStateUpdateTask> builder = ClusterStateTaskExecutor.ClusterTasksResult
-            .builder();
         ClusterState clusterState = currentState;
-        for (ClusterStateUpdateTask task : tasks) {
+        for (final var taskContext : taskContexts) {
             try {
+                final var task = taskContext.getTask();
                 clusterState = task.execute(clusterState);
-                builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
+                taskContext.success(new LegacyClusterTaskResultActionListener(task, currentState));
             } catch (Exception e) {
-                builder.failure(task, e);
+                taskContext.onFailure(e);
             }
         }
-        return builder.build(clusterState);
+        return clusterState;
     }
 }

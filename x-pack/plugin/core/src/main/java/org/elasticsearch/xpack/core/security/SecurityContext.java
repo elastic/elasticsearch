@@ -16,10 +16,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -27,7 +23,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.EnumSet;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -185,54 +180,7 @@ public class SecurityContext {
             // unauthenticated users cannot access any resources created by authenticated users, even anonymously authenticated ones
             return false;
         }
-        // if we introduce new authentication types in the future, we might need to revisit this method
-        assert EnumSet.of(
-            Authentication.AuthenticationType.REALM,
-            Authentication.AuthenticationType.API_KEY,
-            Authentication.AuthenticationType.TOKEN,
-            Authentication.AuthenticationType.ANONYMOUS,
-            Authentication.AuthenticationType.INTERNAL
-        ).containsAll(EnumSet.of(myAuthentication.getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
-            : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
-                + EnumSet.of(myAuthentication.getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType());
-        final AuthenticationContext myAuthContext = AuthenticationContext.fromAuthentication(myAuthentication);
-        final AuthenticationContext creatorAuthContext = AuthenticationContext.fromAuthentication(resourceCreatorAuthentication);
-        if (myAuthContext.isApiKey() && creatorAuthContext.isApiKey()) {
-            final boolean sameKeyId = myAuthContext.getEffectiveSubject()
-                .getMetadata()
-                .get(AuthenticationField.API_KEY_ID_KEY)
-                .equals(creatorAuthContext.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
-            assert false == sameKeyId
-                || myAuthContext.getEffectiveSubject()
-                    .getUser()
-                    .principal()
-                    .equals(creatorAuthContext.getEffectiveSubject().getUser().principal())
-                : "The same API key ID cannot be attributed to two different usernames";
-            return sameKeyId;
-        } else if ((myAuthContext.isApiKey() && false == creatorAuthContext.isApiKey())
-            || (false == myAuthContext.isApiKey() && creatorAuthContext.isApiKey())) {
-                // an API Key cannot access resources created by non-API Keys or vice-versa
-                return false;
-            } else {
-                assert false == myAuthContext.isApiKey();
-                assert false == creatorAuthContext.isApiKey();
-                if (false == myAuthContext.getEffectiveSubject()
-                    .getUser()
-                    .principal()
-                    .equals(creatorAuthContext.getEffectiveSubject().getUser().principal())) {
-                    return false;
-                }
-                final Authentication.RealmRef myAuthRealm = myAuthContext.getEffectiveSubject().getRealm();
-                final Authentication.RealmRef creatorAuthRealm = creatorAuthContext.getEffectiveSubject().getRealm();
-                if (FileRealmSettings.TYPE.equals(myAuthRealm.getType()) || NativeRealmSettings.TYPE.equals(myAuthRealm.getType())) {
-                    // file and native realms can be renamed...
-                    // nonetheless, they are singleton realms, only one such realm of each type can exist
-                    return myAuthRealm.getType().equals(creatorAuthRealm.getType());
-                } else {
-                    return myAuthRealm.getName().equals(creatorAuthRealm.getName())
-                        && myAuthRealm.getType().equals(creatorAuthRealm.getType());
-                }
-            }
+        return myAuthentication.canAccessResourcesOf(resourceCreatorAuthentication);
     }
 
     public boolean canIAccessResourcesCreatedWithHeaders(Map<String, String> resourceCreateRequestHeaders) throws IOException {

@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -65,7 +64,7 @@ public class AuthenticationTests extends ESTestCase {
         // Same user is the same
         final User user1 = randomUser();
         final RealmRef realm1 = randomRealmRef(false);
-        checkCanAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm1));
+        assertCanAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm1));
 
         // Different username is different no matter which realm it is from
         final User user2 = randomValueOtherThanMany(u -> u.principal().equals(user1.principal()), AuthenticationTests::randomUser);
@@ -80,7 +79,7 @@ public class AuthenticationTests extends ESTestCase {
             case 0: // change name
                 realm3 = mutateRealm(realm1, randomAlphaOfLengthBetween(3, 8), null);
                 if (realmIsSingleton(realm1)) {
-                    checkCanAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
+                    assertCanAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
                 } else {
                     assertCannotAccessResources(randomAuthentication(user1, realm1), randomAuthentication(user1, realm3));
                 }
@@ -105,7 +104,7 @@ public class AuthenticationTests extends ESTestCase {
 
         // Same API key ID are the same owner
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
-        checkCanAccessResources(randomApiKeyAuthentication(user1, apiKeyId1), randomApiKeyAuthentication(user1, apiKeyId1));
+        assertCanAccessResources(randomApiKeyAuthentication(user1, apiKeyId1), randomApiKeyAuthentication(user1, apiKeyId1));
 
         // Two API keys (2 API key IDs) are not the same owner
         final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
@@ -125,11 +124,11 @@ public class AuthenticationTests extends ESTestCase {
         );
 
         // Same or different API key run-as the same user are the same owner
-        checkCanAccessResources(
+        assertCanAccessResources(
             randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2),
             randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2)
         );
-        checkCanAccessResources(
+        assertCanAccessResources(
             randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2),
             randomApiKeyAuthentication(user2, apiKeyId2).runAs(user3, realm2)
         );
@@ -313,15 +312,9 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
-    private void checkCanAccessResources(Authentication authentication0, Authentication authentication1) {
-        if (authentication0.getAuthenticationType() == authentication1.getAuthenticationType()
-            || EnumSet.of(AuthenticationType.REALM, AuthenticationType.TOKEN)
-                .equals(EnumSet.of(authentication0.getAuthenticationType(), authentication1.getAuthenticationType()))) {
-            assertTrue(authentication0.canAccessResourcesOf(authentication1));
-            assertTrue(authentication1.canAccessResourcesOf(authentication0));
-        } else {
-            assertCannotAccessResources(authentication0, authentication1);
-        }
+    private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {
+        assertTrue(authentication0.canAccessResourcesOf(authentication1));
+        assertTrue(authentication1.canAccessResourcesOf(authentication0));
     }
 
     private void assertCannotAccessResources(Authentication authentication0, Authentication authentication1) {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.index.IndexWriterMaxDocsChanger;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -65,12 +64,12 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
     @Before
     public void setMaxDocs() {
         maxDocs.set(randomIntBetween(10, 100)); // Do not set this too low as we can fail to write the cluster state
-        IndexWriterMaxDocsChanger.setMaxDocs(maxDocs.get());
+        setIndexWriterMaxDocs(maxDocs.get());
     }
 
     @After
     public void restoreMaxDocs() {
-        IndexWriterMaxDocsChanger.restoreMaxDocs();
+        restoreIndexWriterMaxDocs();
     }
 
     public void testMaxDocsLimit() throws Exception {

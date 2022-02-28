@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
@@ -22,7 +23,7 @@ configurations {
   // easy and efficient
   basicRestSpecs {
     attributes {
-      attribute(org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     }
   }
 }
@@ -35,10 +36,8 @@ artifacts {
 
 testClusters.configureEach {
   module ':modules:mapper-extras'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-    systemProperty 'es.random_sampler_feature_flag_registered', 'true'
-  }
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+  requiresFeature 'es.random_sampler_feature_flag_registered', Version.fromString("8.1.0")
 }
 
 tasks.named("test").configure { enabled = false }

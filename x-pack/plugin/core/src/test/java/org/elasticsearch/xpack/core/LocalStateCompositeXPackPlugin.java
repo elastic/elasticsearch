@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -83,6 +84,7 @@ import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -566,6 +568,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
             r -> internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry, clusterService, recoverySettings))
         );
         return internalRepositories;
+    }
+
+    @Override
+    public BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
+        List<BiConsumer<Snapshot, Version>> checks = filterPlugins(RepositoryPlugin.class).stream()
+            .map(RepositoryPlugin::addPreRestoreVersionCheck)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        return checks.isEmpty() ? null : (s, v) -> checks.forEach(c -> c.accept(s, v));
     }
 
     @Override

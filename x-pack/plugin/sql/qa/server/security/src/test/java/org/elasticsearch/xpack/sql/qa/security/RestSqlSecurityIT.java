@@ -281,18 +281,27 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
     }
 
     /**
-     * Test the hijacking a scroll fails. This test is only implemented for
-     * REST because it is the only API where it is simple to hijack a scroll.
+     * Test the hijacking a cursor fails. This test is only implemented for
+     * REST because it is the only API where it is simple to hijack a cursor.
      * It should exercise the same code as the other APIs but if we were truly
      * paranoid we'd hack together something to test the others as well.
      */
-    public void testHijackScrollFails() throws Exception {
-        createUser("full_access", "rest_minimal");
+    public void testHijackCursorFails() throws Exception {
+        createUser("no_read", "read_nothing");
         final String mode = randomMode();
+
+        final String query = randomFrom(
+            List.of(
+                "SELECT * FROM test",
+                "SELECT a FROM test GROUP BY a",
+                "SELECT MAX(a) FROM test GROUP BY a ORDER BY 1",
+                "SHOW COLUMNS IN test"
+            )
+        );
 
         Map<String, Object> adminResponse = RestActions.runSql(
             null,
-            new StringEntity(query("SELECT * FROM test").mode(mode).fetchSize(1).toString(), ContentType.APPLICATION_JSON),
+            new StringEntity(query(query).mode(mode).fetchSize(1).toString(), ContentType.APPLICATION_JSON),
             mode,
             false
         );
@@ -303,20 +312,18 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> RestActions.runSql(
-                "full_access",
+                "no_read",
                 new StringEntity(cursor(cursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
                 mode,
                 false
             )
         );
-        // TODO return a better error message for bad scrolls
-        assertThat(e.getMessage(), containsString("No search context found for id"));
-        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+
+        assertThat(e.getMessage(), containsString("is unauthorized for user"));
+        assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
 
         createAuditLogAsserter().expectSqlCompositeActionFieldCaps("test_admin", "test")
-            .expect(true, SQL_ACTION_NAME, "full_access", empty())
-            // one scroll access denied per shard
-            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
+            .expect("access_denied", SQL_ACTION_NAME, "no_read", "default_native", empty(), "SqlQueryRequest")
             .assertLogs();
     }
 

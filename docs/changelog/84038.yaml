@@ -1,0 +1,6 @@
+pr: 84038
+summary: Preserve context in `ResultDeduplicator`
+area: Infra/Core
+type: bug
+issues:
+ - 84036

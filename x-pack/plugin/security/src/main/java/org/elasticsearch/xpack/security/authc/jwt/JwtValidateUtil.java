@@ -312,7 +312,7 @@ public class JwtValidateUtil {
         LOGGER.trace("JWKs [" + jwksStrength.size() + "] after Algorithm [" + alg + "] match filter.");
 
         if (jwksStrength.isEmpty()) {
-            LOGGER.warn("JWKs [" + jwks.size() + "] usable [0].");
+            LOGGER.trace("JWKs [" + jwks.size() + "] usable [0].");
         } else {
             for (final JWK jwk : jwksStrength) {
                 if (jwt.verify(JwtValidateUtil.createJwsVerifier(jwk))) {

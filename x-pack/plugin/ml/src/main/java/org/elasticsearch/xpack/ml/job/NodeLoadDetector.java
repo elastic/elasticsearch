@@ -24,9 +24,26 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
+
 public class NodeLoadDetector {
 
     private final MlMemoryTracker mlMemoryTracker;
+
+    /**
+     * Returns the node's total memory size.
+     * @param node The node whose size to grab
+     * @return maybe the answer, will be empty if size cannot be determined
+     */
+    public static OptionalLong getNodeSize(DiscoveryNode node) {
+        String memoryString = node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR);
+        try {
+            return OptionalLong.of(Long.parseLong(memoryString));
+        } catch (NumberFormatException e) {
+            assert e == null : "ml.machine_memory should parse because we set it internally: invalid value was " + memoryString;
+            return OptionalLong.empty();
+        }
+    }
 
     public NodeLoadDetector(MlMemoryTracker memoryTracker) {
         this.mlMemoryTracker = memoryTracker;

@@ -1072,10 +1072,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info(
             "--> start recovery request: starting seq_no {}, commit {}",
             startRecoveryRequest.startingSeqNo(),
-            startRecoveryRequest.metadataSnapshot().getCommitUserData()
+            startRecoveryRequest.metadataSnapshot().commitUserData()
         );
         SequenceNumbers.CommitInfo commitInfoAfterLocalRecovery = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-            startRecoveryRequest.metadataSnapshot().getCommitUserData().entrySet()
+            startRecoveryRequest.metadataSnapshot().commitUserData().entrySet()
         );
         assertThat(commitInfoAfterLocalRecovery.localCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
         assertThat(commitInfoAfterLocalRecovery.maxSeqNo, equalTo(lastSyncedGlobalCheckpoint));

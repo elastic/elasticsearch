@@ -547,10 +547,10 @@ public class RecoverySourceHandler {
             for (String name : snapshot.getFileNames()) {
                 final StoreFileMetadata md = recoverySourceMetadata.get(name);
                 if (md == null) {
-                    logger.info("Snapshot differs from actual index for file: {} meta: {}", name, recoverySourceMetadata.asMap());
+                    logger.info("Snapshot differs from actual index for file: {} meta: {}", name, recoverySourceMetadata.fileMetadataMap());
                     throw new CorruptIndexException(
                         "Snapshot differs from actual index - maybe index was removed metadata has "
-                            + recoverySourceMetadata.asMap().size()
+                            + recoverySourceMetadata.fileMetadataMap().size()
                             + " files",
                         name
                     );
@@ -624,11 +624,11 @@ public class RecoverySourceHandler {
             }
 
             for (StoreFileMetadata md : shardRecoveryPlan.getSourceFilesToRecover()) {
-                if (request.metadataSnapshot().asMap().containsKey(md.name())) {
+                if (request.metadataSnapshot().fileMetadataMap().containsKey(md.name())) {
                     logger.trace(
                         "recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
                         md.name(),
-                        request.metadataSnapshot().asMap().get(md.name()),
+                        request.metadataSnapshot().fileMetadataMap().get(md.name()),
                         md
                     );
                 } else {
@@ -638,11 +638,11 @@ public class RecoverySourceHandler {
 
             for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : shardRecoveryPlan.getSnapshotFilesToRecover()) {
                 final StoreFileMetadata md = fileInfo.metadata();
-                if (request.metadataSnapshot().asMap().containsKey(md.name())) {
+                if (request.metadataSnapshot().fileMetadataMap().containsKey(md.name())) {
                     logger.trace(
                         "recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
                         md.name(),
-                        request.metadataSnapshot().asMap().get(md.name()),
+                        request.metadataSnapshot().fileMetadataMap().get(md.name()),
                         md
                     );
                 } else {
@@ -986,32 +986,32 @@ public class RecoverySourceHandler {
         if (source.getSyncId() == null || source.getSyncId().equals(target.getSyncId()) == false) {
             return false;
         }
-        if (source.getNumDocs() != target.getNumDocs()) {
+        if (source.numDocs() != target.numDocs()) {
             throw new IllegalStateException(
                 "try to recover "
                     + request.shardId()
                     + " from primary shard with sync id but number "
                     + "of docs differ: "
-                    + source.getNumDocs()
+                    + source.numDocs()
                     + " ("
                     + request.sourceNode().getName()
                     + ", primary) vs "
-                    + target.getNumDocs()
+                    + target.numDocs()
                     + "("
                     + request.targetNode().getName()
                     + ")"
             );
         }
-        SequenceNumbers.CommitInfo sourceSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(source.getCommitUserData().entrySet());
-        SequenceNumbers.CommitInfo targetSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(target.getCommitUserData().entrySet());
+        SequenceNumbers.CommitInfo sourceSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(source.commitUserData().entrySet());
+        SequenceNumbers.CommitInfo targetSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(target.commitUserData().entrySet());
         if (sourceSeqNos.localCheckpoint != targetSeqNos.localCheckpoint || targetSeqNos.maxSeqNo != sourceSeqNos.maxSeqNo) {
             final String message = "try to recover "
                 + request.shardId()
                 + " with sync id but "
                 + "seq_no stats are mismatched: ["
-                + source.getCommitUserData()
+                + source.commitUserData()
                 + "] vs ["
-                + target.getCommitUserData()
+                + target.commitUserData()
                 + "]";
             assert false : message;
             throw new IllegalStateException(message);

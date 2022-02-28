@@ -10,8 +10,17 @@ typically share the same hardware profile:
 and hold your most recent, most-frequently-accessed data.
 * <<warm-tier, Warm tier>> nodes hold time series data that is accessed less-frequently
 and rarely needs to be updated.
-* <<cold-tier, Cold tier>> nodes hold time series data that is accessed infrequently and not normally updated.
-* <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed rarely and never updated, kept in searchable snapshots.
+* <<cold-tier,Cold tier>> nodes hold time series data that is accessed
+infrequently and not normally updated. To save space, you can keep
+<<fully-mounted,fully mounted indices>> of
+<<ilm-searchable-snapshot,{search-snaps}>> on the cold tier. These fully mounted
+indices eliminate the need for replicas, reducing required disk space by
+approximately 50% compared to the regular indices.
+* <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed 
+rarely and never updated. The frozen tier stores <<partially-mounted,partially
+mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> exclusively.
+This extends the storage capacity even further — by up to 20 times compared to
+the warm tier. 
 
 When you index documents directly to a specific index, they remain on content tier nodes indefinitely.
 
@@ -75,13 +84,21 @@ For resiliency, indices in the warm tier should be configured to use one or more
 [[cold-tier]]
 === Cold tier
 
-When data is no longer being updated, it can move from the warm tier to the cold
-tier where it stays while being queried infrequently. As data transitions into
-the cold tier, it can be compressed and shrunken. Instead of using replicas, the
-cold tier can use <<fully-mounted,fully mounted indices>> of
-<<ilm-searchable-snapshot,{search-snaps}>> for resiliency, eliminating the need
-for replicas. The cold tier is still a responsive query tier, but data becomes
-read-only.
+When you no longer need to search time series data regularly, it can move from
+the warm tier to the cold tier. While still searchable, this tier is typically
+optimized for lower storage costs rather than search speed.
+
+For better storage savings, you can keep <<fully-mounted,fully mounted indices>>
+of <<ilm-searchable-snapshot,{search-snaps}>> on the cold tier. Unlike regular
+indices, these fully mounted indices don't require replicas for reliability. In
+the event of a failure, they can recover data from the underlying snapshot
+instead. This potentially halves the local storage needed for the data. A
+snapshot repository is required to use fully mounted indices in the cold tier.
+Fully mounted indices are read-only.
+
+Alternatively, you can use the cold tier to store regular indices with replicas instead
+of using {search-snaps}. This lets you store older data on less expensive hardware
+but doesn't reduce required disk space compared to the warm tier.
 
 [discrete]
 [[frozen-tier]]
@@ -90,6 +107,7 @@ read-only.
 Once data is no longer being queried, or being queried rarely, it may move from
 the cold tier to the frozen tier where it stays for the rest of its life.
 
+The frozen tier requires a snapshot repository.
 The frozen tier uses <<partially-mounted,partially mounted indices>> to store
 and load data from a snapshot repository. This reduces local storage and
 operating costs while still letting you search frozen data. Because {es} must

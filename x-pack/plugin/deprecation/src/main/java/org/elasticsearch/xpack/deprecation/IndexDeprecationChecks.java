@@ -540,6 +540,14 @@ public class IndexDeprecationChecks {
         if (softDeletesEnabled) {
             if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
+                List<String> removableSettings = new ArrayList<>();
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())) {
+                    removableSettings.add(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey());
+                }
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
+                    removableSettings.add(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey());
+                }
+                Map<String, Object> meta = DeprecationIssue.createMetaMapForRemovableSettings(removableSettings);
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "Translog retention settings are deprecated",
@@ -548,7 +556,7 @@ public class IndexDeprecationChecks {
                         + "translog has not been used in peer recoveries with soft-deletes enabled since 7.0 and these settings have no "
                         + "effect.",
                     false,
-                    null
+                    meta
                 );
             }
         }

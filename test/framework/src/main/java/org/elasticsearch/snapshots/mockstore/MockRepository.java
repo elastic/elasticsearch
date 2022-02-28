@@ -10,8 +10,8 @@ package org.elasticsearch.snapshots.mockstore;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;

@@ -9,8 +9,8 @@ package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;

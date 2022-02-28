@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;

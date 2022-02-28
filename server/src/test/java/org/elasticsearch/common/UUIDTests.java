@@ -9,8 +9,8 @@ package org.elasticsearch.common;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;

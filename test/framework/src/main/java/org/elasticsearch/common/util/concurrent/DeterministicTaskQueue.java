@@ -11,8 +11,8 @@ package org.elasticsearch.common.util.concurrent;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.logging.log4j.CloseableThreadContext;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;

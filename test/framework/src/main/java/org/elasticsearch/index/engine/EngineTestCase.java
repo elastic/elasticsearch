@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;

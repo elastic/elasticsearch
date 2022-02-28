@@ -10,7 +10,6 @@ package org.elasticsearch.legacygeo.parsers;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.legacygeo.GeoShapeType;
 import org.elasticsearch.legacygeo.builders.CoordinatesBuilder;

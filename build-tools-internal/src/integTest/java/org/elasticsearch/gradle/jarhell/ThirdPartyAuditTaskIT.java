@@ -77,7 +77,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
         assertOutputContains(
             result.getOutput(),
             "Missing classes:",
-            "  * org.apache.logging.log4j.LogManager",
+            "  * org.elasticsearch.logging.LogManager",
             "> Audit of third party dependencies failed"
         );
         assertOutputMissing(result.getOutput(), "Classes with violations:");

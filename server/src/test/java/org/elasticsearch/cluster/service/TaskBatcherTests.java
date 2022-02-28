@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.service;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Priority;

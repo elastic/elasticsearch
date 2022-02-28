@@ -8,7 +8,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;

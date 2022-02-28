@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.io.ansi;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.bootstrap.ConsoleLoader;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -22,7 +22,7 @@ import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.util.function.Supplier;
 
-import static org.apache.logging.log4j.LogManager.getLogger;
+import static org.elasticsearch.logging.LogManager.getLogger;
 
 /**
  * Loads the {@link AnsiConsole} and checks whether it meets our requirements for a "Console".

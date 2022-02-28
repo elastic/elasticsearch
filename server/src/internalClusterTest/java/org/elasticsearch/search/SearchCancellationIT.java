@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;

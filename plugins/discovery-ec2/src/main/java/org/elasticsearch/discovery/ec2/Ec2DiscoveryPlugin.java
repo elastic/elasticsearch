@@ -176,26 +176,29 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         if (Strings.isNullOrEmpty(azMetadataTokenUrl)) {
             return Optional.empty();
         }
-        HttpURLConnection tokenUrlConnection;
-        try {
-            tokenUrlConnection = SocketAccess.doPrivilegedIOException(
-                () -> (HttpURLConnection) new URL(azMetadataTokenUrl).openConnection()
-            );
-            tokenUrlConnection.setConnectTimeout(CONNECT_TIMEOUT);
-            tokenUrlConnection.setRequestProperty("X-aws-ec2-metadata-token-ttl-seconds", String.valueOf(METADATA_TOKEN_TTL_SECONDS));
-        } catch (IOException e) {
-            logger.warn("Unable to access the IMDSv2 URI: " + azMetadataTokenUrl, e);
-            return Optional.empty();
-        }
-        try (
-            var in = SocketAccess.doPrivilegedIOException(tokenUrlConnection::getInputStream);
-            var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
-        ) {
-            return Optional.ofNullable(reader.readLine()).filter(s -> s.isBlank() == false);
-        } catch (IOException e) {
-            logger.warn("Unable to get a session token from IMDSv2 URI: " + azMetadataTokenUrl, e);
-            return Optional.empty();
-        }
+        return SocketAccess.doPrivileged(() -> {
+            HttpURLConnection tokenUrlConnection;
+            try {
+                tokenUrlConnection = (HttpURLConnection) new URL(azMetadataTokenUrl).openConnection();
+                tokenUrlConnection.setConnectTimeout(CONNECT_TIMEOUT);
+                tokenUrlConnection.setRequestProperty(
+                    "X-aws-ec2-metadata-token-ttl-seconds",
+                    String.valueOf(METADATA_TOKEN_TTL_SECONDS)
+                );
+            } catch (IOException e) {
+                logger.warn("Unable to access the IMDSv2 URI: " + azMetadataTokenUrl, e);
+                return Optional.empty();
+            }
+            try (
+                var in = tokenUrlConnection.getInputStream();
+                var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
+            ) {
+                return Optional.ofNullable(reader.readLine()).filter(s -> s.isBlank() == false);
+            } catch (IOException e) {
+                logger.warn("Unable to get a session token from IMDSv2 URI: " + azMetadataTokenUrl, e);
+                return Optional.empty();
+            }
+        });
     }
 
     @Override

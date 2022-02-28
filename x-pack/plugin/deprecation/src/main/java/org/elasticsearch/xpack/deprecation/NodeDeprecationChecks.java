@@ -109,7 +109,9 @@ public class NodeDeprecationChecks {
         final String details = additionalDetailMessage == null
             ? String.format(Locale.ROOT, "Remove the [%s] setting.", removedSettingKey)
             : String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetailMessage);
-        return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
+        boolean canAutoRemoveSetting = removedSetting.exists(clusterSettings) && removedSetting.exists(nodeSettings) == false;
+        Map<String, Object> meta = createMetaMapForRemovableSettings(canAutoRemoveSetting, removedSettingKey);
+        return new DeprecationIssue(deprecationLevel, message, url, details, false, meta);
     }
 
     static DeprecationIssue checkSharedDataPathSetting(

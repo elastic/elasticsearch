@@ -58,8 +58,8 @@ public class JwkValidateUtil {
         LOGGER.debug("Algorithms [" + String.join(",", algsFiltered) + "] after remaining JWKs [" + jwksFiltered.size() + "] filter.");
 
         if ((jwksFiltered.size() < jwks.size()) || (algsFiltered.size() < algs.size())) {
-            LOGGER.warn("JWKs [" + jwks.size() + "] usable [" + jwksFiltered.size() + "]. See debug logs.");
-            LOGGER.warn("Algorithms [" + String.join(",", algs) + "] usable [" + String.join(",", algsFiltered) + "]. See debug logs.");
+            LOGGER.info("JWKs [" + jwks.size() + "] usable [" + jwksFiltered.size() + "]. See debug logs.");
+            LOGGER.info("Algorithms [" + String.join(",", algs) + "] usable [" + String.join(",", algsFiltered) + "]. See debug logs.");
         }
         return new JwtRealm.JwksAlgs(jwksFiltered, algsFiltered);
     }

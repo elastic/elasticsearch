@@ -38,6 +38,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
@@ -229,6 +230,49 @@ public class SecurityContext {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.map(roleDescriptorsMap);
             return BytesReference.bytes(builder);
+        }
+    }
+
+    /**
+     * Checks whether the user or API key of the passed in authentication can access the resources owned by the user
+     * or API key of this authentication. The rules are as follows:
+     *   * True if the authentications are for the same API key (same API key ID)
+     *   * True if they are the same username from the same realm
+     *      - For file and native realm, same realm means the same realm type
+     *      - For all other realms, same realm means same realm type plus same realm name
+     *   * An user and its API key cannot access each other's resources
+     *   * An user and its token can access each other's resources
+     *   * Two API keys are never able to access each other's resources regardless of their ownership.
+     *
+     *  This check is a best effort and it does not account for certain static and external changes.
+     *  See also <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/security-limitations.html">
+     *      security limitations</a>
+     */
+    public boolean canIAccessResourcesCreatedBy(@Nullable Authentication resourceCreatorAuthentication) {
+        if (resourceCreatorAuthentication == null) {
+            // resource creation was not authenticated (security was disabled); anyone can access such resources
+            return true;
+        }
+        final Authentication myAuthentication = getAuthentication();
+        if (myAuthentication == null) {
+            // unauthenticated users cannot access any resources created by authenticated users, even anonymously authenticated ones
+            return false;
+        }
+        return myAuthentication.canAccessResourcesOf(resourceCreatorAuthentication);
+    }
+
+    public boolean canIAccessResourcesCreatedWithHeaders(Map<String, String> resourceCreateRequestHeaders) throws IOException {
+        Authentication resourceCreatorAuthentication = null;
+        if (resourceCreateRequestHeaders != null && resourceCreateRequestHeaders.containsKey(AUTHENTICATION_KEY)) {
+            resourceCreatorAuthentication = AuthenticationContextSerializer.decode(resourceCreateRequestHeaders.get(AUTHENTICATION_KEY));
+        }
+        return canIAccessResourcesCreatedBy(resourceCreatorAuthentication);
+    }
+
+    /** Writes the authentication to the thread context */
+    private void setAuthentication(Authentication authentication) {
+        try {
+            authentication.writeToContext(threadContext);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

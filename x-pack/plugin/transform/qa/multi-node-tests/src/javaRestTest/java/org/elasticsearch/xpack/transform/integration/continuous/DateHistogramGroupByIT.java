@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.transform.integration.TransformIntegTestCase;
+import org.elasticsearch.xpack.transform.integration.TransformRestTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -58,7 +58,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
         transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
 
-        var groupConfig = TransformIntegTestCase.createGroupConfig(
+        var groupConfig = TransformRestTestCase.createGroupConfig(
             Map.of(
                 "second",
                 new DateHistogramGroupSource(
@@ -77,7 +77,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
 
         PivotConfig pivotConfig = new PivotConfig(
             groupConfig,
-            TransformIntegTestCase.createAggConfig(aggregations, xContentRegistry()),
+            TransformRestTestCase.createAggConfig(aggregations, xContentRegistry()),
             null
         );
 

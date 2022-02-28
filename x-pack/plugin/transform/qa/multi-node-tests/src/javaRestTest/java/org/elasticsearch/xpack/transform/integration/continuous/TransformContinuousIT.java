@@ -18,7 +18,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.transform.integration.TransformIntegTestCase;
+import org.elasticsearch.xpack.transform.integration.TransformRestTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -82,7 +82,7 @@ import static org.hamcrest.Matchers.greaterThan;
  *      - repeat
  */
 @SuppressWarnings("removal")
-public class TransformContinuousIT extends TransformIntegTestCase {
+public class TransformContinuousIT extends TransformRestTestCase {
 
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
 

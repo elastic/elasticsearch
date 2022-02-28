@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGrou
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.xpack.transform.integration.TransformIntegTestCase;
+import org.elasticsearch.xpack.transform.integration.TransformRestTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -78,14 +78,14 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
         if (addGroupByTerms) {
             groupSource.put("event", new TermsGroupSource(termsField, null, false));
         }
-        var groupConfig = TransformIntegTestCase.createGroupConfig(groupSource, xContentRegistry());
+        var groupConfig = TransformRestTestCase.createGroupConfig(groupSource, xContentRegistry());
 
         AggregatorFactories.Builder aggregations = new AggregatorFactories.Builder();
         addCommonAggregations(aggregations);
 
         PivotConfig pivotConfig = new PivotConfig(
             groupConfig,
-            TransformIntegTestCase.createAggConfig(aggregations, xContentRegistry()),
+            TransformRestTestCase.createAggConfig(aggregations, xContentRegistry()),
             null
         );
 

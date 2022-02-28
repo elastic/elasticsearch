@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.transform.integration.TransformIntegTestCase;
+import org.elasticsearch.xpack.transform.integration.TransformRestTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,7 +49,7 @@ public class HistogramGroupByIT extends ContinuousTestCase {
         transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
 
-        var groupConfig = TransformIntegTestCase.createGroupConfig(
+        var groupConfig = TransformRestTestCase.createGroupConfig(
             Map.of("metric", new HistogramGroupSource(metricField, null, false, 50.0)),
             xContentRegistry()
         );
@@ -59,7 +59,7 @@ public class HistogramGroupByIT extends ContinuousTestCase {
 
         PivotConfig pivotConfig = new PivotConfig(
             groupConfig,
-            TransformIntegTestCase.createAggConfig(aggregations, xContentRegistry()),
+            TransformRestTestCase.createAggConfig(aggregations, xContentRegistry()),
             null
         );
 

@@ -190,7 +190,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
         // register repo on new ES and restore snapshot
         Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);
         createRepoRequest2.setJsonEntity("""
-            {"type":"fs","settings":{"location":"%s","allow_bwc_indices":true}}
+            {"type":"fs","settings":{"location":"%s"}}
             """.formatted(repoLocation));
         assertOK(client().performRequest(createRepoRequest2));
 
@@ -203,9 +203,9 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
         Request putMappingsRequest = new Request("PUT", "/" + indexName + "/_mappings");
         XContentBuilder mappingsBuilder = XContentFactory.jsonBuilder().startObject().startObject("properties");
         for (String type : basicTypes) {
-            mappingsBuilder.startObject(type).field("type", type).field("index", false).endObject();
+            mappingsBuilder.startObject(type).field("type", type).endObject();
         }
-        mappingsBuilder.startObject("date").field("type", "date").field("index", false).field("format", "yyyy/MM/dd").endObject();
+        mappingsBuilder.startObject("date").field("type", "date").field("format", "yyyy/MM/dd").endObject();
         mappingsBuilder.endObject().endObject();
         putMappingsRequest.setJsonEntity(Strings.toString(mappingsBuilder));
         assertOK(client().performRequest(putMappingsRequest));

@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -46,6 +47,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class InnerHitBuilderTests extends ESTestCase {
@@ -327,5 +329,119 @@ public class InnerHitBuilderTests extends ESTestCase {
             Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
             innerHit.getFetchFields()
         );
+    }
+
+    public void testParseDefaults() throws IOException {
+        InnerHitBuilder b = parse("{}");
+        assertThat(b.getName(), nullValue());
+        assertThat(b.getFrom(), equalTo(0));
+        assertThat(b.getSize(), equalTo(3));
+        assertThat(b.isVersion(), equalTo(false));
+        assertThat(b.isSeqNoAndPrimaryTerm(), equalTo(false));
+        assertThat(b.isExplain(), equalTo(false));
+        assertThat(b.isTrackScores(), equalTo(false));
+        assertThat(b.getStoredFieldsContext(), equalTo(null));
+        assertThat(b.getSorts(), equalTo(null));
+        assertThat(b.getDocValueFields(), equalTo(null));
+        assertThat(b.getScriptFields(), equalTo(null));
+        assertThat(b.getHighlightBuilder(), equalTo(null));
+        assertThat(b.getFetchSourceContext(), equalTo(null));
+        assertThat(b.getFetchFields(), equalTo(null));
+        assertThat(b.getInnerCollapseBuilder(), equalTo(null));
+        assertThat(Strings.toString(b), equalTo("{}"));
+    }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        String json = """
+            {
+              "name" : "inner_hits_name",
+              "ignore_unmapped" : false,
+              "from" : 0,
+              "size" : 3,
+              "version" : false,
+              "seq_no_primary_term" : false,
+              "explain" : false,
+              "track_scores" : false
+            }""";
+        assertThat(Strings.toString(parse(json), true, true), equalTo("""
+            {
+              "name" : "inner_hits_name"
+            }"""));
+    }
+
+    public void testParseStoredFields() throws IOException {
+        InnerHitBuilder b = parse("""
+            {
+              "stored_fields" : ["foo"]
+            }""");
+        assertThat(b.getStoredFieldsContext().fieldNames(), equalTo(List.of("foo")));
+        assertThat(Strings.toString(b, true, true), equalTo("""
+            {
+              "stored_fields" : "foo"
+            }"""));
+
+        b = parse("""
+            {
+              "stored_fields" : ["foo", "bar"]
+            }""");
+        assertThat(b.getStoredFieldsContext().fieldNames(), equalTo(List.of("foo", "bar")));
+        assertThat(Strings.toString(b, true, true), equalTo("""
+            {
+              "stored_fields" : [
+                "foo",
+                "bar"
+              ]
+            }"""));
+
+        b = parse("""
+            {
+              "stored_fields" : ["_none_"]
+            }""");
+        assertThat(b.getStoredFieldsContext().fieldNames(), equalTo(null));
+        assertThat(b.getStoredFieldsContext().fetchFields(), equalTo(false));
+        assertThat(Strings.toString(b, true, true), equalTo("""
+            {
+              "stored_fields" : "_none_"
+            }"""));
+    }
+
+    public void testParseSorts() throws IOException {
+        InnerHitBuilder b = parse("""
+            {
+              "sort" : ["foo"]
+            }""");
+        assertThat(b.getSorts(), equalTo(List.of(SortBuilders.fieldSort("foo"))));
+        assertThat(Strings.toString(b, true, true), equalTo("""
+            {
+              "sort" : [
+                {
+                  "foo" : {
+                    "order" : "asc"
+                  }
+                }
+              ]
+            }"""));
+
+        b = parse("""
+            {
+              "sort" : [{"foo": "desc"}]
+            }""");
+        assertThat(b.getSorts(), equalTo(List.of(SortBuilders.fieldSort("foo").order(SortOrder.DESC))));
+        assertThat(Strings.toString(b, true, true), equalTo("""
+            {
+              "sort" : [
+                {
+                  "foo" : {
+                    "order" : "desc"
+                  }
+                }
+              ]
+            }"""));
+    }
+
+    private InnerHitBuilder parse(String json) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            return InnerHitBuilder.fromXContent(parser);
+        }
     }
 }

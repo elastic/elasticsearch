@@ -21,6 +21,7 @@ import org.elasticsearch.test.fixture.AbstractHttpFixture;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -99,9 +100,7 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
         }
 
         if (instanceProfile && "/latest/api/token".equals(request.getPath()) && HttpPut.METHOD_NAME.equals(request.getMethod())) {
-            // TODO: Implement IMDSv2 behavior here. For now this just returns a 403 which makes the SDK fall back to IMDSv1
-            // which is implemented in this fixture
-            return new Response(RestStatus.FORBIDDEN.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
+            return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, "imdsv2-token".getBytes(StandardCharsets.UTF_8));
         }
 
         if ((containerCredentials

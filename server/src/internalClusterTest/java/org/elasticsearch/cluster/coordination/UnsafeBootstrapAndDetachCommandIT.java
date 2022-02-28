@@ -128,6 +128,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
     }
 
     public void testBootstrapNotBootstrappedCluster() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(InternalTestCluster.BOOTSTRAP_MASTER_NODE_INDEX_DONE); // explicitly skip bootstrap
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup

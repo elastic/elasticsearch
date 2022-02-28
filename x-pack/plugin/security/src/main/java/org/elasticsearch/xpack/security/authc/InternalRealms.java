@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
@@ -63,6 +65,7 @@ public final class InternalRealms {
     static final String PKI_TYPE = PkiRealmSettings.TYPE;
     static final String SAML_TYPE = SamlRealmSettings.TYPE;
     static final String OIDC_TYPE = OpenIdConnectRealmSettings.TYPE;
+    static final String JWT_TYPE = JwtRealmSettings.TYPE;
     static final String KERBEROS_TYPE = KerberosRealmSettings.TYPE;
 
     private static final Set<String> BUILTIN_TYPES = Set.of(NATIVE_TYPE, FILE_TYPE);
@@ -76,7 +79,8 @@ public final class InternalRealms {
         Map.entry(PKI_TYPE, Security.PKI_REALM_FEATURE),
         Map.entry(SAML_TYPE, Security.SAML_REALM_FEATURE),
         Map.entry(KERBEROS_TYPE, Security.KERBEROS_REALM_FEATURE),
-        Map.entry(OIDC_TYPE, Security.OIDC_REALM_FEATURE)
+        Map.entry(OIDC_TYPE, Security.OIDC_REALM_FEATURE),
+        Map.entry(JWT_TYPE, Security.JWT_REALM_FEATURE)
     );
 
     /**
@@ -158,7 +162,10 @@ public final class InternalRealms {
             config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool),
             // OpenID Connect realm
             OpenIdConnectRealmSettings.TYPE,
-            config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService)
+            config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService),
+            // JWT realm
+            JwtRealmSettings.TYPE,
+            config -> new JwtRealm(config, sslService, nativeRoleMappingStore)
         );
     }
 

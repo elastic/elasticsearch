@@ -792,6 +792,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         @SuppressWarnings("unchecked") // trust us this is ok
+        @Override
         public T getTask() {
             return (T) updateTask.getTask();
         }

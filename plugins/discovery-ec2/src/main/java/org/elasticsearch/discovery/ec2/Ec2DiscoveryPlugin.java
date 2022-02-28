@@ -188,7 +188,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             var in = SocketAccess.doPrivilegedIOException(tokenUrlConnection::getInputStream);
             var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
         ) {
-            return Optional.ofNullable(reader.readLine()).filter(s -> !s.isBlank());
+            return Optional.ofNullable(reader.readLine()).filter(s -> s.isBlank() == false);
         } catch (IOException e) {
             logger.warn("Unable to get a session token from IMDSv2 URI: " + azMetadataTokenUrl, e);
             return Optional.empty();

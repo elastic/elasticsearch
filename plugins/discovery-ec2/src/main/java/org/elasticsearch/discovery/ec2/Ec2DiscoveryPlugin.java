@@ -182,10 +182,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
                 tokenUrlConnection = (HttpURLConnection) new URL(azMetadataTokenUrl).openConnection();
                 tokenUrlConnection.setRequestMethod("PUT");
                 tokenUrlConnection.setConnectTimeout(CONNECT_TIMEOUT);
-                tokenUrlConnection.setRequestProperty(
-                    "X-aws-ec2-metadata-token-ttl-seconds",
-                    String.valueOf(METADATA_TOKEN_TTL_SECONDS)
-                );
+                tokenUrlConnection.setRequestProperty("X-aws-ec2-metadata-token-ttl-seconds", String.valueOf(METADATA_TOKEN_TTL_SECONDS));
             } catch (IOException e) {
                 logger.warn("Unable to access the IMDSv2 URI: " + azMetadataTokenUrl, e);
                 return Optional.empty();

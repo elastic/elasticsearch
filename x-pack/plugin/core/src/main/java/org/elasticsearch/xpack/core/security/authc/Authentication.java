@@ -55,6 +55,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AT
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
@@ -312,40 +313,55 @@ public class Authentication implements ToXContentObject {
      *      security limitations</a>
      */
     public boolean canAccessResourcesOf(Authentication other) {
-        if (isApiKey() && other.isApiKey()) {
-            final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
-                .equals(other.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
-            if (sameKeyId) {
-                assert getUser().principal().equals(getUser().principal())
-                    : "The same API key ID cannot be attributed to two different usernames";
-            }
+        // if we introduce new authentication types in the future, it is likely that we'll need to revisit this method
+        assert EnumSet.of(
+            Authentication.AuthenticationType.REALM,
+            Authentication.AuthenticationType.API_KEY,
+            Authentication.AuthenticationType.TOKEN,
+            Authentication.AuthenticationType.ANONYMOUS,
+            Authentication.AuthenticationType.INTERNAL
+        ).containsAll(EnumSet.of(getAuthenticationType(), other.getAuthenticationType()))
+            : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
+                + EnumSet.of(getAuthenticationType(), other.getAuthenticationType());
+        final AuthenticationContext myAuthContext = AuthenticationContext.fromAuthentication(this);
+        final AuthenticationContext creatorAuthContext = AuthenticationContext.fromAuthentication(other);
+        if (API_KEY.equals(myAuthContext.getEffectiveSubject().getType())
+            && API_KEY.equals(creatorAuthContext.getEffectiveSubject().getType())) {
+            final boolean sameKeyId = myAuthContext.getEffectiveSubject()
+                .getMetadata()
+                .get(AuthenticationField.API_KEY_ID_KEY)
+                .equals(creatorAuthContext.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+            assert false == sameKeyId
+                || myAuthContext.getEffectiveSubject()
+                    .getUser()
+                    .principal()
+                    .equals(creatorAuthContext.getEffectiveSubject().getUser().principal())
+                : "The same API key ID cannot be attributed to two different usernames";
             return sameKeyId;
-        }
-
-        if (getAuthenticationType().equals(other.getAuthenticationType())
-            || (AuthenticationType.REALM == getAuthenticationType() && AuthenticationType.TOKEN == other.getAuthenticationType())
-            || (AuthenticationType.TOKEN == getAuthenticationType() && AuthenticationType.REALM == other.getAuthenticationType())) {
-            if (false == getUser().principal().equals(other.getUser().principal())) {
-                return false;
-            }
-            final RealmRef thisRealm = getSourceRealm();
-            final RealmRef otherRealm = other.getSourceRealm();
-            if (FileRealmSettings.TYPE.equals(thisRealm.getType()) || NativeRealmSettings.TYPE.equals(thisRealm.getType())) {
-                return thisRealm.getType().equals(otherRealm.getType());
-            }
-            return thisRealm.getName().equals(otherRealm.getName()) && thisRealm.getType().equals(otherRealm.getType());
-        } else {
-            assert EnumSet.of(
-                AuthenticationType.REALM,
-                AuthenticationType.API_KEY,
-                AuthenticationType.TOKEN,
-                AuthenticationType.ANONYMOUS,
-                AuthenticationType.INTERNAL
-            ).containsAll(EnumSet.of(getAuthenticationType(), other.getAuthenticationType()))
-                : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
-                    + EnumSet.of(getAuthenticationType(), other.getAuthenticationType());
-            return false;
-        }
+        } else if ((API_KEY.equals(myAuthContext.getEffectiveSubject().getType())
+            && false == API_KEY.equals(creatorAuthContext.getEffectiveSubject().getType()))
+            || (false == API_KEY.equals(myAuthContext.getEffectiveSubject().getType())
+                && API_KEY.equals(creatorAuthContext.getEffectiveSubject().getType()))) {
+                    // an API Key cannot access resources created by non-API Keys or vice-versa
+                    return false;
+                } else {
+                    if (false == myAuthContext.getEffectiveSubject()
+                        .getUser()
+                        .principal()
+                        .equals(creatorAuthContext.getEffectiveSubject().getUser().principal())) {
+                        return false;
+                    }
+                    final Authentication.RealmRef myAuthRealm = myAuthContext.getEffectiveSubject().getRealm();
+                    final Authentication.RealmRef creatorAuthRealm = creatorAuthContext.getEffectiveSubject().getRealm();
+                    if (FileRealmSettings.TYPE.equals(myAuthRealm.getType()) || NativeRealmSettings.TYPE.equals(myAuthRealm.getType())) {
+                        // file and native realms can be renamed...
+                        // nonetheless, they are singleton realms, only one such realm of each type can exist
+                        return myAuthRealm.getType().equals(creatorAuthRealm.getType());
+                    } else {
+                        return myAuthRealm.getName().equals(creatorAuthRealm.getName())
+                            && myAuthRealm.getType().equals(creatorAuthRealm.getType());
+                    }
+                }
     }
 
     @Override

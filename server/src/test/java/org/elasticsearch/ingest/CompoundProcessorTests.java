@@ -41,6 +41,9 @@ public class CompoundProcessorTests extends ESTestCase {
         ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
     }
 
+    // need to (randomly?) mix sync and async processors
+    // verify that sync execute method throws
+
     public void testEmpty() throws Exception {
         CompoundProcessor processor = new CompoundProcessor();
         assertThat(processor.getProcessors().isEmpty(), is(true));
@@ -338,12 +341,28 @@ public class CompoundProcessorTests extends ESTestCase {
         Pipeline pipeline1 = new Pipeline("1", null, null, null, new CompoundProcessor(false, List.of(new AbstractProcessor(null, null) {
             @Override
             public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-                ingestDocument.executePipeline(pipeline2, handler);
+                throw new AssertionError();
+                //ingestDocument.executePipeline(pipeline2, handler);
             }
 
             @Override
             public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-                throw new AssertionError();
+                //throw new AssertionError();
+
+
+                IngestDocument[] result = new IngestDocument[1];
+                Exception[] error = new Exception[1];
+
+                ingestDocument.executePipeline(pipeline2, (document, e)->{result[0] = document; error[0] = e;});
+                if (error[0] != null) {
+                    throw error[0];
+                }
+                return result[0];
+            }
+
+            @Override
+            public boolean isAsync() {
+                return false;
             }
 
             @Override
@@ -389,17 +408,33 @@ public class CompoundProcessorTests extends ESTestCase {
         Pipeline pipeline1 = new Pipeline("1", null, null, null, new CompoundProcessor(new AbstractProcessor(null, null) {
             @Override
             public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-                throw new UnsupportedOperationException();
+                //throw new UnsupportedOperationException();
+
+                IngestDocument[] result = new IngestDocument[1];
+                Exception[] error = new Exception[1];
+
+                ingestDocument.executePipeline(pipeline2, (document, e)->{result[0] = document; error[0] = e;});
+                if (error[0] != null) {
+                    throw error[0];
+                }
+                return result[0];
+
             }
 
             @Override
             public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-                ingestDocument.executePipeline(pipeline2, handler);
+                //ingestDocument.executePipeline(pipeline2, handler);
+                throw new UnsupportedOperationException();
             }
 
             @Override
             public String getType() {
                 return "my_type2";
+            }
+
+            @Override
+            public boolean isAsync() {
+                return false;
             }
         }));
 

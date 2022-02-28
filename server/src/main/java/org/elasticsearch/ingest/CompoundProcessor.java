@@ -116,8 +116,8 @@ public class CompoundProcessor implements Processor {
 
     @Override
     public boolean isAsync() {
-        // the compound processor always presents itself as async even though it executes all processors that it contains
-        // according to each processor's sync or async nature
+        // the compound processor always presents itself as async even though it synchronously executes any of its processors
+        // that are themselves synchronous
         return true;
     }
 
@@ -147,15 +147,20 @@ public class CompoundProcessor implements Processor {
                 ingestDocument = processor.execute(ingestDocument);
                 long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
                 metric.postIngest(ingestTimeInNanos);
+                if (ingestDocument == null) {
+                    handler.accept(null, null);
+                    return;
+                }
             } catch (Exception e) {
+                metric.postIngest(relativeTimeProvider.getAsLong() - startTimeInNanos);
                 metric.ingestFailed();
                 if (ignoreFailure == false) {
                     if (onFailureProcessors.isEmpty()) {
-                        handler.accept(null, e);
-                        return;
+                        handler.accept(null, newCompoundProcessorException(e, processor, ingestDocument));
                     } else {
                         executeOnFailure(0, ingestDocument, newCompoundProcessorException(e, processor, ingestDocument), handler);
                     }
+                    return;
                 }
             }
 
@@ -170,6 +175,7 @@ public class CompoundProcessor implements Processor {
             final IngestMetric finalMetric = metric;
             final Processor finalProcessor = processor;
             final IngestDocument finalIngestDocument = ingestDocument;
+            finalMetric.preIngest();
             processor.execute(ingestDocument, (result, e) -> {
                 long ingestTimeInNanos = relativeTimeProvider.getAsLong() - finalStartTimeInNanos;
                 finalMetric.postIngest(ingestTimeInNanos);
@@ -238,12 +244,14 @@ public class CompoundProcessor implements Processor {
                 ingestDocument = onFailureProcessor.execute(ingestDocument);
                 if (ingestDocument == null) {
                     handler.accept(null, null);
+                    return;
                 }
             } catch (Exception e) {
                 if (ingestDocument != null) {
                     removeFailureMetadata(ingestDocument);
                 }
                 handler.accept(null, newCompoundProcessorException(e, onFailureProcessor, ingestDocument));
+                return;
             }
             executeOnFailure(currentOnFailureProcessor + 1, ingestDocument, exception, handler);
         }

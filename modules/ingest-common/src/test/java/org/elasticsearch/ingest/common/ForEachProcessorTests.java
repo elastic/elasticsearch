@@ -44,7 +44,7 @@ public class ForEachProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("values", values));
 
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", new AsyncUpperCaseProcessor("_ingest._value"), false);
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
 
         assertBusy(() -> {
             @SuppressWarnings("unchecked")
@@ -73,7 +73,7 @@ public class ForEachProcessorTests extends ESTestCase {
         });
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", testProcessor, false);
         Exception[] exceptions = new Exception[1];
-        execForEach(processor, ingestDocument, (result, e) -> exceptions[0] = e);
+        execProcessor(processor, ingestDocument, (result, e) -> exceptions[0] = e);
         assertThat(exceptions[0].getMessage(), equalTo("failure"));
         assertThat(testProcessor.getInvokedCounter(), equalTo(3));
         assertThat(ingestDocument.getFieldValue("values", List.class), equalTo(Arrays.asList("a", "b", "c")));
@@ -94,7 +94,7 @@ public class ForEachProcessorTests extends ESTestCase {
             new CompoundProcessor(false, Arrays.asList(testProcessor), Arrays.asList(onFailureProcessor)),
             false
         );
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(testProcessor.getInvokedCounter(), equalTo(3));
         assertThat(ingestDocument.getFieldValue("values", List.class), equalTo(Arrays.asList("A", "B", "c")));
         assertThat(ingestDocument.getFieldValue("error", String.class), equalTo("foo"));
@@ -111,7 +111,7 @@ public class ForEachProcessorTests extends ESTestCase {
             id.setFieldValue("_ingest._value.id", id.getSourceAndMetadata().get("_id"));
         });
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", innerProcessor, false);
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
 
         assertThat(innerProcessor.getInvokedCounter(), equalTo(2));
         assertThat(ingestDocument.getFieldValue("values.0.index", String.class), equalTo("_index"));
@@ -146,7 +146,7 @@ public class ForEachProcessorTests extends ESTestCase {
             ),
             false
         );
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
 
         assertThat(ingestDocument.getFieldValue("values.0.new_field", String.class), equalTo("value"));
         assertThat(ingestDocument.getFieldValue("values.1.new_field", String.class), equalTo("value"));
@@ -185,7 +185,7 @@ public class ForEachProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("values", values));
 
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", innerProcessor, false);
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
 
         @SuppressWarnings("unchecked")
         List<String> result = ingestDocument.getFieldValue("values", List.class);
@@ -213,7 +213,7 @@ public class ForEachProcessorTests extends ESTestCase {
             ),
             false
         );
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
 
         List<?> result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.get(0), equalTo("STRING"));
@@ -238,7 +238,7 @@ public class ForEachProcessorTests extends ESTestCase {
             doc -> doc.setFieldValue("_ingest._value", doc.getFieldValue("_source._value", String.class))
         );
         ForEachProcessor forEachProcessor = new ForEachProcessor("_tag", null, "values", processor, false);
-        execForEach(forEachProcessor, ingestDocument, (result, e) -> {});
+        execProcessor(forEachProcessor, ingestDocument, (result, e) -> {});
 
         List<?> result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.get(0), equalTo("new_value"));
@@ -274,7 +274,7 @@ public class ForEachProcessorTests extends ESTestCase {
             new ForEachProcessor("_tag", null, "_ingest._value.values2", testProcessor, false),
             false
         );
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
 
         List<?> result = ingestDocument.getFieldValue("values1.0.values2", List.class);
         assertThat(result.get(0), equalTo("ABC"));
@@ -318,7 +318,7 @@ public class ForEachProcessorTests extends ESTestCase {
             new ForEachProcessor("_tag", null, "_ingest._value", testProcessor, false),
             false
         );
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
 
         assertThat(testProcessor.getInvokedCounter(), equalTo(10));
         assertThat(
@@ -341,7 +341,7 @@ public class ForEachProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(doc -> {});
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "_ingest._value", testProcessor, true);
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
         assertIngestDocument(originalIngestDocument, ingestDocument);
         assertThat(testProcessor.getInvokedCounter(), equalTo(0));
     }
@@ -351,7 +351,7 @@ public class ForEachProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(id -> id.appendFieldValue("field", "a"));
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(testProcessor.getInvokedCounter(), equalTo(2));
         ingestDocument.removeField("_ingest._value");
         assertThat(ingestDocument, equalTo(originalIngestDocument));
@@ -362,7 +362,7 @@ public class ForEachProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         TestProcessor testProcessor = new TestProcessor(id -> id.removeField("field.0"));
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(testProcessor.getInvokedCounter(), equalTo(2));
         ingestDocument.removeField("_ingest._value");
         assertThat(ingestDocument, equalTo(originalIngestDocument));
@@ -387,7 +387,7 @@ public class ForEachProcessorTests extends ESTestCase {
             }
         });
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(testProcessor.getInvokedCounter(), equalTo(3));
         assertThat(encounteredKeys.toArray(), arrayContainingInAnyOrder("foo", "bar", "baz"));
         assertThat(encounteredValues.toArray(), arrayContainingInAnyOrder(1, 2, 3));
@@ -412,7 +412,7 @@ public class ForEachProcessorTests extends ESTestCase {
             }
         });
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "field", testProcessor, true);
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(testProcessor.getInvokedCounter(), equalTo(3));
         assertThat(encounteredKeys.toArray(), arrayContainingInAnyOrder("foo", "bar", "baz"));
         assertThat(encounteredValues.toArray(), arrayContainingInAnyOrder(1, 2, 3));
@@ -455,7 +455,7 @@ public class ForEachProcessorTests extends ESTestCase {
             new ForEachProcessor("_tag", null, "_ingest._value", testProcessor, false),
             false
         );
-        execForEach(processor, ingestDocument, (result, e) -> {});
+        execProcessor(processor, ingestDocument, (result, e) -> {});
 
         assertBusy(() -> {
             assertThat(testProcessor.getInvokedCounter(), equalTo(10));
@@ -475,8 +475,11 @@ public class ForEachProcessorTests extends ESTestCase {
         });
     }
 
+    // need tests with both sync and async processors, sync and async error processors
+    // with compound processor mixing sync and async?
+
     // executes either sync or async forEach processor
-    private static void execForEach(ForEachProcessor processor, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
+    private static void execProcessor(ForEachProcessor processor, IngestDocument doc, BiConsumer<IngestDocument, Exception> handler) {
         if (processor.isAsync()) {
             processor.execute(doc, handler);
         } else {

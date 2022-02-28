@@ -1285,8 +1285,11 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteFailureWithNestedOnFailure() throws Exception {
         final Processor processor = mock(Processor.class);
+        when(processor.isAsync()).thenReturn(true);
         final Processor onFailureProcessor = mock(Processor.class);
+        when(onFailureProcessor.isAsync()).thenReturn(true);
         final Processor onFailureOnFailureProcessor = mock(Processor.class);
+        when(onFailureOnFailureProcessor.isAsync()).thenReturn(true);
         final List<Processor> processors = Collections.singletonList(onFailureProcessor);
         final List<Processor> onFailureProcessors = Collections.singletonList(onFailureOnFailureProcessor);
         final CompoundProcessor compoundProcessor = new CompoundProcessor(
@@ -1357,6 +1360,7 @@ public class IngestServiceTests extends ESTestCase {
         }
 
         CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(processor.isAsync()).thenReturn(true);
         when(processor.getProcessors()).thenReturn(Collections.singletonList(mock(Processor.class)));
         Exception error = new RuntimeException();
         doAnswer(args -> {
@@ -2167,6 +2171,7 @@ public class IngestServiceTests extends ESTestCase {
 
     private CompoundProcessor mockCompoundProcessor() {
         CompoundProcessor processor = mock(CompoundProcessor.class);
+        doAnswer(args -> true).when(processor).isAsync();
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
             BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];

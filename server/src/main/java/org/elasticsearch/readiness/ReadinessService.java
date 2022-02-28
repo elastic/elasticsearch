@@ -103,7 +103,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 try {
                     serverChannel.bind(socketAddress);
                 } catch (IOException e) {
-                    throw new IllegalStateException("I/O exception while trying to bind the unix domain socket", e);
+                    throw new IllegalStateException("I/O exception while trying to bind the unix domain socket (" + socketPath + ")", e);
                 }
                 return null;
             });

@@ -43,7 +43,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
 
-        Path socketFilePath = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("readiness.socket." + nodeOrdinal);
+        Path socketFilePath = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("s" + nodeOrdinal);
         settings.put(Environment.READINESS_SOCKET_FILE.getKey(), socketFilePath.normalize().toAbsolutePath());
         return settings.build();
     }

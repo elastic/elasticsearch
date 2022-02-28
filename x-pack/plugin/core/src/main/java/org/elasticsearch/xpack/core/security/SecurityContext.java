@@ -122,15 +122,6 @@ public class SecurityContext {
         );
     }
 
-    /** Writes the authentication to the thread context */
-    private void setAuthentication(Authentication authentication) {
-        try {
-            authentication.writeToContext(threadContext);
-        } catch (IOException e) {
-            throw new AssertionError("how can we have a IOException with a user we set", e);
-        }
-    }
-
     /**
      * Runs the consumer in a new context as the provided user. The original context is provided to the consumer. When this method
      * returns, the original context is restored.
@@ -222,14 +213,16 @@ public class SecurityContext {
         return metadata;
     }
 
-    private Map<String, Object> convertRoleDescriptorsBytesToMap(BytesReference roleDescriptorsBytes) {
+    private static Map<String, Object> convertRoleDescriptorsBytesToMap(BytesReference roleDescriptorsBytes) {
         return XContentHelper.convertToMap(roleDescriptorsBytes, false, XContentType.JSON).v2();
     }
 
-    private BytesReference convertRoleDescriptorsMapToBytes(Map<String, Object> roleDescriptorsMap) {
+    private static BytesReference convertRoleDescriptorsMapToBytes(Map<String, Object> roleDescriptorsMap) {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.map(roleDescriptorsMap);
             return BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

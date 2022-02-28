@@ -110,7 +110,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
             return serverChannel;
         } catch (IOException e) {
-            throw new IllegalStateException("I/O exception while trying to create unix domain socket", e);
+            throw new IllegalStateException("I/O exception while trying to create unix domain socket (" + socketPath + ")", e);
         }
     }
 
@@ -119,8 +119,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         if (enabled == false) {
             return;
         }
-
-        logger.info("Starting readiness service on unix domain socket {}", getSocketPath());
 
         this.serverChannel = setupUnixDomainSocket(getSocketPath());
 

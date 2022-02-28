@@ -26,6 +26,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@AbstractResponseTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84433")
 public class DelegatePkiAuthenticationResponseTests extends AbstractResponseTestCase<
     org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse,
     DelegatePkiAuthenticationResponse> {

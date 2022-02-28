@@ -425,6 +425,7 @@ public class TransformIT extends TransformIntegTestCase {
                 """.formatted(userId, i, business, stars, timestamp);
             bulkBuilder.append(source);
         }
+        bulkBuilder.append("\r\n");
         doBulk(bulkBuilder.toString(), true);
     }
 }

@@ -14,7 +14,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.ParameterizedMessage;
-import org.elasticsearch.logging.util.Supplier;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;

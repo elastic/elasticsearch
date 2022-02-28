@@ -281,7 +281,7 @@ public class NativeUsersStore {
                                 );
                             } else {
                                 logger.debug(
-                                    (org.apache.logging.log4j.util.java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                                     () -> new ParameterizedMessage(
                                         "failed to change password for user [{}]",
                                         request.username()
                                     ),
@@ -403,7 +403,7 @@ public class NativeUsersStore {
                             // if the index doesn't exist we can never update a user
                             // if the document doesn't exist, then this update is not valid
                             logger.debug(
-                                (org.apache.logging.log4j.util.java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                                 () -> new ParameterizedMessage(
                                     "failed to update user document with username [{}]",
                                     putUserRequest.username()
                                 ),
@@ -505,7 +505,7 @@ public class NativeUsersStore {
                             // if the index doesn't exist we can never update a user
                             // if the document doesn't exist, then this update is not valid
                             logger.debug(
-                                (org.apache.logging.log4j.util.java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                                 () -> new ParameterizedMessage(
                                     "failed to {} user [{}]",
                                     enabled ? "enable" : "disable",
                                     username
@@ -658,7 +658,7 @@ public class NativeUsersStore {
                         public void onFailure(Exception e) {
                             if (TransportActions.isShardNotAvailableException(e)) {
                                 logger.trace(
-                                    (org.apache.logging.log4j.util.java.util.function.Supplier<?>) () -> new ParameterizedMessage(
+                                     () -> new ParameterizedMessage(
                                         "could not retrieve built in user [{}] info since security index unavailable",
                                         username
                                     ),

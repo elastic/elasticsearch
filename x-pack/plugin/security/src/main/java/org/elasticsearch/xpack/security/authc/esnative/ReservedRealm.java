@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.logging.ParameterizedMessage;
-import org.elasticsearch.logging.util.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;

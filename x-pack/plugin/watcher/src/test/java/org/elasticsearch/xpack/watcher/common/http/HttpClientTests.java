@@ -13,7 +13,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.logging.ParameterizedMessage;
-import org.elasticsearch.logging.util.Supplier;
+
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;

@@ -12,7 +12,7 @@ import io.netty.handler.ssl.SslHandler;
 
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.ParameterizedMessage;
-import org.elasticsearch.logging.util.Supplier;
+
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpChannel;

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.logging;
 
+import java.io.IOException;
 import java.util.Objects;
 
 public interface Logger {
@@ -328,8 +329,12 @@ public interface Logger {
     default void warn(String message, Object... params) {
         log(Level.WARN, message, params);
     }
-
     // -- fatal
+    default void fatal(String message, Throwable thrown) {
+        log(Level.TRACE, message, thrown);
+    }
+
+
 
     // TODO:
 }

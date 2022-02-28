@@ -178,6 +178,7 @@ public class Authentication implements ToXContentObject {
         Objects.requireNonNull(runAs);
         assert false == runAs.isRunAs();
         assert false == getUser().isRunAs();
+        assert AuthenticationType.REALM == getAuthenticationType() || AuthenticationType.API_KEY == getAuthenticationType();
         return new Authentication(
             new User(runAs, getUser()),
             getAuthenticatedBy(),

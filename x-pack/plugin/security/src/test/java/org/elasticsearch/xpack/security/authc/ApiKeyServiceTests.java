@@ -1230,21 +1230,24 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(ApiKeyService.getCreatorRealmName(authentication2), equalTo(lookupRealmRef.getName()));
         assertThat(ApiKeyService.getCreatorRealmType(authentication2), equalTo(lookupRealmRef.getType()));
 
-        // Non API Key
-        final Authentication authentication3 = randomFrom(
-            AuthenticationTests.randomRealmAuthentication(false),
+        // Realm
+        final Authentication authentication3 = AuthenticationTests.randomRealmAuthentication(false);
+        assertThat(ApiKeyService.getCreatorRealmName(authentication3), equalTo(authentication3.getSourceRealm().getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication3), equalTo(authentication3.getSourceRealm().getType()));
+
+        // Realm run-as
+        final Authentication authentication4 = authentication3.runAs(AuthenticationTests.randomUser(), lookupRealmRef);
+        assertThat(ApiKeyService.getCreatorRealmName(authentication4), equalTo(lookupRealmRef.getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication4), equalTo(lookupRealmRef.getType()));
+
+        // Others (cannot run-as)
+        final Authentication authentication5 = randomFrom(
             AuthenticationTests.randomServiceAccountAuthentication(),
             AuthenticationTests.randomAnonymousAuthentication(),
             AuthenticationTests.randomInternalAuthentication()
         );
-
-        assertThat(ApiKeyService.getCreatorRealmName(authentication3), equalTo(authentication3.getSourceRealm().getName()));
-        assertThat(ApiKeyService.getCreatorRealmType(authentication3), equalTo(authentication3.getSourceRealm().getType()));
-
-        // Non API Key run-as
-        final Authentication authentication4 = authentication3.runAs(AuthenticationTests.randomUser(), lookupRealmRef);
-        assertThat(ApiKeyService.getCreatorRealmName(authentication4), equalTo(lookupRealmRef.getName()));
-        assertThat(ApiKeyService.getCreatorRealmType(authentication4), equalTo(lookupRealmRef.getType()));
+        assertThat(ApiKeyService.getCreatorRealmName(authentication5), equalTo(authentication5.getSourceRealm().getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication5), equalTo(authentication5.getSourceRealm().getType()));
     }
 
     public void testAuthWillTerminateIfGetThreadPoolIsSaturated() throws ExecutionException, InterruptedException {
@@ -1453,7 +1456,10 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testGetApiKeyMetadata() throws IOException {
         final Authentication apiKeyAuthentication = mock(Authentication.class);
         when(apiKeyAuthentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
-        when(apiKeyAuthentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(apiKeyAuthentication.getAuthenticatedBy()).thenReturn(
+            new RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, randomAlphaOfLengthBetween(3, 8))
+        );
+        when(apiKeyAuthentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
         if (apiKeyMetadata == null) {
             when(apiKeyAuthentication.getMetadata()).thenReturn(Map.of());
@@ -1470,14 +1476,14 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
 
         final Authentication authentication = mock(Authentication.class);
-        when(authentication.getAuthenticationType()).thenReturn(
-            randomValueOtherThan(AuthenticationType.API_KEY, () -> randomFrom(AuthenticationType.values()))
+        when(authentication.getAuthenticatedBy()).thenReturn(
+            new RealmRef(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(3, 8))
         );
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> ApiKeyService.getApiKeyMetadata(authentication)
         );
-        assertThat(e.getMessage(), containsString("authentication type must be [api_key]"));
+        assertThat(e.getMessage(), containsString("authentication realm must be [_es_api_key]"));
     }
 
     public static class Utils {

@@ -84,7 +84,7 @@ public class Environment {
     private final Path pidFile;
 
     /**
-     * Path to the PID file (can be null if no readiness socket path file is configured).
+     * Path to the socket file (can be null if no readiness socket path file is configured).
      * The readiness socket file path cannot be longer than the max system Unix Domain Socket path (i.e. most cases 108 characters)
      **/
     private final Path readinessSocketFile;

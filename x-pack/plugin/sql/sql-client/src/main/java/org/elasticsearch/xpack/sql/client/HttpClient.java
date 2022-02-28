@@ -61,6 +61,10 @@ public class HttpClient {
     }
 
     public SqlQueryResponse basicQuery(String query, int fetchSize) throws SQLException {
+        return basicQuery(query, fetchSize, CoreProtocol.FIELD_MULTI_VALUE_LENIENCY);
+    }
+
+    public SqlQueryResponse basicQuery(String query, int fetchSize, boolean fieldMultiValueLeniency) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI
         SqlQueryRequest sqlRequest = new SqlQueryRequest(
@@ -74,7 +78,7 @@ public class HttpClient {
             Boolean.FALSE,
             null,
             new RequestInfo(Mode.CLI, ClientVersion.CURRENT),
-            false,
+            fieldMultiValueLeniency,
             false,
             cfg.binaryCommunication()
         );

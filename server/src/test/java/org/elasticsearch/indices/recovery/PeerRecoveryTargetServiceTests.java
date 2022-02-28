@@ -168,7 +168,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         PlainActionFuture<Void> cleanFilesFuture = new PlainActionFuture<>();
         recoveryTarget.cleanFiles(
             0,
-            Long.parseLong(sourceSnapshot.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+            Long.parseLong(sourceSnapshot.commitUserData().get(SequenceNumbers.MAX_SEQ_NO)),
             sourceSnapshot,
             cleanFilesFuture
         );

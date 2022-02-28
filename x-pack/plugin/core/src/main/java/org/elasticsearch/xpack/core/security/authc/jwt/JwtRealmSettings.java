@@ -97,7 +97,7 @@ public class JwtRealmSettings {
      * Get all non-secure settings.
      * @return All non-secure settings.
      */
-    public static Set<Setting.AffixSetting<?>> getNonSecureSettings() {
+    static Set<Setting.AffixSetting<?>> getNonSecureSettings() {
         final Set<Setting.AffixSetting<?>> set = new LinkedHashSet<>();
         // Standard realm settings: order, enabled
         set.addAll(RealmSettings.getStandardSettings(TYPE));
@@ -138,7 +138,7 @@ public class JwtRealmSettings {
      * Get all secure settings.
      * @return All secure settings.
      */
-    public static Set<Setting.AffixSetting<SecureString>> getSecureSettings() {
+    static Set<Setting.AffixSetting<SecureString>> getSecureSettings() {
         return new LinkedHashSet<>(List.of(HMAC_JWKSET, HMAC_KEY, CLIENT_AUTHENTICATION_SHARED_SECRET));
     }
 

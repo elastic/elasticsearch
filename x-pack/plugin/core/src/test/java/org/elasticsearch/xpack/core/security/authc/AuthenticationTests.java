@@ -333,16 +333,33 @@ public class AuthenticationTests extends ESTestCase {
             new Authentication(
                 randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE),
                 new RealmRef(ATTACH_REALM_NAME, ATTACH_REALM_TYPE, nodeName),
-                null
+                null,
+                Version.CURRENT,
+                Authentication.AuthenticationType.INTERNAL,
+                Map.of()
             ),
-            new Authentication(SystemUser.INSTANCE, new RealmRef(FALLBACK_REALM_NAME, FALLBACK_REALM_TYPE, nodeName), null)
+            new Authentication(
+                SystemUser.INSTANCE,
+                new RealmRef(FALLBACK_REALM_NAME, FALLBACK_REALM_TYPE, nodeName),
+                null,
+                Version.CURRENT,
+                Authentication.AuthenticationType.INTERNAL,
+                Map.of()
+            )
         );
     }
 
     public static Authentication randomAnonymousAuthentication() {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anon_role").build();
         String nodeName = randomAlphaOfLengthBetween(3, 8);
-        return new Authentication(new AnonymousUser(settings), new RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName), null);
+        return new Authentication(
+            new AnonymousUser(settings),
+            new RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName),
+            null,
+            Version.CURRENT,
+            Authentication.AuthenticationType.ANONYMOUS,
+            Map.of()
+        );
     }
 
     public static Authentication toToken(Authentication authentication) {

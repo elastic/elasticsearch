@@ -38,7 +38,6 @@ public record Profile(
         @Nullable String domainName,
         String email,
         String fullName,
-        String displayName,
         boolean active
     ) implements Writeable, ToXContent {
 
@@ -47,7 +46,6 @@ public record Profile(
                 in.readString(),
                 in.readStringList(),
                 in.readString(),
-                in.readOptionalString(),
                 in.readOptionalString(),
                 in.readOptionalString(),
                 in.readOptionalString(),
@@ -74,9 +72,6 @@ public record Profile(
             if (fullName != null) {
                 builder.field("full_name", fullName);
             }
-            if (displayName != null) {
-                builder.field("display_name", displayName);
-            }
             builder.field("active", active);
             builder.endObject();
             return builder;
@@ -90,7 +85,6 @@ public record Profile(
             out.writeOptionalString(domainName);
             out.writeOptionalString(email);
             out.writeOptionalString(fullName);
-            out.writeOptionalString(displayName);
             out.writeBoolean(active);
         }
     }
@@ -124,15 +118,19 @@ public record Profile(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerToXContent(builder, params);
+        versionControl.toXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("uid", uid);
         builder.field("enabled", enabled);
         builder.field("last_synchronized", lastSynchronized);
         user.toXContent(builder, params);
         builder.field("access", access);
         builder.field("data", applicationData);
-        versionControl.toXContent(builder, params);
-        builder.endObject();
-        return builder;
     }
 
     @Override

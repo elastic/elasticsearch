@@ -72,6 +72,11 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(filter);
     }

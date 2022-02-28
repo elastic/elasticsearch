@@ -498,7 +498,7 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testWriteMap() throws IOException {
         final int size = randomIntBetween(0, 100);
-        final Map<String, String> expected = Maps.newMapWithExpectedSize(randomIntBetween(0, 100));
+        final Map<String, String> expected = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; ++i) {
             expected.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
         }
@@ -584,6 +584,23 @@ public class BytesStreamsTests extends ESTestCase {
 
         in.close();
         out.close();
+    }
+
+    public void testWriteMapAsList() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final Map<String, String> expected = Maps.newMapWithExpectedSize(size);
+        for (int i = 0; i < size; ++i) {
+            final String value = randomAlphaOfLength(5);
+            expected.put("key_" + value, value);
+        }
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeMapValues(expected, StreamOutput::writeString);
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        final Map<String, String> loaded = in.readMapValues(StreamInput::readString, value -> "key_" + value);
+
+        assertThat(loaded.size(), equalTo(expected.size()));
+        assertThat(expected, equalTo(loaded));
     }
 
     private abstract static class BaseNamedWriteable implements NamedWriteable {

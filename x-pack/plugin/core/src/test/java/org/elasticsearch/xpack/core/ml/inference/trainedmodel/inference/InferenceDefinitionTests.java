@@ -14,10 +14,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -50,14 +50,14 @@ public class InferenceDefinitionTests extends ESTestCase {
 
     public void testEnsembleSchemaDeserialization() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ENSEMBLE_MODEL);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), ENSEMBLE_MODEL);
         InferenceDefinition definition = InferenceDefinition.fromXContent(parser);
         assertThat(definition.getTrainedModel().getClass(), equalTo(EnsembleInferenceModel.class));
     }
 
     public void testTreeSchemaDeserialization() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, TREE_MODEL);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), TREE_MODEL);
         InferenceDefinition definition = InferenceDefinition.fromXContent(parser);
         assertThat(definition.getTrainedModel().getClass(), equalTo(TreeInferenceModel.class));
     }
@@ -136,8 +136,7 @@ public class InferenceDefinitionTests extends ESTestCase {
 
     public void testComplexInferenceDefinitionInfer() throws IOException {
         XContentParser parser = XContentHelper.createParser(
-            xContentRegistry(),
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()),
             new BytesArray(getClassificationDefinition(false)),
             XContentType.JSON
         );
@@ -160,8 +159,7 @@ public class InferenceDefinitionTests extends ESTestCase {
 
     public void testComplexInferenceDefinitionInferWithCustomPreProcessor() throws IOException {
         XContentParser parser = XContentHelper.createParser(
-            xContentRegistry(),
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()),
             new BytesArray(getClassificationDefinition(true)),
             XContentType.JSON
         );

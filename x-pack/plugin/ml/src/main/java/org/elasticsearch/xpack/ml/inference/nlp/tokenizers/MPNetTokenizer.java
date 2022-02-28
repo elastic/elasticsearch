@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
-import org.elasticsearch.xpack.ml.inference.nlp.MPNetRequestBuilder;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 
 import java.util.Collections;
@@ -16,8 +15,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.function.Function;
-import java.util.stream.IntStream;
+import java.util.stream.Collectors;
 
 /**
  * Performs basic tokenization and normalization of input text
@@ -41,7 +39,6 @@ public class MPNetTokenizer extends BertTokenizer {
         boolean doStripAccents,
         boolean withSpecialTokens,
         int maxSequenceLength,
-        Function<NlpTokenizer, NlpTask.RequestBuilder> requestBuilderFactory,
         Set<String> neverSplit
     ) {
         super(
@@ -52,7 +49,6 @@ public class MPNetTokenizer extends BertTokenizer {
             doStripAccents,
             withSpecialTokens,
             maxSequenceLength,
-            requestBuilderFactory,
             Sets.union(neverSplit, NEVER_SPLIT),
             SEPARATOR_TOKEN,
             CLASS_TOKEN,
@@ -67,25 +63,20 @@ public class MPNetTokenizer extends BertTokenizer {
         return 4;
     }
 
-    @Override
-    protected BertTokenizationBuilder bertTokenizationBuilder() {
-        return new MPNetTokenizationBuilder();
+    TokenizationResult.TokensBuilder createTokensBuilder(int clsTokenId, int sepTokenId, boolean withSpecialTokens) {
+        return new MPNetTokenizationResult.MPNetTokensBuilder(withSpecialTokens, clsTokenId, sepTokenId);
     }
 
-    protected class MPNetTokenizationBuilder extends BertTokenizationBuilder {
+    @Override
+    public NlpTask.RequestBuilder requestBuilder() {
+        return (inputs, requestId, truncate) -> buildTokenizationResult(
+            inputs.stream().map(s -> tokenize(s, truncate)).collect(Collectors.toList())
+        ).buildRequest(requestId, truncate);
+    }
 
-        @Override
-        BertTokenizationBuilder addTokens(List<Integer> wordPieceTokenIds, List<Integer> tokenPositionMap) {
-            if (numSeq > 0 && withSpecialTokens) {
-                tokenIds.add(IntStream.of(sepTokenId, sepTokenId));
-                tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION, SPECIAL_TOKEN_POSITION));
-            }
-            tokenIds.add(wordPieceTokenIds.stream().mapToInt(Integer::valueOf));
-            tokenMap.add(tokenPositionMap.stream().mapToInt(Integer::valueOf));
-            numSeq++;
-            return this;
-        }
-
+    @Override
+    public TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations) {
+        return new MPNetTokenizationResult(originalVocab, tokenizations, getPadTokenId().orElseThrow());
     }
 
     public static Builder mpBuilder(List<String> vocab, Tokenization tokenization) {
@@ -96,13 +87,12 @@ public class MPNetTokenizer extends BertTokenizer {
 
         protected final List<String> originalVocab;
         protected final SortedMap<String, Integer> vocab;
-        protected boolean doLowerCase = false;
+        protected boolean doLowerCase;
         protected boolean doTokenizeCjKChars = true;
-        protected boolean withSpecialTokens = true;
+        protected boolean withSpecialTokens;
         protected int maxSequenceLength;
         protected Boolean doStripAccents = null;
         protected Set<String> neverSplit;
-        protected Function<NlpTokenizer, NlpTask.RequestBuilder> requestBuilderFactory = MPNetRequestBuilder::new;
 
         protected Builder(List<String> vocab, Tokenization tokenization) {
             this.originalVocab = vocab;
@@ -155,11 +145,6 @@ public class MPNetTokenizer extends BertTokenizer {
             return this;
         }
 
-        public Builder setRequestBuilderFactory(Function<NlpTokenizer, NlpTask.RequestBuilder> requestBuilderFactory) {
-            this.requestBuilderFactory = requestBuilderFactory;
-            return this;
-        }
-
         public MPNetTokenizer build() {
             // if not set strip accents defaults to the value of doLowerCase
             if (doStripAccents == null) {
@@ -178,7 +163,6 @@ public class MPNetTokenizer extends BertTokenizer {
                 doStripAccents,
                 withSpecialTokens,
                 maxSequenceLength,
-                requestBuilderFactory,
                 neverSplit
             );
         }

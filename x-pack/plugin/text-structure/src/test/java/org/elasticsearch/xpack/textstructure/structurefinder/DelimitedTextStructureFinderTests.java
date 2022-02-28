@@ -25,9 +25,12 @@ import static org.elasticsearch.xpack.textstructure.structurefinder.DelimitedTex
 import static org.elasticsearch.xpack.textstructure.structurefinder.TimestampFormatFinder.stringToNumberPosBitSet;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
@@ -1120,6 +1123,26 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         assertNull(DelimitedTextStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings, null, null));
         assertThat(explanation, contains("Failed to create a suitable multi-line start pattern"));
+    }
+
+    public void testMakeExcludeLinesPattern() {
+
+        String[] header = generateRandomStringArray(1000, randomIntBetween(5, 50), false, false);
+        String quote = randomFrom("\"", "'");
+        String quotePattern = quote.replaceAll(DelimitedTextStructureFinder.REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
+        String optQuotePattern = quotePattern + "?";
+        char delimiter = randomFrom(',', ';', '\t', '|');
+        String delimiterPattern = (delimiter == '\t')
+            ? "\\t"
+            : String.valueOf(delimiter).replaceAll(DelimitedTextStructureFinder.REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
+
+        String excludeLinesPattern = DelimitedTextStructureFinder.makeExcludeLinesPattern(header, quote, optQuotePattern, delimiterPattern);
+
+        assertThat(excludeLinesPattern, startsWith("^"));
+        assertThat(excludeLinesPattern.length(), lessThanOrEqualTo(DelimitedTextStructureFinder.MAX_EXCLUDE_LINES_PATTERN_LENGTH));
+        if (excludeLinesPattern.contains(header[header.length - 1]) == false) {
+            assertThat(excludeLinesPattern, endsWith(".*"));
+        }
     }
 
     static Map<String, Object> randomCsvProcessorSettings() {

@@ -10,7 +10,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
@@ -299,7 +298,7 @@ public class RestoreService implements ClusterStateApplier {
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
         // Make sure that we can restore from this snapshot
-        validateSnapshotRestorable(request, repository.getMetadata(), snapshotInfo);
+        validateSnapshotRestorable(request, repository.getMetadata(), snapshotInfo, repositoriesService.getPreRestoreVersionChecks());
 
         // Get the global state if necessary
         Metadata globalMetadata = null;
@@ -958,10 +957,16 @@ public class RestoreService implements ClusterStateApplier {
 
     /**
      * Checks that snapshots can be restored and have compatible version
-     *  @param repository      repository name
+     * @param repository      repository name
      * @param snapshotInfo    snapshot metadata
+     * @param preRestoreVersionChecks
      */
-    static void validateSnapshotRestorable(RestoreSnapshotRequest request, RepositoryMetadata repository, SnapshotInfo snapshotInfo) {
+    static void validateSnapshotRestorable(
+        RestoreSnapshotRequest request,
+        RepositoryMetadata repository,
+        SnapshotInfo snapshotInfo,
+        List<BiConsumer<Snapshot, Version>> preRestoreVersionChecks
+    ) {
         if (snapshotInfo.state().restorable() == false) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
@@ -978,40 +983,13 @@ public class RestoreService implements ClusterStateApplier {
                     + "]"
             );
         }
-        if (skipVersionChecks(repository) == false && snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
-            throw new SnapshotRestoreException(
-                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
-                "the snapshot was created with Elasticsearch version ["
-                    + snapshotInfo.version()
-                    + "] which is below the current versions minimum index compatibility version ["
-                    + Version.CURRENT.minimumIndexCompatibilityVersion()
-                    + "]"
-            );
-        }
+        Snapshot snapshot = new Snapshot(repository.name(), snapshotInfo.snapshotId());
+        preRestoreVersionChecks.forEach(c -> c.accept(snapshot, snapshotInfo.version()));
         if (request.includeGlobalState() && snapshotInfo.includeGlobalState() == Boolean.FALSE) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "cannot restore global state since the snapshot was created without global state"
             );
-        }
-    }
-
-    public static final Setting<Boolean> ALLOW_BWC_INDICES_SETTING = Setting.boolSetting(
-        "allow_bwc_indices",
-        false,
-        Setting.Property.NodeScope
-    );
-
-    private static boolean skipVersionChecks(RepositoryMetadata repositoryMetadata) {
-        if (Build.CURRENT.isSnapshot()) {
-            return ALLOW_BWC_INDICES_SETTING.get(repositoryMetadata.settings());
-        } else {
-            if (ALLOW_BWC_INDICES_SETTING.exists(repositoryMetadata.settings())) {
-                throw new IllegalArgumentException(
-                    "Repository setting [" + ALLOW_BWC_INDICES_SETTING.getKey() + "] only allowed in release builds"
-                );
-            }
-            return false;
         }
     }
 
@@ -1289,9 +1267,12 @@ public class RestoreService implements ClusterStateApplier {
             final String localNodeId = clusterService.state().nodes().getLocalNodeId();
             for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
                 final IndexId index = indexEntry.getValue();
+                final IndexMetadata originalIndexMetadata = metadata.index(index.getName());
+                repositoriesService.getPreRestoreVersionChecks()
+                    .forEach(check -> check.accept(snapshot, originalIndexMetadata.getCreationVersion()));
                 IndexMetadata snapshotIndexMetadata = updateIndexSettings(
                     snapshot,
-                    metadata.index(index.getName()),
+                    originalIndexMetadata,
                     request.indexSettings(),
                     request.ignoreIndexSettings()
                 );
@@ -1591,39 +1572,40 @@ public class RestoreService implements ClusterStateApplier {
         if (snapshotIndexMetadata.getCreationVersion().before(Version.fromString("5.0.0"))) {
             throw new IllegalArgumentException("can't restore an index created before version 5.0.0");
         }
+        IndexMetadata.Builder convertedIndexMetadata = IndexMetadata.builder(snapshotIndexMetadata);
         MappingMetadata mappingMetadata = snapshotIndexMetadata.mapping();
-        Map<String, Object> loadedMappingSource = mappingMetadata.rawSourceAsMap();
+        if (mappingMetadata != null) {
+            Map<String, Object> loadedMappingSource = mappingMetadata.rawSourceAsMap();
 
-        // store old mapping under _meta/legacy_mappings
-        Map<String, Object> legacyMapping = new LinkedHashMap<>();
-        boolean sourceOnlySnapshot = snapshotIndexMetadata.getSettings().getAsBoolean("index.source_only", false);
-        if (sourceOnlySnapshot) {
-            // actual mapping is under "_meta" (but strip type first)
-            Object sourceOnlyMeta = mappingMetadata.sourceAsMap().get("_meta");
-            if (sourceOnlyMeta instanceof Map<?, ?> sourceOnlyMetaMap) {
-                legacyMapping.put("legacy_mappings", sourceOnlyMetaMap);
+            // store old mapping under _meta/legacy_mappings
+            Map<String, Object> legacyMapping = new LinkedHashMap<>();
+            boolean sourceOnlySnapshot = snapshotIndexMetadata.getSettings().getAsBoolean("index.source_only", false);
+            if (sourceOnlySnapshot) {
+                // actual mapping is under "_meta" (but strip type first)
+                Object sourceOnlyMeta = mappingMetadata.sourceAsMap().get("_meta");
+                if (sourceOnlyMeta instanceof Map<?, ?> sourceOnlyMetaMap) {
+                    legacyMapping.put("legacy_mappings", sourceOnlyMetaMap);
+                }
+            } else {
+                legacyMapping.put("legacy_mappings", loadedMappingSource);
             }
-        } else {
-            legacyMapping.put("legacy_mappings", loadedMappingSource);
+
+            Map<String, Object> newMappingSource = new LinkedHashMap<>();
+            newMappingSource.put("_meta", legacyMapping);
+
+            Map<String, Object> newMapping = new LinkedHashMap<>();
+            newMapping.put(mappingMetadata.type(), newMappingSource);
+
+            convertedIndexMetadata.putMapping(new MappingMetadata(mappingMetadata.type(), newMapping));
         }
 
-        Map<String, Object> newMappingSource = new LinkedHashMap<>();
-        newMappingSource.put("_meta", legacyMapping);
-
-        Map<String, Object> newMapping = new LinkedHashMap<>();
-        newMapping.put(mappingMetadata.type(), newMappingSource);
+        convertedIndexMetadata.settings(
+            Settings.builder()
+                .put(snapshotIndexMetadata.getSettings())
+                .put(IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.getKey(), clusterState.getNodes().getSmallestNonClientNodeVersion())
+        );
         // TODO: _routing? Perhaps we don't need to obey any routing here as stuff is read-only anyway and get API will be disabled
-        return IndexMetadata.builder(snapshotIndexMetadata)
-            .putMapping(new MappingMetadata(mappingMetadata.type(), newMapping))
-            .settings(
-                Settings.builder()
-                    .put(snapshotIndexMetadata.getSettings())
-                    .put(
-                        IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.getKey(),
-                        clusterState.getNodes().getSmallestNonClientNodeVersion()
-                    )
-            )
-            .build();
+        return convertedIndexMetadata.build();
     }
 
     private static IndexMetadata.Builder restoreToCreateNewIndex(IndexMetadata snapshotIndexMetadata, String renamedIndexName) {

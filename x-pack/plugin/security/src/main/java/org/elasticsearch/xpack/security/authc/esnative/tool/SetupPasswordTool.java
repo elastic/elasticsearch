@@ -22,6 +22,7 @@ import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
@@ -50,7 +51,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -586,7 +586,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             CheckedBiConsumer<String, SecureString, Exception> successCallback,
             Terminal terminal
         ) throws Exception {
-            Map<String, SecureString> passwordsMap = new LinkedHashMap<>(USERS.size());
+            Map<String, SecureString> passwordsMap = Maps.newLinkedHashMapWithExpectedSize(USERS.size());
             try {
                 for (String user : USERS) {
                     if (USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {

@@ -8,11 +8,10 @@ package org.elasticsearch.xpack.ml.process.logging;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -50,7 +49,7 @@ public class CppLogMessageTests extends AbstractSerializingTestCase<CppLogMessag
               "file": "Noisemaker.cc",
               "line": 333
             }""";
-        XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input);
+        XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, input);
         CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
 
         Instant after = Instant.ofEpochMilli(Instant.now().toEpochMilli());

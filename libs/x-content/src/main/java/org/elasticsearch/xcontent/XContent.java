@@ -26,6 +26,12 @@ public interface XContent {
 
     byte streamSeparator();
 
+    @Deprecated
+    boolean detectContent(byte[] bytes, int offset, int length);
+
+    @Deprecated
+    boolean detectContent(CharSequence chars);
+
     /**
      * Creates a new generator using the provided output stream.
      */
@@ -48,16 +54,6 @@ public interface XContent {
      * Creates a parser over the provided string content.
      */
     XContentParser createParser(XContentParserConfiguration config, String content) throws IOException;
-
-    /**
-     * Creates a parser over the provided string content.
-     * @deprecated Use {@link #createParser(XContentParserConfiguration, InputStream)}
-     */
-    @Deprecated
-    default XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, String content)
-        throws IOException {
-        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationHandler), content);
-    }
 
     /**
      * Creates a parser over the provided input stream.

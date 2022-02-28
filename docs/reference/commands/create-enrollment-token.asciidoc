@@ -18,11 +18,15 @@ bin/elasticsearch-create-enrollment-token
 [discrete]
 === Description
 
+NOTE: `elasticsearch-create-enrollment-token` can only be used with {es} clusters
+that have been <<configuring-stack-security,auto-configured for security>>.
+
 Use this command to create enrollment tokens, which you can use to enroll new
 {es} nodes to an existing cluster or configure {kib} instances to communicate
 with an existing {es} cluster that has security features enabled.
 The command generates (and subsequently removes) a temporary user in the
 <<file-realm,file realm>> to run the request that creates enrollment tokens.
+
 IMPORTANT: You cannot use this tool if the file realm is disabled in your
 `elasticsearch.yml` file.
 

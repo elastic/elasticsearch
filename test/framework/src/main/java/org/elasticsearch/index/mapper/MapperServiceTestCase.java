@@ -12,10 +12,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -124,6 +124,14 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected final DocumentMapper createDocumentMapper(XContentBuilder mappings) throws IOException {
         return createMapperService(mappings).documentMapper();
+    }
+
+    protected final DocumentMapper createTimeSeriesModeDocumentMapper(XContentBuilder mappings) throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "uid")
+            .build();
+        return createMapperService(settings, mappings).documentMapper();
     }
 
     protected final DocumentMapper createDocumentMapper(Version version, XContentBuilder mappings) throws IOException {

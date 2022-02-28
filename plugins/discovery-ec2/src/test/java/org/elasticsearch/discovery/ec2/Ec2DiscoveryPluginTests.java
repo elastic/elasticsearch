@@ -54,13 +54,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
     }
 
     public void testNodeAttributes() throws Exception {
-        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpServer.createContext("/metadata", exchange -> {
-            exchange.sendResponseHeaders(200, 0);
-            exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
-            exchange.close();
-        });
-        httpServer.start();
+        HttpServer httpServer = metadataServerWithoutToken();
         try {
             assertNodeAttributes(Settings.EMPTY, metadataUri(httpServer), "", "us-east-1c");
         } finally {
@@ -102,6 +96,46 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         httpServer.start();
         try {
             assertNodeAttributes(Settings.EMPTY, metadataUri(httpServer), "", null);
+        } finally {
+            httpServer.stop(0);
+        }
+    }
+
+    public void testNodeAttributesWithToken() throws Exception {
+        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.createContext("/metadata", exchange -> {
+            assertEquals("imdsv2-token", exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token"));
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        });
+        httpServer.createContext("/latest/api/token", exchange -> {
+            assertEquals("60", exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token-ttl-seconds"));
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write("imdsv2-token".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        });
+        httpServer.start();
+        try {
+            assertNodeAttributes(Settings.EMPTY, metadataUri(httpServer), tokenUri(httpServer), "us-east-1c");
+        } finally {
+            httpServer.stop(0);
+        }
+    }
+
+    public void testTokenMetadataIsNotAvailable() throws Exception {
+        HttpServer httpServer = metadataServerWithoutToken();
+        try {
+            assertNodeAttributes(Settings.EMPTY, metadataUri(httpServer), tokenUri(httpServer), "us-east-1c");
+        } finally {
+            httpServer.stop(0);
+        }
+    }
+
+    public void testBogusTokenMetadataUrl() throws Exception {
+        HttpServer httpServer = metadataServerWithoutToken();
+        try {
+            assertNodeAttributes(Settings.EMPTY, metadataUri(httpServer), "bogus", "us-east-1c");
         } finally {
             httpServer.stop(0);
         }
@@ -236,7 +270,23 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         public void shutdown() {}
     }
 
+    private static HttpServer metadataServerWithoutToken() throws IOException {
+        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.createContext("/metadata", exchange -> {
+            assertNull(exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token"));
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        });
+        httpServer.start();
+        return httpServer;
+    }
+
     private static String metadataUri(HttpServer httpServer) {
         return "http://" + httpServer.getAddress().getHostString() + ":" + httpServer.getAddress().getPort() + "/metadata";
+    }
+
+    private static String tokenUri(HttpServer httpServer) {
+        return "http://" + httpServer.getAddress().getHostString() + ":" + httpServer.getAddress().getPort() + "/latest/api/token";
     }
 }

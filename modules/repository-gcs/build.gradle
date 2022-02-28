@@ -30,7 +30,7 @@ dependencies {
   api 'com.google.cloud:google-cloud-core:1.95.4'
   api 'com.google.cloud:google-cloud-core-http:1.95.4'
   runtimeOnly 'com.google.guava:guava:30.1.1-jre'
-  api 'com.google.guava:failureaccess:1.0.1'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"

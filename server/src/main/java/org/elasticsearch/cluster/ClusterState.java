@@ -631,6 +631,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return nodes;
         }
 
+        public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
+            return routingTable(routingTableBuilder.build());
+        }
+
         public Builder routingTable(RoutingTable routingTable) {
             this.routingTable = routingTable;
             return this;

@@ -241,7 +241,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         }
 
         public Spliterator<Map.Entry<Integer, VType>> spliterator() {
-            return Spliterators.spliteratorUnknownSize(iterator(), 0);
+            return Spliterators.spliterator(iterator(), size(), Spliterator.SIZED);
         }
 
         public void forEach(Consumer<? super Map.Entry<Integer, VType>> action) {

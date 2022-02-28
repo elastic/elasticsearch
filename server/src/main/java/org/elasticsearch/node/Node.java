@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -96,7 +97,6 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -499,7 +499,8 @@ public class Node implements Closeable {
                     IndicesModule.getNamedXContents().stream(),
                     searchModule.getNamedXContents().stream(),
                     pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedXContent().stream()),
-                    ClusterModule.getNamedXWriteables().stream()
+                    ClusterModule.getNamedXWriteables().stream(),
+                    SystemIndexMigrationExecutor.getNamedXContentParsers().stream()
                 ).flatMap(Function.identity()).collect(toList())
             );
             final Map<String, SystemIndices.Feature> featuresMap = pluginsService.filterPlugins(SystemIndexPlugin.class)
@@ -809,6 +810,8 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
+            final StatsRequestLimiter statsRequestLimiter = new StatsRequestLimiter(settings, settingsModule.getClusterSettings());
+
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
                 transportService,
@@ -842,7 +845,8 @@ public class Node implements Closeable {
                 responseCollectorService,
                 searchTransportService,
                 indexingLimits,
-                searchModule.getValuesSourceRegistry().getUsageService()
+                searchModule.getValuesSourceRegistry().getUsageService(),
+                statsRequestLimiter
             );
 
             final SearchService searchService = newSearchService(
@@ -865,7 +869,7 @@ public class Node implements Closeable {
                 metadataCreateIndexService,
                 settingsModule.getIndexScopedSettings()
             );
-            final List<PersistentTasksExecutor<?>> builtinTaskExecutors = Arrays.asList(systemIndexMigrationExecutor);
+            final List<PersistentTasksExecutor<?>> builtinTaskExecutors = List.of(systemIndexMigrationExecutor);
             final List<PersistentTasksExecutor<?>> pluginTaskExectors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
                 .map(
@@ -879,10 +883,9 @@ public class Node implements Closeable {
                 )
                 .flatMap(List::stream)
                 .collect(toList());
-            final List<PersistentTasksExecutor<?>> allTasksExectors = Stream.of(pluginTaskExectors, builtinTaskExecutors)
-                .flatMap(List::stream)
-                .collect(toList());
-            final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(allTasksExectors);
+            final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(
+                concatLists(pluginTaskExectors, builtinTaskExecutors)
+            );
             final PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(
                 settings,
                 registry,
@@ -901,15 +904,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            List<HealthIndicatorService> serverHealthIndicatorServices = List.of(
-                new InstanceHasMasterHealthIndicatorService(clusterService),
-                new RepositoryIntegrityHealthIndicatorService(clusterService)
-            );
-            List<HealthIndicatorService> pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
-                .stream()
-                .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
-                .toList();
-            HealthService healthService = new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices));
+            HealthService healthService = createHealthService(clusterService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -992,6 +987,7 @@ public class Node implements Closeable {
                 b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
+                b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
             });
             injector = modules.createInjector();
 
@@ -1042,6 +1038,18 @@ public class Node implements Closeable {
         }
     }
 
+    private HealthService createHealthService(ClusterService clusterService) {
+        var serverHealthIndicatorServices = List.of(
+            new InstanceHasMasterHealthIndicatorService(clusterService),
+            new RepositoryIntegrityHealthIndicatorService(clusterService)
+        );
+        var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
+            .stream()
+            .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
+            .toList();
+        return new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices));
+    }
+
     private RecoveryPlannerService getRecoveryPlannerService(
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -1062,8 +1070,7 @@ public class Node implements Closeable {
             threadPool,
             clusterService
         );
-        final RecoveryPlannerPlugin recoveryPlannerPlugin = recoveryPlannerPlugins.get(0);
-        return recoveryPlannerPlugin.createRecoveryPlannerService(shardSnapshotsService);
+        return recoveryPlannerPlugins.get(0).createRecoveryPlannerService(shardSnapshotsService);
     }
 
     protected TransportService newTransportService(

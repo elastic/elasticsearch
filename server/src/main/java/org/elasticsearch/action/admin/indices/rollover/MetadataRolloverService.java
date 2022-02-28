@@ -278,7 +278,9 @@ public class MetadataRolloverService {
             currentState,
             createIndexClusterStateRequest,
             silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex(), newGeneration))
+            (builder, indexMetadata) -> builder.put(
+                ds.rollover(indexMetadata.getIndex(), newGeneration, templateV2.getDataStreamTemplate().getIndexMode())
+            )
         );
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());

@@ -17,9 +17,9 @@ import java.util.Deque;
  *
  * A fieldname named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}
  */
-public class DotExpandingXContentParser extends FilterXContentParser {
+public class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
-    private static class WrappingParser extends DelegatingXContentParser {
+    private static final class WrappingParser extends FilterXContentParser {
 
         final Deque<XContentParser> parsers = new ArrayDeque<>();
 
@@ -135,7 +135,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
             assert expandedTokens < subPaths.length * 2;
             if (expandedTokens == subPaths.length * 2 - 1) {
                 state = State.PARSING_ORIGINAL_CONTENT;
-                Token token = in.currentToken();
+                Token token = delegate().currentToken();
                 if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
                     innerLevel++;
                 }
@@ -170,7 +170,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
         return switch (state) {
             case EXPANDING_START_OBJECT -> expandedTokens % 2 == 1 ? Token.START_OBJECT : Token.FIELD_NAME;
             case ENDING_EXPANDED_OBJECT -> Token.END_OBJECT;
-            case PARSING_ORIGINAL_CONTENT -> in.currentToken();
+            case PARSING_ORIGINAL_CONTENT -> delegate().currentToken();
         };
     }
 
@@ -181,14 +181,14 @@ public class DotExpandingXContentParser extends FilterXContentParser {
             // whenever we are parsing some inner object/array we can easily delegate to the inner parser
             // e.g. field.with.dots: { obj:{ parsing here } }
             if (innerLevel > 0) {
-                return in.currentName();
+                return delegate().currentName();
             }
             Token token = currentToken();
             // if we are parsing the outer object/array, only at the start object/array we need to return
             // e.g. dots instead of field.with.dots otherwise we can simply delegate to the inner parser
             // which will do the right thing
             if (innerLevel == 0 && token != Token.START_OBJECT && token != Token.START_ARRAY) {
-                return in.currentName();
+                return delegate().currentName();
             }
             // note that innerLevel can be -1 if there are no inner object/array e.g. field.with.dots: value
             // as well as while there is and we are parsing their END_OBJECT or END_ARRAY
@@ -199,7 +199,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
     @Override
     public void skipChildren() throws IOException {
         if (state == State.EXPANDING_START_OBJECT) {
-            in.skipChildren();
+            delegate().skipChildren();
             state = State.ENDING_EXPANDED_OBJECT;
         }
         if (state == State.PARSING_ORIGINAL_CONTENT) {
@@ -231,7 +231,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
         return super.booleanValue();
     }
 
-    private static class SingletonValueXContentParser extends FilterXContentParser {
+    private static class SingletonValueXContentParser extends FilterXContentParserWrapper {
 
         protected SingletonValueXContentParser(XContentParser in) {
             super(in);

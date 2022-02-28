@@ -403,6 +403,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.namedXContentRegistry = namedXContentRegistry;
         this.basePath = basePath;
         this.maxSnapshotCount = MAX_SNAPSHOTS_SETTING.get(metadata.settings());
+        this.repoDataDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
     }
 
     @Override
@@ -1866,7 +1867,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * {@link #bestEffortConsistency} must be {@code false}, in which case we can assume that the {@link RepositoryData} loaded is
      * unique for a given value of {@link #metadata} at any point in time.
      */
-    private final ResultDeduplicator<RepositoryMetadata, RepositoryData> repoDataDeduplicator = new ResultDeduplicator<>();
+    private final ResultDeduplicator<RepositoryMetadata, RepositoryData> repoDataDeduplicator;
 
     private void doGetRepositoryData(ActionListener<RepositoryData> listener) {
         // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
@@ -3474,8 +3475,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 };
                 final String partName = fileInfo.partName(i);
-                logger.trace(() -> new ParameterizedMessage("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path()));
+                logger.trace("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path());
+                final long startMS = threadPool.relativeTimeInMillis();
                 shardContainer.writeBlob(partName, inputStream, partBytes, false);
+                logger.trace(
+                    "[{}] Writing [{}] of size [{}b] to [{}] took [{}ms]",
+                    metadata.name(),
+                    partName,
+                    partBytes,
+                    shardContainer.path(),
+                    threadPool.relativeTimeInMillis() - startMS
+                );
             }
             Store.verify(indexInput);
             snapshotStatus.addProcessedFile(fileInfo.length());

@@ -121,7 +121,7 @@ public class MetadataMappingService {
                             public void onFailure(Exception e) {
                                 task.onFailure(e);
                             }
-                        });
+                        }, task);
                     } catch (Exception e) {
                         builder.failure(task, e);
                     }

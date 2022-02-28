@@ -14,13 +14,13 @@ import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizationResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.WordPieceTokenFilter;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.OptionalInt;
 
@@ -40,25 +40,28 @@ public class FillMaskProcessorTests extends ESTestCase {
                 { 0, 0, 0, 0, 0, 0, 0 }, // The
                 { 0, 0, 0, 0, 0, 0, 0 }, // capital
                 { 0, 0, 0, 0, 0, 0, 0 }, // of
-                { 0.01, 0.01, 0.3, 0.1, 0.01, 0.2, 1.2 }, // MASK
+                { 0.01, 0.01, 0.3, 0.01, 0.2, 1.2, 0.1 }, // MASK
                 { 0, 0, 0, 0, 0, 0, 0 }, // is
                 { 0, 0, 0, 0, 0, 0, 0 } // paris
             } };
 
         String input = "The capital of " + BertTokenizer.MASK_TOKEN + " is Paris";
 
-        List<String> vocab = Arrays.asList("The", "capital", "of", BertTokenizer.MASK_TOKEN, "is", "Paris", "France");
+        List<String> vocab = Arrays.asList("The", "capital", "of", "is", "Paris", "France", BertTokenizer.MASK_TOKEN);
         List<WordPieceTokenFilter.WordPieceToken> tokens = List.of();
 
         int[] tokenMap = new int[] { 0, 1, 2, 3, 4, 5 };
-        int[] tokenIds = new int[] { 0, 1, 2, 3, 4, 5 };
+        int[] tokenIds = new int[] { 0, 1, 2, 6, 4, 5 };
 
-        TokenizationResult tokenization = new TokenizationResult(vocab);
-        tokenization.addTokenization(input, false, tokens, tokenIds, tokenMap);
+        TokenizationResult tokenization = new BertTokenizationResult(
+            vocab,
+            List.of(new TokenizationResult.Tokens(input, tokens, false, tokenIds, tokenMap)),
+            0
+        );
 
         BertTokenizer tokenizer = mock(BertTokenizer.class);
         when(tokenizer.getMaskToken()).thenReturn(BertTokenizer.MASK_TOKEN);
-        when(tokenizer.getMaskTokenId()).thenReturn(OptionalInt.of(3));
+        when(tokenizer.getMaskTokenId()).thenReturn(OptionalInt.of(6));
 
         String resultsField = randomAlphaOfLength(10);
         FillMaskResults result = (FillMaskResults) FillMaskProcessor.processResult(
@@ -84,8 +87,11 @@ public class FillMaskProcessorTests extends ESTestCase {
         BertTokenizer tokenizer = mock(BertTokenizer.class);
         when(tokenizer.getMaskToken()).thenReturn("[MASK]");
 
-        TokenizationResult tokenization = new TokenizationResult(Collections.emptyList());
-        tokenization.addTokenization("", false, Collections.emptyList(), new int[] {}, new int[] {});
+        TokenizationResult tokenization = new BertTokenizationResult(
+            List.of(),
+            List.of(new TokenizationResult.Tokens("", List.of(), false, new int[0], new int[0])),
+            0
+        );
 
         PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", new double[][][] { { {} } }, 0L, null);
         expectThrows(

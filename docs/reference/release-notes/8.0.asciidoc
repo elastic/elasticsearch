@@ -32,6 +32,9 @@ Ingest::
 Machine Learning::
 * Retry anomaly detection job recovery during relocation {es-pull}83456[#83456]
 
+Monitoring::
+* Add `kibana_stats` version alias to `-mb` template {es-pull}83930[#83930]
+
 Packaging::
 * Add `log4j-slf4j-impl` to `repository-azure` {es-pull}83661[#83661] (issue: {es-issue}83652[#83652])
 * Restart ES after keystore upgrade in `postinst` {es-pull}84224[#84224] (issue: {es-issue}82433[#82433])

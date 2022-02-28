@@ -1488,11 +1488,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         // API key can run-as, when that happens, the following field will be _es_api_key,
                         // not the API key owner user's realm.
                         .with(PRINCIPAL_RUN_BY_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
-                    // TODO: API key can run-as which means we could use extra fields
+                    // TODO: API key can run-as which means we could use extra fields (#84394)
                 } else {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
                 }
             }
+            // TODO: service token info is logged in a separate authentication field (#84394)
             if (authentication.isAuthenticatedWithServiceAccount()) {
                 logEntry.with(SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
                     .with(

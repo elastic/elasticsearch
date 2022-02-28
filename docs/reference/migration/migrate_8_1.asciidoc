@@ -96,5 +96,22 @@ actions.
 Ensure that bulk actions are well-formed JSON objects containing a single entry
 with the correct key.
 ====
+
+[[deprecate_index_include_frozen_request_parameter_in_sql_api]]
+.Deprecate `index_include_frozen` request parameter in `_sql` API
+[%collapsible]
+====
+*Details* +
+Following the deprecation of frozen indices, the `index_include_frozen`
+parameter and `FROZEN` syntax is now also deprecated.
+
+*Impact* +
+You should unfreeze frozen indices using the
+{ref}/unfreeze-index-api.html[unfreeze index API] and stop using the
+`index_include_frozen` parameter or the `FROZEN` keyword in SQL
+queries. For some use cases, the frozen tier may be a suitable
+replacement for frozen indices. See {ref}/data-tiers.html[data tiers]
+for more information.
+====
 // end::notable-breaking-changes[]
 

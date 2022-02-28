@@ -180,6 +180,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             HttpURLConnection tokenUrlConnection;
             try {
                 tokenUrlConnection = (HttpURLConnection) new URL(azMetadataTokenUrl).openConnection();
+                tokenUrlConnection.setRequestMethod("PUT");
                 tokenUrlConnection.setConnectTimeout(CONNECT_TIMEOUT);
                 tokenUrlConnection.setRequestProperty(
                     "X-aws-ec2-metadata-token-ttl-seconds",

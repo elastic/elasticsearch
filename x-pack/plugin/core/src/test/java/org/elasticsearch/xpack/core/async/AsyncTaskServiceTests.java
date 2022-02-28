@@ -166,7 +166,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
             Authentication differentUser = new Authentication(
                 new User("test2", "role"),
-                new Authentication.RealmRef("realm", "realm", "node"),
+                new Authentication.RealmRef("realm", "file", "node"),
                 null
             );
             differentUser.writeToContext(indexService.getSecurityContext().getThreadContext());

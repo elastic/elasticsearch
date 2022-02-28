@@ -159,6 +159,9 @@ public class AuthenticationTests extends ESTestCase {
         assertCanAccessResources(original2, token2.token());
         assertCanAccessResources(token2, token2.token());
 
+        assertCannotAccessResources(original, original2);
+        assertCannotAccessResources(original, token2);
+        assertCannotAccessResources(token, original2);
         assertCannotAccessResources(token, token2);
         assertCannotAccessResources(token.token(), token2);
         assertCannotAccessResources(token, token2.token());
@@ -205,10 +208,14 @@ public class AuthenticationTests extends ESTestCase {
         assertCannotAccessResources(original, runAs3.token());
         assertCannotAccessResources(original.token(), runAs3.token());
 
-        if ((false == FileRealmSettings.TYPE.equals(realmRef.getType()) && false == FileRealmSettings.TYPE.equals(otherRealmRef.getType()))
-            || (false == NativeRealmSettings.TYPE.equals(realmRef.getType())
-                && false == NativeRealmSettings.TYPE.equals(otherRealmRef.getType()))) {
-            Authentication runAs4 = original.runAs(user, otherRealmRef);
+        Authentication runAs4 = original.runAs(user, otherRealmRef);
+        if (FileRealmSettings.TYPE.equals(realmRef.getType()) && FileRealmSettings.TYPE.equals(otherRealmRef.getType())
+            || NativeRealmSettings.TYPE.equals(realmRef.getType()) && NativeRealmSettings.TYPE.equals(otherRealmRef.getType())) {
+            assertCanAccessResources(original, runAs4);
+            assertCanAccessResources(original.token(), runAs4);
+            assertCanAccessResources(original, runAs4.token());
+            assertCanAccessResources(original.token(), runAs4.token());
+        } else {
             assertCannotAccessResources(original, runAs4);
             assertCannotAccessResources(original.token(), runAs4);
             assertCannotAccessResources(original, runAs4.token());

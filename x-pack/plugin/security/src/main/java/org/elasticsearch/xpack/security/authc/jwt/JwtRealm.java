@@ -50,7 +50,11 @@ import java.util.Map;
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
 
-    record JwksAlgs(List<JWK> jwks, List<String> algs) {}
+    record JwksAlgs(List<JWK> jwks, List<String> algs) {
+        boolean isEmpty() {
+            return jwks.isEmpty() && algs.isEmpty();
+        }
+    }
 
     public static final String HEADER_END_USER_AUTHENTICATION = "Authorization";
     public static final String HEADER_CLIENT_AUTHENTICATION = "X-Client-Authentication";

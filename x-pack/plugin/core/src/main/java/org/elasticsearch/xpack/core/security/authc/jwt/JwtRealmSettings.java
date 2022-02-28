@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -80,7 +80,7 @@ public class JwtRealmSettings {
      * @return All secure and non-secure settings.
      */
     public static Set<Setting.AffixSetting<?>> getSettings() {
-        final Set<Setting.AffixSetting<?>> set = new LinkedHashSet<>();
+        final Set<Setting.AffixSetting<?>> set = new HashSet<>();
         set.addAll(JwtRealmSettings.getNonSecureSettings());
         set.addAll(JwtRealmSettings.getSecureSettings());
         return set;
@@ -91,7 +91,7 @@ public class JwtRealmSettings {
      * @return All non-secure settings.
      */
     private static Set<Setting.AffixSetting<?>> getNonSecureSettings() {
-        final Set<Setting.AffixSetting<?>> set = new LinkedHashSet<>();
+        final Set<Setting.AffixSetting<?>> set = new HashSet<>();
         // Standard realm settings: order, enabled
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         // JWT Issuer settings
@@ -132,7 +132,7 @@ public class JwtRealmSettings {
      * @return All secure settings.
      */
     private static Set<Setting.AffixSetting<SecureString>> getSecureSettings() {
-        return new LinkedHashSet<>(List.of(HMAC_JWKSET, HMAC_KEY, CLIENT_AUTHENTICATION_SHARED_SECRET));
+        return new HashSet<>(List.of(HMAC_JWKSET, HMAC_KEY, CLIENT_AUTHENTICATION_SHARED_SECRET));
     }
 
     // JWT issuer settings

@@ -61,8 +61,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final List<String> allowedAudiences;
     final String jwkSetPath;
     final CloseableHttpAsyncClient httpClient;
-    JwtRealm.JwksAlgs jwksAlgsHmac;
-    JwtRealm.JwksAlgs jwksAlgsPkc;
+    final JwtRealm.JwksAlgs jwksAlgsHmac;
+    final JwtRealm.JwksAlgs jwksAlgsPkc;
     final TimeValue allowedClockSkew;
     final Boolean populateUserMetadata;
     final ClaimParser claimParserPrincipal;
@@ -107,13 +107,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.httpClient = null; // no setting means no HTTP client
         }
 
-        this.parseJwksAlgsHmac();
-        this.parseJwksAlgsPkc();
+        this.jwksAlgsHmac = this.parseJwksAlgsHmac();
+        this.jwksAlgsPkc = this.parseJwksAlgsPkc();
         this.verifyAnyAvailableJwkAndAlgPair();
     }
 
     // must call parseAlgsAndJwksHmac() before parseAlgsAndJwksPkc()
-    private void parseJwksAlgsHmac() {
+    private JwtRealm.JwksAlgs parseJwksAlgsHmac() {
         final JwtRealm.JwksAlgs jwksAlgsHmac;
         final SecureString hmacJwkSetContents = super.config.getSetting(JwtRealmSettings.HMAC_JWKSET);
         final SecureString hmacKeyContents = super.config.getSetting(JwtRealmSettings.HMAC_KEY);
@@ -150,10 +150,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, algsHmac);
         }
         LOGGER.info("Usable HMAC: JWKs [" + jwksAlgsHmac.jwks.size() + "]. Algorithms [" + String.join(",", jwksAlgsHmac.algs()) + "].");
-        this.jwksAlgsHmac = jwksAlgsHmac;
+        return jwksAlgsHmac;
     }
 
-    private void parseJwksAlgsPkc() {
+    private JwtRealm.JwksAlgs parseJwksAlgsPkc() {
         final JwtRealm.JwksAlgs jwksAlgsPkc;
         if (Strings.hasText(this.jwkSetPath) == false) {
             jwksAlgsPkc = new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
@@ -188,7 +188,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, algsPkc);
         }
         LOGGER.info("Usable PKC: JWKs [" + jwksAlgsPkc.jwks().size() + "]. Algorithms [" + String.join(",", jwksAlgsPkc.algs()) + "].");
-        this.jwksAlgsPkc = jwksAlgsPkc;
+        return jwksAlgsPkc;
     }
 
     private void verifyAnyAvailableJwkAndAlgPair() {

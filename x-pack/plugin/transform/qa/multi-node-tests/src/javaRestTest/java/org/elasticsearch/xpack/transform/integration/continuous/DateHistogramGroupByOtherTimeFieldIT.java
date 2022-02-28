@@ -101,7 +101,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
     @Override
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
         String eventAgg = """
-            , { "aggs" : { "event": {"terms": {"field": "%s", "size": 1000, "order": {"_key": "asc"}}}}}
+            , "aggs" : {"event": {"terms": {"field": "%s", "size": 1000, "order": {"_key": "asc"}}}}
             """.formatted(termsField);
 
         String querySource = """
@@ -222,9 +222,9 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             if ((Integer) b.get("doc_count") == 0) {
                 continue;
             }
-            var terms = ((List<Map<String, Object>>) XContentMapValues.extractValue("aggs.event.buckets", b));
+            var terms = ((List<Map<String, Object>>) XContentMapValues.extractValue("event.buckets", b));
             for (var t : terms) {
-                flattenedBuckets.add(flattenedResult((String) b.get("key"), (String) t.get("key"), (Integer) t.get("doc_count")));
+                flattenedBuckets.add(flattenedResult((String) b.get("key_as_string"), (String) t.get("key"), (Integer) t.get("doc_count")));
             }
         }
 

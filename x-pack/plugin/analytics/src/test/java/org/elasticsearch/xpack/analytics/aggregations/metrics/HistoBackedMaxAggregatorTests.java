@@ -18,7 +18,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -45,7 +45,7 @@ public class HistoBackedMaxAggregatorTests extends AggregatorTestCase {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, max -> {
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0d);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -55,7 +55,7 @@ public class HistoBackedMaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] { 3, 1.2, 10 })));
             iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] { 5.3, 6, 20 })));
         }, max -> {
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0d);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -66,7 +66,7 @@ public class HistoBackedMaxAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { 5.3, 6, 6, 20 })));
             iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { -10, 0.01, 1, 90 })));
         }, max -> {
-            assertEquals(90d, max.getValue(), 0.01d);
+            assertEquals(90d, max.value(), 0.01d);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -104,13 +104,12 @@ public class HistoBackedMaxAggregatorTests extends AggregatorTestCase {
                 )
             );
         }, min -> {
-            assertEquals(90d, min.getValue(), 0.01d);
+            assertEquals(90d, min.value(), 0.01d);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<InternalMax> verify)
-        throws IOException {
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Max> verify) throws IOException {
         testCase(max("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
     }
 

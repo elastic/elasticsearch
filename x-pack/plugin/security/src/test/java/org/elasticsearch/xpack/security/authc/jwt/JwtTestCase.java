@@ -33,9 +33,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
@@ -237,55 +235,6 @@ public abstract class JwtTestCase extends ESTestCase {
             listener.onResponse(new HashSet<>(Arrays.asList("kibana_user", "role1")));
             return null;
         };
-    }
-
-    public static String printRealmSettings(final RealmConfig config, final boolean includeSecureSettings) {
-        final StringBuilder sb = new StringBuilder("\n===\nelasticsearch.yml settings\n===\n");
-        int numRegularSettings = 0;
-        for (final Setting.AffixSetting<?> setting : JwtRealmSettings.getNonSecureSettings()) {
-            final String key = RealmSettings.getFullSettingKey(config, setting);
-            if (key.startsWith("xpack.") && config.hasSetting(setting)) {
-                sb.append(key).append(": ").append(config.getSetting(setting)).append('\n');
-                numRegularSettings++;
-            }
-        }
-        if (numRegularSettings == 0) {
-            sb.append("Not found.\n");
-        }
-        sb.append("\n===\nPKC JWKSet contents\n===\n");
-        if (config.hasSetting(JwtRealmSettings.PKC_JWKSET_PATH) == false) {
-            sb.append("Not found.\n");
-        } else {
-            final String key = RealmSettings.getFullSettingKey(config, JwtRealmSettings.PKC_JWKSET_PATH);
-            final String pkcJwkSetPath = config.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
-            try {
-                if (JwtUtil.parseHttpsUri(pkcJwkSetPath) != null) {
-                    sb.append("Found, but [").append(pkcJwkSetPath).append("] is not a local file.\n");
-                } else {
-                    final byte[] pkcJwkSetFileBytes = JwtUtil.readFileContents(key, pkcJwkSetPath, config.env());
-                    sb.append(new String(pkcJwkSetFileBytes, StandardCharsets.UTF_8)).append('\n');
-                }
-            } catch (SettingsException se) {
-                sb.append("Failed to load local file [").append(pkcJwkSetPath).append("].\n").append(se).append('\n');
-            }
-        }
-        sb.append('\n');
-        if (includeSecureSettings) {
-            int numSecureSettings = 0;
-            sb.append("===\nelasticsearch-keystore secure settings\n===\n");
-            for (final Setting.AffixSetting<?> setting : JwtRealmSettings.getSecureSettings()) {
-                final String key = RealmSettings.getFullSettingKey(config, setting);
-                if (key.startsWith("xpack.") && config.hasSetting(setting)) {
-                    sb.append(key).append(": ").append(config.getSetting(setting)).append('\n');
-                    numSecureSettings++;
-                }
-            }
-            if (numSecureSettings == 0) {
-                sb.append("Not found.\n");
-            }
-        }
-        sb.append('\n');
-        return sb.toString();
     }
 
     protected UserRoleMapper buildRoleMapper(final Map<String, User> registeredUsers) {

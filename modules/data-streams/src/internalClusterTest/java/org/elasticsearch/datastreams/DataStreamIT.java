@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
@@ -683,6 +684,11 @@ public class DataStreamIT extends ESIntegTestCase {
 
         DeleteComposableIndexTemplateAction.Request deleteRequest = new DeleteComposableIndexTemplateAction.Request("id");
         client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteRequest).get();
+
+        GetComposableIndexTemplateAction.Request getReq = new GetComposableIndexTemplateAction.Request("id");
+        Exception e3 = expectThrows(Exception.class, () -> client().execute(GetComposableIndexTemplateAction.INSTANCE, getReq).get());
+        maybeE = ExceptionsHelper.unwrapCausesAndSuppressed(e3, err -> err.getMessage().contains("index template matching [id] not found"));
+        assertTrue(maybeE.isPresent());
     }
 
     public void testAliasActionsOnDataStreams() throws Exception {

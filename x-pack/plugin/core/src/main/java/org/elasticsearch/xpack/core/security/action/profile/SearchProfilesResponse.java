@@ -67,7 +67,7 @@ public class SearchProfilesResponse extends ActionResponse implements ToXContent
                 builder.field("relation", totalHits.relation == TotalHits.Relation.EQUAL_TO ? "eq" : "gte");
             }
             builder.endObject();
-            builder.startArray("users");
+            builder.startArray("profiles");
             {
                 for (ProfileHit profileHit : profileHits) {
                     profileHit.toXContent(builder, params);
@@ -95,12 +95,10 @@ public class SearchProfilesResponse extends ActionResponse implements ToXContent
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field("_score", score);
                 builder.field("uid", profile.uid());
                 profile.user().toXContent(builder, params);
                 builder.field("access", profile.access());
                 builder.field("data", profile.applicationData());
-                // TODO: output a field of sort which is just score plus uid?
             }
             builder.endObject();
             return builder;

@@ -69,7 +69,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalValueCount(name, samplingContext.inverseScale(value), getMetadata());
+        return new InternalValueCount(name, samplingContext.scaleUp(value), getMetadata());
     }
 
     @Override

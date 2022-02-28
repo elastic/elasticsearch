@@ -862,9 +862,9 @@ public class MetadataIndexTemplateService {
             .map(templateName -> metadata.templatesV2().get(templateName))
             .filter(Objects::nonNull)
             .map(ComposableIndexTemplate::indexPatterns)
-            .map(Set::copyOf)
+            .map(patterns -> (Set<String>) new HashSet<>(patterns))
             .reduce(Sets::union)
-            .orElse(Set.of());
+            .orElse(Collections.emptySet());
 
         return metadata.dataStreams()
             .values()

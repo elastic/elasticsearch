@@ -2359,8 +2359,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             containsString("unable to remove composable templates [logs, logs2] as they are in use by a data streams [logs-mysql-default]")
         );
 
-        assertThat(MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Set.of("logs")), equalTo(Set.of()));
-        assertThat(MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Set.of("logs2")), equalTo(Set.of("logs-mysql-default")));
+        assertThat(
+            MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Collections.singleton("logs")),
+            equalTo(Collections.emptySet())
+        );
+        assertThat(
+            MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Collections.singleton("logs2")),
+            equalTo(Collections.singleton("logs-mysql-default"))
+        );
 
         // The unreferenced template can be removed without an exception
         MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs");

@@ -517,23 +517,18 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 });
 
                 return threadPool.scheduleWithFixedDelay(() -> {
-                    final ThreadContext threadContext = threadPool.getThreadContext();
-                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                        // we have to execute under the system context so that if security is enabled the management is authorized
-                        threadContext.markAsSystemContext();
-                        logger.trace(
-                            "{} background renewing retention lease [{}] while following",
-                            params.getFollowShardId(),
-                            retentionLeaseId
-                        );
-                        CcrRetentionLeases.asyncRenewRetentionLease(
-                            params.getLeaderShardId(),
-                            retentionLeaseId,
-                            followerGlobalCheckpoint.getAsLong() + 1,
-                            remoteClient(params),
-                            listener
-                        );
-                    }
+                    logger.trace(
+                        "{} background renewing retention lease [{}] while following",
+                        params.getFollowShardId(),
+                        retentionLeaseId
+                    );
+                    CcrRetentionLeases.asyncRenewRetentionLease(
+                        params.getLeaderShardId(),
+                        retentionLeaseId,
+                        followerGlobalCheckpoint.getAsLong() + 1,
+                        remoteClient(params),
+                        listener
+                    );
                 }, retentionLeaseRenewInterval, Ccr.CCR_THREAD_POOL_NAME);
             }
 

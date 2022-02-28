@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -24,6 +24,7 @@ import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -145,13 +146,13 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         assertThat(numBuckets, equalTo(expected));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84152")
     public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
         for (int i = 0; i < 1000; i++) {
             int precision = randomIntBetween(0, 3);
             Geometry geometry = randomValueOtherThanMany(g -> {
                 try {
-                    GeometryNormalizer.apply(Orientation.CCW, g);
+                    indexer.indexShape(g);
                     return false;
                 } catch (Exception e) {
                     return true;

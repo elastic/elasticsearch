@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -184,6 +185,18 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         public int hashCode() {
             return Objects.hash(getClass(), docCount, key, from, to, aggregations);
         }
+
+        Bucket finalizeSampling(SamplingContext samplingContext) {
+            return new Bucket(
+                format,
+                keyed,
+                key,
+                from,
+                to,
+                samplingContext.scaleUp(docCount),
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
+        }
     }
 
     protected final DocValueFormat format;
@@ -269,6 +282,17 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             );
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata);
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalBinaryRange(
+            name,
+            format,
+            keyed,
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            metadata
+        );
     }
 
     @Override

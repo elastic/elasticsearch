@@ -851,10 +851,6 @@ public class SecuritySystemIndices {
                                     builder.field("type", "search_as_you_type");
                                     builder.endObject();
 
-                                    builder.startObject("display_name");
-                                    builder.field("type", "search_as_you_type");
-                                    builder.endObject();
-
                                     builder.startObject("active");
                                     builder.field("type", "boolean");
                                     builder.endObject();

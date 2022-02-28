@@ -32,6 +32,7 @@ parameter:
 * Formats dates and spatial data types
 * Retrieves <<runtime-retrieving-fields,runtime field values>>
 * Returns fields calculated by a script at index time
+* Returns fields from related indices using <<lookup-runtime-fields, lookup runtime fields>>
 // end::fields-param-desc[]
 
 Other mapping options are also respected, including

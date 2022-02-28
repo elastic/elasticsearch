@@ -151,6 +151,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          *                        needs to properly process the completion of a cluster state update.
          */
         // TODO remove all remaining usages of the published state and then make publishListener an ActionListener<Void>
+        // see https://github.com/elastic/elasticsearch/issues/84415
         void success(ActionListener<ClusterState> publishListener);
 
         /**
@@ -176,6 +177,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          *                                notification happens via {@code publishListener.onFailure()}: this listener is not notified.
          */
         // TODO remove all remaining usages of the published state and then make publishListener an ActionListener<Void>
+        // see https://github.com/elastic/elasticsearch/issues/84415
         void success(ActionListener<ClusterState> publishListener, ClusterStateAckListener clusterStateAckListener);
 
         /**

@@ -79,7 +79,7 @@ public class JwkValidateUtil {
                 final int min = MACSigner.getMinRequiredSecretLength(JWSAlgorithm.parse(algorithm));
                 final boolean isMatch = bits >= min;
                 if (isMatch == false) {
-                    LOGGER.warn("HMAC JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
+                    LOGGER.debug("HMAC JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
                 }
                 return isMatch;
             } else if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA.contains(algorithm)) && (jwk instanceof RSAKey jwkRsa)) {
@@ -87,7 +87,7 @@ public class JwkValidateUtil {
                 final int min = RSAKeyGenerator.MIN_KEY_SIZE_BITS;
                 final boolean isMatch = bits >= min;
                 if (isMatch == false) {
-                    LOGGER.warn("RSA JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
+                    LOGGER.debug("RSA JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
                 }
                 return isMatch;
             } else if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_EC.contains(algorithm)) && (jwk instanceof ECKey jwkEc)) {
@@ -95,7 +95,7 @@ public class JwkValidateUtil {
                 final Set<Curve> allowed = Curve.forJWSAlgorithm(JWSAlgorithm.parse(algorithm));
                 final boolean isMatch = allowed.contains(curve);
                 if (isMatch == false) {
-                    LOGGER.warn("EC JWK [" + curve + "] curve not allowed for algorithm [" + algorithm + "] allowed " + allowed + ".");
+                    LOGGER.debug("EC JWK [" + curve + "] curve not allowed for algorithm [" + algorithm + "] allowed " + allowed + ".");
                 }
                 return isMatch;
             }

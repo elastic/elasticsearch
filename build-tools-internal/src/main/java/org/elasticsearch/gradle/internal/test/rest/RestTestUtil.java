@@ -9,15 +9,11 @@
 package org.elasticsearch.gradle.internal.test.rest;
 
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
-import org.gradle.api.tasks.TaskProvider;
-import org.gradle.api.tasks.bundling.AbstractArchiveTask;
-import org.gradle.api.tasks.bundling.Zip;
 
 /**
  * Utility class to configure the necessary tasks and dependencies.

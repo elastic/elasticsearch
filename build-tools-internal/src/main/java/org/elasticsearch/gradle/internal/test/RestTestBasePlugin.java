@@ -27,8 +27,6 @@ import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
-import java.io.File;
-import java.util.Map;
 
 public class RestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";
@@ -82,20 +80,18 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .withType(StandaloneRestIntegTestTask.class)
             .configureEach(t -> t.finalizedBy(project.getTasks().withType(FixtureStop.class)));
 
+        project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(t ->
+        // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
+        project.getPluginManager().withPlugin("elasticsearch.internal-es-plugin", plugin -> {
+            TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named("bundlePlugin");
+            t.dependsOn(bundle);
+            if (GradleUtils.isModuleProject(project.getPath())) {
+                t.getClusters().forEach(c -> c.module(bundle.flatMap(AbstractArchiveTask::getArchiveFile)));
+            } else {
+                t.getClusters().forEach(c -> c.plugin(bundle.flatMap(AbstractArchiveTask::getArchiveFile)));
+            }
 
-        project.getTasks()
-                .withType(StandaloneRestIntegTestTask.class).configureEach( t ->
-                // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
-                project.getPluginManager().withPlugin("elasticsearch.internal-es-plugin", plugin -> {
-                    TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named("bundlePlugin");
-                    t.dependsOn(bundle);
-                    if (GradleUtils.isModuleProject(project.getPath())) {
-                        t.getClusters().forEach(c -> c.module(bundle.flatMap(AbstractArchiveTask::getArchiveFile)));
-                    } else {
-                        t.getClusters().forEach(c -> c.plugin(bundle.flatMap(AbstractArchiveTask::getArchiveFile)));
-                    }
-
-                }));
+        }));
     }
 
     private String systemProperty(String propName) {

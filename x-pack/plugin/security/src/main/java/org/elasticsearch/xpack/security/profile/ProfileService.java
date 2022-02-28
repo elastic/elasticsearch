@@ -54,6 +54,8 @@ import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataReq
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -98,7 +100,6 @@ public class ProfileService {
     }
 
     // TODO: with request when we take request body for profile activation
-
     /**
      * Create a new profile or update an existing profile for the user of the given Authentication.
      * @param authentication This is the object from which the profile will be created or updated.
@@ -182,9 +183,7 @@ public class ProfileService {
                         "user_profile.user.full_name",
                         "user_profile.user.full_name._2gram",
                         "user_profile.user.full_name._3gram",
-                        "user_profile.user.display_name",
-                        "user_profile.user.display_name._2gram",
-                        "user_profile.user.display_name._3gram"
+                        "user_profile.user.email"
                     ).type(MultiMatchQueryBuilder.Type.BOOL_PREFIX)
                 );
             }
@@ -261,8 +260,10 @@ public class ProfileService {
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery("user_profile.user.username", subject.getUser().principal()));
             if (subject.getRealm().getDomain() == null) {
-                boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.name", subject.getRealm().getName()))
-                    .filter(QueryBuilders.termQuery("user_profile.user.realm.type", subject.getRealm().getType()));
+                boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.type", subject.getRealm().getType()));
+                if (false == isFileOrNativeRealm(subject.getRealm().getType())) {
+                    boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.name", subject.getRealm().getName()));
+                }
             } else {
                 logger.debug(
                     () -> new ParameterizedMessage(
@@ -273,11 +274,12 @@ public class ProfileService {
                     )
                 );
                 subject.getRealm().getDomain().realms().forEach(realmIdentifier -> {
-                    boolQuery.should(
-                        QueryBuilders.boolQuery()
-                            .filter(QueryBuilders.termQuery("user_profile.user.realm.name", realmIdentifier.getName()))
-                            .filter(QueryBuilders.termQuery("user_profile.user.realm.type", realmIdentifier.getType()))
-                    );
+                    final BoolQueryBuilder perRealmQuery = QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("user_profile.user.realm.type", realmIdentifier.getType()));
+                    if (false == isFileOrNativeRealm(realmIdentifier.getType())) {
+                        perRealmQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.name", realmIdentifier.getName()));
+                    }
+                    boolQuery.should(perRealmQuery);
                 });
                 boolQuery.minimumShouldMatch(1);
             }
@@ -484,13 +486,15 @@ public class ProfileService {
                 // Replace with incoming information even when they are null
                 subjectUser.email(),
                 subjectUser.fullName(),
-                // TODO: displayName is not available in Authentication object
-                doc.user().displayName(),
                 subjectUser.enabled()
             ),
             doc.access(),
             doc.applicationData()
         );
+    }
+
+    private boolean isFileOrNativeRealm(String realmType) {
+        return FileRealmSettings.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
     }
 
     // Package private for testing

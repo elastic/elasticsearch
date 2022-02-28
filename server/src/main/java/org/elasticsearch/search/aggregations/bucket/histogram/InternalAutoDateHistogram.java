@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of {@link Histogram}.
@@ -129,6 +131,15 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
         public DocValueFormat getFormatter() {
             return format;
+        }
+
+        Bucket finalizeSampling(SamplingContext samplingContext) {
+            return new Bucket(
+                key,
+                samplingContext.scaleUp(docCount),
+                format,
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
         }
     }
 
@@ -533,6 +544,19 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
             format,
             getMetadata(),
             reducedBucketsResult.innerInterval
+        );
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalAutoDateHistogram(
+            getName(),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            targetBuckets,
+            bucketInfo,
+            format,
+            getMetadata(),
+            bucketInnerInterval
         );
     }
 

@@ -226,10 +226,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // empty JSON is a common default value so it makes sense to optimize for it a little
             return Map.of();
         }
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, mappingSource)
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig(xContentRegistry), mappingSource)) {
             return parser.map();
         }
     }
@@ -241,15 +238,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         throws IOException {
         try (
             InputStream in = CompressorFactory.COMPRESSOR.threadLocalInputStream(mappingSource.compressedReference().streamInput());
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(
-                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
-                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                    in
-                )
+            XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig(xContentRegistry), in)
         ) {
             return parser.map();
         }
+    }
+
+    private static XContentParserConfiguration parserConfig(NamedXContentRegistry xContentRegistry) {
+        return XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
     }
 
     /**

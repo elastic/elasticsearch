@@ -11,7 +11,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -46,78 +45,37 @@ public class NlpTask {
     }
 
     public interface RequestBuilder {
-        @FunctionalInterface
-        interface IntToIntFunction {
-            int applyAsInt(int value);
-        }
-
-        @FunctionalInterface
-        interface TokenLookupFunction {
-            int apply(TokenizationResult.Tokenization tokenization, int index);
-        }
-
         Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate) throws IOException;
-
-        Request buildRequest(TokenizationResult tokenizationResult, String requestId) throws IOException;
-
-        static void writePaddedTokens(
-            String fieldName,
-            TokenizationResult tokenization,
-            int padToken,
-            TokenLookupFunction generator,
-            XContentBuilder builder
-        ) throws IOException {
-            builder.startArray(fieldName);
-            for (var inputTokens : tokenization.getTokenizations()) {
-                builder.startArray();
-                int i = 0;
-                for (; i < inputTokens.getTokenIds().length; i++) {
-                    builder.value(generator.apply(inputTokens, i));
-                }
-
-                for (; i < tokenization.getLongestSequenceLength(); i++) {
-                    builder.value(padToken);
-                }
-                builder.endArray();
-            }
-            builder.endArray();
-        }
-
-        static void writeNonPaddedArguments(
-            String fieldName,
-            int numTokenizations,
-            int longestSequenceLength,
-            IntToIntFunction generator,
-            XContentBuilder builder
-        ) throws IOException {
-            builder.startArray(fieldName);
-            for (int i = 0; i < numTokenizations; i++) {
-                builder.startArray();
-                for (int j = 0; j < longestSequenceLength; j++) {
-                    builder.value(generator.applyAsInt(j));
-                }
-                builder.endArray();
-            }
-            builder.endArray();
-        }
     }
 
     public interface ResultProcessor {
         InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult);
     }
 
-    public interface Processor extends Releasable {
+    public abstract static class Processor implements Releasable {
+
+        protected final NlpTokenizer tokenizer;
+
+        public Processor(NlpTokenizer tokenizer) {
+            this.tokenizer = tokenizer;
+        }
+
+        @Override
+        public void close() {
+            tokenizer.close();
+        }
+
         /**
          * Validate the task input string.
          * Throws an exception if the inputs fail validation
          *
          * @param inputs Text to validate
          */
-        void validateInputs(List<String> inputs);
+        public abstract void validateInputs(List<String> inputs);
 
-        RequestBuilder getRequestBuilder(NlpConfig config);
+        public abstract RequestBuilder getRequestBuilder(NlpConfig config);
 
-        ResultProcessor getResultProcessor(NlpConfig config);
+        public abstract ResultProcessor getResultProcessor(NlpConfig config);
     }
 
     public static String extractInput(TrainedModelInput input, Map<String, Object> doc) {
@@ -133,10 +91,7 @@ public class NlpTask {
         throw ExceptionsHelper.badRequestException("Input value [{}] for field [{}] must be a string", inputValue, inputField);
     }
 
-    public static class Request {
-        public final TokenizationResult tokenization;
-        public final BytesReference processInput;
-
+    public record Request(TokenizationResult tokenization, BytesReference processInput) {
         public Request(TokenizationResult tokenization, BytesReference processInput) {
             this.tokenization = Objects.requireNonNull(tokenization);
             this.processInput = Objects.requireNonNull(processInput);

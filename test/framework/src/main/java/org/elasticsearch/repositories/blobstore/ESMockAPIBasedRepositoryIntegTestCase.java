@@ -15,7 +15,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

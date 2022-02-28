@@ -109,7 +109,7 @@ public class Deprecation extends Plugin implements ActionPlugin {
 
         final RateLimitingFilter rateLimitingFilterForIndexing = new RateLimitingFilter();
         // enable on start.
-        rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.get(environment.settings()));
+//        rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.get(environment.settings()));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, rateLimitingFilterForIndexing::setUseXOpaqueId);
 

@@ -10,7 +10,7 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;

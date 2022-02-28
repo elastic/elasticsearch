@@ -20,7 +20,7 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;

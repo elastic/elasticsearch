@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.util.MessageSupplier;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 

@@ -11,7 +11,7 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.ESTestCase;
 

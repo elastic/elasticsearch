@@ -9,7 +9,7 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.logging.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;

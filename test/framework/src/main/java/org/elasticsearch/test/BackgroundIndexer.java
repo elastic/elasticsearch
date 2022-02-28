@@ -14,8 +14,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.logging.ParameterizedMessage;
+import java.util.function.Supplier;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;

@@ -9,8 +9,7 @@
 package org.elasticsearch.test.loggerusage;
 
 import org.apache.logging.log4j.Marker;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import java.util.function.Supplier;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;

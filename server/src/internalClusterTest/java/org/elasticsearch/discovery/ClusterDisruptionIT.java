@@ -8,7 +8,7 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;

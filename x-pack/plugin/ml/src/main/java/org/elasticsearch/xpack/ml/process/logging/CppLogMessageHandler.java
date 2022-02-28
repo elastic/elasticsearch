@@ -267,7 +267,7 @@ public class CppLogMessageHandler implements Closeable {
             XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
         ) {
             CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
-            Level level = Level.getLevel(msg.getLevel());
+            Level level = Level.valueOf(msg.getLevel());
             if (level == null) {
                 // This isn't expected to ever happen
                 level = Level.WARN;
@@ -290,7 +290,7 @@ public class CppLogMessageHandler implements Closeable {
             }
 
             // get out of here quickly if level isn't of interest
-            if (LOGGER.isEnabled(level) == false) {
+            if (LOGGER.isLoggable(level) == false) {
                 return;
             }
 

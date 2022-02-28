@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;

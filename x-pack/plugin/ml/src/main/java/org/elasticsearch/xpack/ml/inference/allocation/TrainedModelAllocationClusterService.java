@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.allocation;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -470,7 +471,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         }
         if (load.remainingJobs() == 0) {
             return Optional.of(
-                ParameterizedMessage.format(
+                //TODO PG not sure we should use logging formatters..
+                LoggerMessageFormat.format(
                     "This node is full. Number of opened jobs and allocated native inference processes [{}], {} [{}].",
                     new Object[] { load.getNumAssignedJobs(), MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxOpenJobs }
                 )
@@ -478,7 +480,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         }
         if (load.getFreeMemory() < params.estimateMemoryUsageBytes()) {
             return Optional.of(
-                ParameterizedMessage.format(
+                //TODO PG not sure we should use logging formatters..
+                LoggerMessageFormat.format(
                     "This node has insufficient available memory. Available memory for ML [{} ({})], "
                         + "memory required by existing jobs and models [{} ({})], "
                         + "estimated memory required for this model [{} ({})].",

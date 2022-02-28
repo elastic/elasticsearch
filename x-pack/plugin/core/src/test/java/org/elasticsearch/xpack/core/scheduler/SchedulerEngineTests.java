@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.scheduler;
 
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.ParameterizedMessage;
-import org.elasticsearch.logging.util.MessageSupplier;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;

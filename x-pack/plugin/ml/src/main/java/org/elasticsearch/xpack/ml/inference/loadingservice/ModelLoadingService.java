@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.ParameterizedMessage;
-import org.elasticsearch.logging.util.MessageSupplier;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -60,6 +60,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_MODEL_INFERENCE_FEATURE;
@@ -562,7 +563,7 @@ public class ModelLoadingService implements ClusterStateListener {
     private void cacheEvictionListener(RemovalNotification<String, ModelAndConsumer> notification) {
         try {
             if (notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
-                MessageSupplier msg = () -> new ParameterizedMessage(
+                Supplier<ParameterizedMessage> msg = () -> new ParameterizedMessage(
                     "model cache entry evicted."
                         + "current cache [{}] current max [{}] model size [{}]. "
                         + "If this is undesired, consider updating setting [{}] or [{}].",
@@ -778,7 +779,7 @@ public class ModelLoadingService implements ClusterStateListener {
         return changedAliases;
     }
 
-    private void auditIfNecessary(String modelId, MessageSupplier msg) {
+    private void auditIfNecessary(String modelId, Supplier<ParameterizedMessage>  msg) {
         if (shouldNotAudit.contains(modelId)) {
             logger.trace(() -> new ParameterizedMessage("[{}] {}", modelId, msg.get().getFormattedMessage()));
             return;

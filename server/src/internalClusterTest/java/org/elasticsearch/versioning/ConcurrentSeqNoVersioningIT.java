@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.versioning;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;

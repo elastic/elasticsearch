@@ -110,7 +110,8 @@ public class AnnotationPersister {
             if (bulkRequest.numberOfActions() == 0) {
                 return null;
             }
-            logger.trace("[{}] ES API CALL: bulk request with {} actions", () -> jobId, () -> bulkRequest.numberOfActions());
+            //TODO PG I would prefer the original one
+            logger.trace(()->new ParameterizedMessage("[{}] ES API CALL: bulk request with {} actions",  jobId, bulkRequest.numberOfActions()));
             BulkResponse bulkResponse = resultsPersisterService.bulkIndexWithRetry(
                 bulkRequest,
                 jobId,

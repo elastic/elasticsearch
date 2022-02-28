@@ -11,7 +11,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;

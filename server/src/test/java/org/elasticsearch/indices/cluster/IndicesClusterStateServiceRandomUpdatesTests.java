@@ -8,7 +8,7 @@
 
 package org.elasticsearch.indices.cluster;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.logging.LoggerMessageFormat;
 import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -61,7 +62,9 @@ public class JobNodeSelector {
 
     private static String createReason(String job, String node, String msg, Object... params) {
         String preamble = String.format(Locale.ROOT, "Not opening job [%s] on node [%s]. Reason: ", job, node);
-        return preamble + ParameterizedMessage.format(msg, params);
+
+        //TODO PG not sure we should use logging formatters..
+        return preamble + LoggerMessageFormat.format(msg, params);
     }
 
     private final String jobId;

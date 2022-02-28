@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;

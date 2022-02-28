@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;

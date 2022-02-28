@@ -84,7 +84,7 @@ public final class MockFSIndexStore {
             if (indexShard != null) {
                 Boolean remove = shardSet.remove(indexShard);
                 if (remove == Boolean.TRUE) {
-                    Logger logger = Loggers.getLogger(getClass(), indexShard.shardId());
+                    Logger logger = Loggers.getLogger(getClass(), indexShard.shardId().getId());
                     MockFSDirectoryFactory.checkIndex(logger, indexShard.store(), indexShard.shardId());
                 }
             }

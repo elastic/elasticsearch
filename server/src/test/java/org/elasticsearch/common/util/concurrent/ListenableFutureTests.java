@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.logging.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;

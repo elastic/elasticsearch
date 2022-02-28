@@ -32,6 +32,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -61,6 +62,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -68,6 +70,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -151,11 +155,13 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
+        private final Version indexCreatedVersion;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler, Version indexCreatedVersion) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
@@ -174,8 +180,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             }).precludesParameters(normalizer, ignoreAbove);
         }
 
-        public Builder(String name) {
-            this(name, null, ScriptCompiler.NONE);
+        public Builder(String name, Version indexCreatedVersion) {
+            this(name, null, ScriptCompiler.NONE, indexCreatedVersion);
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -274,7 +280,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler()));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), c.indexVersionCreated())
+    );
 
     public static final class KeywordFieldType extends StringFieldType {
 
@@ -295,7 +303,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         ) {
             super(
                 name,
-                fieldType.indexOptions() != IndexOptions.NONE,
+                fieldType.indexOptions() != IndexOptions.NONE && builder.indexCreatedVersion.isLegacyIndexVersion() == false,
                 fieldType.stored(),
                 builder.hasDocValues.getValue(),
                 new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, quoteAnalyzer),
@@ -822,6 +830,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final FieldValues<String> scriptValues;
     private final ScriptCompiler scriptCompiler;
     private final boolean dimension;
+    private final Version indexCreatedVersion;
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -858,6 +867,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
         this.dimension = builder.dimension.getValue();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     @Override
@@ -905,6 +915,27 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
+
+        // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to roll
+        // back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only
+        // workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC instead of
+        // MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
+        if (binaryValue.length > BYTE_BLOCK_SIZE - 2) {
+            byte[] prefix = new byte[30];
+            System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
+            String msg = "Document contains at least one immense term in field=\""
+                + fieldType().name()
+                + "\" (whose "
+                + "UTF8 encoding is longer than the max length "
+                + (BYTE_BLOCK_SIZE - 2)
+                + "), all of which were "
+                + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
+                + "term is: '"
+                + Arrays.toString(prefix)
+                + "...'";
+            throw new IllegalArgumentException(msg);
+        }
+
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
             context.doc().add(field);
@@ -953,6 +984,15 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
+        return new Builder(simpleName(), indexAnalyzers, scriptCompiler, indexCreatedVersion).dimension(dimension).init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup lookup) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
+            throw new IllegalArgumentException(
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
+            );
+        }
     }
 }

@@ -145,6 +145,11 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.DATE;
     }

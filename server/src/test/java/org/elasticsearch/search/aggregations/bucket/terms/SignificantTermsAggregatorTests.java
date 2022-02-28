@@ -19,13 +19,14 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -39,6 +40,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.InternalRandomSampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
@@ -181,6 +184,51 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
      */
     public void testSignificance() throws IOException {
         testSignificance(getRandomSignificanceheuristic());
+    }
+
+    /**
+     * Test to make sure foreground and background sets (when sampling) are over the same doc sets
+     *
+     * @throws IOException on test setup failure
+     */
+    public void testSamplingConsistency() throws IOException {
+        TextFieldType textFieldType = new TextFieldType("text");
+        textFieldType.setFielddata(true);
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
+        indexWriterConfig.setMaxBufferedDocs(10_000);
+        indexWriterConfig.setRAMBufferSizeMB(10_000); // flush on open to have a single segment
+
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            addManyMixedTextDocs(w);
+            RandomSamplerAggregationBuilder randomSamplerAggregationBuilder = new RandomSamplerAggregationBuilder("random").setProbability(
+                0.5
+            );
+
+            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text").field("text");
+            sigAgg.executionHint(randomExecutionHint());
+            if (randomBoolean()) {
+                // Use a background filter which just happens to be same scope as whole-index.
+                sigAgg.backgroundFilter(QueryBuilders.termsQuery("text", "common"));
+            }
+
+            randomSamplerAggregationBuilder.subAggregation(sigAgg);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                // Match all so background and foreground should be the same size
+                InternalRandomSampler randomSampler = searchAndReduce(
+                    searcher,
+                    // randomly select the query, but both should hit the same docs, which is all of them.
+                    randomBoolean() ? new MatchAllDocsQuery() : new TermQuery(new Term("text", "common")),
+                    randomSamplerAggregationBuilder,
+                    textFieldType
+                );
+                SignificantStringTerms terms = randomSampler.getAggregations().get("sig_text");
+                assertThat(Strings.toString(terms), terms.subsetSize, equalTo(terms.supersetSize));
+            }
+        }
     }
 
     /**
@@ -580,6 +628,25 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
     private void addMixedTextDocs(IndexWriter w) throws IOException {
         for (int i = 0; i < 10; i++) {
+            Document doc = new Document();
+            StringBuilder text = new StringBuilder("common ");
+            if (i % 2 == 0) {
+                text.append("odd ");
+            } else {
+                text.append("even ");
+            }
+
+            doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
+            String json = """
+                { "text" : "%s" }""".formatted(text.toString());
+            doc.add(new StoredField("_source", new BytesRef(json)));
+
+            w.addDocument(doc);
+        }
+    }
+
+    private void addManyMixedTextDocs(IndexWriter w) throws IOException {
+        for (int i = 0; i < 10_000; i++) {
             Document doc = new Document();
             StringBuilder text = new StringBuilder("common ");
             if (i % 2 == 0) {

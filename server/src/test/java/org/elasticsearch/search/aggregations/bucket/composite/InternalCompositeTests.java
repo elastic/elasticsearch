@@ -71,6 +71,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         int numFields = randomIntBetween(1, 10);

@@ -78,7 +78,7 @@ public class ParallelDetector {
     }
 
     private static boolean isMac(ProviderFactory providers) {
-        return providers.systemProperty("os.name").forUseAtConfigurationTime().getOrElse("").startsWith("Mac");
+        return providers.systemProperty("os.name").getOrElse("").startsWith("Mac");
     }
 
 }

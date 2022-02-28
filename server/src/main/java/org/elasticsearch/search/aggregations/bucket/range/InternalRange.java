@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class InternalRange<B extends InternalRange.Bucket, R extends InternalRange<B, R>> extends InternalMultiBucketAggregation<R, B>
     implements
@@ -355,6 +357,30 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             ranges.add(reduceBucket(rangeList[i], reduceContext));
         }
         return getFactory().create(name, ranges, format, keyed, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        InternalRange.Factory<B, R> factory = getFactory();
+        return factory.create(
+            name,
+            ranges.stream()
+                .map(
+                    b -> factory.createBucket(
+                        b.getKey(),
+                        b.from,
+                        b.to,
+                        samplingContext.scaleUp(b.getDocCount()),
+                        InternalAggregations.finalizeSampling(b.getAggregations(), samplingContext),
+                        b.keyed,
+                        b.format
+                    )
+                )
+                .collect(Collectors.toList()),
+            format,
+            keyed,
+            getMetadata()
+        );
     }
 
     @Override

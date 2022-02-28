@@ -2038,9 +2038,19 @@ provided by the JWT claims. Defaults to `true`.
 // tag::jwt-client-authentication-type-tag[]
 `client_authentication.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Specifies whether to use `sharedsecret` or `none` to authenticate
-incoming client requests. Defaults to `sharedsecret`.
+Specifies whether to use `SharedSecret` or `None` to authenticate
+incoming client requests. Defaults to `SharedSecret`.
+It is recommended to enable client authentication. If JWT bearer
+tokens are shared with other clients or services, client authentication
+restricts which ones are allowed to submit those JWTs to Elasticsearch.
 // end::jwt-client-authentication-type-tag[]
+
+// tag::jwt-client-authentication-shared-secret-tag[]
+`client_authentication.shared_secret` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Secret value string for client authentication.
+Required if client_authentication.type is `SharedSecret`.
+// end::jwt-client-authentication-shared-secret-tag[]
 
 `authorization_realms`::
 (<<static-cluster-setting,Static>>)
@@ -2048,18 +2058,6 @@ The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the JWT realm does not perform role
 mapping and instead loads the user from the listed realms.
 See <<authorization_realms>>.
-
-`cache.ttl`::
-(<<static-cluster-setting,Static>>)
-Specifies the time-to-live for cached entries of JWT and client credential.
-Successful authentications will be cached for this period of time. Use the
-standard {es} <<time-units,time units>>.
-Defaults to `20m`.
-
-`cache.max_users`::
-(<<static-cluster-setting,Static>>)
-Specifies the maximum number of JWT and client credential entries that the
-cache can contain. Defaults to `100000`.
 
 // tag::jwt-http-connect-timeout-tag[]
 `http.connect_timeout` {ess-icon}::

@@ -220,9 +220,20 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         IntStream.rangeClosed(1, numberOfNodes).mapToObj(node -> newNode("node" + node)).forEach(nodes::add);
         ClusterState stateAfterAddingNode = ClusterState.builder(clusterState).nodes(nodes).build();
-        RoutingTable afterReroute = allocationService.reroute(stateAfterAddingNode, reason).routingTable();
-        ClusterState stateAfterReroute = ClusterState.builder(stateAfterAddingNode).routingTable(afterReroute).build();
-        return ESAllocationTestCase.startInitializingShardsAndReroute(allocationService, stateAfterReroute);
+        ClusterState stateWithInitializingPrimary = allocationService.reroute(stateAfterAddingNode, reason);
+        ClusterState stateWithStartedPrimary = startInitializingShardsAndReroute(allocationService, stateWithInitializingPrimary);
+        final boolean secondReroute = randomBoolean();
+        ClusterState resultingState = secondReroute
+            ? startInitializingShardsAndReroute(allocationService, stateWithStartedPrimary)
+            : stateWithStartedPrimary;
+        final var indexShardRoutingTable = resultingState.routingTable().shardRoutingTable(INDEX, 0);
+        assertTrue(indexShardRoutingTable.primaryShard().started());
+        assertTrue(
+            indexShardRoutingTable.getShards()
+                .stream()
+                .anyMatch(sr -> sr.primary() == false && sr.unassigned() == false && (sr.started() || secondReroute == false))
+        );
+        return resultingState;
     }
 
     private List<FailedShardUpdateTask> createExistingShards(ClusterState currentState, String reason) {

@@ -39,10 +39,7 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         "Copy the following enrollment token and paste it into Kibana in your browser \\(valid for the next 30 minutes\\):\n(.+)$",
         Pattern.MULTILINE
     );
-    private static final Pattern FINGERPRINT_REGEX = Pattern.compile(
-        "HTTP CA certificate SHA-256 fingerprint:\n(.+)$",
-        Pattern.MULTILINE
-    );
+    private static final Pattern FINGERPRINT_REGEX = Pattern.compile("HTTP CA certificate SHA-256 fingerprint:\n(.+)$", Pattern.MULTILINE);
 
     private static final String OUTPUT_MATCH = "Configure other nodes to join this cluster*";
 

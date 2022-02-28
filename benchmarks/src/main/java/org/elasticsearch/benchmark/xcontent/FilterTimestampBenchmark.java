@@ -8,11 +8,11 @@
 
 package org.elasticsearch.benchmark.xcontent;
 
+import org.elasticsearch.cluster.metadata.IndexAbstraction.DataStream;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -27,8 +27,9 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -40,26 +41,50 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
 public class FilterTimestampBenchmark {
-    @Param({ "first", "last" })
+    @Param({ "first", "middle", "last" })
     private String type;
 
+    @Param({ "100", "500", "1000" })
+    private String fieldCount;
+
     private BytesReference source;
-    private XContentParserConfiguration parserConfig;
 
     @Setup
     public void setup() throws IOException {
-        String sourceFile = switch (type) {
-            case "first" -> "monitor_cluster_stats.json";
-            case "last" -> "monitor_cluster_stats_last_timestamp.json";
+        int count = Integer.valueOf(fieldCount);
+        Map<String, String> sourceMap = new LinkedHashMap<>();
+        String value = "2099-10-25T00:00:03.739Z";
+        switch (type) {
+            case "first" -> {
+                sourceMap.put("@timestamp", value);
+                for (int i = 1; i < count; i++) {
+                    sourceMap.put("field_" + i, value);
+                }
+            }
+            case "middle" -> {
+                for (int i = 0; i < count / 2; i++) {
+                    sourceMap.put("field_" + i, value);
+                }
+                sourceMap.put("@timestamp", value);
+                for (int i = count / 2; i < count; i++) {
+                    sourceMap.put("field_" + i, value);
+                }
+            }
+            case "last" -> {
+                for (int i = 0; i < count - 1; i++) {
+                    sourceMap.put("field_" + i, value);
+                }
+                sourceMap.put("@timestamp", value);
+            }
             default -> throw new IllegalArgumentException("Unknown type [" + type + "]");
-        };
-        source = Streams.readFully(FilterTimestampBenchmark.class.getResourceAsStream(sourceFile));
-        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.of("timestamp"), null, false);
+        }
+        ;
+        source = FetchSourcePhase.objectToBytes(sourceMap, XContentType.JSON, 1024);
     }
 
     @Benchmark
     public String filter() {
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig, source.streamInput())) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(DataStream.TS_EXTRACT_CONFIG, source.streamInput())) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             switch (parser.nextToken()) {

@@ -1,5 +1,5 @@
 pr: 83751
-summary: Improve performance of `date_histogram` sometimes
+summary: Improve performance of `date_histogram` when date histogram is in a BoostingQuery
 area: Aggregations
 type: enhancement
 issues:

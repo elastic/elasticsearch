@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 
 import org.apache.commons.math3.special.Beta;
 import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
-import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -25,6 +24,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.IntToDoubleFunction;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractBucket;
@@ -85,14 +85,14 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     static ChangeType maxDeviationNormalModelPValue(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
         double[] timeWindow = bucketValues.getValues();
-        double variance = RunningStats.from(timeWindow).variance();
+        double variance = RunningStats.from(timeWindow, i -> 1.0).variance();
         if (variance == 0.0) {
             return new ChangeType.Stationary();
         }
         int minIndex = 0;
         double minValue = Double.MAX_VALUE;
         int maxIndex = 0;
-        double maxValue = Double.MIN_VALUE;
+        double maxValue = -Double.MAX_VALUE;
         for (int i = 0; i < timeWindow.length; i++) {
             if (timeWindow[i] < minValue) {
                 minValue = timeWindow[i];
@@ -106,17 +106,14 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             }
         }
         KDE dist = new KDE(timeWindow, minIndex, maxIndex);
-        double minCf = dist.cdf(minValue);
-        double maxSf = dist.sf(maxValue);
+        KDE.ValueAndMagnitude pLeftTail = dist.adjCdf(minValue, timeWindow.length);
+        KDE.ValueAndMagnitude pRightTail = dist.adjSf(maxValue, timeWindow.length);
 
-        double pLeftTail = minCf > 1e-10 ? 1 - Math.pow(1 - minCf, timeWindow.length) : timeWindow.length * minCf;
-        double pRightTail = maxSf > 1e-10 ? 1 - Math.pow(1 - maxSf, timeWindow.length) : timeWindow.length * maxSf;
-
-        if (pLeftTail < pRightTail && pLeftTail * 2 < pValueThreshold) {
-            return new ChangeType.Dip(pLeftTail * 2, bucketValues.getBucketIndex(minIndex));
+        if (pLeftTail.isMoreSignificant(pRightTail) && pLeftTail.value() * 2 < pValueThreshold) {
+            return new ChangeType.Dip(pLeftTail.value() * 2, bucketValues.getBucketIndex(minIndex));
         }
-        if (pRightTail * 2 < pValueThreshold) {
-            return new ChangeType.Spike(pRightTail * 2, bucketValues.getBucketIndex(maxIndex));
+        if (pRightTail.value() * 2 < pValueThreshold) {
+            return new ChangeType.Spike(pRightTail.value() * 2, bucketValues.getBucketIndex(maxIndex));
         }
         return new ChangeType.Stationary();
 
@@ -128,9 +125,10 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         double pValueThreshold
     ) {
         double[] timeWindow = bucketValues.getValues();
+        double[] timeWindowWeights = outlierWeights(timeWindow);
         int[] candidateChangePoints = candidateChangePointsAndStep.v1();
         int step = candidateChangePointsAndStep.v2();
-        double totalVariance = RunningStats.from(timeWindow).variance();
+        double totalVariance = RunningStats.from(timeWindow, i -> timeWindowWeights[i]).variance();
         double vNull = totalVariance;
         ChangeType changeType = new ChangeType.Stationary();
         if (totalVariance == 0.0) {
@@ -138,7 +136,14 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
         double n = timeWindow.length;
         double dfNull = n - 1;
-        double rValue = fitTrend(timeWindow);
+        LeastSquaresOnlineRegression allLeastSquares = new LeastSquaresOnlineRegression(2);
+        double[] monotonicX = new double[timeWindow.length];
+        for (int i = 0; i < timeWindow.length; i++) {
+            allLeastSquares.add(i, timeWindow[i], timeWindowWeights[i]);
+            monotonicX[i] = i;
+        }
+        double rValue = allLeastSquares.squareResidual(monotonicX, timeWindow, allLeastSquares.parameters());
+
         double vAlt = totalVariance * (1 - Math.abs(rValue));
         double dfAlt = n - 3;
         double pValueVsNull = fTestPValue(vNull, dfNull, vAlt, dfAlt);
@@ -155,8 +160,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         RunningStats lowerRange = new RunningStats();
         RunningStats upperRange = new RunningStats();
         // Initialize running stats so that they are only missing the individual changepoint values
-        upperRange.addValues(timeWindow, candidateChangePoints[0], timeWindow.length);
-        lowerRange.addValues(timeWindow, 0, candidateChangePoints[0]);
+        upperRange.addValues(timeWindow, i -> timeWindowWeights[i], candidateChangePoints[0], timeWindow.length);
+        lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], 0, candidateChangePoints[0]);
         vAlt = Double.MAX_VALUE;
         Set<Integer> discoveredChangePoints = new HashSet<>(3, 1.0f);
         int changePoint = candidateChangePoints[candidateChangePoints.length - 1] + 1;
@@ -166,8 +171,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 vAlt = maybeVAlt;
                 changePoint = cp;
             }
-            lowerRange.addValues(timeWindow, cp, cp + step);
-            upperRange.removeValues(timeWindow, cp, cp + step);
+            lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], cp, cp + step);
+            upperRange.removeValues(timeWindow, i -> timeWindowWeights[i], cp, cp + step);
         }
         discoveredChangePoints.add(changePoint);
         dfAlt = n - 2;
@@ -183,22 +188,18 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         lowerRange = new RunningStats();
         upperRange = new RunningStats();
         // Initialize running stats so that they are only missing the individual changepoint values
-        upperRange.addValues(timeWindow, candidateChangePoints[0], timeWindow.length);
-        lowerRange.addValues(timeWindow, 0, candidateChangePoints[0]);
+        upperRange.addValues(timeWindow, i -> timeWindowWeights[i], candidateChangePoints[0], timeWindow.length);
+        lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], 0, candidateChangePoints[0]);
         LeastSquaresOnlineRegression lowerLeastSquares = new LeastSquaresOnlineRegression(2);
         LeastSquaresOnlineRegression upperLeastSquares = new LeastSquaresOnlineRegression(2);
         for (int i = 0; i < candidateChangePoints[0]; i++) {
-            lowerLeastSquares.add(i, timeWindow[i]);
+            lowerLeastSquares.add(i, timeWindow[i], timeWindowWeights[i]);
         }
         for (int i = candidateChangePoints[0], x = 0; i < timeWindow.length; i++, x++) {
-            upperLeastSquares.add(x, timeWindow[i]);
+            upperLeastSquares.add(x, timeWindow[i], timeWindowWeights[i]);
         }
         // TODO This is crazy inefficient, not only does it do multiple array copies, it calculates r_value without
         // taking account previous values.
-        double[] monotonicX = new double[timeWindow.length];
-        for (int i = 0; i < timeWindow.length; i++) {
-            monotonicX[i] = i;
-        }
         int upperMovingWindow = 0;
         for (int cp : candidateChangePoints) {
             double lowerRangeVar = lowerRange.variance();
@@ -211,6 +212,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 0,
                 cp,
                 lowerLeastSquares.parameters(),
+                i -> timeWindowWeights[i],
                 lowerRangeVar
             );
             double rv2 = upperLeastSquares.squareResidual(
@@ -221,6 +223,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 cp,
                 timeWindow.length - cp,
                 upperLeastSquares.parameters(),
+                i -> timeWindowWeights[i],
                 upperRangeVar
             );
             double v1 = lowerRangeVar * (1 - Math.abs(rv1));
@@ -231,10 +234,10 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 changePoint = cp;
             }
             for (int i = 0; i < step; i++) {
-                lowerRange.addValue(timeWindow[i + cp]);
-                upperRange.removeValue(timeWindow[i + cp]);
-                lowerLeastSquares.add(i + cp, timeWindow[i + cp]);
-                upperLeastSquares.remove(i + upperMovingWindow, timeWindow[i + cp]);
+                lowerRange.addValue(timeWindow[i + cp], timeWindowWeights[i + cp]);
+                upperRange.removeValue(timeWindow[i + cp], timeWindowWeights[i + cp]);
+                lowerLeastSquares.add(i + cp, timeWindow[i + cp], timeWindowWeights[i + cp]);
+                upperLeastSquares.remove(i + upperMovingWindow, timeWindow[i + cp], timeWindowWeights[i + cp]);
                 upperMovingWindow++;
             }
         }
@@ -242,7 +245,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
         dfAlt = n - 6;
         pValueVsNull = independentTrialsPValue(fTestPValue(vNull, dfNull, vAndR.variance, dfAlt), candidateChangePoints.length);
-        if (pValueVsNull < pValueThreshold && Math.abs(vAndR.rValue) >= 0.4) {
+        if (pValueVsNull < pValueThreshold && Math.abs(vAndR.rValue) >= 0.5) {
             double pValueVsStationary = independentTrialsPValue(
                 fTestPValue(totalVariance, n - 1, vAndR.variance, dfAlt),
                 candidateChangePoints.length
@@ -256,8 +259,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             lowerRange = new RunningStats();
             upperRange = new RunningStats();
             // Initialize running stats so that they are only missing the individual changepoint values
-            upperRange.addValues(timeWindow, candidateChangePoints[0], timeWindow.length);
-            lowerRange.addValues(timeWindow, 0, candidateChangePoints[0]);
+            upperRange.addValues(timeWindow, i -> timeWindowWeights[i], candidateChangePoints[0], timeWindow.length);
+            lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], 0, candidateChangePoints[0]);
             for (int cp : candidateChangePoints) {
                 double otherDiff = (0.9 * Math.abs(lowerRange.mean() - upperRange.mean())) + 0.1 * Math.abs(
                     lowerRange.std() - upperRange.std()
@@ -268,8 +271,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 } else if (otherDiff == diff) {
                     changePoint = cp;
                 }
-                lowerRange.addValues(timeWindow, cp, cp + step);
-                upperRange.removeValues(timeWindow, cp, cp + step);
+                lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], cp, cp + step);
+                upperRange.removeValues(timeWindow, i -> timeWindowWeights[i], cp, cp + step);
             }
             discoveredChangePoints.add(changePoint);
             double pValue = 1;
@@ -291,18 +294,24 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         return changeType;
     }
 
-    static double independentTrialsPValue(double pValue, int nTrials) {
-        return pValue > 1e-10 ? 1.0 - Math.pow(1.0 - pValue, nTrials) : nTrials * pValue;
+    static double[] outlierWeights(double[] values) {
+        int i = (int) Math.ceil(0.025 * values.length);
+        double[] weights = Arrays.copyOf(values, values.length);
+        Arrays.sort(weights);
+        double a = weights[i];
+        double b = weights[values.length - i];
+        for (int j = 0; j < values.length; j++) {
+            if (values[j] <= b && values[j] >= a) {
+                weights[j] = 1.0;
+            } else {
+                weights[j] = 0.01;
+            }
+        }
+        return weights;
     }
 
-    static double fitTrend(double[] timeWindow) {
-        double[][] xs = new double[timeWindow.length][];
-        for (int i = 0; i < timeWindow.length; i++) {
-            xs[i] = new double[] { i, i * i };
-        }
-        OLSMultipleLinearRegression linearRegression = new OLSMultipleLinearRegression(0);
-        linearRegression.newSampleData(timeWindow, xs);
-        return linearRegression.calculateRSquared();
+    static double independentTrialsPValue(double pValue, int nTrials) {
+        return pValue > 1e-10 ? 1.0 - Math.pow(1.0 - pValue, nTrials) : nTrials * pValue;
     }
 
     static double fTestPValue(double vNull, double dfNull, double varianceAlt, double dfAlt) {
@@ -320,10 +329,10 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     static class RunningStats {
         double sumOfSqrs;
         double sum;
-        long count;
+        double count;
 
-        static RunningStats from(double[] values) {
-            return new RunningStats().addValues(values, 0, values.length);
+        static RunningStats from(double[] values, IntToDoubleFunction weightFunction) {
+            return new RunningStats().addValues(values, weightFunction, 0, values.length);
         }
 
         RunningStats() {}
@@ -340,30 +349,30 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             return Math.sqrt(variance());
         }
 
-        RunningStats addValues(double[] value, int start, int end) {
+        RunningStats addValues(double[] value, IntToDoubleFunction weightFunction, int start, int end) {
             for (int i = start; i < value.length && i < end; i++) {
-                addValue(value[i]);
+                addValue(value[i], weightFunction.applyAsDouble(i));
             }
             return this;
         }
 
-        RunningStats addValue(double value) {
-            sumOfSqrs += (value * value);
-            count++;
-            sum += value;
+        RunningStats addValue(double value, double weight) {
+            sumOfSqrs += (value * value * weight);
+            count += weight;
+            sum += (value * weight);
             return this;
         }
 
-        RunningStats removeValue(double value) {
-            sumOfSqrs -= (value * value);
-            count--;
-            sum -= value;
+        RunningStats removeValue(double value, double weight) {
+            sumOfSqrs = Math.max(sumOfSqrs - value * value * weight, 0);
+            count -= Math.max(weight, 0);
+            sum -= (value * weight);
             return this;
         }
 
-        RunningStats removeValues(double[] value, int start, int end) {
+        RunningStats removeValues(double[] value, IntToDoubleFunction weightFunction, int start, int end) {
             for (int i = start; i < value.length && i < end; i++) {
-                removeValue(value[i]);
+                removeValue(value[i], weightFunction.applyAsDouble(i));
             }
             return this;
         }
@@ -390,7 +399,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     static double fDistribSf(double numeratorDegreesOfFreedom, double denominatorDegreesOfFreedom, double x) {
         if (x <= 0) {
             return 1;
-        } else if (x >= Double.POSITIVE_INFINITY) {
+        } else if (Double.isInfinite(x) || Double.isNaN(x)) {
             return 0;
         }
 

@@ -126,7 +126,11 @@ public class ChangePointAggregatorTests extends ESTestCase {
         assertThat(
             Arrays.toString(bucketValues),
             type,
-            anyOf(instanceOf(ChangeType.DistributionChange.class), instanceOf(ChangeType.Stationary.class))
+            anyOf(
+                instanceOf(ChangeType.DistributionChange.class),
+                instanceOf(ChangeType.Stationary.class),
+                instanceOf(ChangeType.TrendChange.class)
+            )
         );
     }
 

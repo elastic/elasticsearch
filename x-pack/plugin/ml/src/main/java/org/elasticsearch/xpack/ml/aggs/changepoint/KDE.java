@@ -29,6 +29,7 @@ import static org.apache.commons.math3.stat.StatUtils.variance;
  */
 final class KDE {
     private static final double SQRT2 = FastMath.sqrt(2.0);
+    private static final double ESTIMATOR_EPS = 1e-10;
 
     /**
      * Fit KDE choosing bandwidth by maximum likelihood cross validation.
@@ -103,7 +104,7 @@ final class KDE {
         this.bandwidth = var > 0 ? maxLikelihoodBandwidth(this.orderedValues) : 0.01 * (values[maxIndex] - values[minIndex]);
     }
 
-    double cdf(double x) {
+    ValueAndMagnitude adjCdf(double x, int totalNumberOfValues) {
         int a = Arrays.binarySearch(orderedValues, x - 4.0 * bandwidth);
         if (a < 0) {
             a = -1 - a;
@@ -112,12 +113,20 @@ final class KDE {
         if (b < 0) {
             b = -1 - b;
         }
-        return IntStream.range(a, Math.min(Math.max(b, a + 1), orderedValues.length))
-            .mapToDouble(i -> new NormalDistribution(orderedValues[i], bandwidth).cumulativeProbability(x))
-            .sum() / orderedValues.length;
+        double cdf = 0.0;
+        int n = 0;
+        double diff = 0.0;
+        for (int i = a; i < Math.min(Math.max(b, a + 1), orderedValues.length); i++) {
+            cdf += new NormalDistribution(orderedValues[i], bandwidth).cumulativeProbability(x);
+            diff += Math.abs(orderedValues[i] - x);
+            n++;
+        }
+        cdf /= orderedValues.length;
+        diff /= n;
+        return new ValueAndMagnitude(cdf > ESTIMATOR_EPS ? 1 - Math.pow(1 - cdf, totalNumberOfValues) : totalNumberOfValues * cdf, diff);
     }
 
-    double sf(double x) {
+    ValueAndMagnitude adjSf(double x, int totalNumberOfValues) {
         int a = Arrays.binarySearch(orderedValues, x - 4.0 * bandwidth);
         if (a < 0) {
             a = -1 - a;
@@ -126,8 +135,17 @@ final class KDE {
         if (b < 0) {
             b = -1 - b;
         }
-        return IntStream.range(Math.max(Math.min(a, b - 1), 0), b).mapToDouble(i -> normSf(orderedValues[i], bandwidth, x)).sum()
-            / orderedValues.length;
+        double sf = 0.0;
+        int n = 0;
+        double diff = 0.0;
+        for (int i = Math.max(Math.min(a, b - 1), 0); i < b; i++) {
+            sf += normSf(orderedValues[i], bandwidth, x);
+            diff += Math.abs(orderedValues[i] - x);
+            n++;
+        }
+        sf /= orderedValues.length;
+        diff /= n;
+        return new ValueAndMagnitude(sf > ESTIMATOR_EPS ? 1 - Math.pow(1 - sf, totalNumberOfValues) : totalNumberOfValues * sf, diff);
     }
 
     static double normSf(double mean, double standardDeviation, double x) {
@@ -136,6 +154,17 @@ final class KDE {
             return dev > 0 ? 0.0d : 1.0d;
         }
         return 0.5 * Erf.erfc(dev / (standardDeviation * SQRT2));
+    }
+
+    static record ValueAndMagnitude(double value, double magnitude) {
+        boolean isMoreSignificant(ValueAndMagnitude o) {
+            int c = Double.compare(value, o.value);
+            if (c != 0) {
+                return c < 0;
+            } else {
+                return magnitude > o.magnitude;
+            }
+        }
     }
 
 }

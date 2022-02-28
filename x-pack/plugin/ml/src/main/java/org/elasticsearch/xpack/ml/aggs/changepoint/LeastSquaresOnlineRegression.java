@@ -11,8 +11,11 @@ import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.SingularValueDecomposition;
 
 import java.util.Arrays;
+import java.util.function.IntToDoubleFunction;
 
 class LeastSquaresOnlineRegression {
+
+    private static final double SINGLE_VALUE_DECOMPOSITION_EPS = 1e+15;
 
     private final RunningStatistics statistics;
     private final Array2DRowRealMatrix Nx;
@@ -27,10 +30,20 @@ class LeastSquaresOnlineRegression {
     }
 
     double squareResidual(double[] x, double[] y, double[] params) {
-        return squareResidual(x, 0, x.length, y, 0, y.length, params, null);
+        return squareResidual(x, 0, x.length, y, 0, y.length, params, i -> 1.0, null);
     }
 
-    double squareResidual(double[] x, int xOffset, int xLength, double[] y, int yOffset, int yLength, double[] params, Double yVar) {
+    double squareResidual(
+        double[] x,
+        int xOffset,
+        int xLength,
+        double[] y,
+        int yOffset,
+        int yLength,
+        double[] params,
+        IntToDoubleFunction weights,
+        Double yVar
+    ) {
         if (xLength != yLength) {
             throw new IllegalArgumentException("independent variables and dependent variables must have the same length");
         }
@@ -42,16 +55,16 @@ class LeastSquaresOnlineRegression {
             for (int j = 0; j < params.length; ++j, xi *= x[i + xOffset]) {
                 yi += params[j] * xi;
             }
-            prediction.addValue(y[i + yOffset] - yi);
+            prediction.addValue(y[i + yOffset] - yi, weights.applyAsDouble(i + yOffset));
             if (truth != null) {
-                truth.addValue(y[i + yOffset]);
+                truth.addValue(y[i + yOffset], weights.applyAsDouble(i + yOffset));
             }
         }
         double variance = truth != null ? truth.variance() : yVar;
         return 1 - (prediction.variance() / variance);
     }
 
-    void add(double x, double y) {
+    void add(double x, double y, double weight) {
         double[] d = new double[3 * N - 1];
         double xi = 1.0;
         for (int i = 0; i < N; ++i, xi *= x) {
@@ -61,10 +74,10 @@ class LeastSquaresOnlineRegression {
         for (int i = 3; i < 2 * N - 1; ++i, xi *= x) {
             d[i] = xi;
         }
-        statistics.add(d);
+        statistics.add(d, weight);
     }
 
-    void remove(double x, double y) {
+    void remove(double x, double y, double weight) {
         double[] d = new double[3 * N - 1];
         double xi = 1.0;
         for (int i = 0; i < N; ++i, xi *= x) {
@@ -74,7 +87,7 @@ class LeastSquaresOnlineRegression {
         for (int i = 3; i < 2 * N - 1; ++i, xi *= x) {
             d[i] = xi;
         }
-        statistics.remove(d);
+        statistics.remove(d, weight);
     }
 
     double[] parameters() {
@@ -118,7 +131,7 @@ class LeastSquaresOnlineRegression {
 
         SingularValueDecomposition svd = new SingularValueDecomposition(x);
         double[] singularValues = svd.getSingularValues();
-        if (singularValues[0] > 1e+15 * singularValues[n - 1]) {
+        if (singularValues[0] > SINGLE_VALUE_DECOMPOSITION_EPS * singularValues[n - 1]) {
             return false;
         }
         double[][] data = svd.getSolver().solve(y).getData();
@@ -129,7 +142,7 @@ class LeastSquaresOnlineRegression {
     }
 
     private static class RunningStatistics {
-        private int count;
+        private double count;
         private final double[] stats;
 
         RunningStatistics(int size) {
@@ -137,11 +150,11 @@ class LeastSquaresOnlineRegression {
             stats = new double[size];
         }
 
-        void add(double[] values) {
+        void add(double[] values, double weight) {
             assert values.length == stats.length
                 : "passed values for add are not of expected length; unable to update statistics for online least squares regression";
-            count++;
-            double alpha = 1.0 / count;
+            count += weight;
+            double alpha = weight / count;
             double beta = 1 - alpha;
 
             for (int i = 0; i < stats.length; i++) {
@@ -149,15 +162,15 @@ class LeastSquaresOnlineRegression {
             }
         }
 
-        void remove(double[] values) {
+        void remove(double[] values, double weight) {
             assert values.length == stats.length
                 : "passed values for removal are not of expected length; unable to update statistics for online least squares regression";
-            count = Math.max(count - 1, 0);
+            count = Math.max(count - weight, 0);
             if (count == 0) {
                 Arrays.fill(stats, 0);
                 return;
             }
-            double alpha = 1.0 / count;
+            double alpha = weight / count;
             double beta = 1 + alpha;
 
             for (int i = 0; i < stats.length; i++) {

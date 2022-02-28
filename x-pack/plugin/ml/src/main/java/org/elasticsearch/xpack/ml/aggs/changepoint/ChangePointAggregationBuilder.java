@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -38,12 +37,12 @@ public class ChangePointAggregationBuilder extends BucketMetricsPipelineAggregat
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), BUCKETS_PATH_FIELD);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return BucketHelpers.GapPolicy.parse(p.text().toLowerCase(Locale.ROOT), p.getTokenLocation());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, GAP_POLICY, ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            p -> BucketHelpers.GapPolicy.parse(p.text().toLowerCase(Locale.ROOT), p.getTokenLocation()),
+            GAP_POLICY,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     public ChangePointAggregationBuilder(String name, String bucketsPath) {

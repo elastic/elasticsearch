@@ -83,9 +83,8 @@ POST my-index-000001/_search
 
 NOTE: By default, document metadata fields like `_id` or `_index` are not
 returned when the requested `fields` option uses wildcard patterns like `*`.
-However, when explicitly requested using the fields name, the `_id`,
-`_routing`, `_ignored`, `_index` and `_version` metadata fields can be
-retrieved.
+However, when explicitly requested using the field name, the `_id`, `_routing`,
+`_ignored`, `_index` and `_version` metadata fields can be retrieved.
 
 [discrete]
 [[search-fields-response]]

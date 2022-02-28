@@ -20,6 +20,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
+@SuppressForbidden(reason = "Uses an HttpServer to emulate the EC2 metadata service")
 public class Ec2DiscoveryPluginTests extends ESTestCase {
 
     private Settings getNodeAttributes(Settings settings, String url, String tokenUrl) {
@@ -246,6 +248,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         public void shutdown() {}
     }
 
+    @SuppressForbidden(reason = "Uses an HttpServer to emulate the EC2 metadata service")
     private static MetadataServer metadataServerWithoutToken() throws IOException {
         return new MetadataServer("/metadata", exchange -> {
             assertNull(exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token"));
@@ -255,6 +258,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         });
     }
 
+    @SuppressForbidden(reason = "Uses an HttpServer to emulate the EC2 metadata service")
     private static class MetadataServer implements AutoCloseable {
 
         private final HttpServer httpServer;

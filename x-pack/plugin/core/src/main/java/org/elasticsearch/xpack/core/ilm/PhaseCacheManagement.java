@@ -18,9 +18,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
@@ -280,8 +280,7 @@ public final class PhaseCacheManagement {
         final PhaseExecutionInfo phaseExecutionInfo;
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                xContentRegistry,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry),
                 phaseDef
             )
         ) {

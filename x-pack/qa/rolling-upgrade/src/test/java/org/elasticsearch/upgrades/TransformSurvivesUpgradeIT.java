@@ -134,9 +134,9 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             var stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
             assertThat(
                 ((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats)).longValue(),
-                equalTo(totalDocsWritten)
+                equalTo(ENTITIES.size())
             );
-            assertThat((Integer) XContentMapValues.extractValue("stats.documents_processed", stateAndStats), equalTo(ENTITIES.size()));
+            assertThat((Integer) XContentMapValues.extractValue("stats.documents_processed", stateAndStats), equalTo(totalDocsWritten));
             // Even if we get back to started, we may periodically get set back to `indexing` when triggered.
             // Though short lived due to no changes on the source indices, it could result in flaky test behavior
             assertThat(stateAndStats.get("state"), oneOf("started", "indexing"));

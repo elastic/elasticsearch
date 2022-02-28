@@ -72,10 +72,6 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
 
     private static Version MINIMUM_ARCHIVE_VERSION = Version.fromString("5.0.0");
 
-    public static boolean isArchiveIndex(Version version) {
-        return version.before(Version.CURRENT.minimumIndexCompatibilityVersion());
-    }
-
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
 
     @Override
@@ -123,7 +119,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        if (isArchiveIndex(indexModule.indexSettings().getIndexVersionCreated())) {
+        if (indexModule.indexSettings().getIndexVersionCreated().isLegacyIndexVersion()) {
             indexModule.addIndexEventListener(new IndexEventListener() {
                 @Override
                 public void afterFilesRestoredFromRepository(IndexShard indexShard) {
@@ -138,7 +134,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
     @Override
     public BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
         return (snapshot, version) -> {
-            if (isArchiveIndex(version)) {
+            if (version.isLegacyIndexVersion()) {
                 if (ARCHIVE_FEATURE.checkWithoutTracking(getLicenseState()) == false) {
                     throw LicenseUtils.newComplianceException("archive");
                 }

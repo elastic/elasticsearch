@@ -18,7 +18,6 @@ import java.nio.file.Paths
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
@@ -108,7 +107,6 @@ tasks.named('yamlRestTest').configure {
 String realm = "BUILD.ELASTIC.CO"
 String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 
-
 // Determine HDFS Fixture compatibility for the current build environment.
 boolean fixtureSupported = false
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -185,16 +183,15 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
     }
 
     for (String integTestTaskName : ['javaRestTest' + hadoopVersion, 'javaRestTestSecure' + hadoopVersion]) {
-        def testTask = tasks.register(integTestTaskName, RestIntegTestTask) {
+        tasks.register(integTestTaskName, RestIntegTestTask) {
             description = "Runs rest tests against an elasticsearch cluster with HDFS" + hadoopVer + "-HA"
 
             if (name.contains("Secure")) {
                 dependsOn "secureHaHdfs" + hadoopVer + "Fixture"
             }
 
-            Path portsFile
             File portsFileDir = file("${workingDir}/hdfs" + hadoopVer + "Fixture")
-            portsFile = name.contains("Secure") ?
+            Path portsFile = name.contains("Secure") ?
                     buildDir.toPath()
                             .resolve("fixtures")
                             .resolve("secureHaHdfs" + hadoopVer + "Fixture")
@@ -203,9 +200,6 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
                             .resolve("fixtures")
                             .resolve("haHdfs" + hadoopVer + "Fixture")
                             .resolve("ports")
-            testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-            classpath = sourceSets.javaRestTest.runtimeClasspath + files(portsFileDir) + files('build/generated-resources')
-            dependsOn('pluginProperties')
             nonInputProperties.systemProperty "test.hdfs-fixture.ports", file("$portsFileDir/ports")
 
             // Copy ports file to separate location which is placed on the test classpath
@@ -216,11 +210,13 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
                     into portsFileDir
                 }
             }
+            testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+            classpath = sourceSets.javaRestTest.runtimeClasspath + files(portsFileDir)
         }
     }
 
     for (String integTestTaskName : ['yamlRestTest' + hadoopVersion, 'yamlRestTestSecure' + hadoopVersion]) {
-        def testTask = tasks.register(integTestTaskName, RestIntegTestTask) {
+        tasks.register(integTestTaskName, RestIntegTestTask) {
             description = "Runs rest tests against an elasticsearch cluster with HDFS" + hadoopVer
 
             if (name.contains("Secure")) {
@@ -264,7 +260,6 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
         // Both standard and HA tests depend on their respective HDFS fixtures
         tasks.named("yamlRestTest" + hadoopVer).configure {
             dependsOn "hdfs" + hadoopVer + "Fixture"
-
             // The normal test runner only runs the standard hdfs rest tests
             systemProperty 'tests.rest.suite', 'hdfs_repository_' + hadoopVer
         }
@@ -330,7 +325,6 @@ tasks.withType(RestIntegTestTask).configureEach { testTask ->
 
 
     testClusters.matching { it.name == testTask.name }.configureEach {
-//        plugin(bundlePlugin.archiveFile)
         if (testTask.name.contains("Secure")) {
             systemProperty "java.security.krb5.conf", krb5conf
             extraConfigFile(

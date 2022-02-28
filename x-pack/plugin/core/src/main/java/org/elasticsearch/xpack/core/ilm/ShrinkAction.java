@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.indices.shrink.TargetNumberOfShardsCalculator;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -156,15 +156,11 @@ public class ShrinkAction implements LifecycleAction {
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
 
-        BranchingStep conditionalSkipShrinkStep = new BranchingStep(
+        AsyncBranchingStep conditionalSkipShrinkStep = new AsyncBranchingStep(
             preShrinkBranchingKey,
             checkNotWriteIndex,
             nextStepKey,
-            (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-                if (numberOfShards != null && indexMetadata.getNumberOfShards() == numberOfShards) {
-                    return true;
-                }
+            (indexMetadata, clusterState, listener) -> {
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     logger.warn(
                         "[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. "
@@ -173,10 +169,25 @@ public class ShrinkAction implements LifecycleAction {
                         indexMetadata.getIndex().getName(),
                         indexMetadata.getLifecyclePolicyName()
                     );
-                    return true;
+                    listener.onResponse(true);
                 }
-                return false;
-            }
+                String indexName = indexMetadata.getIndex().getName();
+                client.admin()
+                    .indices()
+                    .prepareStats(indexName)
+                    .clear()
+                    .setDocs(true)
+                    .setStore(true)
+                    .execute(listener.delegateFailure((delegateListener, indicesStatsResponse) -> {
+                        int targetNumberOfShards = new TargetNumberOfShardsCalculator.Shrink(indexName, indicesStatsResponse).calculate(
+                            numberOfShards,
+                            maxPrimaryShardSize,
+                            indexMetadata
+                        );
+                        delegateListener.onResponse(indexMetadata.getNumberOfShards() == targetNumberOfShards);
+                    }));
+            },
+            client
         );
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
             checkNotWriteIndex,

@@ -716,8 +716,7 @@ public class JwtRealmTests extends JwtTestCase {
                 assertThat(user.principal(), equalTo(authenticatedUser.principal()));
                 assertThat(new TreeSet<>(Arrays.asList(user.roles())), equalTo(new TreeSet<>(Arrays.asList(authenticatedUser.roles()))));
                 if (jwtIssuerAndRealm.realm.delegatedAuthorizationSupport.hasDelegation()) {
-                    assertThat(user.metadata(), is(equalTo(authenticatedUser.metadata()))); // delegated authz returns user's
-                                                                                            // metadata
+                    assertThat(user.metadata(), is(equalTo(authenticatedUser.metadata()))); // delegated authz returns user's metadata
                 } else if (jwtIssuerAndRealm.realm.populateUserMetadata) {
                     assertThat(authenticatedUser.metadata(), is(not(anEmptyMap()))); // role mapping with flag true returns non-empty
                 } else {

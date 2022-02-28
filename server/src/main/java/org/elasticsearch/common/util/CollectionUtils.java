@@ -346,4 +346,7 @@ public class CollectionUtils {
         return list.isEmpty() ? List.of() : Collections.unmodifiableList(list);
     }
 
+    public static <E> List<E> limitSize(List<E> list, int size) {
+        return list.size() <= size ? list : list.subList(0, size);
+    }
 }

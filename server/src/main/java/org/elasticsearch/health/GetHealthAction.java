@@ -82,7 +82,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field("status", status);
+            builder.field("status", status.xContentValue());
             builder.field("cluster_name", clusterName.value());
             builder.array("impacts");
             builder.startObject("components");

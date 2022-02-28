@@ -174,6 +174,8 @@ final class RequestDispatcher {
         final FieldCapabilitiesNodeRequest nodeRequest = new FieldCapabilitiesNodeRequest(
             shardIds,
             fieldCapsRequest.fields(),
+            fieldCapsRequest.filters(),
+            fieldCapsRequest.allowedTypes(),
             originalIndices,
             fieldCapsRequest.indexFilter(),
             nowInMillis,

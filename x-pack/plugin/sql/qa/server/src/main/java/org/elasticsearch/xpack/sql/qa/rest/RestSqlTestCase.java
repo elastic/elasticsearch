@@ -49,6 +49,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -74,6 +76,8 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_FORMAT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Integration test for the rest sql action. The one that speaks json directly to a
@@ -251,6 +255,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 expected.put("columns", singletonList(columnInfo(mode, "tz", "integer", JDBCType.INTEGER, 11)));
                 response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "", mode);
             } else {
+                assertNotNull(cursor);
                 response = runSql(
                     new StringEntity(cursor(cursor).mode(mode).toString(), ContentType.APPLICATION_JSON),
                     StringUtils.EMPTY,
@@ -267,16 +272,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 );
             }
             expected.put("rows", values);
+            assertTrue(response.containsKey("cursor") == false || response.get("cursor") != null);
             cursor = (String) response.remove("cursor");
             assertResponse(expected, response);
-            assertNotNull(cursor);
         }
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("rows", emptyList());
-        assertResponse(
-            expected,
-            runSql(new StringEntity(cursor(cursor).mode(mode).toString(), ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode)
-        );
+
+        assertNull(cursor);
 
         deleteIndex("test_date_timezone");
     }
@@ -1175,11 +1176,14 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         index(docs);
 
-        String request = query("SELECT text, number, number + 5 AS sum FROM " + indexPattern("test") + " ORDER BY number").fetchSize(2)
+        String optionalGroupBy = randomFrom("", " GROUP BY text, number, sum");
+
+        String request = query("SELECT text, number, number + 5 AS sum FROM " + indexPattern("test") + optionalGroupBy + " ORDER BY number")
+            .fetchSize(2)
             .toString();
 
         String cursor = null;
-        for (int i = 0; i < 20; i += 2) {
+        for (int i = 0; i <= size; i += 2) {
             Tuple<String, String> response;
             if (i == 0) {
                 response = runSqlAsText(StringUtils.EMPTY, new StringEntity(request, ContentType.APPLICATION_JSON), format);
@@ -1194,29 +1198,21 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             StringBuilder expected = new StringBuilder();
             if (i == 0) {
                 expected.append(expectedHeader);
-                if (format == "text/plain") {
+                if (format.equals("text/plain")) {
                     expected.append("---------------+---------------+---------------\n");
                 }
             }
-            expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + i, i, i + 5));
-            expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + (i + 1), i + 1, i + 6));
-            cursor = response.v2();
-            assertEquals(expected.toString(), response.v1());
-            assertNotNull(cursor);
-        }
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("rows", emptyList());
-        assertResponse(
-            expected,
-            runSql(new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON), StringUtils.EMPTY, Mode.PLAIN.toString())
-        );
 
-        Map<String, Object> response = runSql(
-            new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON),
-            "/close",
-            Mode.PLAIN.toString()
-        );
-        assertEquals(true, response.get("succeeded"));
+            cursor = response.v2();
+            if (i < 20) {
+                expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + i, i, i + 5));
+                expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + (i + 1), i + 1, i + 6));
+                assertEquals(expected.toString(), response.v1());
+                assertNotNull(cursor);
+            } else {
+                assertNull(cursor);
+            }
+        }
 
         assertEquals(0, getNumberOfSearchContexts(provisioningClient(), "test"));
     }
@@ -1430,6 +1426,140 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             Map<String, Object> deleteStatus = toMap(client().performRequest(request), null);
             assertEquals(200, response.getStatusLine().getStatusCode());
             assertTrue((boolean) deleteStatus.get("acknowledged"));
+        }
+    }
+
+    public void testCompressCursor() throws IOException {
+        String doc = IntStream.range(0, 1000)
+            .mapToObj(i -> String.format(Locale.ROOT, "\"field%d\": %d", i, i))
+            .collect(Collectors.joining(","));
+        index("{" + doc + "}");
+
+        String mode = randomMode();
+        Map<String, Object> resp = toMap(runSql(query("SHOW COLUMNS FROM " + indexPattern("test")).fetchSize(1).mode(mode)), mode);
+
+        // without compression, the cursor is at least <avg. fieldname length> * 1000 bytes (in fact it is ~35kb)
+        assertThat(resp.get("cursor").toString().length(), lessThan(5000));
+    }
+
+    public void testFetchAllPagesSearchHitCursorTxt() throws IOException {
+        testFetchAllPagesSearchHitCursor("text/plain");
+    }
+
+    public void testFetchAllPagesSearchHitCursorCsv() throws IOException {
+        testFetchAllPagesSearchHitCursor("text/csv");
+    }
+
+    public void testFetchAllPagesSearchHitCursorTsv() throws IOException {
+        testFetchAllPagesSearchHitCursor("text/tab-separated-values");
+    }
+
+    public void testFetchAllPagesSearchHitCursor(String format) throws IOException {
+        int size = randomIntBetween(4, 20);
+        int pageSize = randomIntBetween(1, size + 1);
+
+        List<String> texts = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
+        index(texts.stream().map(t -> "{\"field\": \"" + t + "\"}").toArray(String[]::new));
+
+        testFetchAllPages(format, "SELECT field FROM " + indexPattern("test") + " ORDER BY field", texts, pageSize, true);
+    }
+
+    /**
+     * Special case of `testFetchAllPagesSearchHitCursorTxt` covering https://github.com/elastic/elasticsearch/issues/83788.
+     */
+    public void testFetchAllPagesSearchHitCursorWithNonFullLastPageTxt() throws IOException {
+        int size = randomIntBetween(4, 20);
+        int pageSize = size / 2 + 1;
+
+        List<String> texts = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
+        index(texts.stream().map(t -> "{\"field\": \"" + t + "\"}").toArray(String[]::new));
+
+        testFetchAllPages("text/plain", "SELECT field FROM " + indexPattern("test") + " ORDER BY field", texts, pageSize, false);
+    }
+
+    public void testFetchAllPagesCompositeAggCursorTxt() throws IOException {
+        testFetchAllPagesCompositeAggCursor("text/plain");
+    }
+
+    public void testFetchAllPagesCompositeAggCursorCsv() throws IOException {
+        testFetchAllPagesCompositeAggCursor("text/csv");
+    }
+
+    public void testFetchAllPagesCompositeAggCursorTsv() throws IOException {
+        testFetchAllPagesCompositeAggCursor("text/tab-separated-values");
+    }
+
+    public void testFetchAllPagesCompositeAggCursor(String format) throws IOException {
+        int size = randomIntBetween(4, 20);
+        int pageSize = randomIntBetween(1, size + 1);
+
+        List<String> texts = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
+        index(texts.stream().map(t -> "{\"field\": \"" + t + "\"}").toArray(String[]::new));
+
+        testFetchAllPages(format, "SELECT field FROM " + indexPattern("test") + " GROUP BY field ORDER BY field", texts, pageSize, true);
+    }
+
+    public void testFetchAllPagesListCursorTxt() throws IOException {
+        testFetchAllPagesListCursor("text/plain");
+    }
+
+    public void testFetchAllPagesListCursorCsv() throws IOException {
+        testFetchAllPagesListCursor("text/csv");
+    }
+
+    public void testFetchAllPagesListCursorTsv() throws IOException {
+        testFetchAllPagesListCursor("text/tab-separated-values");
+    }
+
+    public void testFetchAllPagesListCursor(String format) throws IOException {
+        int size = randomIntBetween(4, 20);
+        int pageSize = randomIntBetween(1, size + 1);
+
+        List<String> fields = IntStream.range(0, size).mapToObj(i -> String.format(Locale.ROOT, "text%02d", i)).toList();
+        index(fields.stream().map(f -> "{\"" + f + "\": 1}").toArray(String[]::new));
+
+        testFetchAllPages(format, "SHOW COLUMNS FROM " + indexPattern("test"), fields, pageSize, false);
+    }
+
+    /**
+     * Generic paging test that ensures that
+     * 1. All expected documents are fetched when scrolling through all pages
+     * 2. There are at most `expectedValues.size() / pageSize + 1` pages (the last one might or might not be empty)
+     * 3. Optionally: That the last page is not empty.
+     */
+    private void testFetchAllPages(String format, String query, List<String> expectedValues, int pageSize, boolean allowEmptyLastPage)
+        throws IOException {
+        int remainingPages = expectedValues.size() / pageSize + 1;
+
+        Tuple<String, String> response = runSqlAsText(
+            StringUtils.EMPTY,
+            new StringEntity(query(query).fetchSize(pageSize).toString(), ContentType.APPLICATION_JSON),
+            format
+        );
+        StringBuilder allResults = new StringBuilder(response.v1());
+
+        while (response.v2() != null && remainingPages > 0) {
+            response = runSqlAsText(
+                StringUtils.EMPTY,
+                new StringEntity(cursor(response.v2()).toString(), ContentType.APPLICATION_JSON),
+                format
+            );
+            allResults.append("\n").append(response.v1());
+
+            assertThat(response.v1().split("\n").length, lessThanOrEqualTo(pageSize));
+
+            remainingPages--;
+        }
+
+        if (allowEmptyLastPage == false) {
+            assertFalse(Strings.isNullOrEmpty(response.v1()));
+        }
+
+        assertNull(response.v2());
+
+        String results = allResults.toString();
+        for (String v : expectedValues) {
+            assertThat(results, containsString(v));
         }
     }
 

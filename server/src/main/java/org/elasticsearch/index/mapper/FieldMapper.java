@@ -255,7 +255,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 valuePreview
             );
         }
-        multiFields.parse(this, context);
+        multiFields.parse(this, context, () -> context);
     }
 
     /**
@@ -449,7 +449,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return indexAnalyzers;
     }
 
-    public static class MultiFields implements Iterable<FieldMapper>, ToXContent {
+    public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {
 
         private static final MultiFields EMPTY = new MultiFields(Collections.emptyMap());
 
@@ -507,16 +507,16 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             this.mappers = mappers;
         }
 
-        public void parse(FieldMapper mainField, DocumentParserContext context) throws IOException {
+        public void parse(FieldMapper mainField, DocumentParserContext context, Supplier<DocumentParserContext> multiFieldContextSupplier)
+            throws IOException {
             // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
             // of the mappings
             if (mappers.isEmpty()) {
                 return;
             }
-
             context.path().add(mainField.simpleName());
             for (FieldMapper mapper : mappers.values()) {
-                mapper.parse(context);
+                mapper.parse(multiFieldContextSupplier.get());
             }
             context.path().remove();
         }

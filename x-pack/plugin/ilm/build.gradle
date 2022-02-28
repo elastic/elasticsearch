@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -20,5 +22,7 @@ dependencies {
 addQaCheckDependencies()
 
 tasks.named("test").configure {
-  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+  }
 }

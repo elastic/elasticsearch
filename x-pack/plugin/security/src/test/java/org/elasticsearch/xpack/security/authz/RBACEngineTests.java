@@ -336,11 +336,14 @@ public class RBACEngineTests extends ESTestCase {
         final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
         final Authentication authentication = mock(Authentication.class);
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        when(authenticatedBy.getName()).thenReturn(AuthenticationField.API_KEY_REALM_NAME);
+        when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
+        when(authentication.getSourceRealm()).thenReturn(authenticatedBy);
         when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, apiKeyId));
-        when(authentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(authentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
         when(authentication.isApiKey()).thenCallRealMethod();
 
         assertTrue(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
@@ -354,9 +357,11 @@ public class RBACEngineTests extends ESTestCase {
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authenticatedBy.getName()).thenReturn(AuthenticationField.API_KEY_REALM_NAME);
         when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
+        when(authentication.getSourceRealm()).thenReturn(authenticatedBy);
         when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
-        when(authentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(authentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
         when(authentication.isApiKey()).thenCallRealMethod();
 
         assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
@@ -371,10 +376,15 @@ public class RBACEngineTests extends ESTestCase {
         final Authentication.RealmRef lookedupBy = mock(Authentication.RealmRef.class);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authenticatedBy.getName()).thenReturn(AuthenticationField.API_KEY_REALM_NAME);
+        when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
         when(authentication.getLookedUpBy()).thenReturn(lookedupBy);
+        when(lookedupBy.getName()).thenReturn("name");
+        when(lookedupBy.getType()).thenReturn("type");
+        when(authentication.getSourceRealm()).thenReturn(lookedupBy);
         when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
         when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
-        when(authentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(authentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
         when(authentication.isApiKey()).thenCallRealMethod();
 
         assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));

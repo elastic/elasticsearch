@@ -95,6 +95,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.pars
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -1019,6 +1020,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
         assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
         assertThat(allocationRerouted.get(), is(true));
+
+        Metadata metadata = updatedClusterState.metadata();
+        IndexAbstraction alias = metadata.getIndicesLookup().get("alias1");
+        assertNotNull(alias);
+        assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        Index index = metadata.index("test").getIndex();
+        assertThat(alias.getIndices(), contains(index));
+        assertThat(metadata.aliasedIndices("alias1"), contains(index));
     }
 
     public void testClusterStateCreateIndexWithMetadataTransaction() {

@@ -8,9 +8,7 @@
 package org.elasticsearch.oldrepos;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -29,7 +27,6 @@ import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
@@ -133,11 +130,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     }
 
     private void afterRestart(String indexName) throws IOException {
-        if (Build.CURRENT.isSnapshot()) {
-            ensureGreen("restored_" + indexName);
-            ensureGreen("mounted_full_copy_" + indexName);
-            ensureGreen("mounted_shared_cache_" + indexName);
-        }
+        ensureGreen("restored_" + indexName);
+        ensureGreen("mounted_full_copy_" + indexName);
+        ensureGreen("mounted_shared_cache_" + indexName);
     }
 
     @SuppressWarnings("removal")
@@ -209,9 +204,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         if (sourceOnlyRepository) {
             repoSettingsBuilder.put("delegate_type", "fs");
         }
-        if (Build.CURRENT.isSnapshot()) {
-            repoSettingsBuilder.put("allow_bwc_indices", true);
-        }
         ElasticsearchAssertions.assertAcked(
             client.snapshot()
                 .createRepository(
@@ -265,48 +257,42 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertThat(snapshotStatus.getStats().getTotalSize(), greaterThan(0L));
         assertThat(snapshotStatus.getStats().getTotalFileCount(), greaterThan(0));
 
-        if (Build.CURRENT.isSnapshot()) {
-            // restore / mount and check whether searches work
-            restoreMountAndVerify(
-                numDocs,
-                expectedIds,
-                client,
-                numberOfShards,
-                sourceOnlyRepository,
-                oldVersion,
-                indexName,
-                repoName,
-                snapshotName
-            );
+        // restore / mount and check whether searches work
+        restoreMountAndVerify(
+            numDocs,
+            expectedIds,
+            client,
+            numberOfShards,
+            sourceOnlyRepository,
+            oldVersion,
+            indexName,
+            repoName,
+            snapshotName
+        );
 
-            // close indices
-            assertTrue(
-                client.indices().close(new CloseIndexRequest("restored_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged()
-            );
-            assertTrue(
-                client.indices()
-                    .close(new CloseIndexRequest("mounted_full_copy_" + indexName), RequestOptions.DEFAULT)
-                    .isShardsAcknowledged()
-            );
-            assertTrue(
-                client.indices()
-                    .close(new CloseIndexRequest("mounted_shared_cache_" + indexName), RequestOptions.DEFAULT)
-                    .isShardsAcknowledged()
-            );
+        // close indices
+        assertTrue(client.indices().close(new CloseIndexRequest("restored_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged());
+        assertTrue(
+            client.indices().close(new CloseIndexRequest("mounted_full_copy_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged()
+        );
+        assertTrue(
+            client.indices()
+                .close(new CloseIndexRequest("mounted_shared_cache_" + indexName), RequestOptions.DEFAULT)
+                .isShardsAcknowledged()
+        );
 
-            // restore / mount again
-            restoreMountAndVerify(
-                numDocs,
-                expectedIds,
-                client,
-                numberOfShards,
-                sourceOnlyRepository,
-                oldVersion,
-                indexName,
-                repoName,
-                snapshotName
-            );
-        }
+        // restore / mount again
+        restoreMountAndVerify(
+            numDocs,
+            expectedIds,
+            client,
+            numberOfShards,
+            sourceOnlyRepository,
+            oldVersion,
+            indexName,
+            repoName,
+            snapshotName
+        );
     }
 
     private String getType(Version oldVersion, String id) {
@@ -342,15 +328,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
         assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(
-            ClusterHealthStatus.GREEN,
-            client.cluster()
-                .health(
-                    new ClusterHealthRequest("restored_" + indexName).waitForGreenStatus().waitForNoRelocatingShards(true),
-                    RequestOptions.DEFAULT
-                )
-                .getStatus()
-        );
+        ensureGreen("restored_" + indexName);
 
         MappingMetadata mapping = client.indices()
             .getMapping(new GetMappingsRequest().indices("restored_" + indexName), RequestOptions.DEFAULT)
@@ -401,15 +379,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().totalShards());
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(
-            ClusterHealthStatus.GREEN,
-            client.cluster()
-                .health(
-                    new ClusterHealthRequest("mounted_full_copy_" + indexName).waitForGreenStatus().waitForNoRelocatingShards(true),
-                    RequestOptions.DEFAULT
-                )
-                .getStatus()
-        );
+        ensureGreen("mounted_full_copy_" + indexName);
 
         // run a search against the index
         assertDocs("mounted_full_copy_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);

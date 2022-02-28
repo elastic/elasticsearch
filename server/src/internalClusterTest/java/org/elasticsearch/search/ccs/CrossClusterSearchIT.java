@@ -11,10 +11,12 @@ package org.elasticsearch.search.ccs;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -24,13 +26,16 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
@@ -38,11 +43,14 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,8 +58,11 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
@@ -239,6 +250,136 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
             }
         });
+    }
+
+    /**
+     * Makes sure that lookup fields are resolved using the lookup index on each cluster.
+     */
+    public void testLookupFields() throws Exception {
+        cluster("cluster_a").client()
+            .admin()
+            .indices()
+            .prepareCreate("users")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+            .get();
+        cluster("cluster_a").client()
+            .prepareBulk("users")
+            .add(new IndexRequest().id("a").source("name", "Remote A"))
+            .add(new IndexRequest().id("b").source("name", "Remote B"))
+            .add(new IndexRequest().id("c").source("name", "Remote C"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        client().admin()
+            .indices()
+            .prepareCreate("users")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+            .get();
+        client().prepareBulk("users")
+            .add(new IndexRequest().id("a").source("name", "Local A"))
+            .add(new IndexRequest().id("b").source("name", "Local B"))
+            .add(new IndexRequest().id("c").source("name", "Local C"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        // Setup calls on the local cluster
+        client().admin()
+            .indices()
+            .prepareCreate("local_calls")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+            .setMapping("from_user", "type=keyword", "to_user", "type=keyword")
+            .get();
+        client().prepareBulk("local_calls")
+            .add(new IndexRequest().source("from_user", "a", "to_user", List.of("b", "c"), "duration", 95))
+            .add(new IndexRequest().source("from_user", "a", "to_user", "b", "duration", 25))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        // Setup calls on the remote cluster
+        cluster("cluster_a").client()
+            .admin()
+            .indices()
+            .prepareCreate("remote_calls")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+            .setMapping("from_user", "type=keyword", "to_user", "type=keyword")
+            .get();
+        cluster("cluster_a").client()
+            .prepareBulk("remote_calls")
+            .add(new IndexRequest().source("from_user", "a", "to_user", "b", "duration", 45))
+            .add(new IndexRequest().source("from_user", "unknown_caller", "to_user", "c", "duration", 50))
+            .add(new IndexRequest().source("from_user", List.of("a", "b"), "to_user", "c", "duration", 60))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        final String runtimeMappingSource = """
+            {
+                "from": {
+                    "type": "lookup",
+                    "target_index": "users",
+                    "input_field": "from_user",
+                    "target_field": "_id",
+                    "fetch_fields": ["name"]
+                },
+                "to": {
+                    "type": "lookup",
+                    "target_index": "users",
+                    "input_field": "to_user",
+                    "target_field": "_id",
+                    "fetch_fields": ["name"]
+                }
+            }
+            """;
+        final Map<String, Object> runtimeMappings;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, runtimeMappingSource)) {
+            runtimeMappings = parser.map();
+        }
+        // Search on the remote cluster only
+        {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("to_user", "c"))
+                .runtimeMappings(runtimeMappings)
+                .sort(new FieldSortBuilder("duration"))
+                .fetchField("from")
+                .fetchField("to");
+            SearchRequest request = new SearchRequest("cluster_a:remote_calls").source(searchSourceBuilder);
+            request.setCcsMinimizeRoundtrips(randomBoolean());
+            SearchResponse searchResponse = client().search(request).actionGet();
+            ElasticsearchAssertions.assertHitCount(searchResponse, 2);
+            SearchHit hit0 = searchResponse.getHits().getHits()[0];
+            assertThat(hit0.getIndex(), equalTo("remote_calls"));
+            assertThat(hit0.field("from"), nullValue());
+            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+
+            SearchHit hit1 = searchResponse.getHits().getHits()[1];
+            assertThat(hit1.getIndex(), equalTo("remote_calls"));
+            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B"))));
+            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+        }
+        // Search on both clusters
+        {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("to_user", "c"))
+                .runtimeMappings(runtimeMappings)
+                .sort(new FieldSortBuilder("duration"))
+                .fetchField("from")
+                .fetchField("to");
+            SearchRequest request = new SearchRequest("local_calls", "cluster_a:remote_calls").source(searchSourceBuilder);
+            request.setCcsMinimizeRoundtrips(randomBoolean());
+            SearchResponse searchResponse = client().search(request).actionGet();
+            ElasticsearchAssertions.assertHitCount(searchResponse, 3);
+            SearchHit hit0 = searchResponse.getHits().getHits()[0];
+            assertThat(hit0.getIndex(), equalTo("remote_calls"));
+            assertThat(hit0.field("from"), nullValue());
+            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+
+            SearchHit hit1 = searchResponse.getHits().getHits()[1];
+            assertThat(hit1.getIndex(), equalTo("remote_calls"));
+            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B"))));
+            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+
+            SearchHit hit2 = searchResponse.getHits().getHits()[2];
+            assertThat(hit2.getIndex(), equalTo("local_calls"));
+            assertThat(hit2.field("from").getValues(), contains(Map.of("name", List.of("Local A"))));
+            assertThat(hit2.field("to").getValues(), contains(Map.of("name", List.of("Local B")), Map.of("name", List.of("Local C"))));
+        }
     }
 
     @Override

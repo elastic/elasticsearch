@@ -33,6 +33,7 @@ import java.net.InetAddress;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -42,6 +43,10 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singleton;
 
 public class IpPrefixAggregatorTests extends AggregatorTestCase {
+
+    private static final Comparator<InternalIpPrefix.Bucket> IP_ADDRESS_KEY_COMPARATOR = Comparator.comparing(
+        InternalIpPrefix.Bucket::getKeyAsString
+    );
 
     private static final class TestIpDataHolder {
         private final String ipAddressAsString;
@@ -212,6 +217,10 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
+            assertEquals(
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
+                List.of(1L, 1L, 4L, 1L)
+            );
         }, fieldType);
     }
 
@@ -261,6 +270,10 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
+            assertEquals(
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
+                List.of(2L, 1L, 2L)
+            );
         }, fieldType);
     }
 
@@ -313,6 +326,10 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
+            assertEquals(
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
+                List.of((long) ipAddresses.size())
+            );
         }, fieldType);
     }
 
@@ -365,6 +382,10 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
+            assertEquals(
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
+                List.of(1L, 1L, 1L, 2L, 1L, 1L)
+            );
         }, fieldType);
     }
 
@@ -414,6 +435,10 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
+            assertEquals(
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
+                List.of(1L, 1L, 1L, 1L, 1L)
+            );
         }, fieldType);
     }
 
@@ -471,6 +496,10 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
+            assertEquals(
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
+                List.of(1L, 1L, 4L, 1L)
+            );
         }, fieldTypes);
     }
 
@@ -525,6 +554,10 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
+            assertEquals(
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
+                List.of(2L, 1L, 2L)
+            );
         }, fieldTypes);
     }
 
@@ -898,11 +931,12 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         // GIVEN
         final int prefixLength = 16;
         final String field = "ipv4";
+        int minDocCount = 2;
         final IpPrefixAggregationBuilder aggregationBuilder = new IpPrefixAggregationBuilder("ip_prefix").field(field)
             .isIpv6(false)
             .keyed(randomBoolean())
             .appendPrefixLength(false)
-            .minDocCount(2)
+            .minDocCount(minDocCount)
             .prefixLength(prefixLength);
         final MappedFieldType fieldType = new IpFieldMapper.IpFieldType(field);
         final List<TestIpDataHolder> ipAddresses = List.of(
@@ -941,6 +975,13 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
+            assertTrue(
+                ipPrefix.getBuckets().stream().map(InternalIpPrefix.Bucket::getDocCount).allMatch(docCount -> docCount >= minDocCount)
+            );
+            assertEquals(
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
+                List.of(4L)
+            );
         }, fieldType);
     }
 
@@ -1002,6 +1043,10 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedSubnets.size(), ipPrefix.getBuckets().size());
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
+            assertEquals(
+                ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
+                List.of(4L)
+            );
         }, fieldType);
     }
 

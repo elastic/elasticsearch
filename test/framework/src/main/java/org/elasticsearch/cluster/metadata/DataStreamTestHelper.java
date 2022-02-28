@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.ClusterName;
@@ -289,6 +289,10 @@ public final class DataStreamTestHelper {
         boolean replicated
     ) {
         Metadata.Builder builder = Metadata.builder();
+        builder.put(
+            "template_1",
+            new ComposableIndexTemplate(List.of("*"), null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate())
+        );
 
         List<IndexMetadata> allIndices = new ArrayList<>();
         for (Tuple<String, Integer> dsTuple : dataStreams) {

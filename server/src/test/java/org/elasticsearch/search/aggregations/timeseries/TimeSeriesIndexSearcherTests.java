@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -25,8 +24,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -35,12 +34,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83647")
 public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
     // Index a random set of docs with timestamp and tsid with the tsid/timestamp sort order
@@ -87,7 +86,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher);
+        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
 
         BucketCollector collector = new BucketCollector() {
 
@@ -108,13 +107,13 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                         BytesRef latestTSID = tsid.lookupOrd(tsid.ordValue());
                         long latestTimestamp = timestamp.longValue();
                         if (currentTSID != null) {
-                            assertTrue(latestTSID.compareTo(currentTSID) >= 0);
+                            assertTrue(currentTSID + "->" + latestTSID.utf8ToString(), latestTSID.compareTo(currentTSID) >= 0);
                             if (latestTSID.equals(currentTSID)) {
-                                assertTrue(latestTimestamp >= currentTimestamp);
+                                assertTrue(currentTimestamp + "->" + latestTimestamp, latestTimestamp >= currentTimestamp);
                             }
                         }
                         currentTimestamp = latestTimestamp;
-                        currentTSID = latestTSID;
+                        currentTSID = BytesRef.deepCopyOf(latestTSID);
                         total++;
                     }
                 };

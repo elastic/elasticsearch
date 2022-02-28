@@ -11,7 +11,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -24,14 +23,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.After;
 
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TSDBIndexingIT extends ESSingleNodeTestCase {
@@ -66,12 +63,6 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         // This essentially disables the automatic updates to end_time settings of a data stream's latest backing index.
         newSettings.put(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.getKey(), "10m");
         return newSettings.build();
-    }
-
-    @After
-    public void cleanup() {
-        DeleteDataStreamAction.Request deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
-        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest).actionGet());
     }
 
     public void testTimeRanges() throws Exception {

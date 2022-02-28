@@ -63,6 +63,16 @@ public class JsonXContent implements XContent {
     }
 
     @Override
+    public boolean detectContent(byte[] bytes, int offset, int length) {
+        return bytes[offset] == '{';
+    }
+
+    @Override
+    public boolean detectContent(CharSequence chars) {
+        return chars.charAt(0) == '{';
+    }
+
+    @Override
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
         return new JsonXContentGenerator(jsonFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
     }

@@ -14,7 +14,6 @@ import com.github.mustachejava.MustacheFactory;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.ParameterizedMessage;
-import java.util.function.Supplier;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
@@ -115,7 +114,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
                     return null;
                 });
             } catch (Exception e) {
-                logger.error((java.util.function.Supplier<?>) () -> new ParameterizedMessage("Error running {}", template), e);
+
                 throw new GeneralScriptException("Error running " + template, e);
             }
             return writer.toString();

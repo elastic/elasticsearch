@@ -26,12 +26,12 @@ dependencies {
   }
 }
 
-//tasks.named('forbiddenApisMain').configure {
-//  // :libs:elasticsearch-core does not depend on server
-//  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
-//  replaceSignatureFiles 'jdk-signatures'
-//}
-//
+tasks.named('forbiddenApisMain').configure {
+  // :libs:elasticsearch-core does not depend on server
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
+  replaceSignatureFiles 'jdk-signatures'
+}
+
 tasks.named("compileJava").configure {
   options.compilerArgs.add("-Xlint:-requires-automatic")
   options.compilerArgs.add("-Xlint:-module") // qualified exports

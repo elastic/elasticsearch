@@ -27,8 +27,6 @@ dependencies {
   api project(':client:rest')
   // bottleneck should be the client, not Elasticsearch
   api project(path: ':client:client-benchmark-noop-api-plugin')
-  moduleApi "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  moduleApi "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 }
 
 // No licenses for our benchmark deps (we don't ship benchmarks)

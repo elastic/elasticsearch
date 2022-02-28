@@ -9,7 +9,6 @@
 package org.elasticsearch.logging;
 
 import java.util.Objects;
-import java.util.function.Supplier;
 
 public interface Logger {
 
@@ -94,6 +93,10 @@ public interface Logger {
         log(Level.DEBUG, msgSupplier.get(), thrown);
     }
 
+    default void debug(String messagePattern, java.util.function.Supplier<?> paramSupplier) {
+        log(Level.DEBUG, messagePattern, paramSupplier);
+    }
+
     default void debug(String message) {
         log(Level.DEBUG, message);
     }
@@ -125,9 +128,11 @@ public interface Logger {
     default void debug(String message, Object... params) {
         log(Level.DEBUG, message, params);
     }
+
     default void debug(java.util.function.Supplier<?> msgSupplier) {
         log(Level.ERROR, msgSupplier.get());
     }
+
     // -- error
     default void error(Message message) {
         log(Level.ERROR, message);
@@ -140,7 +145,6 @@ public interface Logger {
     default void error(java.util.function.Supplier<?> msgSupplier) {
         log(Level.ERROR, msgSupplier.get());
     }
-
 
     default void error(java.util.function.Supplier<?> msgSupplier, Throwable thrown) {
         log(Level.ERROR, msgSupplier.get(), thrown);

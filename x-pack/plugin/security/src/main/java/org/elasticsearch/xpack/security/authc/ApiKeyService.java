@@ -1355,7 +1355,7 @@ public class ApiKeyService {
                 "authentication realm must be ["
                     + AuthenticationField.API_KEY_REALM_TYPE
                     + "], got ["
-                    + AuthenticationField.API_KEY_REALM_TYPE
+                    + authentication.getAuthenticatedBy().getType()
                     + "]"
             );
         }

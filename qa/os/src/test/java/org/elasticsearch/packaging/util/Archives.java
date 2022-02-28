@@ -232,6 +232,9 @@ public class Archives {
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
+    /**
+     * Starts an elasticsearch node from an attached terminal, optionally waiting for a specific string to be printed in stdout
+     */
     public static Shell.Result startElasticsearchWithTty(
         Installation installation,
         Shell sh,

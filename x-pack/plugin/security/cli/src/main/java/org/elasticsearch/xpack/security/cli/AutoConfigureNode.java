@@ -812,7 +812,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.newLine();
                 }
             });
-            terminal.println("WE AUTOCONFIGURED ZE NODE");
         } catch (Throwable t) {
             try {
                 if (Files.exists(keystoreBackupPath)) {

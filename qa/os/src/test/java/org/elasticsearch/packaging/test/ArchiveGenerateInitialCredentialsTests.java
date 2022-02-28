@@ -87,8 +87,6 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         Shell.Result result = awaitElasticsearchStartupWithResult(
             Archives.startElasticsearchWithTty(installation, sh, null, List.of(), OUTPUT_MATCH, false)
         );
-        logger.info("OUTPUT WAS: ");
-        logger.info(result.stdout());
         assertThat(parseElasticPassword(result.stdout()), notNullValue());
         assertThat(parseKibanaToken(result.stdout()), notNullValue());
         assertThat(parseFingerprint(result.stdout()), notNullValue());

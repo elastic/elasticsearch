@@ -195,13 +195,11 @@ public class InitialNodeSecurityAutoConfiguration {
     private static ConsoleLoader.Console getConsole() {
         final ConsoleLoader.Console console = BootstrapInfo.getConsole();
         if (console == null) {
-            LOGGER.info("BootstrapInfo.getConsole() was null ");
             return null;
         }
         // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
         console.printStream().println();
         if (console.printStream().checkError()) {
-            LOGGER.info("console was closed ");
             return null;
         }
         return console;

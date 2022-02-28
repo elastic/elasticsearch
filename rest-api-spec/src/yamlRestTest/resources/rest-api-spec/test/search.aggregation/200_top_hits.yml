@@ -27,6 +27,10 @@ setup:
 
 ---
 highlight:
+  - skip:
+      version: " - 6.99.99"
+      reason:  "total hits moved in 7.0.0"
+
   - do:
       search:
         index: test
@@ -55,6 +59,10 @@ highlight:
 
 ---
 highlight_query:
+  - skip:
+      version: " - 6.99.99"
+      reason:  "total hits moved in 7.0.0"
+
   - do:
       search:
         index: test
@@ -88,6 +96,8 @@ highlight_query:
 explain:
   - skip:
       features: close_to
+      version: " - 6.99.99"
+      reason:  "total hits moved in 7.0.0"
 
   - do:
       search:
@@ -118,6 +128,10 @@ explain:
 
 ---
 from:
+  - skip:
+        version: " - 6.99.99"
+        reason:  "total hits moved in 7.0.0"
+
   - do:
       search:
         index: test
@@ -144,6 +158,10 @@ from:
 
 ---
 size:
+  - skip:
+        version: " - 6.99.99"
+        reason:  "total hits moved in 7.0.0"
+
   - do:
       search:
         index: test
@@ -171,6 +189,10 @@ size:
 
 ---
 named queries:
+  - skip:
+        version: " - 6.99.99"
+        reason:  "total hits moved in 7.0.0"
+
   - do:
       search:
         index: test
@@ -204,6 +226,10 @@ named queries:
 
 ---
 fetch fields:
+  - skip:
+        version: " - 6.99.99"
+        reason:  "total hits moved in 7.0.0"
+
   - do:
       search:
         index: test
@@ -230,6 +256,10 @@ fetch fields:
 
 ---
 source filtering:
+  - skip:
+        version: " - 6.99.99"
+        reason:  "total hits moved in 7.0.0"
+
   - do:
       search:
         index: test
@@ -253,6 +283,10 @@ source filtering:
 
 ---
 stored fields:
+  - skip:
+        version: " - 6.99.99"
+        reason:  "total hits moved in 7.0.0"
+
   - do:
       search:
         index: test
@@ -276,6 +310,10 @@ stored fields:
 
 ---
 docvalue fields:
+  - skip:
+        version: " - 6.99.99"
+        reason:  "total hits moved in 7.0.0"
+
   - do:
       search:
         index: test
@@ -299,6 +337,10 @@ docvalue fields:
 
 ---
 version:
+  - skip:
+        version: " - 6.99.99"
+        reason:  "total hits moved in 7.0.0"
+
   - do:
       search:
         index: test
@@ -322,6 +364,10 @@ version:
 
 ---
 sequence number and primary term:
+  - skip:
+        version: " - 6.99.99"
+        reason:  "total hits moved in 7.0.0"
+
   - do:
       search:
         index: test

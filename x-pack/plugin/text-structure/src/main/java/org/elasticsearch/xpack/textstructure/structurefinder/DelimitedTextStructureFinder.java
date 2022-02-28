@@ -33,7 +33,8 @@ import java.util.stream.Collectors;
 
 public class DelimitedTextStructureFinder implements TextStructureFinder {
 
-    private static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
+    static final int MAX_EXCLUDE_LINES_PATTERN_LENGTH = 1000;
+    static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
     private static final int LONG_FIELD_THRESHOLD = 100;
     private final List<String> sampleMessages;
@@ -137,20 +138,11 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
             .setColumnNames(columnNamesList);
 
         String quote = String.valueOf(quoteChar);
-        String twoQuotes = quote + quote;
         String quotePattern = quote.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
         String optQuotePattern = quotePattern + "?";
         String delimiterPattern = (delimiter == '\t') ? "\\t" : String.valueOf(delimiter).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
         if (isHeaderInText) {
-            structureBuilder.setExcludeLinesPattern(
-                "^"
-                    + Arrays.stream(header)
-                        .map(
-                            column -> optQuotePattern + column.replace(quote, twoQuotes).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1")
-                                + optQuotePattern
-                        )
-                        .collect(Collectors.joining(delimiterPattern))
-            );
+            structureBuilder.setExcludeLinesPattern(makeExcludeLinesPattern(header, quote, optQuotePattern, delimiterPattern));
         }
 
         if (trimFields) {
@@ -413,7 +405,7 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         for (int i = 0; numComparisons < MAX_LEVENSHTEIN_COMPARISONS && i < otherRowStrs.size(); ++i) {
             for (int j = i + 1 + random.nextInt(innerIncrement); numComparisons < MAX_LEVENSHTEIN_COMPARISONS
                 && j < otherRowStrs.size(); j += innerIncrement) {
-                otherRowStats.accept((double) levenshteinFieldwiseCompareRows(otherRows.get(i), otherRows.get(j), shortFieldMask));
+                otherRowStats.accept(levenshteinFieldwiseCompareRows(otherRows.get(i), otherRows.get(j), shortFieldMask));
                 ++numComparisons;
             }
         }
@@ -812,5 +804,38 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         // configs from the find_structure response more complex, so let's wait to see if there's significant demand.
         explanation.add("Failed to create a suitable multi-line start pattern");
         return null;
+    }
+
+    /**
+     * Make a regular expression that Filebeat can use to ignore the header line of the delimited file.
+     * (Such lines may be observed multiple times if multiple delimited files are concatenated.)
+     *
+     * This pattern consists of a pattern that matches the literal column names, optionally quoted and
+     * separated by the delimiter.
+     *
+     * In the event that the column names are long and/or numerous only the first few are included.
+     * These ought to be enough to reliably distinguish the header line from data lines.
+     */
+    static String makeExcludeLinesPattern(String[] header, String quote, String optQuotePattern, String delimiterPattern) {
+        String twoQuotes = quote + quote;
+        StringBuilder excludeLinesPattern = new StringBuilder("^");
+        boolean isFirst = true;
+        int maxLengthOfFields = MAX_EXCLUDE_LINES_PATTERN_LENGTH - delimiterPattern.length() - 2; // 2 is length of ".*"
+        for (String column : header) {
+            String columnPattern = optQuotePattern + column.replace(quote, twoQuotes).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1")
+                + optQuotePattern;
+            if (isFirst) {
+                // Always append the pattern for the first column, even if it exceeds the limit
+                excludeLinesPattern.append(columnPattern);
+                isFirst = false;
+            } else {
+                if (excludeLinesPattern.length() + columnPattern.length() > maxLengthOfFields) {
+                    excludeLinesPattern.append(".*");
+                    break;
+                }
+                excludeLinesPattern.append(delimiterPattern).append(columnPattern);
+            }
+        }
+        return excludeLinesPattern.toString();
     }
 }

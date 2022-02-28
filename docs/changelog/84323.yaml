@@ -1,5 +1,0 @@
-pr: 84323
-summary: Generate JWT realm from static config settings
-area: Authentication
-type: non-issue
-issues: []

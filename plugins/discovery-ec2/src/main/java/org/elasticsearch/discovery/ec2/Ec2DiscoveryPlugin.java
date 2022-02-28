@@ -169,6 +169,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         return attrs.build();
     }
 
+    @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
     private static Optional<String> getToken(String azMetadataTokenUrl) {
         if (Strings.isNullOrEmpty(azMetadataTokenUrl)) {
             return Optional.empty();

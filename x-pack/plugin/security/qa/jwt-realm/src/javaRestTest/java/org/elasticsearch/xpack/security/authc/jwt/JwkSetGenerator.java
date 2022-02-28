@@ -17,6 +17,12 @@ import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 
 import java.util.Set;
 
+/**
+ * A utility class to generate a JWKSet for use in integration tests.
+ * When working with signatures other than HMAC, the {@link JwtRealm} requires a JWKSet on disk (or at a https URL).
+ * This class exists to make it easy to generate a valid JWKSet for integration tests where the node must be configured within the build
+ * (that is, using a static JWKSet)
+ */
 public class JwkSetGenerator {
 
     public static void main(String[] args) throws JOSEException {

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -189,11 +190,8 @@ class AuthenticatorChain {
         };
     }
 
-    private void maybeLookupRunAsUser(
-        Authenticator.Context context,
-        Authentication authentication,
-        ActionListener<Authentication> listener
-    ) {
+    // Package private for test
+    void maybeLookupRunAsUser(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
         if (false == runAsEnabled) {
             finishAuthentication(context, authentication, listener);
             return;
@@ -201,6 +199,19 @@ class AuthenticatorChain {
 
         final String runAsUsername = context.getThreadContext().getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
         if (runAsUsername == null) {
+            finishAuthentication(context, authentication, listener);
+            return;
+        }
+
+        // Run-as is supported for authentication with realm or api_key. Run-as for other authentication types is ignored.
+        // Both realm user and api_key can create tokens. They can also run-as another user and create tokens.
+        // In both cases, the created token will have a TOKEN authentication type and hence does not support run-as.
+        if (Authentication.AuthenticationType.REALM != authentication.getAuthenticationType()
+            && Authentication.AuthenticationType.API_KEY != authentication.getAuthenticationType()) {
+            logger.info(
+                "ignore run-as header since it is currently not supported for authentication type [{}]",
+                authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)
+            );
             finishAuthentication(context, authentication, listener);
             return;
         }

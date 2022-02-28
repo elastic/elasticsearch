@@ -266,17 +266,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         MetadataRolloverService rolloverService,
         ActiveShardsObserver activeShardsObserver
     ) implements ClusterStateTaskExecutor<RolloverTask> {
-
         @Override
-        public ClusterTasksResult<RolloverTask> execute(ClusterState currentState, List<RolloverTask> tasks) throws Exception {
-            final var builder = ClusterStateTaskExecutor.ClusterTasksResult.<RolloverTask>builder();
-            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(tasks.size());
+        public ClusterState execute(ClusterState currentState, List<TaskContext<RolloverTask>> taskContexts) throws Exception {
+            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(taskContexts.size());
             var state = currentState;
-            for (RolloverTask task : tasks) {
+            for (final var taskContext : taskContexts) {
                 try {
-                    state = executeTask(state, builder, results, task);
+                    state = executeTask(state, results, taskContext);
                 } catch (Exception e) {
-                    builder.failure(task, e);
+                    taskContext.onFailure(e);
                 }
             }
 
@@ -292,16 +290,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 );
                 state = allocationService.reroute(state, reason.toString());
             }
-            return builder.build(state);
+            return state;
         }
 
         public ClusterState executeTask(
             ClusterState currentState,
-            ClusterTasksResult.Builder<RolloverTask> builder,
             List<MetadataRolloverService.RolloverResult> results,
-            RolloverTask rolloverTask
+            TaskContext<RolloverTask> rolloverTaskContext
         ) throws Exception {
-
+            final var rolloverTask = rolloverTaskContext.getTask();
             final var rolloverRequest = rolloverTask.rolloverRequest();
 
             // Regenerate the rollover names, as a rollover could have happened in between the pre-check and the cluster state update
@@ -340,7 +337,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);
 
-                builder.success(rolloverTask, rolloverTask.listener().delegateFailure((delegate, ignored) ->
+                rolloverTaskContext.success(rolloverTask.listener().delegateFailure((delegate, ignored) ->
                 // Now assuming we have a new state and the name of the rolled over index, we need to wait for the configured number of
                 // active shards, as well as return the names of the indices that were rolled/created
                 activeShardsObserver.waitForActiveShards(
@@ -369,7 +366,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             } else {
                 // Upon re-evaluation of the conditions, none were met, so therefore do not perform a rollover, returning the current
                 // cluster state.
-                builder.success(rolloverTask, rolloverTask.listener().map(ignored -> rolloverTask.trialRolloverResponse()));
+                rolloverTaskContext.success(rolloverTask.listener().map(ignored -> rolloverTask.trialRolloverResponse()));
                 return currentState;
             }
         }

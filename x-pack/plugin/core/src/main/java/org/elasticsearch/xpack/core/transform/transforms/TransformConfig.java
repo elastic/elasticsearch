@@ -659,6 +659,10 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         return builder.setVersion(Version.CURRENT).build();
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     public static class Builder {
         private String id;
         private SourceConfig source;

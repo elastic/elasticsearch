@@ -30,6 +30,7 @@ import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -44,18 +45,22 @@ public class JwkValidateUtil {
 
         final Predicate<JWK> keyUsePredicate = j -> ((j.getKeyUse() == null) || (KeyUse.SIGNATURE.equals(j.getKeyUse())));
         final List<JWK> jwksSig = jwks.stream().filter(keyUsePredicate).toList();
-        LOGGER.trace("JWKs [" + jwksSig.size() + "] after KeyUse [SIGNATURE||null] filter.");
+        LOGGER.debug("JWKs [" + jwksSig.size() + "] after KeyUse [SIGNATURE||null] filter.");
 
         final Predicate<JWK> keyOpPredicate = j -> ((j.getKeyOperations() == null) || (j.getKeyOperations().contains(KeyOperation.VERIFY)));
         final List<JWK> jwksVerify = jwksSig.stream().filter(keyOpPredicate).toList();
-        LOGGER.trace("JWKs [" + jwksVerify.size() + " after KeyOperation [VERIFY||null] filter.");
+        LOGGER.debug("JWKs [" + jwksVerify.size() + " after KeyOperation [VERIFY||null] filter.");
 
         final List<JWK> jwksFiltered = jwksVerify.stream().filter(j -> (algs.stream().anyMatch(a -> isMatch(j, a)))).toList();
-        LOGGER.trace("JWKs [" + jwksFiltered.size() + "] after Algorithms [" + String.join(",", algs) + "] filter.");
+        LOGGER.debug("JWKs [" + jwksFiltered.size() + "] after Algorithms [" + String.join(",", algs) + "] filter.");
 
         final List<String> algsFiltered = algs.stream().filter(a -> (jwksFiltered.stream().anyMatch(j -> isMatch(j, a)))).toList();
-        LOGGER.trace("Algorithms [" + String.join(",", algsFiltered) + "] after remaining JWKs [" + jwksFiltered.size() + "] filter.");
+        LOGGER.debug("Algorithms [" + String.join(",", algsFiltered) + "] after remaining JWKs [" + jwksFiltered.size() + "] filter.");
 
+        if ((jwksFiltered.size() < jwks.size()) || (algsFiltered.size() < algs.size())) {
+            LOGGER.info("JWKs [" + jwks.size() + "] usable [" + jwksFiltered.size() + "].");
+            LOGGER.info("Algorithms [" + String.join(",", algs) + "] usable [" + String.join(",", algsFiltered) + "].");
+        }
         return new JwtRealm.JwksAlgs(jwksFiltered, algsFiltered);
     }
 
@@ -70,11 +75,29 @@ public class JwkValidateUtil {
     static boolean isMatch(final JWK jwk, final String algorithm) {
         try {
             if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(algorithm)) && (jwk instanceof OctetSequenceKey jwkHmac)) {
-                return jwkHmac.size() >= MACSigner.getMinRequiredSecretLength(JWSAlgorithm.parse(algorithm));
+                final int bits = jwkHmac.size();
+                final int min = MACSigner.getMinRequiredSecretLength(JWSAlgorithm.parse(algorithm));
+                final boolean isMatch = bits >= min;
+                if (isMatch == false) {
+                    LOGGER.debug("HMAC JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
+                }
+                return isMatch;
             } else if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA.contains(algorithm)) && (jwk instanceof RSAKey jwkRsa)) {
-                return JwkValidateUtil.computeBitLengthRsa(jwkRsa.toPublicKey()) >= RSAKeyGenerator.MIN_KEY_SIZE_BITS;
+                final int bits = JwkValidateUtil.computeBitLengthRsa(jwkRsa.toPublicKey());
+                final int min = RSAKeyGenerator.MIN_KEY_SIZE_BITS;
+                final boolean isMatch = bits >= min;
+                if (isMatch == false) {
+                    LOGGER.debug("RSA JWK [" + bits + "] bits too small for algorithm [" + algorithm + "] minimum [" + min + "].");
+                }
+                return isMatch;
             } else if ((JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_EC.contains(algorithm)) && (jwk instanceof ECKey jwkEc)) {
-                return Curve.forJWSAlgorithm(JWSAlgorithm.parse(algorithm)).contains(jwkEc.getCurve());
+                final Curve curve = jwkEc.getCurve();
+                final Set<Curve> allowed = Curve.forJWSAlgorithm(JWSAlgorithm.parse(algorithm));
+                final boolean isMatch = allowed.contains(curve);
+                if (isMatch == false) {
+                    LOGGER.debug("EC JWK [" + curve + "] curve not allowed for algorithm [" + algorithm + "] allowed " + allowed + ".");
+                }
+                return isMatch;
             }
         } catch (Exception e) {
             LOGGER.trace("Unexpected exception", e);

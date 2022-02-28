@@ -260,7 +260,7 @@ public class Archives {
             expect "Elasticsearch keystore password:"
             send "%s\\r"
             """.formatted(keystorePassword);
-        String checkStartupScript = daemonize ? "" : """
+        String checkStartupScript = daemonize ? "expect eof" : """
             expect {
               "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
               timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }

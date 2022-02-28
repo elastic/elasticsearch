@@ -1,5 +1,0 @@
-pr: 84323
-summary: Small cleanup to help generate JWT realm from static config settings
-area: Authentication
-type: feature
-issues: []

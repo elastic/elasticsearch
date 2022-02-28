@@ -319,9 +319,6 @@ public class AuthenticationTests extends ESTestCase {
             authentication1,
             m -> assertThat(m, hasEntry("token", Map.of("name", tokenName, "type", tokenType)))
         );
-
-        final Authentication authentication2 = authentication1.runAs(randomUser(), randomRealmRef(false));
-        runWithAuthenticationToXContent(authentication2, m -> assertThat(m, not(hasKey("token"))));
     }
 
     private void runWithAuthenticationToXContent(Authentication authentication, Consumer<Map<String, Object>> consumer) throws IOException {

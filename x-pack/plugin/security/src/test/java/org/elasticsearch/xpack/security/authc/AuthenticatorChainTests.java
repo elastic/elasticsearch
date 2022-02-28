@@ -298,7 +298,7 @@ public class AuthenticatorChainTests extends ESTestCase {
     public void testMaybeLookupRunAsUser() {
         final Authentication authentication = randomFrom(
             AuthenticationTests.randomApiKeyAuthentication(AuthenticationTests.randomUser(), randomAlphaOfLength(20)),
-            AuthenticationTests.randomRealmAuthentication(false)
+            AuthenticationTests.randomRealmAuthentication()
         );
         final String runAsUsername = "your-run-as-username";
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, runAsUsername);
@@ -321,8 +321,10 @@ public class AuthenticatorChainTests extends ESTestCase {
 
     public void testRunAsIsIgnoredForUnsupportedAuthenticationTypes() throws IllegalAccessException {
         final Authentication authentication = randomFrom(
-            AuthenticationTests.randomApiKeyAuthentication(AuthenticationTests.randomUser(), randomAlphaOfLength(20)).token(),
-            AuthenticationTests.randomRealmAuthentication(false).token(),
+            AuthenticationTests.toToken(
+                AuthenticationTests.randomApiKeyAuthentication(AuthenticationTests.randomUser(), randomAlphaOfLength(20))
+            ),
+            AuthenticationTests.toToken(AuthenticationTests.randomRealmAuthentication()),
             AuthenticationTests.randomServiceAccountAuthentication(),
             AuthenticationTests.randomAnonymousAuthentication(),
             AuthenticationTests.randomInternalAuthentication()

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
@@ -16,7 +17,12 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -26,6 +32,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.hamcrest.Matchers.is;
 
 public class AuthenticationTests extends ESTestCase {
@@ -256,6 +268,40 @@ public class AuthenticationTests extends ESTestCase {
                 randomFrom(TokenInfo.TokenSource.values()).name().toLowerCase(Locale.ROOT)
             )
         );
+    }
+
+    public static Authentication randomRealmAuthentication() {
+        return new Authentication(randomUser(), randomRealm(), null);
+    }
+
+    public static Authentication randomInternalAuthentication() {
+        String nodeName = randomAlphaOfLengthBetween(3, 8);
+        return randomFrom(
+            new Authentication(
+                randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE),
+                new RealmRef(ATTACH_REALM_NAME, ATTACH_REALM_TYPE, nodeName),
+                null
+            ),
+            new Authentication(SystemUser.INSTANCE, new RealmRef(FALLBACK_REALM_NAME, FALLBACK_REALM_TYPE, nodeName), null)
+        );
+    }
+
+    public static Authentication randomAnonymousAuthentication() {
+        Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anon_role").build();
+        String nodeName = randomAlphaOfLengthBetween(3, 8);
+        return new Authentication(new AnonymousUser(settings), new RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName), null);
+    }
+
+    public static Authentication toToken(Authentication authentication) {
+        final Authentication newTokenAuthentication = new Authentication(
+            authentication.getUser(),
+            authentication.getAuthenticatedBy(),
+            authentication.getLookedUpBy(),
+            Version.CURRENT,
+            AuthenticationType.TOKEN,
+            authentication.getMetadata()
+        );
+        return newTokenAuthentication;
     }
 
     private boolean realmIsSingleton(RealmRef realmRef) {

@@ -19,6 +19,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -45,6 +47,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -772,6 +775,189 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 );
             },
             ft
+        );
+    }
+
+    public void testBoolThenDateTopLevel() throws IOException {
+        MappedFieldType ft = new DateFieldMapper.DateFieldType("test");
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(false);
+
+        String start = "2010-01-02T00:00:00.000Z";
+        String middle = "2010-01-02T00:00:05.000Z";
+        String mostly = "2010-01-02T00:00:09.000Z";
+        String end = "2010-01-02T00:00:10.000Z";
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start);
+            long endDate = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(end);
+            while (date < endDate) {
+                iw.addDocument(List.of(new LongPoint("test", date), new SortedNumericDocValuesField("test", date)));
+                date += 100;
+            }
+        };
+
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new RangeQueryBuilder("test").from(start).to(middle))
+        );
+        debugTestCase(
+            builder,
+            new BooleanQuery.Builder().add(
+                LongPoint.newRangeQuery(
+                    "test",
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start),
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(mostly)
+                ),
+                Occur.FILTER
+            ).build(),
+            buildIndex,
+            (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(filters.getBuckets(), hasSize(1));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(51L));
+
+                assertThat(impl, equalTo(FilterByFilterAggregator.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "test",
+                        matchesMap().entry("segments_with_doc_count_field", 0)
+                            .entry("segments_with_deleted_docs", 0)
+                            .entry("segments_collected", 0)
+                            .entry("segments_counted", greaterThanOrEqualTo(1))
+                            .entry(
+                                "filters",
+                                matchesList().item(
+                                    matchesMap().entry(
+                                        "query",
+                                        "MergedPointRange[+test:[1262390400000 TO 1262390405000] +test:[1262390400000 TO 1262390409000]]"
+                                    )
+                                )
+                            )
+                    )
+                );
+            },
+            ft,
+            fnft
+        );
+    }
+
+    public void testBoolThenDateFilter() throws IOException {
+        MappedFieldType ft = new DateFieldMapper.DateFieldType("test");
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(false);
+
+        String start = "2010-01-02T00:00:00.000Z";
+        String middle = "2010-01-02T00:00:05.000Z";
+        String mostly = "2010-01-02T00:00:09.000Z";
+        String end = "2010-01-02T00:00:10.000Z";
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start);
+            long endDate = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(end);
+            while (date < endDate) {
+                iw.addDocument(List.of(new LongPoint("test", date), new SortedNumericDocValuesField("test", date)));
+                date += 100;
+            }
+        };
+
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new BoolQueryBuilder().filter(new RangeQueryBuilder("test").from(start).to(middle)))
+        );
+        debugTestCase(
+            builder,
+            LongPoint.newRangeQuery(
+                "test",
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start),
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(mostly)
+            ),
+            buildIndex,
+            (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(filters.getBuckets(), hasSize(1));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(51L));
+
+                assertThat(impl, equalTo(FilterByFilterAggregator.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "test",
+                        matchesMap().entry("segments_with_doc_count_field", 0)
+                            .entry("segments_with_deleted_docs", 0)
+                            .entry("segments_collected", 0)
+                            .entry("segments_counted", greaterThanOrEqualTo(1))
+                            .entry(
+                                "filters",
+                                matchesList().item(
+                                    matchesMap().entry(
+                                        "query",
+                                        "MergedPointRange[+test:[1262390400000 TO 1262390405000] +test:[1262390400000 TO 1262390409000]]"
+                                    )
+                                )
+                            )
+                    )
+                );
+            },
+            ft,
+            fnft
+        );
+    }
+
+    public void testBoolWithMatchAllThenDateFilter() throws IOException {
+        MappedFieldType ft = new DateFieldMapper.DateFieldType("test");
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(false);
+
+        String start = "2010-01-02T00:00:00.000Z";
+        String middle = "2010-01-02T00:00:05.000Z";
+        String mostly = "2010-01-02T00:00:09.000Z";
+        String end = "2010-01-02T00:00:10.000Z";
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start);
+            long endDate = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(end);
+            while (date < endDate) {
+                iw.addDocument(List.of(new LongPoint("test", date), new SortedNumericDocValuesField("test", date)));
+                date += 100;
+            }
+        };
+
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new RangeQueryBuilder("test").from(start).to(middle))
+        );
+        debugTestCase(
+            builder,
+            new BooleanQuery.Builder().add(
+                LongPoint.newRangeQuery(
+                    "test",
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start),
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(mostly)
+                ),
+                Occur.FILTER
+            ).add(new MatchAllDocsQuery(), Occur.FILTER).build(),
+            buildIndex,
+            (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(filters.getBuckets(), hasSize(1));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(51L));
+
+                assertThat(impl, equalTo(FilterByFilterAggregator.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "test",
+                        matchesMap().entry("segments_with_doc_count_field", 0)
+                            .entry("segments_with_deleted_docs", 0)
+                            .entry("segments_collected", 0)
+                            .entry("segments_counted", greaterThanOrEqualTo(1))
+                            .entry(
+                                "filters",
+                                matchesList().item(
+                                    matchesMap().entry(
+                                        "query",
+                                        "MergedPointRange[+test:[1262390400000 TO 1262390405000] +test:[1262390400000 TO 1262390409000]]"
+                                    )
+                                )
+                            )
+                    )
+                );
+            },
+            ft,
+            fnft
         );
     }
 

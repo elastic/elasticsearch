@@ -420,8 +420,6 @@ public class DiscoveryNodesTests extends ESTestCase {
                 Version.fromString("1.1.0")
             )
         );
-        discoBuilder.localNodeId("name_1");
-        discoBuilder.masterNodeId("name_2");
         DiscoveryNodes build = discoBuilder.build();
         assertEquals(Version.fromString("6.3.0"), build.getMaxNodeVersion());
         assertEquals(Version.fromString("1.1.0"), build.getMinNodeVersion());

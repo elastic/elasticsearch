@@ -229,8 +229,14 @@ public class Authentication implements ToXContentObject {
         return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType());
     }
 
-    public boolean isAuthenticatedWithApiKey() {
-        return AuthenticationType.API_KEY.equals(getAuthenticationType());
+    /**
+     * Whether the authenticating user is an API key, including a simple API key or a token created by an API key.
+     * @return
+     */
+    public boolean isAuthenticatedAsApiKey() {
+        final boolean result = AuthenticationField.API_KEY_REALM_TYPE.equals(getAuthenticatedBy().getType());
+        assert false == result || AuthenticationField.API_KEY_REALM_NAME.equals(getAuthenticatedBy().getName());
+        return result;
     }
 
     public boolean isAuthenticatedAnonymously() {
@@ -245,14 +251,20 @@ public class Authentication implements ToXContentObject {
      * Authenticate with a service account and no run-as
      */
     public boolean isServiceAccount() {
-        return isAuthenticatedWithServiceAccount() && false == getUser().isRunAs();
+        final boolean result = ServiceAccountSettings.REALM_TYPE.equals(getSourceRealm().getType());
+        assert false == result || ServiceAccountSettings.REALM_NAME.equals(getSourceRealm().getName())
+            : "service account realm name mismatch";
+        return result;
     }
 
     /**
-     * Authenticated with an API key and no run-as
+     * Whether the effective user is an API key, this including a simple API key authentication
+     * or a token created by the API key.
      */
     public boolean isApiKey() {
-        return isAuthenticatedWithApiKey() && false == getUser().isRunAs();
+        final boolean result = AuthenticationField.API_KEY_REALM_TYPE.equals(getSourceRealm().getType());
+        assert false == result || AuthenticationField.API_KEY_REALM_NAME.equals(getSourceRealm().getName()) : "api key realm name mismatch";
+        return result;
     }
 
     /**
@@ -419,7 +431,7 @@ public class Authentication implements ToXContentObject {
     }
 
     private void assertApiKeyMetadata() {
-        assert (false == isAuthenticatedWithApiKey()) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
+        assert (false == isAuthenticatedAsApiKey()) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
     }
 
@@ -695,8 +707,9 @@ public class Authentication implements ToXContentObject {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> maybeRewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
         Map<String, Object> metadata = authentication.getMetadata();
-        // If authentication type is API key, regardless whether it has run-as, the metadata must contain API key role descriptors
-        if (authentication.isAuthenticatedWithApiKey()) {
+        // If authentication user is an API key or a token created by an API key,
+        // regardless whether it has run-as, the metadata must contain API key role descriptors
+        if (authentication.isAuthenticatedAsApiKey()) {
             assert metadata.containsKey(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)

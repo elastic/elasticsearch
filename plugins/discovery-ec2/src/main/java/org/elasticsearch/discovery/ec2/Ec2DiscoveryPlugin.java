@@ -47,6 +47,8 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
 
     private static final Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
     public static final String EC2 = "ec2";
+    private static final int CONNECT_TIMEOUT = 2000;
+    private static final int METADATA_TOKEN_TTL_SECONDS = 60;
 
     static {
         SpecialPermission.check();
@@ -143,7 +145,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             url = new URL(azMetadataUrl);
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
             urlConnection = SocketAccess.doPrivilegedIOException(() -> (HttpURLConnection) url.openConnection());
-            urlConnection.setConnectTimeout(2000);
+            urlConnection.setConnectTimeout(CONNECT_TIMEOUT);
             getToken(azMetadataTokenUrl).ifPresent(v -> urlConnection.setRequestProperty("X-aws-ec2-metadata-token", v));
         } catch (final IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
@@ -179,8 +181,8 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             tokenUrlConnection = SocketAccess.doPrivilegedIOException(
                 () -> (HttpURLConnection) new URL(azMetadataTokenUrl).openConnection()
             );
-            tokenUrlConnection.setConnectTimeout(2000);
-            tokenUrlConnection.setRequestProperty("X-aws-ec2-metadata-token-ttl-seconds", "60");
+            tokenUrlConnection.setConnectTimeout(CONNECT_TIMEOUT);
+            tokenUrlConnection.setRequestProperty("X-aws-ec2-metadata-token-ttl-seconds", String.valueOf(METADATA_TOKEN_TTL_SECONDS));
         } catch (IOException e) {
             logger.warn("Unable to access the IMDSv2 URI: " + azMetadataTokenUrl, e);
             return Optional.empty();

@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -36,6 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -44,7 +44,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -105,11 +104,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            executor = (currentState, tasks) -> {
-                ClusterTasksResult.Builder<CreateIndexTask> builder = ClusterTasksResult.builder();
+            executor = (currentState, taskContexts) -> {
                 ClusterState state = currentState;
-                final Map<CreateIndexRequest, CreateIndexTask> successfulRequests = new HashMap<>(tasks.size());
-                for (CreateIndexTask task : tasks) {
+                final Map<CreateIndexRequest, CreateIndexTask> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
+                for (final var taskContext : taskContexts) {
+                    final var task = taskContext.getTask();
                     try {
                         final CreateIndexTask successfulBefore = successfulRequests.putIfAbsent(task.request, task);
                         if (successfulBefore == null) {
@@ -120,15 +119,15 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             // each duplicate task
                             task.indexNameRef.set(successfulBefore.indexNameRef.get());
                         }
-                        builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState), task);
+                        taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState), task);
                     } catch (Exception e) {
-                        builder.failure(task, e);
+                        taskContext.onFailure(e);
                     }
                 }
                 if (state != currentState) {
                     state = allocationService.reroute(state, "auto-create");
                 }
-                return builder.build(state);
+                return state;
             };
         }
 

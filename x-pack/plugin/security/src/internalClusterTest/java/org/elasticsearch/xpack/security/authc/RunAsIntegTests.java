@@ -157,7 +157,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             createApiKeyResponse.getEntity().getContent()
         );
 
-        final boolean runAsTestUser = false;
+        final boolean runAsTestUser = randomBoolean();
 
         final Request authenticateRequest = new Request("GET", "/_security/_authenticate");
         authenticateRequest.setOptions(
@@ -194,6 +194,32 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
             final ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(getUserRequest));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         }
+
+        // Run-as ignored if using a token created by the API key
+        final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
+        createTokenRequest.setOptions(
+            createTokenRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKeyMapView.get("encoded"))
+        );
+        createTokenRequest.setJsonEntity("{\"grant_type\":\"client_credentials\"}");
+        final Response createTokenResponse = getRestClient().performRequest(createTokenRequest);
+        final XContentTestUtils.JsonMapView createTokenJsonView = XContentTestUtils.createJsonMapView(
+            createTokenResponse.getEntity().getContent()
+        );
+
+        authenticateRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", "Bearer " + createTokenJsonView.get("access_token"))
+                .addHeader(
+                    AuthenticationServiceField.RUN_AS_USER_HEADER,
+                    runAsTestUser ? SecuritySettingsSource.TEST_USER_NAME : NO_ROLE_USER
+                )
+        );
+        final Response authenticateResponse2 = getRestClient().performRequest(authenticateRequest);
+        final XContentTestUtils.JsonMapView authenticateJsonView2 = XContentTestUtils.createJsonMapView(
+            authenticateResponse2.getEntity().getContent()
+        );
+        // run-as header is ignored, the user is still the run_as_user
+        assertThat(authenticateJsonView2.get("username"), equalTo(RUN_AS_USER));
     }
 
     public void testRunAsIgnoredForOAuthToken() throws IOException {

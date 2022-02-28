@@ -1371,10 +1371,12 @@ public class ApiKeyService {
      * @return A map for the metadata or an empty map if no metadata is found.
      */
     public static Map<String, Object> getApiKeyMetadata(Authentication authentication) {
-        if (false == authentication.isAuthenticatedWithApiKey()) {
+        if (false == authentication.isAuthenticatedAsApiKey()) {
             throw new IllegalArgumentException(
-                "authentication type must be [api_key], got ["
-                    + authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)
+                "authentication realm must be ["
+                    + AuthenticationField.API_KEY_REALM_TYPE
+                    + "], got ["
+                    + authentication.getAuthenticatedBy().getType()
                     + "]"
             );
         }

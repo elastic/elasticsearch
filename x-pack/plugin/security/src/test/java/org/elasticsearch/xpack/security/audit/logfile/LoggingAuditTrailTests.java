@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
@@ -1627,7 +1628,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         // audit for authn with API Key
-        authentication = createApiKeyAuthentication(apiKeyService, authentication);
+        authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
         checkedFields = new MapBuilder<>(commonFields);
         checkedArrayFields = new MapBuilder<>();
         auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
@@ -1843,7 +1844,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         // audit for authn with API Key
-        authentication = createApiKeyAuthentication(apiKeyService, authentication);
+        authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
         checkedFields = new MapBuilder<>(commonFields);
         checkedArrayFields = new MapBuilder<>();
         auditTrail.accessGranted(requestId, authentication, "internal:_action", request, authorizationInfo);
@@ -1902,7 +1903,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         // audit for authn with API Key
-        authentication = createApiKeyAuthentication(apiKeyService, authentication);
+        authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
         checkedFields = new MapBuilder<>(commonFields);
         checkedArrayFields = new MapBuilder<>();
         auditTrail.accessDenied(requestId, authentication, "_action/bar", request, authorizationInfo);
@@ -2021,7 +2022,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         // audit for authn with API Key
-        authentication = createApiKeyAuthentication(apiKeyService, authentication);
+        authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
         checkedFields = new MapBuilder<>(commonFields);
         checkedArrayFields = new MapBuilder<>();
         auditTrail.tamperedRequest(requestId, authentication, "_action", request);
@@ -2234,7 +2235,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         // audit for authn with API Key
-        authentication = createApiKeyAuthentication(apiKeyService, authentication);
+        authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
         checkedFields = new MapBuilder<>(commonFields);
         auditTrail.authenticationSuccess(requestId, authentication, request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
@@ -2289,7 +2290,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         // audit for authn with API Key
-        authentication = createApiKeyAuthentication(apiKeyService, authentication);
+        authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
         checkedFields = new MapBuilder<>(commonFields);
         checkedArrayFields = new MapBuilder<>();
         auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
@@ -2337,7 +2338,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=")));
             auditTrail.accessGranted(
                 "_req_id",
-                randomBoolean() ? createAuthentication() : createApiKeyAuthentication(apiKeyService, createAuthentication()),
+                randomBoolean() ? createAuthentication() : createApiKeyAuthenticationAndMaybeWithRunAs(createAuthentication()),
                 "_action",
                 request,
                 authorizationInfo
@@ -2346,7 +2347,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=")));
             auditTrail.accessDenied(
                 "_req_id",
-                randomBoolean() ? createAuthentication() : createApiKeyAuthentication(apiKeyService, createAuthentication()),
+                randomBoolean() ? createAuthentication() : createApiKeyAuthenticationAndMaybeWithRunAs(createAuthentication()),
                 "_action",
                 request,
                 authorizationInfo
@@ -2358,7 +2359,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=")));
             auditTrail.tamperedRequest(
                 "_req_id",
-                randomBoolean() ? createAuthentication() : createApiKeyAuthentication(apiKeyService, createAuthentication()),
+                randomBoolean() ? createAuthentication() : createApiKeyAuthenticationAndMaybeWithRunAs(createAuthentication()),
                 "_action",
                 request
             );
@@ -2366,7 +2367,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=")));
             auditTrail.runAsGranted(
                 "_req_id",
-                randomBoolean() ? createAuthentication() : createApiKeyAuthentication(apiKeyService, createAuthentication()),
+                randomBoolean() ? createAuthentication() : createApiKeyAuthenticationAndMaybeWithRunAs(createAuthentication()),
                 "_action",
                 request,
                 authorizationInfo
@@ -2375,7 +2376,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=")));
             auditTrail.runAsDenied(
                 "_req_id",
-                randomBoolean() ? createAuthentication() : createApiKeyAuthentication(apiKeyService, createAuthentication()),
+                randomBoolean() ? createAuthentication() : createApiKeyAuthenticationAndMaybeWithRunAs(createAuthentication()),
                 "_action",
                 request,
                 authorizationInfo
@@ -2384,7 +2385,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=")));
             auditTrail.authenticationSuccess(
                 "_req_id",
-                randomBoolean() ? createAuthentication() : createApiKeyAuthentication(apiKeyService, createAuthentication()),
+                randomBoolean() ? createAuthentication() : createApiKeyAuthenticationAndMaybeWithRunAs(createAuthentication()),
                 "_action",
                 request
             );
@@ -2608,6 +2609,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
         return new ClusterSettings(settings, new HashSet<>(settingsList));
     }
 
+    private Authentication createApiKeyAuthenticationAndMaybeWithRunAs(Authentication authentication) throws Exception {
+        authentication = createApiKeyAuthentication(apiKeyService, authentication);
+        if (randomBoolean()) {
+            authentication = authentication.runAs(AuthenticationTests.randomUser(), AuthenticationTests.randomRealmRef(false));
+        }
+        return authentication;
+    }
+
     static class MockRequest extends TransportRequest {
 
         MockRequest(ThreadContext threadContext) throws IOException {
@@ -2676,7 +2685,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     private static void authentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
         checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
         checkedFields.put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-        if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+        if (authentication.isApiKey()) {
             assert false == authentication.getUser().isRunAs();
             checkedFields.put(
                 LoggingAuditTrail.API_KEY_ID_FIELD_NAME,
@@ -2690,7 +2699,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             if (creatorRealmName != null) {
                 checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
             }
-
         } else {
             if (authentication.getUser().isRunAs()) {
                 checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authentication.getLookedUpBy().getName())
@@ -2750,5 +2758,4 @@ public class LoggingAuditTrailTests extends ESTestCase {
             checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, MockRequest.class.getSimpleName());
         }
     }
-
 }

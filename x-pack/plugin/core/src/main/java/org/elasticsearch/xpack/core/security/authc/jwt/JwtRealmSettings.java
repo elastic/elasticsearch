@@ -6,21 +6,14 @@
  */
 package org.elasticsearch.xpack.core.security.authc.jwt;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -280,14 +273,4 @@ public class JwtRealmSettings {
         }
     }
 
-    public static String toYaml(final Settings settings) {
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.YAML.xContent())) {
-            builder.startObject();
-            settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
-            builder.endObject();
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
 }

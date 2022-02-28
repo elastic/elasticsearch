@@ -53,7 +53,7 @@ public class DeleteAsyncResultsService {
      * delete async search submitted by another user.
      */
     private void hasCancelTaskPrivilegeAsync(Consumer<Boolean> consumer) {
-        final Authentication current = store.getAuthentication();
+        final Authentication current = store.getSecurityContext().getAuthentication();
         if (current != null) {
             HasPrivilegesRequest req = new HasPrivilegesRequest();
             req.username(current.getUser().principal());

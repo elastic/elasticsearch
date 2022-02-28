@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.authc.jwt;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
@@ -17,6 +16,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -80,7 +80,7 @@ public class JwtRealmSettings {
      * @return All secure and non-secure settings.
      */
     public static Set<Setting.AffixSetting<?>> getSettings() {
-        final Set<Setting.AffixSetting<?>> set = Sets.newHashSet();
+        final Set<Setting.AffixSetting<?>> set = new HashSet<>();
         set.addAll(JwtRealmSettings.getNonSecureSettings());
         set.addAll(JwtRealmSettings.getSecureSettings());
         return set;
@@ -90,8 +90,8 @@ public class JwtRealmSettings {
      * Get all non-secure settings.
      * @return All non-secure settings.
      */
-    public static Set<Setting.AffixSetting<?>> getNonSecureSettings() {
-        final Set<Setting.AffixSetting<?>> set = Sets.newHashSet();
+    private static Set<Setting.AffixSetting<?>> getNonSecureSettings() {
+        final Set<Setting.AffixSetting<?>> set = new HashSet<>();
         // Standard realm settings: order, enabled
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         // JWT Issuer settings
@@ -131,8 +131,8 @@ public class JwtRealmSettings {
      * Get all secure settings.
      * @return All secure settings.
      */
-    public static List<Setting.AffixSetting<SecureString>> getSecureSettings() {
-        return List.of(HMAC_JWKSET, HMAC_KEY, CLIENT_AUTHENTICATION_SHARED_SECRET);
+    private static Set<Setting.AffixSetting<SecureString>> getSecureSettings() {
+        return new HashSet<>(List.of(HMAC_JWKSET, HMAC_KEY, CLIENT_AUTHENTICATION_SHARED_SECRET));
     }
 
     // JWT issuer settings
@@ -272,4 +272,5 @@ public class JwtRealmSettings {
             verifyNonNullNotEmpty(key, value, allowedValues);
         }
     }
+
 }

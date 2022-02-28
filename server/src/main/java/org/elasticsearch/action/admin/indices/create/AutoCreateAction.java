@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -107,21 +106,21 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            executor = (currentState, tasks) -> {
-                ClusterTasksResult.Builder<CreateIndexTask> builder = ClusterTasksResult.builder();
+            executor = (currentState, taskContexts) -> {
                 ClusterState state = currentState;
-                final var successfulRequests = Maps.<CreateIndexRequest, String>newMapWithExpectedSize(tasks.size());
-                for (CreateIndexTask task : tasks) {
+                final Map<CreateIndexRequest, String> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
+                for (final var taskContext : taskContexts) {
+                    final var task = taskContext.getTask();
                     try {
-                        state = task.execute(state, successfulRequests, builder);
+                        state = task.execute(state, successfulRequests, taskContext);
                     } catch (Exception e) {
-                        builder.failure(task, e);
+                        taskContext.onFailure(e);
                     }
                 }
                 if (state != currentState) {
                     state = allocationService.reroute(state, "auto-create");
                 }
-                return builder.build(state);
+                return state;
             };
         }
 
@@ -201,7 +200,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             ClusterState execute(
                 ClusterState currentState,
                 Map<CreateIndexRequest, String> successfulRequests,
-                ClusterStateTaskExecutor.ClusterTasksResult.Builder<CreateIndexTask> builder
+                ClusterStateTaskExecutor.TaskContext<CreateIndexTask> taskContext
             ) throws Exception {
                 final ActionListener<ClusterState> publishListener = new ActionListener<>() {
                     @Override
@@ -217,7 +216,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                 final var previousIndexName = successfulRequests.get(request);
                 if (previousIndexName != null) {
-                    builder.success(this, publishListener, getAckListener(previousIndexName));
+                    taskContext.success(publishListener, getAckListener(previousIndexName));
                     return currentState;
                 }
 
@@ -249,7 +248,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
 
                     final var indexName = clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName();
-                    builder.success(this, publishListener, getAckListener(indexName));
+                    taskContext.success(publishListener, getAckListener(indexName));
                     successfulRequests.put(request, indexName);
                     return clusterState;
                 } else {
@@ -264,7 +263,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                         if (shouldAutoCreate == false) {
                             // The index already exists.
-                            builder.success(this, publishListener, getAckListener(indexName));
+                            taskContext.success(publishListener, getAckListener(indexName));
                             successfulRequests.put(request, indexName);
                             return currentState;
                         }
@@ -303,7 +302,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     }
 
                     final var clusterState = createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
-                    builder.success(this, publishListener, getAckListener(indexName));
+                    taskContext.success(publishListener, getAckListener(indexName));
                     successfulRequests.put(request, indexName);
                     return clusterState;
                 }

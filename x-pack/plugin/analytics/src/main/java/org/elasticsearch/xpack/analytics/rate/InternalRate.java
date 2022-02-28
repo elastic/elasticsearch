@@ -87,7 +87,7 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalRate(name, samplingContext.inverseScale(sum), divisor, format, getMetadata());
+        return new InternalRate(name, samplingContext.scaleUp(sum), divisor, format, getMetadata());
     }
 
     @Override

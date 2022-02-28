@@ -563,14 +563,14 @@ public class MetadataIndexStateService {
             for (final var taskContext : taskContexts) {
                 try {
                     final var task = taskContext.getTask();
-                    final Tuple<ClusterState, List<AddBlockResult>> closingResult = finalizeBlock(
+                    final Tuple<ClusterState, List<AddBlockResult>> finalizeResult = finalizeBlock(
                         state,
                         task.blockedIndices,
                         task.verifyResults,
                         task.request.getBlock()
                     );
-                    state = closingResult.v1();
-                    final List<AddBlockResult> indices = closingResult.v2();
+                    state = finalizeResult.v1();
+                    final List<AddBlockResult> indices = finalizeResult.v2();
                     assert indices.size() == task.verifyResults.size();
 
                     taskContext.success(task.listener.delegateFailure((delegate, clusterState) -> {

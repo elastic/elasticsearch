@@ -315,11 +315,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                         context.query().visit(new QueryVisitor() {
                             @Override
                             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                                // Only queries that must be included
+                                // Only extract bounds queries that must filter the results
                                 switch (occur) {
                                     case MUST:
                                     case FILTER:
                                         return this;
+
                                     default:
                                         return QueryVisitor.EMPTY_VISITOR;
                                 }

@@ -353,7 +353,7 @@ public class AuthenticatorChainTests extends ESTestCase {
                     "run-as",
                     AuthenticatorChain.class.getName(),
                     Level.INFO,
-                    "ignore run-as header since it is not supported for authentication type ["
+                    "ignore run-as header since it is currently not supported for authentication type ["
                         + authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)
                         + "]"
                 )

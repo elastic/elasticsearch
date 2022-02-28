@@ -209,7 +209,7 @@ class AuthenticatorChain {
         if (Authentication.AuthenticationType.REALM != authentication.getAuthenticationType()
             && Authentication.AuthenticationType.API_KEY != authentication.getAuthenticationType()) {
             logger.info(
-                "ignore run-as header since it is not supported for authentication type [{}]",
+                "ignore run-as header since it is currently not supported for authentication type [{}]",
                 authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)
             );
             finishAuthentication(context, authentication, listener);

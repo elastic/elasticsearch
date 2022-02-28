@@ -49,8 +49,14 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     private final ImmutableOpenMap<String, DiscoveryNode> masterNodes;
     private final ImmutableOpenMap<String, DiscoveryNode> ingestNodes;
 
+    @Nullable
     private final String masterNodeId;
+    @Nullable
+    private final DiscoveryNode masterNode;
+    @Nullable
     private final String localNodeId;
+    @Nullable
+    private final DiscoveryNode localNode;
     private final Version minNonClientNodeVersion;
     private final Version maxNodeVersion;
     private final Version minNodeVersion;
@@ -60,8 +66,8 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         ImmutableOpenMap<String, DiscoveryNode> dataNodes,
         ImmutableOpenMap<String, DiscoveryNode> masterNodes,
         ImmutableOpenMap<String, DiscoveryNode> ingestNodes,
-        String masterNodeId,
-        String localNodeId,
+        @Nullable String masterNodeId,
+        @Nullable String localNodeId,
         Version minNonClientNodeVersion,
         Version maxNodeVersion,
         Version minNodeVersion
@@ -71,7 +77,9 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         this.masterNodes = masterNodes;
         this.ingestNodes = ingestNodes;
         this.masterNodeId = masterNodeId;
+        this.masterNode = masterNodeId == null ? null : nodes.get(masterNodeId);
         this.localNodeId = localNodeId;
+        this.localNode = localNodeId == null ? null : nodes.get(localNodeId);
         this.minNonClientNodeVersion = minNonClientNodeVersion;
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
@@ -236,7 +244,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      * @return local node
      */
     public DiscoveryNode getLocalNode() {
-        return nodes.get(localNodeId);
+        return localNode;
     }
 
     /**
@@ -244,10 +252,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     @Nullable
     public DiscoveryNode getMasterNode() {
-        if (masterNodeId != null) {
-            return nodes.get(masterNodeId);
-        }
-        return null;
+        return masterNode;
     }
 
     /**
@@ -566,12 +571,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (masterNodeId == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(masterNodeId);
-        }
+        out.writeOptionalString(masterNodeId);
         out.writeVInt(nodes.size());
         for (DiscoveryNode node : this) {
             node.writeTo(out);

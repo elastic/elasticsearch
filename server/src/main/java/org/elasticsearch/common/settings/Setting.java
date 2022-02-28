@@ -23,12 +23,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -1740,10 +1739,7 @@ public class Setting<T> implements ToXContentObject {
             return List.of();
         }
         // fromXContent doesn't use named xcontent or deprecation.
-        try (
-            XContentParser xContentParser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)
-        ) {
+        try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, parsableString)) {
             xContentParser.nextToken();
             return XContentParserUtils.parseList(xContentParser, p -> {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, p.currentToken(), p);

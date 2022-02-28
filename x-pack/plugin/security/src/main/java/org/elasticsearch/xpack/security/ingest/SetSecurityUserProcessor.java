@@ -140,7 +140,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     }
                     break;
                 case API_KEY:
-                    if (authentication.isAuthenticatedWithApiKey()) {
+                    if (authentication.isApiKey()) {
                         final String apiKey = "api_key";
                         final Object existingApiKeyField = userObject.get(apiKey);
                         @SuppressWarnings("unchecked")

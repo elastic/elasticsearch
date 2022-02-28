@@ -54,7 +54,6 @@ public class ProfileIT extends ESRestTestCase {
               },
               "email": "foo@example.com",
               "full_name": "User Foo",
-              "display_name": "Curious Foo",
               "active": true
             },
             "last_synchronized": %s,
@@ -154,9 +153,8 @@ public class ProfileIT extends ESRestTestCase {
         assertThat(searchProfileResponseMap1, hasKey("took"));
         assertThat(searchProfileResponseMap1.get("total"), equalTo(Map.of("value", 1, "relation", "eq")));
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> users = (List<Map<String, Object>>) searchProfileResponseMap1.get("users");
+        final List<Map<String, Object>> users = (List<Map<String, Object>>) searchProfileResponseMap1.get("profiles");
         assertThat(users, hasSize(1));
-        assertThat(users.get(0), hasKey("_score"));
         assertThat(users.get(0).get("uid"), equalTo(uid));
     }
 

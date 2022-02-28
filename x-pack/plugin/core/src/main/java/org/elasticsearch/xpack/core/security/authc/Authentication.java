@@ -369,7 +369,7 @@ public class Authentication implements ToXContentObject {
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
-        if (isAuthenticatedWithServiceAccount()) {
+        if (isServiceAccount()) {
             final String tokenName = (String) getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
             final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
@@ -406,7 +406,7 @@ public class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
-        if (isAuthenticatedWithApiKey()) {
+        if (isApiKey()) {
             this.assertApiKeyMetadata();
             final String apiKeyId = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
             final String apiKeyName = (String) this.metadata.get(AuthenticationField.API_KEY_NAME_KEY);

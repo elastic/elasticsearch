@@ -9,11 +9,16 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -32,16 +37,21 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AuthenticationTests extends ESTestCase {
@@ -283,6 +293,44 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
+    public void testToXContentWithApiKey() throws IOException {
+        final String apiKeyId = randomAlphaOfLength(20);
+        final Authentication authentication1 = randomApiKeyAuthentication(randomUser(), apiKeyId);
+        final String apiKeyName = (String) authentication1.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+        runWithAuthenticationToXContent(
+            authentication1,
+            m -> assertThat(
+                m,
+                hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+            )
+        );
+
+        final Authentication authentication2 = authentication1.runAs(randomUser(), randomRealmRef(false));
+        runWithAuthenticationToXContent(authentication2, m -> assertThat(m, not(hasKey("api_key"))));
+    }
+
+    public void testToXContentWithServiceAccount() throws IOException {
+        final Authentication authentication1 = randomServiceAccountAuthentication();
+        final String tokenName = (String) authentication1.getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
+        final String tokenType = ServiceAccountSettings.REALM_TYPE
+            + "_"
+            + authentication1.getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
+        runWithAuthenticationToXContent(
+            authentication1,
+            m -> assertThat(m, hasEntry("token", Map.of("name", tokenName, "type", tokenType)))
+        );
+
+        final Authentication authentication2 = authentication1.runAs(randomUser(), randomRealmRef(false));
+        runWithAuthenticationToXContent(authentication2, m -> assertThat(m, not(hasKey("token"))));
+    }
+
+    private void runWithAuthenticationToXContent(Authentication authentication, Consumer<Map<String, Object>> consumer) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            authentication.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            consumer.accept(XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2());
+        }
+    }
+
     private void checkCanAccessResources(Authentication authentication0, Authentication authentication1) {
         if (authentication0.getAuthenticationType() == authentication1.getAuthenticationType()
             || EnumSet.of(AuthenticationType.REALM, AuthenticationType.TOKEN)
@@ -385,6 +433,8 @@ public class AuthenticationTests extends ESTestCase {
         final HashMap<String, Object> metadata = new HashMap<>();
         metadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
         metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
+        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
         metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{}"));
         metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
             {"x":{"cluster":["all"],"indices":[{"names":["index*"],"privileges":["all"]}]}}"""));

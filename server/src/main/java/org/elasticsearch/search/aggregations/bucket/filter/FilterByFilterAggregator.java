@@ -9,12 +9,14 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -96,6 +98,9 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         }
 
         final void add(QueryToFilterAdapter<?> filter) throws IOException {
+            if (valid == false) {
+                return;
+            }
             QueryToFilterAdapter<?> mergedFilter = filter.union(rewrittenTopLevelQuery);
             if (mergedFilter.isInefficientUnion()) {
                 /*
@@ -108,6 +113,21 @@ public class FilterByFilterAggregator extends FiltersAggregator {
                  */
                 valid = false;
                 return;
+            }
+            if (filters.size() == 1) {
+                /*
+                 * When we add the second filter we check if there are any _doc_count
+                 * fields and bail out of filter-by filter mode if there are. _doc_count
+                 * fields are expensive to decode and the overhead of iterating per
+                 * filter causes us to decode doc counts over and over again.
+                 */
+                Term term = new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME);
+                for (LeafReaderContext c : context.searcher().getLeafContexts()) {
+                    if (c.reader().docFreq(term) > 0) {
+                        valid = false;
+                        return;
+                    }
+                }
             }
             filters.add(mergedFilter);
         }

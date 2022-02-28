@@ -504,6 +504,54 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     /**
+     * When there is more than one filter and the docs use the {@code _doc_count} field
+     * we disable filter-by-filter mode because decoding the {@code _doc_count} is so
+     * expensive.
+     */
+    public void testTwoTermsWithDocCount() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q0", new TermQueryBuilder("a", "0")),
+            new KeyedFilter("q1", new TermQueryBuilder("a", "1"))
+        );
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(
+                    List.of(
+                        new Field("a", Integer.toString(i % 2), KeywordFieldMapper.Defaults.FIELD_TYPE),
+                        new CustomTermFreqField(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME, i + 1)
+                    )
+                );
+            }
+        };
+        debugTestCase(
+            builder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(filters.getBuckets(), hasSize(2));
+                assertThat(filters.getBucketByKey("q0").getDocCount(), equalTo(25L));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(30L));
+
+                assertThat(impl, equalTo(FiltersAggregator.Compatible.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "test",
+                        matchesMap().entry(
+                            "filters",
+                            matchesList().item(
+                                matchesMap().entry("results_from_metadata", 0).entry("query", "a:0").entry("specialized_for", "term")
+                            ).item(matchesMap().entry("results_from_metadata", 0).entry("query", "a:1").entry("specialized_for", "term"))
+                        )
+                    )
+                );
+            },
+            new KeywordFieldType("a")
+        );
+    }
+
+    /**
      * This runs {@code filters} with a single {@code match_all} filter with
      * the index set up kind of like document level security. As a bonus, this
      * "looks" to the agg just like an index with deleted documents.

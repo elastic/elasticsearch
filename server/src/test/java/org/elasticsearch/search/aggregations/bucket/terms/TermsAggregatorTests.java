@@ -2093,6 +2093,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, keywordFt, dummyFt);
     }
 
+    // TODO add tests for a low cardinality using filter by filter
+    // TODO add test for _doc_count field and cardinality == 1 using filter by filter
+    // TODO add test for _doc_count_field and cardinality > 1 using traditional collection
+
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
 
     private List<Document> generateDocsWithNested(String id, int value, int[] nestedValues) {

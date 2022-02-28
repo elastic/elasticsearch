@@ -63,7 +63,7 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
         setting 'xpack.security.authc.api_key.enabled', 'true'
 
         if (bwcVersion.onOrAfter('8.2.0')) {
-          setting 'readiness.socket_file', "${outputDir}/testnode.socket"
+          setting 'readiness.socket_file', "${tmp}/testnode.socket"
         }
 
         requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")

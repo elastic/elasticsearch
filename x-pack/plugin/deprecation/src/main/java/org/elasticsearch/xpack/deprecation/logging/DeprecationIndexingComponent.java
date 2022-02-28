@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.deprecation.logging;
 
-import co.elastic.logging.log4j2.EcsLayout;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.LoggerContext;
-import org.elasticsearch.logging.core.config.Configuration;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -51,7 +48,7 @@ import static org.elasticsearch.xpack.deprecation.Deprecation.WRITE_DEPRECATION_
 public class DeprecationIndexingComponent extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(DeprecationIndexingComponent.class);
 
-    private final DeprecationIndexingAppender appender;
+    private  DeprecationIndexingAppender appender;
     private final BulkProcessor processor;
     private final RateLimitingFilter rateLimitingFilterForIndexing;
     private final ClusterService clusterService;
@@ -71,20 +68,20 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
         final Consumer<IndexRequest> consumer = this.processor::add;
 
-        final LoggerContext context = (LoggerContext) LogManager.getContext(false);
-        final Configuration configuration = context.getConfiguration();
-
-        final EcsLayout ecsLayout = ECSJsonLayout.newBuilder()
-            .setDataset("deprecation.elasticsearch")
-            .setConfiguration(configuration)
-            .build();
-
-        this.appender = new DeprecationIndexingAppender(
-            "deprecation_indexing_appender",
-            rateLimitingFilterForIndexing,
-            ecsLayout,
-            consumer
-        );
+//        final LoggerContext context = (LoggerContext) LogManager.getContext(false);
+//        final Configuration configuration = context.getConfiguration();
+//
+//        final EcsLayout ecsLayout = ECSJsonLayout.newBuilder()
+//            .setDataset("deprecation.elasticsearch")
+//            .setConfiguration(configuration)
+//            .build();
+//
+//        this.appender = new DeprecationIndexingAppender(
+//            "deprecation_indexing_appender",
+//            rateLimitingFilterForIndexing,
+//            ecsLayout,
+//            consumer
+//        );
         enableDeprecationLogIndexing(enableDeprecationLogIndexingDefault);
 
     }
@@ -133,15 +130,15 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     @Override
     protected void doStart() {
         logger.info("deprecation component started");
-        this.appender.start();
-        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
+//        this.appender.start();
+//        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
     }
 
     @Override
     protected void doStop() {
-        Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
-        flushEnabled.set(false);
-        this.appender.stop();
+//        Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
+//        flushEnabled.set(false);
+//        this.appender.stop();
     }
 
     @Override
@@ -150,18 +147,18 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     }
 
     public void enableDeprecationLogIndexing(boolean newEnabled) {
-        if (appender.isEnabled() != newEnabled) {
-            appender.setEnabled(newEnabled);
-
-            // We've flipped from disabled to enabled. Make sure we start with a clean cache of
-            // previously-seen keys, otherwise we won't index anything.
-            if (newEnabled) {
-                this.rateLimitingFilterForIndexing.reset();
-            } else {
-                // we have flipped from enabled to disabled. A processor could have accumulated some requests, so we have to flush it
-                this.processor.flush();
-            }
-        }
+//        if (appender.isEnabled() != newEnabled) {
+//            appender.setEnabled(newEnabled);
+//
+//            // We've flipped from disabled to enabled. Make sure we start with a clean cache of
+//            // previously-seen keys, otherwise we won't index anything.
+//            if (newEnabled) {
+//                this.rateLimitingFilterForIndexing.reset();
+//            } else {
+//                // we have flipped from enabled to disabled. A processor could have accumulated some requests, so we have to flush it
+//                this.processor.flush();
+//            }
+//        }
     }
 
     /**

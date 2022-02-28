@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
-import org.elasticsearch.logging.util.BiConsumer;
+//import org.elasticsearch.logging.util.BiConsumer;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -39,6 +39,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.BiConsumer;
 
 /**
  * An internal action to locally manage the load of the search requests that originate from the enrich processor.

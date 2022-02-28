@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.ParameterizedMessage;
-import org.elasticsearch.logging.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -24,6 +23,7 @@ import java.io.IOException;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
 
@@ -82,7 +82,7 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(Exception e) {
-        final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
+        final Supplier<ParameterizedMessage> messageSupplier = () -> new ParameterizedMessage(
             "policy [{}] for index [{}] failed trying to move from step [{}] to the ERROR step.",
             policy,
             index.getName(),

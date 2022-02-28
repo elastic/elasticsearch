@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.deprecation.logging;
 
-import org.elasticsearch.logging.core.Appender;
-import org.elasticsearch.logging.core.Core;
-import org.elasticsearch.logging.core.Filter;
-import org.elasticsearch.logging.core.Layout;
-import org.elasticsearch.logging.core.LogEvent;
-import org.elasticsearch.logging.core.appender.AbstractAppender;
-import org.elasticsearch.logging.core.config.plugins.Plugin;
+//import org.elasticsearch.logging.core.Appender;
+//import org.elasticsearch.logging.core.Core;
+//import org.elasticsearch.logging.core.Filter;
+//import org.elasticsearch.logging.core.Layout;
+//import org.elasticsearch.logging.core.LogEvent;
+//import org.elasticsearch.logging.core.appender.AbstractAppender;
+//import org.elasticsearch.logging.core.config.plugins.Plugin;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,11 +26,11 @@ import java.util.function.Consumer;
  * writes, but instead constructs an {@link IndexRequest} for the log message and passes that
  * to a callback.
  */
-@Plugin(name = "DeprecationIndexingAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
-public class DeprecationIndexingAppender extends AbstractAppender {
+//@Plugin(name = "DeprecationIndexingAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
+public class DeprecationIndexingAppender /*extends AbstractAppender*/ {
     public static final String DEPRECATION_MESSAGES_DATA_STREAM = ".logs-deprecation.elasticsearch-default";
 
-    private final Consumer<IndexRequest> requestConsumer;
+    private  Consumer<IndexRequest> requestConsumer = null;
 
     /**
      * You can't start and stop an appender to toggle it, so this flag reflects whether
@@ -44,29 +44,29 @@ public class DeprecationIndexingAppender extends AbstractAppender {
      * @param filter a filter to apply directly on the appender
      * @param layout the layout to use for formatting message. It must return a JSON string.
      * @param requestConsumer a callback to handle the actual indexing of the log message.
-     */
-    public DeprecationIndexingAppender(String name, Filter filter, Layout<String> layout, Consumer<IndexRequest> requestConsumer) {
-        super(name, filter, layout);
-        this.requestConsumer = Objects.requireNonNull(requestConsumer, "requestConsumer cannot be null");
-    }
+//     */
+//    public DeprecationIndexingAppender(String name, Filter filter, Layout<String> layout, Consumer<IndexRequest> requestConsumer) {
+//        super(name, filter, layout);
+//        this.requestConsumer = Objects.requireNonNull(requestConsumer, "requestConsumer cannot be null");
+//    }
 
     /**
      * Constructs an index request for a deprecation message, and passes it to the callback that was
      * supplied to {@link #DeprecationIndexingAppender(String, Filter, Layout, Consumer)}.
      */
-    @Override
-    public void append(LogEvent event) {
-        if (this.isEnabled == false) {
-            return;
-        }
-
-        final byte[] payload = this.getLayout().toByteArray(event);
-
-        final IndexRequest request = new IndexRequest(DEPRECATION_MESSAGES_DATA_STREAM).source(payload, XContentType.JSON)
-            .opType(DocWriteRequest.OpType.CREATE);
-
-        this.requestConsumer.accept(request);
-    }
+//    @Override
+//    public void append(LogEvent event) {
+//        if (this.isEnabled == false) {
+//            return;
+//        }
+//
+//        final byte[] payload = this.getLayout().toByteArray(event);
+//
+//        final IndexRequest request = new IndexRequest(DEPRECATION_MESSAGES_DATA_STREAM).source(payload, XContentType.JSON)
+//            .opType(DocWriteRequest.OpType.CREATE);
+//
+//        this.requestConsumer.accept(request);
+//    }
 
     /**
      * Sets whether this appender is enabled or disabled. When disabled, the appender will

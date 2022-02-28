@@ -19,18 +19,18 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.Appender;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.logging.log4j.core.layout.PatternLayout;
-import org.apache.logging.log4j.status.StatusConsoleListener;
-import org.apache.logging.log4j.status.StatusData;
-import org.apache.logging.log4j.status.StatusLogger;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+//import org.apache.logging.log4j.core.Appender;
+//import org.apache.logging.log4j.core.LogEvent;
+//import org.apache.logging.log4j.core.LoggerContext;
+//import org.apache.logging.log4j.core.appender.AbstractAppender;
+//import org.apache.logging.log4j.core.config.Configurator;
+//import org.apache.logging.log4j.core.layout.PatternLayout;
+//import org.apache.logging.log4j.status.StatusConsoleListener;
+//import org.apache.logging.log4j.status.StatusData;
+//import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -214,28 +214,28 @@ public abstract class ESTestCase extends LuceneTestCase {
         setTestSysProps();
         LogConfigurator.loadLog4jPlugins();
 
-        for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
-            Logger leakLogger = LogManager.getLogger(leakLoggerName);
-            Appender leakAppender = new AbstractAppender(leakLoggerName, null, PatternLayout.newBuilder().withPattern("%m").build()) {
-                @Override
-                public void append(LogEvent event) {
-                    String message = event.getMessage().getFormattedMessage();
-                    if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
-                        synchronized (loggedLeaks) {
-                            loggedLeaks.add(message);
-                        }
-                    }
-                }
-            };
-            leakAppender.start();
-            Loggers.addAppender(leakLogger, leakAppender);
-            // shutdown hook so that when the test JVM exits, logging is shutdown too
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                leakAppender.stop();
-                LoggerContext context = (LoggerContext) LogManager.getContext(false);
-                Configurator.shutdown(context);
-            }));
-        }
+//        for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
+//            Logger leakLogger = LogManager.getLogger(leakLoggerName);
+//            Appender leakAppender = new AbstractAppender(leakLoggerName, null, PatternLayout.newBuilder().withPattern("%m").build()) {
+//                @Override
+//                public void append(LogEvent event) {
+//                    String message = event.getMessage().getFormattedMessage();
+//                    if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
+//                        synchronized (loggedLeaks) {
+//                            loggedLeaks.add(message);
+//                        }
+//                    }
+//                }
+//            };
+//            leakAppender.start();
+//            Loggers.addAppender(leakLogger, leakAppender);
+//            // shutdown hook so that when the test JVM exits, logging is shutdown too
+//            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+//                leakAppender.stop();
+//                LoggerContext context = (LoggerContext) LogManager.getContext(false);
+//                Configurator.shutdown(context);
+//            }));
+//        }
 
         BootstrapForTesting.ensureInitialized();
 
@@ -393,15 +393,15 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @Before
     public void setHeaderWarningAppender() {
-        this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
-        this.headerWarningAppender.start();
-        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+//        this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
+//        this.headerWarningAppender.start();
+//        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
     }
 
     @After
     public void removeHeaderWarningAppender() {
         if (this.headerWarningAppender != null) {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+//            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
             this.headerWarningAppender = null;
         }
     }
@@ -542,14 +542,14 @@ public abstract class ESTestCase extends LuceneTestCase {
                 assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarningStrings);
                 final Set<DeprecationWarning> actualDeprecationWarnings = actualWarningStrings.stream().map(warningString -> {
                     String warningText = HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition);
-                    final Level level;
-                    if (warningString.startsWith(Integer.toString(DeprecationLogger.CRITICAL.intLevel()))) {
-                        level = DeprecationLogger.CRITICAL;
-                    } else if (warningString.startsWith(Integer.toString(Level.WARN.intLevel()))) {
-                        level = Level.WARN;
-                    } else {
-                        throw new IllegalArgumentException("Unknown level in deprecation message " + warningString);
-                    }
+                    final Level level = null;
+//                    if (warningString.startsWith(Integer.toString(DeprecationLogger.CRITICAL.intLevel()))) {
+//                        level = DeprecationLogger.CRITICAL;
+//                    } else if (warningString.startsWith(Integer.toString(Level.WARN.intLevel()))) {
+//                        level = Level.WARN;
+//                    } else {
+//                        throw new IllegalArgumentException("Unknown level in deprecation message " + warningString);
+//                    }
                     return new DeprecationWarning(level, warningText);
                 }).collect(Collectors.toSet());
                 for (DeprecationWarning expectedWarning : expectedWarnings) {
@@ -585,7 +585,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         threadContext.stashContext();
     }
 
-    private static final List<StatusData> statusData = new ArrayList<>();
+   /* private static final List<StatusData> statusData = new ArrayList<>();
     static {
         // ensure that the status logger is set to the warn level so we do not miss any warnings with our Log4j usage
         StatusLogger.getLogger().setLevel(Level.WARN);
@@ -601,7 +601,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
 
         });
-    }
+    }*/
 
     // Tolerate the absence or otherwise denial of these specific lookup classes.
     // At some future time, we should require the JDNI warning.
@@ -618,7 +618,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         MockBigArrays.ensureAllArraysAreReleased();
 
         // ensure no one changed the status logger level on us
-        assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
+      /*  assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
             try {
                 // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
@@ -635,7 +635,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM
                 statusData.clear();
             }
-        }
+        }*/
         synchronized (loggedLeaks) {
             try {
                 assertThat(loggedLeaks, empty());

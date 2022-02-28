@@ -207,7 +207,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             client.admin().indices().delete(deleteIndices, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    logger.debug("Completed deletion of stale enrich indices [{}]", () -> Arrays.toString(removeIndices));
+                    logger.debug(()-> "Completed deletion of stale enrich indices [{}]" + Arrays.toString(removeIndices));
                     concludeMaintenance();
                 }
 

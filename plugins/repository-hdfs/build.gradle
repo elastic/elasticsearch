@@ -213,10 +213,7 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
                 'secure_hdfs_port': getSecureNamenodePortForVersion(hadoopVer),
         ]
         inputs.properties(expansions)
-        filter("tokens": expansions.collectEntries { k, v ->
-            [k, v
-                    .toString()]
-        } /* must be a map of strings */, ReplaceTokens.class)
+        filter("tokens": expansions.collectEntries { k, v -> [k, v.toString()]}, ReplaceTokens.class)
         it.into("build/resources/yamlRestTest/rest-api-spec/test")
         it.into("hdfs_repository_" + hadoopVer) {
             from "src/yamlRestTest/resources/rest-api-spec/test/hdfs_repository"

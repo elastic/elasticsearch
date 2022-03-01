@@ -9,6 +9,7 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -113,6 +114,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     final var task = taskContext.getTask();
                     try {
                         state = task.execute(state, successfulRequests, taskContext);
+                        assert successfulRequests.containsKey(task.request);
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }
@@ -197,6 +199,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 };
             }
 
+            /**
+             * @param successfulRequests cache of successful requests executed by this batch, to avoid failing duplicate requests with an
+             *                           {@link ResourceAlreadyExistsException}. If this method executes a request it should update this
+             *                           map.
+             */
             ClusterState execute(
                 ClusterState currentState,
                 Map<CreateIndexRequest, String> successfulRequests,

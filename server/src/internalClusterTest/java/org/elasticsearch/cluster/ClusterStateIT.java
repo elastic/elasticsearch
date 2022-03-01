@@ -271,7 +271,11 @@ public class ClusterStateIT extends ESIntegTestCase {
             registerMetadataCustom(
                 NodeCustom.TYPE,
                 NodeCustom::new,
-                parser -> { throw new IOException(new UnsupportedOperationException()); }
+                parser -> {
+                    // dummy parser just so reloading the CS doesn't throw
+                    parser.skipChildren();
+                    return getInstance();
+                }
             );
         }
 
@@ -301,7 +305,11 @@ public class ClusterStateIT extends ESIntegTestCase {
             registerMetadataCustom(
                 NodeAndTransportClientCustom.TYPE,
                 NodeAndTransportClientCustom::new,
-                parser -> { throw new IOException(new UnsupportedOperationException()); }
+                parser -> {
+                    // dummy parser just so reloading the CS doesn't throw
+                    parser.skipChildren();
+                    return getInstance();
+                }
             );
         }
 

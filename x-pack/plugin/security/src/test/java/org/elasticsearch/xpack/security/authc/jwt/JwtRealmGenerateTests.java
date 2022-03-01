@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jwt.SignedJWT;
 
@@ -105,6 +106,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create JWT
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(),
             algJwkPairHmac.alg(), // alg
             null, // jwtID
             jwtIssuerAndRealm.realm().allowedIssuer, // iss
@@ -177,6 +179,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create JWT
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(),
             algJwkPairPkc.alg(), // alg
             null, // jwtID
             jwtIssuerAndRealm.realm().allowedIssuer, // iss
@@ -269,6 +272,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Create JWT
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
+            JOSEObjectType.JWT.toString(),
             algJwkPairHmac.alg(), // alg
             null, // jwtID
             jwtIssuerAndRealm.realm().allowedIssuer, // iss

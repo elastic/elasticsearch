@@ -88,8 +88,7 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, It
 
     @Override
     public boolean containsKey(Object key) {
-        return key instanceof Integer i
-            && map.containsKey(i);
+        return key instanceof Integer i && map.containsKey(i);
     }
 
     @Override
@@ -352,8 +351,7 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, It
 
         @Override
         public boolean contains(Object o) {
-            return o instanceof Integer i
-                && map.containsKey(i);
+            return o instanceof Integer i && map.containsKey(i);
         }
     }
 

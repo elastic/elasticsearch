@@ -44,7 +44,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$ES_TMPDIR" ]; then
-  ES_TMPDIR=`"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
+  ES_TMPDIR=`"$JAVA" "$XSHARE" -cp "$LAUNCHERS_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
 fi
 
 if [ -z "$LIBFFI_TMPDIR" ]; then
@@ -106,7 +106,7 @@ fi
 #   - second, JVM options are read from jvm.options and jvm.options.d/*.options
 #   - third, JVM options from ES_JAVA_OPTS are applied
 #   - fourth, ergonomic JVM options are applied
-ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF" "$ES_HOME/plugins"`
+ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$LAUNCHERS_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF" "$ES_HOME/plugins"`
 
 # Remove enrollment related parameters before passing the arg list to Elasticsearch
 for i in "${!ARG_LIST[@]}"; do

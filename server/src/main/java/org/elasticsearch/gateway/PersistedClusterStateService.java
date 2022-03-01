@@ -739,7 +739,7 @@ public class PersistedClusterStateService {
             ByteSizeValue documentPageSize,
             LongSupplier relativeTimeMillisSupplier,
             Supplier<TimeValue> slowWriteLoggingThresholdSupplier,
-            @Nullable // if assertions disabled
+            @Nullable // if assertions disabled or we explicitly don't want to assert on commit in a test
             CheckedBiConsumer<Path, DirectoryReader, IOException> assertOnCommit
         ) {
             this.metadataIndexWriters = metadataIndexWriters;

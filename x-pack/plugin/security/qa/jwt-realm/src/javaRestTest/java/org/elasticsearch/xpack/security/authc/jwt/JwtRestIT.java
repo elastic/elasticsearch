@@ -63,16 +63,16 @@ import static org.hamcrest.Matchers.not;
 public class JwtRestIT extends ESRestTestCase {
 
     private static final Optional<String> VALID_SHARED_SECRET = Optional.of("test-secret");
-    private static Path httpTrustStorePath;
+    private static Path httpCertificateAuthority;
     private TestSecurityClient adminSecurityClient;
 
     @BeforeClass
     public static void findTrustStore() throws Exception {
-        final URL resource = JwtRestIT.class.getResource("/ssl/ca.p12");
+        final URL resource = JwtRestIT.class.getResource("/ssl/ca.crt");
         if (resource == null) {
-            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.p12");
+            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
         }
-        httpTrustStorePath = PathUtils.get(resource.toURI());
+        httpCertificateAuthority = PathUtils.get(resource.toURI());
     }
 
     @Override
@@ -93,7 +93,7 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     private Settings restSslSettings() {
-        return Settings.builder().put(TRUSTSTORE_PATH, httpTrustStorePath).put(TRUSTSTORE_PASSWORD, "password").build();
+        return Settings.builder().put(CERTIFICATE_AUTHORITIES, httpCertificateAuthority).build();
     }
 
     protected TestSecurityClient getAdminSecurityClient() {

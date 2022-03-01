@@ -77,7 +77,6 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         return Arrays.asList(ShutdownPlugin.class, TaskPlugin.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84421")
     public void testTasksAreNotAssignedToShuttingDownNode() throws Exception {
         // Start two nodes, one will be marked as shutting down
         final String node1 = internalCluster().startNode();

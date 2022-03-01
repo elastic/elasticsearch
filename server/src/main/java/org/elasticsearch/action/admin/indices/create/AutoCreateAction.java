@@ -200,7 +200,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             }
 
             /**
-             * @param successfulRequests cache of successful requests executed by this batch, to avoid failing duplicate requests with an
+             * @param successfulRequests Cache of successful requests executed by this batch, to avoid failing duplicate requests with a
              *                           {@link ResourceAlreadyExistsException}. If this method executes a request it should update this
              *                           map.
              */

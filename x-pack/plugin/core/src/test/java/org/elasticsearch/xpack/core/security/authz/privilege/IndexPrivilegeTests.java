@@ -18,12 +18,14 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -69,6 +71,13 @@ public class IndexPrivilegeTests extends ESTestCase {
     public void testPrivilegesForRollupFieldCapsAction() {
         final Collection<String> privileges = findPrivilegesThatGrant(GetRollupIndexCapsAction.NAME);
         assertThat(Set.copyOf(privileges), equalTo(Set.of("read", "view_index_metadata", "manage", "all")));
+    }
+
+    public void testPrivilegesForGetCheckPointAction() {
+        assertThat(
+            findPrivilegesThatGrant(GetCheckpointAction.NAME),
+            containsInAnyOrder("monitor", "view_index_metadata", "manage", "all")
+        );
     }
 
     public void testViewIndexMetadataIsCoveredByManage() {

@@ -410,6 +410,10 @@ public class DiscoveryNodesTests extends ESTestCase {
                 Version.fromString("6.3.0")
             )
         );
+        discoBuilder.localNodeId("node_" + between(1, 3));
+        if (randomBoolean()) {
+            discoBuilder.masterNodeId("node_" + between(1, 3));
+        }
         discoBuilder.add(
             new DiscoveryNode(
                 "name_" + 3,
@@ -420,8 +424,6 @@ public class DiscoveryNodesTests extends ESTestCase {
                 Version.fromString("1.1.0")
             )
         );
-        discoBuilder.localNodeId("name_1");
-        discoBuilder.masterNodeId("name_2");
         DiscoveryNodes build = discoBuilder.build();
         assertEquals(Version.fromString("6.3.0"), build.getMaxNodeVersion());
         assertEquals(Version.fromString("1.1.0"), build.getMinNodeVersion());

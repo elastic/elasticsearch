@@ -1,6 +1,0 @@
-pr: 83302
-summary: Fix autoscaling of follower data streams
-area: Autoscaling
-type: bug
-issues:
- - 82857

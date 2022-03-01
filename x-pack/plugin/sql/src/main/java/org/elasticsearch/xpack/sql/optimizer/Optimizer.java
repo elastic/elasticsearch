@@ -105,7 +105,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Expressions.equalsAsAttribute;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
@@ -292,8 +291,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     // leave it as it is, the aggregates do the job already with implicit grouping
                     return plan;
                 }
-                Aggregate newChild = new Aggregate(aggregate.source(), aggregate.child(), emptyList(), aggregate.aggregates());
-                return new Limit(plan.source(), new Literal(plan.source(), 1, DataTypes.INTEGER), newChild);
+                Project project = new Project(aggregate.source(), aggregate.child(), aggregate.aggregates());
+                return new Limit(plan.source(), new Literal(plan.source(), 1, DataTypes.INTEGER), project);
             }
             return plan;
         }

@@ -353,13 +353,25 @@ public class Authentication implements ToXContentObject {
                     }
                     final Authentication.RealmRef myAuthRealm = myAuthContext.getEffectiveSubject().getRealm();
                     final Authentication.RealmRef creatorAuthRealm = creatorAuthContext.getEffectiveSubject().getRealm();
-                    if (FileRealmSettings.TYPE.equals(myAuthRealm.getType()) || NativeRealmSettings.TYPE.equals(myAuthRealm.getType())) {
-                        // file and native realms can be renamed...
-                        // nonetheless, they are singleton realms, only one such realm of each type can exist
-                        return myAuthRealm.getType().equals(creatorAuthRealm.getType());
+                    if (null == myAuthRealm.getDomain()) {
+                        return canAccess(
+                            myAuthRealm.getName(),
+                            myAuthRealm.getType(),
+                            creatorAuthRealm.getName(),
+                            creatorAuthRealm.getType()
+                        );
                     } else {
-                        return myAuthRealm.getName().equals(creatorAuthRealm.getName())
-                            && myAuthRealm.getType().equals(creatorAuthRealm.getType());
+                        for (RealmConfig.RealmIdentifier domainRealm : myAuthRealm.getDomain().realms()) {
+                            if (canAccess(
+                                domainRealm.getName(),
+                                domainRealm.getType(),
+                                creatorAuthRealm.getName(),
+                                creatorAuthRealm.getType()
+                            )) {
+                                return true;
+                            }
+                        }
+                        return false;
                     }
                 }
     }
@@ -609,6 +621,10 @@ public class Authentication implements ToXContentObject {
         }
     }
 
+    public static boolean isFileOrNativeRealm(String realmType) {
+        return FileRealmSettings.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
+    }
+
     public static ConstructingObjectParser<RealmRef, Void> REALM_REF_PARSER = new ConstructingObjectParser<>(
         "realm_ref",
         false,
@@ -773,6 +789,19 @@ public class Authentication implements ToXContentObject {
             return BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private static boolean canAccess(String name1, String type1, String name2, String type2) {
+        if (false == type1.equals(type2)) {
+            return false;
+        }
+        if (isFileOrNativeRealm(type1)) {
+            // file and native realms can be renamed, but they always point to the same set of users
+            return true;
+        } else {
+            // if other realms are renamed, it is an indication that they point to a different user set
+            return name1.equals(name2);
         }
     }
 

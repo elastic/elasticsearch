@@ -225,6 +225,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_a_long")));
         assertThat(
             e.getMessage(),
+            // TODO describe the document instead of "null"
             equalTo("failed to parse field [a] of type [long] in document with id 'null'. Preview of field's value: 'not_a_long'")
         );
     }

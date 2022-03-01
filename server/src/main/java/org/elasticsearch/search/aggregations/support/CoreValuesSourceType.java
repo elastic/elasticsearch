@@ -312,6 +312,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
                     // Check the query for bounds
                     if (context.query() != null) {
+                        if (context.isMultiValued(fieldContext.field())) {
+                            return Rounding::prepareForUnknown;
+                        }
                         context.query().visit(new QueryVisitor() {
                             @Override
                             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {

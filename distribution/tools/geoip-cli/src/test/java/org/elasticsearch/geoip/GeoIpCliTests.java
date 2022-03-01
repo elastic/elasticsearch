@@ -12,9 +12,8 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedInputStream;
@@ -92,10 +91,7 @@ public class GeoIpCliTests extends LuceneTestCase {
 
     private void verifyOverview() throws Exception {
         byte[] data = Files.readAllBytes(target.resolve("overview.json"));
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, data)
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, data)) {
             @SuppressWarnings({ "unchecked" })
             List<Map<String, String>> list = (List) parser.list();
             assertThat(list, containsInAnyOrder(hasEntry("name", "a.tgz"), hasEntry("name", "b.tgz"), hasEntry("name", "c.tgz")));

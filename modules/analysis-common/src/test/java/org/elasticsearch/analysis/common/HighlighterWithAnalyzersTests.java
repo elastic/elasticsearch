@@ -225,6 +225,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/84540")
     public void testPhrasePrefix() throws IOException {
         Settings.Builder builder = Settings.builder()
             .put(indexSettings())

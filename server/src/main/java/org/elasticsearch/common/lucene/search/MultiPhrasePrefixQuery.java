@@ -159,8 +159,6 @@ public class MultiPhrasePrefixQuery extends Query {
                 return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
             }
 
-            // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
-            // which rewrites query with an empty reader.
             return new BooleanQuery.Builder().add(query.build(), BooleanClause.Occur.MUST)
                 .add(
                     Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),

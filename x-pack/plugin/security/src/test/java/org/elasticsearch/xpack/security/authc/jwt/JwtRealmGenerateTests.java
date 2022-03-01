@@ -330,7 +330,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             sb.append("HMAC JWKSet: ").append(JwtUtil.serializeJwkSet(jwtIssuer.getJwkSetHmac(), false)).append("\n");
         }
         if (jwtIssuer.algAndJwkHmacOidc != null) {
-            sb.append("HMAC OIDC: ").append(new String(jwtIssuer.algAndJwkHmacOidc.jwk().toOctetSequenceKey().toByteArray())).append('\n');
+            final String keyStr = new String(jwtIssuer.algAndJwkHmacOidc.jwk().toOctetSequenceKey().toByteArray(), StandardCharsets.UTF_8);
+            sb.append("HMAC OIDC: ").append(keyStr).append('\n');
         }
         return sb.toString();
     }

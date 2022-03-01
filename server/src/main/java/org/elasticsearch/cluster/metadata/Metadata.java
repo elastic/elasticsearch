@@ -1380,7 +1380,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder templates(ImmutableOpenMap<String, IndexTemplateMetadata> templates) {
-            this.templates.putAll(templates);
+            this.templates.putAll((Map<String, IndexTemplateMetadata>) templates);
             return this;
         }
 
@@ -1605,7 +1605,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
             customs.stream().forEach(entry -> Objects.requireNonNull(entry.getValue(), entry.getKey()));
-            this.customs.putAll(customs);
+            this.customs.putAll((Map<String, Custom>) customs);
             return this;
         }
 

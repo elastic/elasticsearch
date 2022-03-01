@@ -1302,7 +1302,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeStringCollection(dataStreams);
             out.writeOptionalWriteable(source);
             if (source == null) {
-                out.writeMap(ImmutableOpenMap.of());
+                out.writeMap(ImmutableOpenMap.<String, Object>of());
             } else {
                 out.writeMap(shardStatusByRepoShardId);
             }

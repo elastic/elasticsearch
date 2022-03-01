@@ -1152,10 +1152,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.mapping = mappings.apply(
                 ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, part.mapping).build()
             ).get(MapperService.SINGLE_MAPPING_NAME);
-            builder.aliases.putAll(aliases.apply(part.aliases));
-            builder.customMetadata.putAll(customData.apply(part.customData));
+            builder.aliases.putAll((Map<String, AliasMetadata>) aliases.apply(part.aliases));
+            builder.customMetadata.putAll((Map<String, DiffableStringMap>) customData.apply(part.customData));
             builder.inSyncAllocationIds.putAll((Map<Integer, Set<String>>) inSyncAllocationIds.apply(part.inSyncAllocationIds));
-            builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
+            builder.rolloverInfos.putAll((Map<String, RolloverInfo>) rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.timestampRange(timestampRange);
             return builder.build();

@@ -240,6 +240,10 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertFalse(map.entrySet().contains(entry(2, null)));
     }
 
+    public void testContainsValue() {
+        assertTrue(countryPopulations.containsValue(37_846_611));
+    }
+
     private static <KType, VType> Map.Entry<KType, VType> entry(KType key, VType value) {
         Map<KType, VType> map = Maps.newMapWithExpectedSize(1);
         map.put(key, value);

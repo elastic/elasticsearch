@@ -8,6 +8,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
@@ -257,9 +258,17 @@ public class BwcVersions {
     }
 
     private List<Version> filterSupportedVersions(List<Version> wireCompat) {
-        return Architecture.current() == Architecture.AARCH64
-            ? wireCompat.stream().filter(version -> version.onOrAfter("7.12.0")).collect(Collectors.toList())
-            : wireCompat;
+        Predicate<Version> supported = v -> true;
+        if (Architecture.current() == Architecture.AARCH64) {
+            final String version;
+            if (ElasticsearchDistribution.CURRENT_PLATFORM.equals(ElasticsearchDistribution.Platform.DARWIN)) {
+                version = "7.16.0";
+            } else {
+                version = "7.12.0"; // linux shipped earlier for aarch64
+            }
+            supported = v -> v.onOrAfter(version);
+        }
+        return wireCompat.stream().filter(supported).collect(Collectors.toList());
     }
 
     public List<Version> getUnreleasedIndexCompatible() {

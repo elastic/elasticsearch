@@ -618,8 +618,8 @@ public class HistogramIT extends ESIntegTestCase {
             assertThat(bucket.getDocCount(), equalTo(filter.getDocCount()));
             Max max = filter.getAggregations().get("max");
             assertThat(max, Matchers.notNullValue());
-            assertThat(max.getValue(), asc ? greaterThanOrEqualTo(prevMax) : lessThanOrEqualTo(prevMax));
-            prevMax = max.getValue();
+            assertThat(max.value(), asc ? greaterThanOrEqualTo(prevMax) : lessThanOrEqualTo(prevMax));
+            prevMax = max.value();
         }
     }
 

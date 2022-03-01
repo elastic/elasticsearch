@@ -194,7 +194,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             Aggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_max"));
-            assertThat(((Max) (children.asList().get(0))).getValue(), equalTo(1.0));
+            assertThat(((Max) (children.asList().get(0))).value(), equalTo(1.0));
         });
         testSearchCase(query, dataset, aggregation -> {
             MaxAggregationBuilder max = new MaxAggregationBuilder("the_max").field(LONG_FIELD);
@@ -208,7 +208,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             Aggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_max"));
-            assertThat(((Max) (children.asList().get(0))).getValue(), equalTo(1.0));
+            assertThat(((Max) (children.asList().get(0))).value(), equalTo(1.0));
         });
     }
 

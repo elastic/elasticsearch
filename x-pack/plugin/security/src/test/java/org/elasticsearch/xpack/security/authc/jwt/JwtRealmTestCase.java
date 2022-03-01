@@ -205,10 +205,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final Settings.Builder authcSettings = Settings.builder()
             .put(this.globalSettings)
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuer)
-            .put(
-                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
-                String.join(",", jwtIssuer.getAllAlgorithms())
-            )
+            .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS), jwtIssuer.algorithmsCsv())
             .put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ALLOWED_AUDIENCES), randomFrom(jwtIssuer.audiences))
             .put(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()),

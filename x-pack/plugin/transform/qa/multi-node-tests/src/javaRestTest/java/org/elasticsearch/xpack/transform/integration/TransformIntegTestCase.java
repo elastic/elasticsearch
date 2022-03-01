@@ -8,64 +8,44 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.indices.CreateIndexResponse;
-import org.elasticsearch.client.transform.DeleteTransformRequest;
-import org.elasticsearch.client.transform.GetTransformRequest;
-import org.elasticsearch.client.transform.GetTransformResponse;
-import org.elasticsearch.client.transform.GetTransformStatsRequest;
-import org.elasticsearch.client.transform.GetTransformStatsResponse;
-import org.elasticsearch.client.transform.PreviewTransformRequest;
-import org.elasticsearch.client.transform.PreviewTransformResponse;
-import org.elasticsearch.client.transform.PutTransformRequest;
-import org.elasticsearch.client.transform.StartTransformRequest;
-import org.elasticsearch.client.transform.StartTransformResponse;
-import org.elasticsearch.client.transform.StopTransformRequest;
-import org.elasticsearch.client.transform.StopTransformResponse;
-import org.elasticsearch.client.transform.UpdateTransformRequest;
-import org.elasticsearch.client.transform.transforms.DestConfig;
-import org.elasticsearch.client.transform.transforms.QueryConfig;
-import org.elasticsearch.client.transform.transforms.SourceConfig;
-import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
-import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
-import org.elasticsearch.client.transform.transforms.pivot.DateHistogramGroupSource;
-import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
-import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -73,105 +53,145 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
 
-@SuppressWarnings("removal")
-abstract class TransformIntegTestCase extends ESRestTestCase {
+public abstract class TransformIntegTestCase extends ESRestTestCase {
 
-    private Map<String, TransformConfig> transformConfigs = new HashMap<>();
+    protected static String TRANSFORM_ENDPOINT = "/_transform/";
 
-    protected void cleanUp() throws IOException {
+    private final Set<String> createdTransformIds = new HashSet<>();
+
+    protected void cleanUp() throws Exception {
         logAudits();
         cleanUpTransforms();
         waitForPendingTasks();
     }
 
-    private void logAudits() throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+    @SuppressWarnings("unchecked")
+    private void logAudits() throws Exception {
+        logger.info("writing audit messages to the log");
+        Request searchRequest = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search?ignore_unavailable=true");
+        searchRequest.setJsonEntity("""
+            {
+              "size": 100,
+              "sort": [ { "timestamp": { "order": "asc" } } ]
+            }""");
 
-            // using '*' to make this lenient and do not fail if the audit index does not exist
-            SearchRequest searchRequest = new SearchRequest(".transform-notifications-*");
-            searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(100).sort("timestamp", SortOrder.ASC));
+        assertBusy(() -> {
+            try {
+                refreshIndex(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN, RequestOptions.DEFAULT);
+                Response searchResponse = client().performRequest(searchRequest);
 
-            restClient.indices().refresh(new RefreshRequest(searchRequest.indices()), RequestOptions.DEFAULT);
-
-            SearchResponse searchResponse = restClient.search(searchRequest, RequestOptions.DEFAULT);
-
-            for (SearchHit hit : searchResponse.getHits()) {
-                Map<String, Object> source = hit.getSourceAsMap();
-                String level = (String) source.getOrDefault("level", "info");
-                logger.log(
-                    Level.getLevel(level.toUpperCase(Locale.ROOT)),
-                    "Transform audit: [{}] [{}] [{}] [{}]",
-                    Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
-                    source.getOrDefault("transform_id", "n/a"),
-                    source.getOrDefault("message", "n/a"),
-                    source.getOrDefault("node_name", "n/a")
+                Map<String, Object> searchResult = entityAsMap(searchResponse);
+                List<Map<String, Object>> searchHits = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                    "hits.hits",
+                    searchResult
                 );
+
+                for (Map<String, Object> hit : searchHits) {
+                    Map<String, Object> source = (Map<String, Object>) XContentMapValues.extractValue("_source", hit);
+                    String level = (String) source.getOrDefault("level", "info");
+                    logger.log(
+                        Level.getLevel(level.toUpperCase(Locale.ROOT)),
+                        "Transform audit: [{}] [{}] [{}] [{}]",
+                        Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
+                        source.getOrDefault("transform_id", "n/a"),
+                        source.getOrDefault("message", "n/a"),
+                        source.getOrDefault("node_name", "n/a")
+                    );
+                }
+            } catch (ResponseException e) {
+                // see gh#54810, wrap temporary 503's as assertion error for retry
+                if (e.getResponse().getStatusLine().getStatusCode() != 503) {
+                    throw e;
+                }
+                throw new AssertionError("Failed to retrieve audit logs", e);
             }
-        }
+        }, 5, TimeUnit.SECONDS);
     }
 
     protected void cleanUpTransforms() throws IOException {
-        for (TransformConfig config : transformConfigs.values()) {
+        for (String id : createdTransformIds) {
             try {
-                stopTransform(config.getId());
-                deleteTransform(config.getId());
+                stopTransform(id);
+                deleteTransform(id);
             } catch (ElasticsearchStatusException ex) {
                 if (ex.status().equals(RestStatus.NOT_FOUND)) {
-                    logger.info("tried to cleanup already deleted transform [{}]", config.getId());
+                    logger.info("tried to cleanup already deleted transform [{}]", id);
                 } else {
                     throw ex;
                 }
             }
         }
-        transformConfigs.clear();
+        createdTransformIds.clear();
     }
 
-    protected StopTransformResponse stopTransform(String id) throws IOException {
-        return stopTransform(id, true, null, false);
+    protected void refreshIndex(String index, RequestOptions options) throws IOException {
+        var r = new Request("POST", index + "/_refresh");
+        r.setOptions(options);
+        assertOK(client().performRequest(r));
     }
 
-    protected StopTransformResponse stopTransform(String id, boolean waitForCompletion, TimeValue timeout, boolean waitForCheckpoint)
+    protected Map<String, Object> getIndexMapping(String index, RequestOptions options) throws IOException {
+        var r = new Request("GET", "/" + index + "/_mapping");
+        r.setOptions(options);
+        return entityAsMap(client().performRequest(r));
+    }
+
+    protected void stopTransform(String id) throws IOException {
+        stopTransform(id, true, null, false);
+    }
+
+    protected void stopTransform(String id, boolean waitForCompletion, @Nullable TimeValue timeout, boolean waitForCheckpoint)
         throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.transform()
-                .stopTransform(new StopTransformRequest(id, waitForCompletion, timeout, waitForCheckpoint), RequestOptions.DEFAULT);
+
+        final Request stopTransformRequest = new Request("POST", TRANSFORM_ENDPOINT + id + "/_stop");
+        stopTransformRequest.addParameter(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(waitForCompletion));
+        stopTransformRequest.addParameter(TransformField.WAIT_FOR_CHECKPOINT.getPreferredName(), Boolean.toString(waitForCheckpoint));
+        if (timeout != null) {
+            stopTransformRequest.addParameter(TransformField.TIMEOUT.getPreferredName(), timeout.getStringRep());
         }
+        Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
+        assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
-    protected StartTransformResponse startTransform(String id, RequestOptions options) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.transform().startTransform(new StartTransformRequest(id), options);
-        }
+    protected void startTransform(String id, RequestOptions options) throws IOException {
+        Request startTransformRequest = new Request("POST", TRANSFORM_ENDPOINT + id + "/_start");
+        startTransformRequest.setOptions(options);
+        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
+        assertThat(startTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
     // workaround for https://github.com/elastic/elasticsearch/issues/62204
-    protected StartTransformResponse startTransformWithRetryOnConflict(String id, RequestOptions options) throws Exception {
+    protected void startTransformWithRetryOnConflict(String id, RequestOptions options) throws Exception {
         final int totalRetries = 10;
         long totalSleepTime = 0;
-        ElasticsearchStatusException lastConflict = null;
+        ResponseException lastConflict = null;
         for (int retries = totalRetries; retries > 0; --retries) {
-            try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-                return restClient.transform().startTransform(new StartTransformRequest(id), options);
-            } catch (ElasticsearchStatusException e) {
+            try {
+                startTransform(id, options);
+                return;
+            } catch (ResponseException e) {
                 logger.warn(
                     "Failed to start transform [{}], remaining retries [{}], error: [{}], status: [{}]",
                     id,
                     retries,
-                    e.getDetailedMessage(),
-                    e.status()
+                    e.getMessage(),
+                    e.getResponse().getStatusLine().getStatusCode()
                 );
 
-                if (RestStatus.CONFLICT.equals(e.status()) == false) {
+                if ((RestStatus.CONFLICT.getStatus() == e.getResponse().getStatusLine().getStatusCode()) == false) {
                     throw e;
                 }
 
@@ -187,46 +207,58 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         throw new AssertionError("startTransformWithRetryOnConflict timed out after " + totalSleepTime + "ms", lastConflict);
     }
 
-    protected AcknowledgedResponse deleteTransform(String id) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            AcknowledgedResponse response = restClient.transform().deleteTransform(new DeleteTransformRequest(id), RequestOptions.DEFAULT);
-            if (response.isAcknowledged()) {
-                transformConfigs.remove(id);
-            }
-            return response;
-        }
+    protected void deleteTransform(String id) throws IOException {
+        Request request = new Request("DELETE", TRANSFORM_ENDPOINT + id);
+        assertOK(adminClient().performRequest(request));
     }
 
-    protected AcknowledgedResponse putTransform(TransformConfig config, RequestOptions options) throws IOException {
-        if (transformConfigs.keySet().contains(config.getId())) {
-            throw new IllegalArgumentException("transform [" + config.getId() + "] is already registered");
+    protected void putTransform(String id, String config, RequestOptions options) throws IOException {
+        if (createdTransformIds.contains(id)) {
+            throw new IllegalArgumentException("transform [" + id + "] is already registered");
         }
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            AcknowledgedResponse response = restClient.transform().putTransform(new PutTransformRequest(config), options);
 
-            if (response.isAcknowledged()) {
-                transformConfigs.put(config.getId(), config);
-            }
-            return response;
-        }
+        Request put = new Request("PUT", TRANSFORM_ENDPOINT + id);
+        put.setJsonEntity(config);
+        put.setOptions(options);
+        assertOK(client().performRequest(put));
     }
 
-    protected PreviewTransformResponse previewTransform(TransformConfig config, RequestOptions options) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.transform().previewTransform(new PreviewTransformRequest(config), options);
-        }
+    protected Map<String, Object> previewTransform(String transformConfig, RequestOptions options) throws IOException {
+        var request = new Request("POST", TRANSFORM_ENDPOINT + "_preview");
+        request.setJsonEntity(transformConfig);
+        request.setOptions(options);
+        return entityAsMap(client().performRequest(request));
     }
 
-    protected GetTransformStatsResponse getTransformStats(String id) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.transform().getTransformStats(new GetTransformStatsRequest(id), RequestOptions.DEFAULT);
-        }
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getTransformStats(String id) throws IOException {
+        var request = new Request("GET", TRANSFORM_ENDPOINT + id + "/_stats");
+        request.setOptions(RequestOptions.DEFAULT);
+        Response response = client().performRequest(request);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(response));
+        assertThat(stats, hasSize(1));
+        return stats.get(0);
     }
 
-    protected GetTransformResponse getTransform(String id) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.transform().getTransform(new GetTransformRequest(id), RequestOptions.DEFAULT);
-        }
+    protected String getTransformState(String id) throws IOException {
+        return (String) getTransformStats(id).get("state");
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getTransform(String id) throws IOException {
+        Request request = new Request("GET", TRANSFORM_ENDPOINT + id);
+        Response response = client().performRequest(request);
+        List<Map<String, Object>> transformConfigs = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "transforms",
+            entityAsMap(response)
+        );
+        assertThat(transformConfigs, hasSize(1));
+        return transformConfigs.get(0);
+    }
+
+    protected Map<String, Object> getTransforms(String id) throws IOException {
+        Request request = new Request("GET", TRANSFORM_ENDPOINT + id);
+        return entityAsMap(client().performRequest(request));
     }
 
     protected void waitUntilCheckpoint(String id, long checkpoint) throws Exception {
@@ -237,7 +269,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         assertBusy(
             () -> assertEquals(
                 checkpoint,
-                getTransformStats(id).getTransformsStats().get(0).getCheckpointingInfo().getLast().getCheckpoint()
+                ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", getTransformStats(id))).longValue()
             ),
             waitTime.getMillis(),
             TimeUnit.MILLISECONDS
@@ -249,11 +281,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         DateHistogramInterval interval,
         ZoneId zone
     ) {
-        DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
-            .setField(field)
-            .setInterval(new DateHistogramGroupSource.FixedInterval(interval))
-            .setTimeZone(zone);
-        return builder.build();
+        return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.FixedInterval(interval), zone);
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(
@@ -261,59 +289,68 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         DateHistogramInterval interval,
         ZoneId zone
     ) {
-        DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
-            .setField(field)
-            .setInterval(new DateHistogramGroupSource.CalendarInterval(interval))
-            .setTimeZone(zone);
-        return builder.build();
+        return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.CalendarInterval(interval), zone);
     }
 
-    protected GroupConfig createGroupConfig(Map<String, SingleGroupSource> groups) throws Exception {
-        GroupConfig.Builder builder = GroupConfig.builder();
-        for (Map.Entry<String, SingleGroupSource> sgs : groups.entrySet()) {
-            builder.groupBy(sgs.getKey(), sgs.getValue());
+    protected GroupConfig createGroupConfig(Map<String, SingleGroupSource> groups) throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            for (Map.Entry<String, SingleGroupSource> entry : groups.entrySet()) {
+                builder.startObject(entry.getKey());
+                builder.field(entry.getValue().getType().value(), entry.getValue());
+                builder.endObject();
+            }
+            builder.endObject();
+
+            try (
+                XContentParser sourceParser = XContentType.JSON.xContent()
+                    .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput())
+            ) {
+                return GroupConfig.fromXContent(sourceParser, false);
+            }
         }
-        return builder.build();
     }
 
-    protected QueryConfig createQueryConfig(QueryBuilder queryBuilder) throws Exception {
-        return new QueryConfig(queryBuilder);
-    }
+    protected AggregationConfig createAggConfig(AggregatorFactories.Builder aggregations) throws IOException {
 
-    protected AggregationConfig createAggConfig(AggregatorFactories.Builder aggregations) throws Exception {
-        return new AggregationConfig(aggregations);
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            aggregations.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            try (
+                XContentParser sourceParser = XContentType.JSON.xContent()
+                    .createParser(
+                        xContentRegistry(),
+                        LoggingDeprecationHandler.INSTANCE,
+                        BytesReference.bytes(xContentBuilder).streamInput()
+                    )
+            ) {
+                return AggregationConfig.fromXContent(sourceParser, false);
+            }
+        }
     }
 
     protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups, AggregatorFactories.Builder aggregations)
         throws Exception {
-        return PivotConfig.builder().setGroups(createGroupConfig(groups)).setAggregationConfig(createAggConfig(aggregations)).build();
+        return new PivotConfig(createGroupConfig(groups), createAggConfig(aggregations), null);
     }
 
     protected TransformConfig.Builder createTransformConfigBuilder(
         String id,
         String destinationIndex,
-        QueryBuilder queryBuilder,
+        QueryConfig queryConfig,
         String... sourceIndices
     ) throws Exception {
         return TransformConfig.builder()
             .setId(id)
-            .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
-            .setDest(DestConfig.builder().setIndex(destinationIndex).build())
+            .setSource(new SourceConfig(sourceIndices, queryConfig, Collections.emptyMap()))
+            .setDest(new DestConfig(destinationIndex, null))
             .setFrequency(TimeValue.timeValueSeconds(10))
             .setDescription("Test transform config id: " + id);
     }
 
-    protected void bulkIndexDocs(BulkRequest request) throws Exception {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            BulkResponse response = restClient.bulk(request, RequestOptions.DEFAULT);
-            assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-        }
-    }
-
-    protected void updateConfig(String id, TransformConfigUpdate update) throws Exception {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            restClient.transform().updateTransform(new UpdateTransformRequest(update, id), RequestOptions.DEFAULT);
-        }
+    protected void updateConfig(String id, String update) throws Exception {
+        Request updateRequest = new Request("POST", "_transform/" + id + "/_update");
+        updateRequest.setJsonEntity(update);
+        assertOK(client().performRequest(updateRequest));
     }
 
     protected void createReviewsIndex(
@@ -324,92 +361,105 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         Function<Integer, String> dateStringProvider
     ) throws Exception {
         assert numUsers > 0;
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
 
-            // create mapping
-            try (XContentBuilder builder = jsonBuilder()) {
-                builder.startObject();
-                {
-                    builder.startObject("properties")
-                        .startObject("timestamp")
-                        .field("type", "date")
-                        .endObject()
-                        .startObject("user_id")
-                        .field("type", "keyword")
-                        .endObject()
-                        .startObject("count")
-                        .field("type", "integer")
-                        .endObject()
-                        .startObject("business_id")
-                        .field("type", "keyword")
-                        .endObject()
-                        .startObject("stars")
-                        .field("type", "integer")
-                        .endObject()
-                        .startObject("regular_object")
-                        .field("type", "object")
-                        .endObject()
-                        .startObject("nested_object")
-                        .field("type", "nested")
-                        .endObject()
-                        .startObject("comment")
-                        .field("type", "text")
-                        .startObject("fields")
-                        .startObject("keyword")
-                        .field("type", "keyword")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject();
-                }
-                builder.endObject();
-                CreateIndexResponse response = restClient.indices()
-                    .create(new CreateIndexRequest(indexName).mapping(builder), RequestOptions.DEFAULT);
-                assertThat(response.isAcknowledged(), is(true));
+        // create mapping
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("mappings")
+                    .startObject("properties")
+                    .startObject("timestamp")
+                    .field("type", "date")
+                    .endObject()
+                    .startObject("user_id")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("count")
+                    .field("type", "integer")
+                    .endObject()
+                    .startObject("business_id")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("stars")
+                    .field("type", "integer")
+                    .endObject()
+                    .startObject("regular_object")
+                    .field("type", "object")
+                    .endObject()
+                    .startObject("nested_object")
+                    .field("type", "nested")
+                    .endObject()
+                    .startObject("comment")
+                    .field("type", "text")
+                    .startObject("fields")
+                    .startObject("keyword")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject();
             }
+            builder.endObject();
 
-            // create index
-            BulkRequest bulk = new BulkRequest(indexName);
-            for (int i = 0; i < numDocs; i++) {
-                Integer user = userIdProvider.apply(i);
-                int stars = i % 5;
-                long business = i % 50;
-                String dateString = dateStringProvider.apply(i);
-
-                StringBuilder sourceBuilder = new StringBuilder().append("{");
-                if (user != null) {
-                    sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
-                }
-                sourceBuilder.append("""
-                    "count":%s,"business_id":"business_%s","stars":%s,"comment":"Great stuff, deserves %s stars","regular_object":\
-                    {"foo": 42},"nested_object":{"bar": 43},"timestamp":"%s"}
-                    """.formatted(i, business, stars, stars, dateString));
-                bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
-
-                if (i % 100 == 0) {
-                    BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
-                    assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-                    bulk = new BulkRequest(indexName);
-                }
-            }
-            BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
-            assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-            restClient.indices().refresh(new RefreshRequest(indexName), RequestOptions.DEFAULT);
+            final StringEntity indexMappings = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            Request req = new Request("PUT", indexName);
+            req.setEntity(indexMappings);
+            req.setOptions(RequestOptions.DEFAULT);
+            assertOK(client().performRequest(req));
         }
+
+        // create index
+        StringBuilder sourceBuilder = new StringBuilder();
+        for (int i = 0; i < numDocs; i++) {
+            Integer user = userIdProvider.apply(i);
+            int stars = i % 5;
+            long business = i % 50;
+            String dateString = dateStringProvider.apply(i);
+
+            sourceBuilder.append("""
+                {"create":{"_index":"%s"}}
+                """.formatted(indexName));
+
+            sourceBuilder.append("{");
+            if (user != null) {
+                sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
+            }
+            sourceBuilder.append("""
+                "count":%s,"business_id":"business_%s","stars":%s,"comment":"Great stuff, deserves %s stars","regular_object":\
+                {"foo": 42},"nested_object":{"bar": 43},"timestamp":"%s"}
+                """.formatted(i, business, stars, stars, dateString));
+
+            if (i % 100 == 0) {
+                sourceBuilder.append("\r\n");
+                doBulk(sourceBuilder.toString(), false);
+                sourceBuilder.setLength(0);
+            }
+        }
+        sourceBuilder.append("\r\n");
+        doBulk(sourceBuilder.toString(), true);
     }
 
-    protected Map<String, Object> toLazy(ToXContent parsedObject) throws Exception {
-        BytesReference bytes = XContentHelper.toXContent(parsedObject, XContentType.JSON, false);
-        try (
-            XContentParser parser = XContentHelper.createParser(
-                xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                bytes,
-                XContentType.JSON
-            )
-        ) {
-            return parser.mapOrdered();
+    protected void doBulk(String bulkDocuments, boolean refresh) throws IOException {
+        Request bulkRequest = new Request("POST", "/_bulk");
+        if (refresh) {
+            bulkRequest.addParameter("refresh", "true");
         }
+        bulkRequest.setJsonEntity(bulkDocuments);
+        bulkRequest.setOptions(RequestOptions.DEFAULT);
+        Response bulkResponse = client().performRequest(bulkRequest);
+        assertOK(bulkResponse);
+        var bulkMap = entityAsMap(bulkResponse);
+        assertThat((boolean) bulkMap.get("errors"), is(equalTo(false)));
+    }
+
+    protected Map<String, Object> matchAllSearch(String index, int size, RequestOptions options) throws IOException {
+        Request request = new Request("GET", index + "/_search");
+        request.addParameter("size", Integer.toString(size));
+        request.setOptions(options);
+        Response response = client().performRequest(request);
+        assertOK(response);
+        return entityAsMap(response);
     }
 
     private void waitForPendingTasks() {
@@ -441,14 +491,5 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         final String token = "Basic "
             + Base64.getEncoder().encodeToString(("x_pack_rest_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    protected static class TestRestHighLevelClient extends RestHighLevelClient {
-        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES = new SearchModule(Settings.EMPTY, Collections.emptyList())
-            .getNamedXContents();
-
-        TestRestHighLevelClient() {
-            super(client(), restClient -> {}, X_CONTENT_ENTRIES);
-        }
     }
 }

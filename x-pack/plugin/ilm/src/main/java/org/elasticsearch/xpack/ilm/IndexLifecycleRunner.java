@@ -54,19 +54,20 @@ class IndexLifecycleRunner {
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
 
-    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (currentState, tasks) -> {
-        ClusterStateTaskExecutor.ClusterTasksResult.Builder<IndexLifecycleClusterStateUpdateTask> builder =
-            ClusterStateTaskExecutor.ClusterTasksResult.builder();
+    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (
+        currentState,
+        taskContexts) -> {
         ClusterState state = currentState;
-        for (IndexLifecycleClusterStateUpdateTask task : tasks) {
+        for (final var taskContext : taskContexts) {
             try {
+                final var task = taskContext.getTask();
                 state = task.execute(state);
-                builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+                taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
             } catch (Exception e) {
-                builder.failure(task, e);
+                taskContext.onFailure(e);
             }
         }
-        return builder.build(state);
+        return state;
     };
 
     IndexLifecycleRunner(

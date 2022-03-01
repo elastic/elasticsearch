@@ -302,7 +302,7 @@ public class NestedIT extends ESIntegTestCase {
             assertThat(nested, notNullValue());
             Max max = nested.getAggregations().get("max_value");
             assertThat(max, notNullValue());
-            assertThat(max.getValue(), equalTo(numChildren[i] == 0 ? Double.NEGATIVE_INFINITY : (double) i + numChildren[i]));
+            assertThat(max.value(), equalTo(numChildren[i] == 0 ? Double.NEGATIVE_INFINITY : (double) i + numChildren[i]));
         }
     }
 

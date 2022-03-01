@@ -28,4 +28,6 @@ interface Cursor {
     int batchSize();
 
     void close() throws SQLException;
+
+    List<String> warnings();
 }

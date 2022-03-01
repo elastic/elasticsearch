@@ -585,7 +585,15 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     public SQLWarning getWarnings() throws SQLException {
         checkOpen();
-        return null;
+        SQLWarning sqlWarning = null;
+        for (String warning : cursor.warnings()) {
+            if (sqlWarning == null) {
+                sqlWarning = new SQLWarning(warning);
+            } else {
+                sqlWarning.setNextWarning(new SQLWarning(warning));
+            }
+        }
+        return sqlWarning;
     }
 
     @Override

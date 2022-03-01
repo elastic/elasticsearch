@@ -31,6 +31,8 @@ import java.sql.SQLRecoverableException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTimeoutException;
 import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
@@ -150,7 +152,7 @@ public class JreHttpUrlConnection implements Closeable {
 
     public <R> ResponseOrException<R> request(
         CheckedConsumer<OutputStream, IOException> doc,
-        CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
+        CheckedBiFunction<InputStream, Map<String, List<String>>, R, IOException> parser,
         String requestMethod
     ) throws ClientException {
         return request(doc, parser, requestMethod, "application/json");
@@ -158,7 +160,7 @@ public class JreHttpUrlConnection implements Closeable {
 
     public <R> ResponseOrException<R> request(
         CheckedConsumer<OutputStream, IOException> doc,
-        CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
+        CheckedBiFunction<InputStream, Map<String, List<String>>, R, IOException> parser,
         String requestMethod,
         String contentTypeHeader
     ) throws ClientException {
@@ -174,7 +176,7 @@ public class JreHttpUrlConnection implements Closeable {
             }
             if (shouldParseBody(con.getResponseCode())) {
                 try (InputStream stream = getStream(con, con.getInputStream())) {
-                    return new ResponseOrException<>(parser.apply(new BufferedInputStream(stream), con::getHeaderField));
+                    return new ResponseOrException<>(parser.apply(new BufferedInputStream(stream), con.getHeaderFields()));
                 }
             }
             return parserError();

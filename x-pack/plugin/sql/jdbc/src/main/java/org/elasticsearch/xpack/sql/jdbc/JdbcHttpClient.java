@@ -75,8 +75,15 @@ class JdbcHttpClient {
             conCfg.indexIncludeFrozen(),
             conCfg.binaryCommunication()
         );
-        SqlQueryResponse response = httpClient.query(sqlRequest);
-        return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
+        Tuple<SqlQueryResponse, List<String>> response = httpClient.query(sqlRequest);
+        return new DefaultCursor(
+            this,
+            response.v1().cursor(),
+            toJdbcColumnInfo(response.v1().columns()),
+            response.v1().rows(),
+            meta,
+            response.v2()
+        );
     }
 
     /**
@@ -91,7 +98,7 @@ class JdbcHttpClient {
             new RequestInfo(Mode.JDBC),
             conCfg.binaryCommunication()
         );
-        SqlQueryResponse response = httpClient.query(sqlRequest);
+        SqlQueryResponse response = httpClient.query(sqlRequest).v1();
         return new Tuple<>(response.cursor(), response.rows());
     }
 

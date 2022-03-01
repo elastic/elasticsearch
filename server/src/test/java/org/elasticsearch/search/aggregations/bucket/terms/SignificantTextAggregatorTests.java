@@ -315,7 +315,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < 10; i++) {
                 Document doc = new Document();
                 doc.add(new Field("text", "foo", TextFieldMapper.Defaults.FIELD_TYPE));
-                String json = "{ \"text\" : [\"foo\",\"foo\"], \"title\" : [\"foo\", \"foo\"]}";
+                String json = """
+                    { "text" : ["foo","foo"], "title" : ["foo", "foo"]}""";
                 doc.add(new StoredField("_source", new BytesRef(json)));
                 w.addDocument(doc);
             }

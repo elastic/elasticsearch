@@ -30,7 +30,7 @@ public final class MlAggsHelper {
     /**
      * This extracts the bucket values as doubles from the passed aggregations.
      *
-     * The gap policy is always `INSERT_ZERO`
+     * The gap policy is always `INSERT_ZEROS`
      * @param bucketPath The bucket path from which to extract values
      * @param aggregations The aggregations
      * @return The double values and doc_counts extracted from the path if the bucket path exists and the value is a valid number

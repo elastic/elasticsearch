@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.client.ml.inference.NamedXContentObject;
-import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
@@ -66,8 +64,8 @@ public class NamedXContentObjectHelperTests extends ESTestCase {
     }
 
     public void testSerializeInOrder() throws IOException {
-        String expected =
-            "{\"my_objects\":[{\"my_named_object\":{\"my_field\":\"value1\"}},{\"my_named_object\":{\"my_field\":\"value2\"}}]}";
+        String expected = """
+            {"my_objects":[{"my_named_object":{"my_field":"value1"}},{"my_named_object":{"my_field":"value2"}}]}""";
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             List<NamedXContentObject> objects = Arrays.asList(new NamedTestObject("value1"), new NamedTestObject("value2"));
@@ -78,7 +76,8 @@ public class NamedXContentObjectHelperTests extends ESTestCase {
     }
 
     public void testSerialize() throws IOException {
-        String expected = "{\"my_objects\":{\"my_named_object\":{\"my_field\":\"value1\"},\"my_named_object\":{\"my_field\":\"value2\"}}}";
+        String expected = """
+            {"my_objects":{"my_named_object":{"my_field":"value1"},"my_named_object":{"my_field":"value2"}}}""";
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             List<NamedXContentObject> objects = Arrays.asList(new NamedTestObject("value1"), new NamedTestObject("value2"));

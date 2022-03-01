@@ -630,8 +630,7 @@ public final class Errors {
     }
 
     public static void formatSource(Formatter formatter, Object source) {
-        if (source instanceof Dependency) {
-            Dependency<?> dependency = (Dependency<?>) source;
+        if (source instanceof Dependency<?> dependency) {
             InjectionPoint injectionPoint = dependency.getInjectionPoint();
             if (injectionPoint != null) {
                 formatInjectionPoint(formatter, dependency, injectionPoint);
@@ -651,8 +650,7 @@ public final class Errors {
         } else if (source instanceof TypeLiteral) {
             formatter.format("  while locating %s%n", source);
 
-        } else if (source instanceof Key) {
-            Key<?> key = (Key<?>) source;
+        } else if (source instanceof Key<?> key) {
             formatter.format("  while locating %s%n", convert(key));
 
         } else {

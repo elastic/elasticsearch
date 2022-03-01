@@ -9,10 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CannedTokenStream;
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.StopFilter;
-import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
@@ -42,6 +39,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -245,10 +245,9 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        assertEquals(
-            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\",\"fields\":{\"subfield\":{\"type\":\"long\"}},\"fielddata\":true}}}}",
-            Strings.toString(mapperService.documentMapper().mapping())
-        );
+        assertEquals("""
+            {"_doc":{"properties":{"field":{"type":"text","fields":{"subfield":{"type":"long"}},\
+            "fielddata":true}}}}""", Strings.toString(mapperService.documentMapper().mapping()));
     }
 
     public void testEnableStore() throws IOException {
@@ -289,9 +288,12 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         DocumentMapper mapper = createDocumentMapper(mapping);
         String serialized = Strings.toString(mapper.mapping());
-        assertThat(serialized, containsString("\"offsets\":{\"type\":\"text\",\"index_options\":\"offsets\"}"));
-        assertThat(serialized, containsString("\"freqs\":{\"type\":\"text\",\"index_options\":\"freqs\"}"));
-        assertThat(serialized, containsString("\"docs\":{\"type\":\"text\",\"index_options\":\"docs\"}"));
+        assertThat(serialized, containsString("""
+            "offsets":{"type":"text","index_options":"offsets"}"""));
+        assertThat(serialized, containsString("""
+            "freqs":{"type":"text","index_options":"freqs"}"""));
+        assertThat(serialized, containsString("""
+            "docs":{"type":"text","index_options":"docs"}"""));
 
         ParsedDocument doc = mapper.parse(source(b -> {
             for (String option : supportedOptions.keySet()) {

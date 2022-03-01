@@ -174,7 +174,7 @@ public class LicenseServiceTests extends ESTestCase {
             assertion.accept(future);
         } else {
             ArgumentCaptor<ClusterStateUpdateTask> taskCaptor = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-            verify(clusterService, times(1)).submitStateUpdateTask(any(), taskCaptor.capture());
+            verify(clusterService, times(1)).submitStateUpdateTask(any(), taskCaptor.capture(), any());
 
             final ClusterStateUpdateTask task = taskCaptor.getValue();
             assertThat(task, instanceOf(AckedClusterStateUpdateTask.class));

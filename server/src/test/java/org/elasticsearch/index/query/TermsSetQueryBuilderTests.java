@@ -150,22 +150,16 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         Script minimumShouldMatchScript = null;
 
         switch (randomIntBetween(0, 3)) {
-            case 0:
+            case 0 -> {
                 Predicate<String> predicate = s -> s.equals(instance.getFieldName()) == false
                     && s.equals(GEO_POINT_FIELD_NAME) == false
                     && s.equals(GEO_SHAPE_FIELD_NAME) == false;
                 fieldName = randomValueOtherThanMany(predicate, () -> randomFrom(MAPPED_FIELD_NAMES));
                 values = randomValues(fieldName);
-                break;
-            case 1:
-                values = randomValues(fieldName);
-                break;
-            case 2:
-                minimumShouldMatchField = randomAlphaOfLengthBetween(1, 10);
-                break;
-            case 3:
-                minimumShouldMatchScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, randomAlphaOfLength(10), emptyMap());
-                break;
+            }
+            case 1 -> values = randomValues(fieldName);
+            case 2 -> minimumShouldMatchField = randomAlphaOfLengthBetween(1, 10);
+            case 3 -> minimumShouldMatchScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, randomAlphaOfLength(10), emptyMap());
         }
 
         TermsSetQueryBuilder newInstance = new TermsSetQueryBuilder(fieldName, values);

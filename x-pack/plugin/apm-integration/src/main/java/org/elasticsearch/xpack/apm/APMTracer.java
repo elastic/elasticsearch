@@ -260,7 +260,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
             spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().toString());
 
-            final String xOpaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID);
+            final String xOpaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
             if (xOpaqueId != null) {
                 spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
             }
@@ -281,12 +281,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
 
         // If not let us check for a parent context in the thread context
-        String traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT);
+        String traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
         String traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
         if (traceParent != null) {
             Map<String, String> traceContextMap = new HashMap<>();
             // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
-            traceContextMap.put(Task.TRACE_PARENT, traceParent);
+            traceContextMap.put(Task.TRACE_PARENT_HTTP_HEADER, traceParent);
             if (traceState != null) {
                 traceContextMap.put(Task.TRACE_STATE, traceState);
             }

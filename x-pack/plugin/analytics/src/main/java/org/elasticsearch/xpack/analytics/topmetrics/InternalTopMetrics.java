@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
 import org.elasticsearch.search.sort.SortOrder;
@@ -109,7 +110,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     }
 
     @Override
-    public InternalTopMetrics reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalTopMetrics reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         if (false == isMapped()) {
             return this;
         }

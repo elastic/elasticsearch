@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.logging.log4j.Level;
@@ -28,7 +26,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexWriterMaxDocsChanger;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -58,7 +55,7 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -411,11 +408,11 @@ public class InternalEngineTests extends EngineTestCase {
 
             final SegmentsStats stats1 = engine.segmentsStats(true, false);
             assertThat(stats1.getFiles().size(), greaterThan(0));
-            for (ObjectObjectCursor<String, SegmentsStats.FileStats> fileStats : stats1.getFiles()) {
-                assertThat(fileStats.value.getTotal(), greaterThan(0L));
-                assertThat(fileStats.value.getCount(), greaterThan(0L));
-                assertThat(fileStats.value.getMin(), greaterThan(0L));
-                assertThat(fileStats.value.getMax(), greaterThan(0L));
+            for (Map.Entry<String, SegmentsStats.FileStats> fileStats : stats1.getFiles().entrySet()) {
+                assertThat(fileStats.getValue().getTotal(), greaterThan(0L));
+                assertThat(fileStats.getValue().getCount(), greaterThan(0L));
+                assertThat(fileStats.getValue().getMin(), greaterThan(0L));
+                assertThat(fileStats.getValue().getMax(), greaterThan(0L));
             }
 
             ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
@@ -423,8 +420,8 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
 
             final SegmentsStats stats2 = engine.segmentsStats(true, false);
-            for (ObjectCursor<String> cursor : stats1.getFiles().keys()) {
-                final String extension = cursor.value;
+            for (Map.Entry<String, SegmentsStats.FileStats> cursor : stats1.getFiles().entrySet()) {
+                final String extension = cursor.getKey();
                 assertThat(stats2.getFiles().get(extension).getTotal(), greaterThan((stats1.getFiles().get(extension).getTotal())));
                 assertThat(stats2.getFiles().get(extension).getCount(), greaterThan((stats1.getFiles().get(extension).getCount())));
                 assertThat(stats2.getFiles().get(extension).getMin(), greaterThan((0L)));
@@ -1874,8 +1871,7 @@ public class InternalEngineTests extends EngineTestCase {
         );
         final Engine.Operation lastOpDoc1 = opsDoc1.get(opsDoc1.size() - 1);
         final String lastFieldValueDoc1;
-        if (lastOpDoc1 instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOpDoc1;
+        if (lastOpDoc1 instanceof Engine.Index index) {
             lastFieldValueDoc1 = index.docs().get(0).get("value");
         } else {
             // delete
@@ -1891,8 +1887,7 @@ public class InternalEngineTests extends EngineTestCase {
         );
         final Engine.Operation lastOpDoc2 = opsDoc2.get(opsDoc2.size() - 1);
         final String lastFieldValueDoc2;
-        if (lastOpDoc2 instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOpDoc2;
+        if (lastOpDoc2 instanceof Engine.Index index) {
             lastFieldValueDoc2 = index.docs().get(0).get("value");
         } else {
             // delete
@@ -1901,8 +1896,7 @@ public class InternalEngineTests extends EngineTestCase {
         // randomly interleave
         final AtomicLong seqNoGenerator = new AtomicLong();
         BiFunction<Engine.Operation, Long, Engine.Operation> seqNoUpdater = (operation, newSeqNo) -> {
-            if (operation instanceof Engine.Index) {
-                Engine.Index index = (Engine.Index) operation;
+            if (operation instanceof Engine.Index index) {
                 LuceneDocument doc = testDocumentWithTextField(index.docs().get(0).get("value"));
                 ParsedDocument parsedDocument = testParsedDocument(index.id(), index.routing(), doc, index.source(), null);
                 return new Engine.Index(
@@ -2109,8 +2103,7 @@ public class InternalEngineTests extends EngineTestCase {
                 versionConflict ? " (conflict " + conflictingVersion + ")" : "",
                 versionedOp ? " (versioned " + correctVersion + ", seqNo " + lastOpSeqNo + ", term " + lastOpTerm + " )" : ""
             );
-            if (op instanceof Engine.Index) {
-                final Engine.Index index = (Engine.Index) op;
+            if (op instanceof final Engine.Index index) {
                 if (versionConflict) {
                     // generate a conflict
                     final Engine.IndexResult result;
@@ -2231,8 +2224,7 @@ public class InternalEngineTests extends EngineTestCase {
         final List<Engine.Operation> ops = generateSingleDocHistory(false, versionType, 2, 2, 20, "1");
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
-        if (lastOp instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOp;
+        if (lastOp instanceof Engine.Index index) {
             lastFieldValue = index.docs().get(0).get("value");
         } else {
             // delete
@@ -2253,8 +2245,7 @@ public class InternalEngineTests extends EngineTestCase {
                 op.seqNo(),
                 op.primaryTerm()
             );
-            if (op instanceof Engine.Index) {
-                final Engine.Index index = (Engine.Index) op;
+            if (op instanceof final Engine.Index index) {
                 Engine.IndexResult result = engine.index(index);
                 if (op.versionType().isVersionConflictForWrites(highestOpVersion, op.version(), docDeleted) == false) {
                     seqNo++;
@@ -2336,8 +2327,7 @@ public class InternalEngineTests extends EngineTestCase {
         final List<Engine.Operation> ops = generateSingleDocHistory(false, VersionType.EXTERNAL, 2, 100, 300, "1");
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
-        if (lastOp instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOp;
+        if (lastOp instanceof Engine.Index index) {
             lastFieldValue = index.docs().get(0).get("value");
         } else {
             // delete
@@ -3587,18 +3577,9 @@ public class InternalEngineTests extends EngineTestCase {
                 while (stop == false) {
                     try {
                         switch (operation) {
-                            case "optimize": {
-                                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-                                break;
-                            }
-                            case "refresh": {
-                                engine.refresh("test refresh");
-                                break;
-                            }
-                            case "flush": {
-                                engine.flush(true, true);
-                                break;
-                            }
+                            case "optimize" -> engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                            case "refresh" -> engine.refresh("test refresh");
+                            case "flush" -> engine.flush(true, true);
                         }
                     } catch (Exception e) {
                         exception.set(e);
@@ -4700,10 +4681,7 @@ public class InternalEngineTests extends EngineTestCase {
                         .stream()
                         .filter(e -> e.getValue().operationType() == Engine.Operation.TYPE.INDEX)
                         .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().seqNo()));
-                    assertThat(
-                        getDocIds(engine, true).stream().collect(Collectors.toMap(e -> e.getId(), e -> e.getSeqNo())),
-                        equalTo(liveOps)
-                    );
+                    assertThat(getDocIds(engine, true).stream().collect(Collectors.toMap(e -> e.id(), e -> e.seqNo())), equalTo(liveOps));
                     for (String id : latestOps.keySet()) {
                         String msg = "latestOps=" + latestOps + " op=" + id;
                         DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), newUid(id));
@@ -5095,15 +5073,15 @@ public class InternalEngineTests extends EngineTestCase {
             ParsedDocument doc = createParsedDoc(id, null);
             Engine.Operation.TYPE type = randomFrom(Engine.Operation.TYPE.values());
             switch (type) {
-                case INDEX:
+                case INDEX -> {
                     Engine.IndexResult index = engine.index(replicaIndexForDoc(doc, between(1, 100), i, randomBoolean()));
                     assertThat(index.getFailure(), nullValue());
-                    break;
-                case DELETE:
+                }
+                case DELETE -> {
                     Engine.DeleteResult delete = engine.delete(replicaDeleteForDoc(doc.id(), between(1, 100), i, randomNonNegativeLong()));
                     assertThat(delete.getFailure(), nullValue());
-                    break;
-                case NO_OP:
+                }
+                case NO_OP -> {
                     long seqNo = i;
                     Engine.NoOpResult noOp = engine.noOp(
                         new Engine.NoOp(seqNo, primaryTerm.get(), randomFrom(Engine.Operation.Origin.values()), randomNonNegativeLong(), "")
@@ -5111,9 +5089,8 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(noOp.getTerm(), equalTo(primaryTerm.get()));
                     assertThat(noOp.getSeqNo(), equalTo(seqNo));
                     assertThat(noOp.getFailure(), nullValue());
-                    break;
-                default:
-                    throw new IllegalStateException("Invalid op [" + type + "]");
+                }
+                default -> throw new IllegalStateException("Invalid op [" + type + "]");
             }
             if (randomBoolean()) {
                 engine.refresh("test");
@@ -7306,7 +7283,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testMaxDocsOnPrimary() throws Exception {
         engine.close();
         int maxDocs = randomIntBetween(1, 100);
-        IndexWriterMaxDocsChanger.setMaxDocs(maxDocs);
+        setIndexWriterMaxDocs(maxDocs);
         try {
             engine = new InternalTestEngine(engine.config(), maxDocs, LocalCheckpointTracker::new);
             int numDocs = between(maxDocs + 1, maxDocs * 2);
@@ -7339,14 +7316,14 @@ public class InternalEngineTests extends EngineTestCase {
                 assertFalse(engine.isClosed.get());
             }
         } finally {
-            IndexWriterMaxDocsChanger.restoreMaxDocs();
+            restoreIndexWriterMaxDocs();
         }
     }
 
     public void testMaxDocsOnReplica() throws Exception {
         engine.close();
         int maxDocs = randomIntBetween(1, 100);
-        IndexWriterMaxDocsChanger.setMaxDocs(maxDocs);
+        setIndexWriterMaxDocs(maxDocs);
         try {
             engine = new InternalTestEngine(engine.config(), maxDocs, LocalCheckpointTracker::new);
             int numDocs = between(maxDocs + 1, maxDocs * 2);
@@ -7359,7 +7336,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(error.getMessage(), containsString("number of documents in the index cannot exceed " + maxDocs));
             assertTrue(engine.isClosed.get());
         } finally {
-            IndexWriterMaxDocsChanger.restoreMaxDocs();
+            restoreIndexWriterMaxDocs();
         }
     }
 

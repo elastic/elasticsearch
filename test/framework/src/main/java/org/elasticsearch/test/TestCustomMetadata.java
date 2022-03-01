@@ -52,7 +52,7 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
         return data.hashCode();
     }
 
-    protected static <T extends TestCustomMetadata> T readFrom(Function<String, T> supplier, StreamInput in) throws IOException {
+    public static <T extends TestCustomMetadata> T readFrom(Function<String, T> supplier, StreamInput in) throws IOException {
         return supplier.apply(in.readString());
     }
 
@@ -66,8 +66,7 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
     }
 
     @SuppressWarnings("unchecked")
-    public static <T extends Metadata.Custom> T fromXContent(Function<String, Metadata.Custom> supplier, XContentParser parser)
-        throws IOException {
+    public static <T extends Metadata.Custom> T fromXContent(Function<String, T> supplier, XContentParser parser) throws IOException {
         XContentParser.Token token;
         String data = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -88,7 +87,7 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
         if (data == null) {
             throw new ElasticsearchParseException("failed to parse snapshottable metadata, data not found");
         }
-        return (T) supplier.apply(data);
+        return supplier.apply(data);
     }
 
     @Override

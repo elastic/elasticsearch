@@ -19,10 +19,11 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -73,8 +74,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.qualifyAndJoinIndices;
-import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.splitQualifiedIndex;
+import static org.elasticsearch.xpack.ql.util.StringUtils.qualifyAndJoinIndices;
+import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 
 public class IndexResolver {
 
@@ -216,7 +217,7 @@ public class IndexResolver {
 
         String[] indexWildcards = Strings.commaDelimitedListToStringArray(indexWildcard);
         Set<IndexInfo> indexInfos = new HashSet<>();
-        if (retrieveAliases) {
+        if (retrieveAliases && clusterIsLocal(clusterWildcard)) {
             GetAliasesRequest aliasRequest = new GetAliasesRequest().local(true)
                 .aliases(indexWildcards)
                 .indicesOptions(IndicesOptions.lenientExpandOpen());
@@ -268,7 +269,7 @@ public class IndexResolver {
         ActionListener<Set<IndexInfo>> listener
     ) {
         if (retrieveIndices || retrieveFrozenIndices) {
-            if (clusterWildcard == null || simpleMatch(clusterWildcard, clusterName)) { // resolve local indices
+            if (clusterIsLocal(clusterWildcard)) { // resolve local indices
                 GetIndexRequest indexRequest = new GetIndexRequest().local(true)
                     .indices(indexWildcards)
                     .features(Feature.SETTINGS)
@@ -353,6 +354,10 @@ public class IndexResolver {
             }
         }
         listener.onResponse(result);
+    }
+
+    private boolean clusterIsLocal(String clusterWildcard) {
+        return clusterWildcard == null || simpleMatch(clusterWildcard, clusterName);
     }
 
     /**
@@ -507,8 +512,7 @@ public class IndexResolver {
 
         EsField esField = field.apply(fieldName);
 
-        if (parent != null && parent instanceof UnsupportedEsField) {
-            UnsupportedEsField unsupportedParent = (UnsupportedEsField) parent;
+        if (parent != null && parent instanceof UnsupportedEsField unsupportedParent) {
             String inherited = unsupportedParent.getInherited();
             String type = unsupportedParent.getOriginalType();
 
@@ -662,7 +666,7 @@ public class IndexResolver {
 
         List<String> resolvedIndices = new ArrayList<>(asList(fieldCapsResponse.getIndices()));
         int mapSize = CollectionUtils.mapSize(resolvedIndices.size() + resolvedAliases.size());
-        Map<String, Fields> indices = new LinkedHashMap<>(mapSize);
+        Map<String, Fields> indices = Maps.newLinkedHashMapWithExpectedSize(mapSize);
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
 
         // sort fields in reverse order to build the field hierarchy

@@ -26,8 +26,8 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,6 +42,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
@@ -209,11 +210,8 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.pipelines().size(), is(0));
 
-        PipelineConfiguration pipeline = new PipelineConfiguration(
-            "_id",
-            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
-        );
+        PipelineConfiguration pipeline = new PipelineConfiguration("_id", new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", pipeline));
         clusterState = ClusterState.builder(clusterState)
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
@@ -269,11 +267,8 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(ingestService.pipelines().get("_id3").pipeline.getId(), equalTo("_id3"));
         assertThat(ingestService.pipelines().get("_id3").pipeline.getProcessors().size(), equalTo(0));
 
-        pipeline3 = new PipelineConfiguration(
-            "_id3",
-            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
-        );
+        pipeline3 = new PipelineConfiguration("_id3", new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id3", pipeline3));
 
         ingestService.innerUpdatePipelines(ingestMetadata);
@@ -292,11 +287,8 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testDelete() {
         IngestService ingestService = createWithProcessors();
-        PipelineConfiguration config = new PipelineConfiguration(
-            "_id",
-            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
-        );
+        PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", config));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
@@ -324,11 +316,8 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testValidateNoIngestInfo() throws Exception {
         IngestService ingestService = createWithProcessors();
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            "_id",
-            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
-        );
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
 
         var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
         Exception e = expectThrows(
@@ -422,14 +411,24 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
 
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            "_id",
-            new BytesArray(
-                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}},"
-                    + "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"
-            ),
-            XContentType.JSON
-        );
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
+            {
+              "processors": [
+                {
+                  "set": {
+                    "field": "_field",
+                    "value": "_value",
+                    "tag": "tag1"
+                  }
+                },
+                {
+                  "remove": {
+                    "field": "_field",
+                    "tag": "tag2"
+                  }
+                }
+              ]
+            }"""), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -455,20 +454,27 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
 
-        PutPipelineRequest putRequest1 = new PutPipelineRequest(
-            "_id1",
-            new BytesArray(
-                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}},"
-                    + "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"
-            ),
-            XContentType.JSON
-        );
+        PutPipelineRequest putRequest1 = new PutPipelineRequest("_id1", new BytesArray("""
+            {
+              "processors": [
+                {
+                  "set": {
+                    "field": "_field",
+                    "value": "_value",
+                    "tag": "tag1"
+                  }
+                },
+                {
+                  "remove": {
+                    "field": "_field",
+                    "tag": "tag2"
+                  }
+                }
+              ]
+            }"""), XContentType.JSON);
         clusterState = IngestService.innerPut(putRequest1, clusterState);
-        PutPipelineRequest putRequest2 = new PutPipelineRequest(
-            "_id2",
-            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag2\"}}]}"),
-            XContentType.JSON
-        );
+        PutPipelineRequest putRequest2 = new PutPipelineRequest("_id2", new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value", "tag": "tag2"}}]}"""), XContentType.JSON);
         clusterState = IngestService.innerPut(putRequest2, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
@@ -505,11 +511,8 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
 
-        PutPipelineRequest putRequest1 = new PutPipelineRequest(
-            "_id1",
-            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}]}"),
-            XContentType.JSON
-        );
+        PutPipelineRequest putRequest1 = new PutPipelineRequest("_id1", new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value", "tag": "tag1"}}]}"""), XContentType.JSON);
         clusterState = IngestService.innerPut(putRequest1, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
@@ -576,11 +579,8 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
 
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            id,
-            new BytesArray("{\"processors\": [{\"complexSet\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
-        );
+        PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("""
+            {"processors": [{"complexSet" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -602,11 +602,8 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline, nullValue());
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
 
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            id,
-            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
-        );
+        PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -644,11 +641,8 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline.getProcessors().size(), equalTo(0));
 
         // overwrite existing pipeline:
-        putRequest = new PutPipelineRequest(
-            id,
-            new BytesArray("{\"processors\": [], \"description\": \"_description\"}"),
-            XContentType.JSON
-        );
+        putRequest = new PutPipelineRequest(id, new BytesArray("""
+            {"processors": [], "description": "_description"}"""), XContentType.JSON);
         previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -707,7 +701,8 @@ public class IngestServiceTests extends ESTestCase {
     public void testDeleteUsingWildcard() {
         IngestService ingestService = createWithProcessors();
         HashMap<String, PipelineConfiguration> pipelines = new HashMap<>();
-        BytesArray definition = new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}");
+        BytesArray definition = new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
         pipelines.put("p1", new PipelineConfiguration("p1", definition, XContentType.JSON));
         pipelines.put("p2", new PipelineConfiguration("p2", definition, XContentType.JSON));
         pipelines.put("q1", new PipelineConfiguration("q1", definition, XContentType.JSON));
@@ -755,7 +750,8 @@ public class IngestServiceTests extends ESTestCase {
     public void testDeleteWithExistingUnmatchedPipelines() {
         IngestService ingestService = createWithProcessors();
         HashMap<String, PipelineConfiguration> pipelines = new HashMap<>();
-        BytesArray definition = new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}");
+        BytesArray definition = new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
         pipelines.put("p1", new PipelineConfiguration("p1", definition, XContentType.JSON));
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
@@ -777,11 +773,8 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testDeleteWithIndexUsePipeline() {
         IngestService ingestService = createWithProcessors();
-        PipelineConfiguration config = new PipelineConfiguration(
-            "_id",
-            new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"),
-            XContentType.JSON
-        );
+        PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", config));
         Metadata.Builder builder = Metadata.builder();
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
@@ -881,14 +874,24 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testValidate() throws Exception {
         IngestService ingestService = createWithProcessors();
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            "_id",
-            new BytesArray(
-                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}},"
-                    + "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"
-            ),
-            XContentType.JSON
-        );
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
+            {
+              "processors": [
+                {
+                  "set": {
+                    "field": "_field",
+                    "value": "_value",
+                    "tag": "tag1"
+                  }
+                },
+                {
+                  "remove": {
+                    "field": "_field",
+                    "tag": "tag2"
+                  }
+                }
+              ]
+            }"""), XContentType.JSON);
         var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
 
         DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -1091,11 +1094,8 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteEmptyPipeline() throws Exception {
         IngestService ingestService = createWithProcessors(emptyMap());
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            "_id",
-            new BytesArray("{\"processors\": [], \"description\": \"_description\"}"),
-            XContentType.JSON
-        );
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
+            {"processors": [], "description": "_description"}"""), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -1421,15 +1421,12 @@ public class IngestServiceTests extends ESTestCase {
             handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
             return null;
         }).when(processor).execute(any(), any());
-        Map<String, Processor.Factory> map = new HashMap<>(2);
+        Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
         map.put("mock", (factories, tag, description, config) -> processor);
 
         IngestService ingestService = createWithProcessors(map);
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            "_id",
-            new BytesArray("{\"processors\": [{\"mock\": {}}], \"description\": \"_description\"}"),
-            XContentType.JSON
-        );
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
+            {"processors": [{"mock": {}}], "description": "_description"}"""), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -1476,7 +1473,7 @@ public class IngestServiceTests extends ESTestCase {
             handler.accept(null, new RuntimeException("error"));
             return null;
         }).when(processorFailure).execute(any(IngestDocument.class), any());
-        Map<String, Processor.Factory> map = new HashMap<>(2);
+        Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
         map.put("mock", (factories, tag, description, config) -> processor);
         map.put("failure-mock", (factories, tag, description, config) -> processorFailure);
         IngestService ingestService = createWithProcessors(map);
@@ -1584,11 +1581,8 @@ public class IngestServiceTests extends ESTestCase {
         assertProcessorStats(0, afterThirdRequestStats, "_id2", 1, 0, 0);
 
         // test a failure, and that the processor stats are added from the old stats
-        putRequest = new PutPipelineRequest(
-            "_id1",
-            new BytesArray("{\"processors\": [{\"failure-mock\" : { \"on_failure\": [{\"mock\" : {}}]}}, {\"mock\" : {}}]}"),
-            XContentType.JSON
-        );
+        putRequest = new PutPipelineRequest("_id1", new BytesArray("""
+            {"processors": [{"failure-mock" : { "on_failure": [{"mock" : {}}]}}, {"mock" : {}}]}"""), XContentType.JSON);
         previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -1942,7 +1936,9 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testUpdatingPipelineWithoutChangesIsNoOp() throws Exception {
         var value = randomAlphaOfLength(5);
-        var pipelineString = "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"" + value + "\"}}]}";
+        var pipelineString = """
+            {"processors": [{"set" : {"field": "_field", "value": "%s"}}]}
+            """.formatted(value);
         testUpdatingPipeline(pipelineString);
     }
 

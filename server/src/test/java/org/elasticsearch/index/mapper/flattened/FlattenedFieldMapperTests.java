@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -398,5 +398,27 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
+    }
+
+    public void testDynamicTemplateAndDottedPaths() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            b.startObject();
+            b.startObject("no_deep_objects");
+            b.field("path_match", "*.*.*");
+            b.field("match_mapping_type", "object");
+            b.startObject("mapping");
+            b.field("type", "flattened");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("a.b.c.d", "value")));
+        IndexableField[] fields = doc.rootDoc().getFields("a.b.c");
+        assertEquals(new BytesRef("value"), fields[0].binaryValue());
+        IndexableField[] keyed = doc.rootDoc().getFields("a.b.c._keyed");
+        assertEquals(new BytesRef("d\0value"), keyed[0].binaryValue());
     }
 }

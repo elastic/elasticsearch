@@ -8,17 +8,13 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.IntCursor;
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -294,21 +290,21 @@ public final class DiffableUtils {
             super(keySerializer, valueSerializer);
             assert after != null && before != null;
 
-            for (ObjectCursor<K> key : before.keys()) {
-                if (after.containsKey(key.value) == false) {
-                    deletes.add(key.value);
+            for (Map.Entry<K, T> key : before.entrySet()) {
+                if (after.containsKey(key.getKey()) == false) {
+                    deletes.add(key.getKey());
                 }
             }
 
-            for (ObjectObjectCursor<K, T> partIter : after) {
-                T beforePart = before.get(partIter.key);
+            for (Map.Entry<K, T> partIter : after.entrySet()) {
+                T beforePart = before.get(partIter.getKey());
                 if (beforePart == null) {
-                    upserts.put(partIter.key, partIter.value);
-                } else if (partIter.value.equals(beforePart) == false) {
+                    upserts.put(partIter.getKey(), partIter.getValue());
+                } else if (partIter.getValue().equals(beforePart) == false) {
                     if (valueSerializer.supportsDiffableValues()) {
-                        diffs.put(partIter.key, valueSerializer.diff(partIter.value, beforePart));
+                        diffs.put(partIter.getKey(), valueSerializer.diff(partIter.getValue(), beforePart));
                     } else {
-                        upserts.put(partIter.key, partIter.value);
+                        upserts.put(partIter.getKey(), partIter.getValue());
                     }
                 }
             }
@@ -354,21 +350,21 @@ public final class DiffableUtils {
             super(keySerializer, valueSerializer);
             assert after != null && before != null;
 
-            for (IntCursor key : before.keys()) {
-                if (after.containsKey(key.value) == false) {
-                    deletes.add(key.value);
+            for (Map.Entry<Integer, T> key : before.entrySet()) {
+                if (after.containsKey(key.getKey()) == false) {
+                    deletes.add(key.getKey());
                 }
             }
 
-            for (IntObjectCursor<T> partIter : after) {
-                T beforePart = before.get(partIter.key);
+            for (Map.Entry<Integer, T> partIter : after.entrySet()) {
+                T beforePart = before.get(partIter.getKey());
                 if (beforePart == null) {
-                    upserts.put(partIter.key, partIter.value);
-                } else if (partIter.value.equals(beforePart) == false) {
+                    upserts.put(partIter.getKey(), partIter.getValue());
+                } else if (partIter.getValue().equals(beforePart) == false) {
                     if (valueSerializer.supportsDiffableValues()) {
-                        diffs.put(partIter.key, valueSerializer.diff(partIter.value, beforePart));
+                        diffs.put(partIter.getKey(), valueSerializer.diff(partIter.getValue(), beforePart));
                     } else {
-                        upserts.put(partIter.key, partIter.value);
+                        upserts.put(partIter.getKey(), partIter.getValue());
                     }
                 }
             }
@@ -437,14 +433,14 @@ public final class DiffableUtils {
             this.valueSerializer = valueSerializer;
             deletes = in.readList(keySerializer::readKey);
             int diffsCount = in.readVInt();
-            diffs = diffsCount == 0 ? Collections.emptyMap() : new HashMap<>(diffsCount);
+            diffs = diffsCount == 0 ? Collections.emptyMap() : Maps.newMapWithExpectedSize(diffsCount);
             for (int i = 0; i < diffsCount; i++) {
                 K key = keySerializer.readKey(in);
                 Diff<T> diff = valueSerializer.readDiff(in, key);
                 diffs.put(key, diff);
             }
             int upsertsCount = in.readVInt();
-            upserts = upsertsCount == 0 ? Collections.emptyMap() : new HashMap<>(upsertsCount);
+            upserts = upsertsCount == 0 ? Collections.emptyMap() : Maps.newMapWithExpectedSize(upsertsCount);
             for (int i = 0; i < upsertsCount; i++) {
                 K key = keySerializer.readKey(in);
                 T newValue = valueSerializer.read(in, key);

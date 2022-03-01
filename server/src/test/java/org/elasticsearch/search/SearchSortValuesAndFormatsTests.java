@@ -57,22 +57,15 @@ public class SearchSortValuesAndFormatsTests extends AbstractWireSerializingTest
     }
 
     private static Object randomSortValue() {
-        switch (randomIntBetween(0, 5)) {
-            case 0:
-                return null;
-            case 1:
-                return new BytesRef(randomAlphaOfLengthBetween(3, 10));
-            case 2:
-                return randomInt();
-            case 3:
-                return randomLong();
-            case 4:
-                return randomFloat();
-            case 5:
-                return randomDouble();
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomIntBetween(0, 5)) {
+            case 0 -> null;
+            case 1 -> new BytesRef(randomAlphaOfLengthBetween(3, 10));
+            case 2 -> randomInt();
+            case 3 -> randomLong();
+            case 4 -> randomFloat();
+            case 5 -> randomDouble();
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     public static SearchSortValuesAndFormats randomInstance() {

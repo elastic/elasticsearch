@@ -25,7 +25,8 @@ import java.util.Map;
 public class RestRequestFilterTests extends ESTestCase {
 
     public void testFilteringItemsInSubLevels() throws IOException {
-        BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
+        BytesReference content = new BytesArray("""
+            {"root": {"second": {"third": "password", "foo": "bar"}}}""");
         RestRequestFilter filter = () -> Collections.singleton("root.second.third");
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
             .build();
@@ -46,7 +47,8 @@ public class RestRequestFilterTests extends ESTestCase {
     }
 
     public void testFilteringItemsInSubLevelsWithWildCard() throws IOException {
-        BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
+        BytesReference content = new BytesArray("""
+            {"root": {"second": {"third": "password", "foo": "bar"}}}""");
         RestRequestFilter filter = () -> Collections.singleton("root.*.third");
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
             .build();
@@ -67,7 +69,8 @@ public class RestRequestFilterTests extends ESTestCase {
     }
 
     public void testFilteringItemsInSubLevelsWithLeadingWildCard() throws IOException {
-        BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
+        BytesReference content = new BytesArray("""
+            {"root": {"second": {"third": "password", "foo": "bar"}}}""");
         RestRequestFilter filter = () -> Collections.singleton("*.third");
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
             .build();
@@ -88,7 +91,8 @@ public class RestRequestFilterTests extends ESTestCase {
     }
 
     public void testRemoteAddressWorks() throws IOException {
-        BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
+        BytesReference content = new BytesArray("""
+            {"root": {"second": {"third": "password", "foo": "bar"}}}""");
         RestRequestFilter filter = () -> Collections.singleton("*.third");
         InetSocketAddress address = new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 32768);
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)

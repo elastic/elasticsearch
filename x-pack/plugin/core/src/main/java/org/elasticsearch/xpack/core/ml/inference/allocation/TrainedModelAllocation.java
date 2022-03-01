@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.allocation;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,10 +36,7 @@ import java.util.Optional;
 /**
  * Trained model allocation object that contains allocation options and the allocation routing table
  */
-public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocation>
-    implements
-        Diffable<TrainedModelAllocation>,
-        ToXContentObject {
+public class TrainedModelAllocation implements SimpleDiffable<TrainedModelAllocation>, ToXContentObject {
 
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField ALLOCATION_STATE = new ParseField("allocation_state");
@@ -268,7 +264,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
             return this;
         }
 
-        public Builder addNewFailedRoutingEntry(String nodeId, String reason) {
+        public Builder addNewFailedRoutingEntry(String nodeId, String failureReason) {
             if (nodeRoutingTable.containsKey(nodeId)) {
                 throw new ResourceAlreadyExistsException(
                     "routing entry for node [{}] for model [{}] already exists",
@@ -277,7 +273,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
                 );
             }
             isChanged = true;
-            nodeRoutingTable.put(nodeId, new RoutingStateAndReason(RoutingState.FAILED, reason));
+            nodeRoutingTable.put(nodeId, new RoutingStateAndReason(RoutingState.FAILED, failureReason));
             return this;
         }
 
@@ -314,12 +310,12 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
             return this;
         }
 
-        public Builder stopAllocation(String reason) {
+        public Builder stopAllocation(String stopReason) {
             if (allocationState.equals(AllocationState.STOPPING)) {
                 return this;
             }
             isChanged = true;
-            this.reason = reason;
+            this.reason = stopReason;
             allocationState = AllocationState.STOPPING;
             return this;
         }

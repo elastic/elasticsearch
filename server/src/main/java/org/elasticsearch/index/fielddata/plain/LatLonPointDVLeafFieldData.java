@@ -14,6 +14,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.script.field.ToScriptField;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -23,8 +24,8 @@ final class LatLonPointDVLeafFieldData extends AbstractLeafGeoPointFieldData {
     private final LeafReader reader;
     private final String fieldName;
 
-    LatLonPointDVLeafFieldData(LeafReader reader, String fieldName) {
-        super();
+    LatLonPointDVLeafFieldData(LeafReader reader, String fieldName, ToScriptField<MultiGeoPointValues> toScriptField) {
+        super(toScriptField);
         this.reader = reader;
         this.fieldName = fieldName;
     }

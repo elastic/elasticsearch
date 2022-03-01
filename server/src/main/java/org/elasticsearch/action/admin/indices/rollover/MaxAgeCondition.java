@@ -35,7 +35,7 @@ public class MaxAgeCondition extends Condition<TimeValue> {
 
     @Override
     public Result evaluate(final Stats stats) {
-        long indexAge = System.currentTimeMillis() - stats.indexCreated;
+        long indexAge = System.currentTimeMillis() - stats.indexCreated();
         return new Result(this, this.value.getMillis() <= indexAge);
     }
 

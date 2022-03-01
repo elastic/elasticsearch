@@ -15,10 +15,11 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -42,7 +43,7 @@ public class HalfFloatFielddataTests extends ESTestCase {
         SortedNumericDoubleValues values = new SortedDoublesIndexFieldData.SortedNumericHalfFloatFieldData(
             reader,
             "half_float",
-            (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+            (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
         ).getDoubleValues();
         assertNotNull(FieldData.unwrapSingleton(values));
         assertTrue(values.advanceExact(0));
@@ -67,7 +68,7 @@ public class HalfFloatFielddataTests extends ESTestCase {
         SortedNumericDoubleValues values = new SortedDoublesIndexFieldData.SortedNumericHalfFloatFieldData(
             reader,
             "half_float",
-            (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+            (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
         ).getDoubleValues();
         assertNull(FieldData.unwrapSingleton(values));
         assertTrue(values.advanceExact(0));

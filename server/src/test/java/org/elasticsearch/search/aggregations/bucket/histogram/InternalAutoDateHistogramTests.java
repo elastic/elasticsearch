@@ -10,8 +10,10 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
@@ -37,6 +39,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
 
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
     protected InternalAutoDateHistogram createTestInstance(
@@ -61,6 +64,11 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         }
         BucketInfo bucketInfo = new BucketInfo(roundingInfos, roundingIndex, InternalAggregations.EMPTY);
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, metadata, 1);
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -107,7 +115,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     }
 
     @Override
-    protected List<InternalAutoDateHistogram> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalAutoDateHistogram> randomResultsToReduce(String name, int size) {
         long startingDate = randomLongBetween(0, utcMillis("2050-01-01"));
         RoundingInfo[] roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null, null);
         int roundingIndex = between(0, roundingInfos.length - 1);
@@ -118,7 +126,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             thisResultStart += usually() ? 0 : randomFrom(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS).toMillis(between(1, 10000));
             result.add(createTestInstance(name, null, InternalAggregations.EMPTY, thisResultStart, roundingInfos, roundingIndex, format));
         }
-        return result;
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), result);
     }
 
     @Override
@@ -261,10 +269,8 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         BucketInfo bucketInfo = instance.getBucketInfo();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 buckets = new ArrayList<>(buckets);
                 buckets.add(
                     new InternalAutoDateHistogram.Bucket(
@@ -274,21 +280,20 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                         InternalAggregations.EMPTY
                     )
                 );
-                break;
-            case 2:
+            }
+            case 2 -> {
                 int roundingIdx = bucketInfo.roundingIdx == bucketInfo.roundingInfos.length - 1 ? 0 : bucketInfo.roundingIdx + 1;
                 bucketInfo = new BucketInfo(bucketInfo.roundingInfos, roundingIdx, bucketInfo.emptySubAggregations);
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, instance.getFormatter(), metadata, 1);
     }

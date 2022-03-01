@@ -15,7 +15,6 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
@@ -58,13 +57,15 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         try {
             if (indexed) {
                 VectorValues values = reader.getVectorValues(field);
-                if (values == null || values == VectorValues.EMPTY) {
-                    return new DelegateDocValuesField(DenseVectorScriptDocValues.empty(dims), name);
+                if (values == VectorValues.EMPTY) {
+                    // There's no way for KnnDenseVectorDocValuesField to reliably differentiate between VectorValues.EMPTY and
+                    // values that can be iterated through. Since VectorValues.EMPTY throws on docID(), pass a null instead.
+                    values = null;
                 }
-                return new DelegateDocValuesField(new KnnDenseVectorScriptDocValues(values, dims), name);
+                return new KnnDenseVectorDocValuesField(values, name, dims);
             } else {
                 BinaryDocValues values = DocValues.getBinary(reader, field);
-                return new DelegateDocValuesField(new BinaryDenseVectorScriptDocValues(values, indexVersion, dims), name);
+                return new BinaryDenseVectorDocValuesField(values, name, dims, indexVersion);
             }
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for vector field!", e);

@@ -45,56 +45,50 @@ class FieldExtractor {
      */
     static void extractFields(Query query, Set<String> fields) throws UnsupportedOperationException {
         // NOTE: we expect a rewritten query, so we only need logic for "atomic" queries here:
-        if (query instanceof BooleanQuery) {
+        if (query instanceof BooleanQuery q) {
             // extract from all clauses
-            BooleanQuery q = (BooleanQuery) query;
             for (BooleanClause clause : q.clauses()) {
                 extractFields(clause.getQuery(), fields);
             }
-        } else if (query instanceof DisjunctionMaxQuery) {
+        } else if (query instanceof DisjunctionMaxQuery q) {
             // extract from all clauses
-            DisjunctionMaxQuery q = (DisjunctionMaxQuery) query;
             for (Query clause : q.getDisjuncts()) {
                 extractFields(clause, fields);
             }
-        } else if (query instanceof SpanTermQuery) {
+        } else if (query instanceof SpanTermQuery spanTermQuery) {
             // we just do SpanTerm, other spans are trickier, they could contain
             // the evil FieldMaskingSpanQuery: so SpanQuery.getField cannot be trusted.
-            fields.add(((SpanTermQuery) query).getField());
-        } else if (query instanceof TermQuery) {
-            fields.add(((TermQuery) query).getTerm().field());
-        } else if (query instanceof SynonymQuery) {
-            SynonymQuery q = (SynonymQuery) query;
+            fields.add(spanTermQuery.getField());
+        } else if (query instanceof TermQuery termQuery) {
+            fields.add(termQuery.getTerm().field());
+        } else if (query instanceof SynonymQuery q) {
             // all terms must have the same field
             fields.add(q.getTerms().get(0).field());
-        } else if (query instanceof PhraseQuery) {
-            PhraseQuery q = (PhraseQuery) query;
+        } else if (query instanceof PhraseQuery q) {
             // all terms must have the same field
             fields.add(q.getTerms()[0].field());
-        } else if (query instanceof MultiPhraseQuery) {
-            MultiPhraseQuery q = (MultiPhraseQuery) query;
+        } else if (query instanceof MultiPhraseQuery q) {
             // all terms must have the same field
             fields.add(q.getTermArrays()[0][0].field());
-        } else if (query instanceof PointRangeQuery) {
-            fields.add(((PointRangeQuery) query).getField());
-        } else if (query instanceof PointInSetQuery) {
-            fields.add(((PointInSetQuery) query).getField());
-        } else if (query instanceof DocValuesFieldExistsQuery) {
-            fields.add(((DocValuesFieldExistsQuery) query).getField());
-        } else if (query instanceof DocValuesNumbersQuery) {
-            fields.add(((DocValuesNumbersQuery) query).getField());
-        } else if (query instanceof IndexOrDocValuesQuery) {
+        } else if (query instanceof PointRangeQuery pointRangeQuery) {
+            fields.add(pointRangeQuery.getField());
+        } else if (query instanceof PointInSetQuery pointInSetQuery) {
+            fields.add(pointInSetQuery.getField());
+        } else if (query instanceof DocValuesFieldExistsQuery docValuesFieldExistsQuery) {
+            fields.add(docValuesFieldExistsQuery.getField());
+        } else if (query instanceof DocValuesNumbersQuery docValuesNumbersQuery) {
+            fields.add(docValuesNumbersQuery.getField());
+        } else if (query instanceof IndexOrDocValuesQuery indexOrDocValuesQuery) {
             // Both queries are supposed to be equivalent, so if any of them can be extracted, we are good
             try {
                 Set<String> dvQueryFields = new HashSet<>(1);
-                extractFields(((IndexOrDocValuesQuery) query).getRandomAccessQuery(), dvQueryFields);
+                extractFields(indexOrDocValuesQuery.getRandomAccessQuery(), dvQueryFields);
                 fields.addAll(dvQueryFields);
             } catch (UnsupportedOperationException e) {
-                extractFields(((IndexOrDocValuesQuery) query).getIndexQuery(), fields);
+                extractFields(indexOrDocValuesQuery.getIndexQuery(), fields);
             }
-        } else if (query instanceof TermInSetQuery) {
+        } else if (query instanceof TermInSetQuery termInSetQuery) {
             // TermInSetQuery#field is inaccessible
-            TermInSetQuery termInSetQuery = (TermInSetQuery) query;
             TermIterator termIterator = termInSetQuery.getTermData().iterator();
             // there should only be one field
             if (termIterator.next() != null) {

@@ -214,11 +214,11 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             return limit;
         }
 
-        void adjustLimit(long limit) {
-            if (limit < used) {
-                throw new IllegalArgumentException("Limit must not be smaller than used; used=" + used + "; limit=" + limit);
+        void adjustLimit(long newLimit) {
+            if (newLimit < used) {
+                throw new IllegalArgumentException("Limit must not be smaller than used; used=" + used + "; limit=" + newLimit);
             }
-            this.limit = limit;
+            this.limit = newLimit;
         }
     }
 

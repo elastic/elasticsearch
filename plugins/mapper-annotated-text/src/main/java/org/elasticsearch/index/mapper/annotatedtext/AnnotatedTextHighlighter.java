@@ -43,7 +43,7 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
         AnnotatedText[] annotations = new AnnotatedText[fieldValues.size()];
         for (int i = 0; i < fieldValues.size(); i++) {
             annotations[i] = AnnotatedText.parse(fieldValues.get(i).toString());
-            strings.add(annotations[i].textMinusMarkup);
+            strings.add(annotations[i].textMinusMarkup());
         }
         // Store the annotations in the formatter and analyzer
         ((AnnotatedPassageFormatter) highlighter.getFormatter()).setAnnotations(annotations);

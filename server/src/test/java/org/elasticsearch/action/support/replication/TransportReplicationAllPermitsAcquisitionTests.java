@@ -146,7 +146,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         IndexMetadata indexMetadata = IndexMetadata.builder(shardId.getIndexName())
             .settings(indexSettings)
             .primaryTerm(shardId.id(), primary.getOperationPrimaryTerm())
-            .putMapping("{ \"properties\": { \"value\":  { \"type\": \"short\"}}}")
+            .putMapping("""
+                { "properties": { "value":  { "type": "short"}}}""")
             .build();
         state.metadata(Metadata.builder().put(indexMetadata, false).generateClusterUuidIfNeeded());
 

@@ -739,6 +739,10 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
+    public List<String> getTaskHeaders() {
+        return taskHeaders;
+    }
+
     public TaskTracer getTaskTracer() {
         return taskTracer;
     }

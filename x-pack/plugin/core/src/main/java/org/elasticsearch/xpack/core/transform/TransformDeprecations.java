@@ -19,10 +19,13 @@ public class TransformDeprecations {
 
     public static final String AGGS_BREAKING_CHANGES_URL = "https://ela.st/es-deprecation-8-transform-aggregation-options";
 
-    public static final String ACTION_UPGRADE_TRANSFORMS_API = "Use the upgrade transforms API to fix your transforms.";
+    public static final String ACTION_UPGRADE_TRANSFORMS_API =
+        "This transform configuration uses obsolete syntax which will be unsupported after the next upgrade. "
+            + "Use [/_transform/_upgrade] to upgrade all transforms to the latest format.";
 
     public static final String ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED =
-        "[max_page_search_size] is deprecated inside pivot. Use settings instead.";
+        "Remove [max_page_search_size] from the pivot and configure [max_page_search_size] in the transform settings. "
+            + "Alternatively use [/_transform/_upgrade] to upgrade all transforms to the latest format.";
 
     public static final String MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL = "https://ela.st/es-deprecation-7-transform-max-page-search-size";
 

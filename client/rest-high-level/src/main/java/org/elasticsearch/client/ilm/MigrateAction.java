@@ -24,6 +24,7 @@ public class MigrateAction implements LifecycleAction, ToXContentObject {
 
     private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
+        true,
         a -> new MigrateAction(a[0] == null ? true : (boolean) a[0])
     );
 

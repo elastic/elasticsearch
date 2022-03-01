@@ -70,7 +70,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                 final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedScrollQueryPhase(
                     queryResults.asList()
                 );
-                ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
+                ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
                 if (scoreDocs.length == 0) {
                     sendResponse(reducedQueryPhase, fetchResults);
                     return;

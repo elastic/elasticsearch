@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -31,7 +32,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -209,7 +209,7 @@ public class CppLogMessageHandler implements Closeable {
         String copyrightMessage = getCppCopyright(timeout);
         Matcher matcher = Pattern.compile("Version (.+) \\(Build ([^)]+)\\) Copyright ").matcher(copyrightMessage);
         if (matcher.find()) {
-            Map<String, Object> info = new HashMap<>(2);
+            Map<String, Object> info = Maps.newMapWithExpectedSize(2);
             info.put("version", matcher.group(1));
             info.put("build_hash", matcher.group(2));
             return info;

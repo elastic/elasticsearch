@@ -42,8 +42,8 @@ public class GeoShapeField extends SourceField {
             throw new IllegalStateException("Unexpected values for a geo_shape field: " + Arrays.toString(value));
         }
 
-        if (value[0] instanceof String) {
-            value[0] = handleString((String) value[0]);
+        if (value[0]instanceof String stringValue) {
+            value[0] = handleString(stringValue);
         } else if (value[0] instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> geoObject = (Map<String, Object>) value[0];

@@ -1,0 +1,710 @@
+---
+setup:
+  - skip:
+      version: " - 8.0.99"
+      reason: "API added in in 8.1.0"
+---
+teardown:
+  - do:
+      _internal.delete_desired_nodes: {}
+---
+"Test update desired nodes":
+  - do:
+      cluster.state: {}
+
+  # Get master node id
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+            nodes:
+              - { settings: { "node.name": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { name: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 2
+        body:
+          nodes:
+            - { settings: { "node.name": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 2
+        nodes:
+          - { settings: { node: { name: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { name: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
+---
+"Test update move to a new history id":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "new_history"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
+  - match: { replaced_existing_history_id: true }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "new_history"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { external_id: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
+---
+"Test delete desired nodes":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+
+  - do:
+      _internal.delete_desired_nodes: {}
+
+  - do:
+      catch: missing
+      _internal.get_desired_nodes: {}
+  - match: { status: 404 }
+---
+"Test update desired nodes is idempotent":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+---
+"Test going backwards within the same history is forbidden":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 2
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      catch: conflict
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187", "http.tcp.keep_idle": 100 }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 409 }
+  - match: { error.type: version_conflict_exception }
+  - match: { error.reason: "version [1] has been superseded by version [2] for history [test]" }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 2
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+---
+"Test using the same version with different definition is forbidden":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 64, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Desired nodes with history [test] and version [1] already exists with a different definition" }
+
+  - do:
+      _internal.get_desired_nodes: {}
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+---
+"Test settings are validated":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187", "http.tcp.keep_idle": -1000 }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Nodes with ids [instance-000187] in positions [0] contain invalid settings" }
+  - match: { error.suppressed.0.reason: "Failed to parse value [-1000] for setting [http.tcp.keep_idle] must be >= -1" }
+---
+"Test unknown settings are forbidden in known versions":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187", "unknown_setting": -1000 }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Nodes with ids [instance-000187] in positions [0] contain invalid settings" }
+  - match: { error.suppressed.0.reason: "unknown setting [unknown_setting] please check that any required plugins are installed, or check the breaking changes documentation for removed settings" }
+---
+"Test unknown settings are allowed in future versions":
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187", "unknown_setting": -1000 }, processors: 8, memory: "64gb", storage: "128gb", node_version: "99.1.0" }
+  - match: { replaced_existing_history_id: false }
+---
+"Test some settings can be overridden":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187", node.processors: 2048 }, processors: 2048, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { replaced_existing_history_id: false }
+---
+"Test external_id or node.name is required":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Nodes with ids [<missing>] in positions [0] contain invalid settings" }
+  - match: { error.suppressed.0.reason: "[node.name] or [node.external_id] is missing or empty" }
+---
+"Test external_id must have content":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "  " }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Nodes with ids [<missing>] in positions [0] contain invalid settings" }
+  - match: { error.suppressed.0.reason: "[node.name] or [node.external_id] is missing or empty" }
+---
+"Test duplicated external ids are not allowed":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.external_id": "instance-000187"}, processors: 16, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Some nodes contain the same setting value [instance-000187] for [node.external_id]" }
+---
+"Test version must be a number":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: "asa"
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Failed to parse long parameter [version] with value [asa]" }
+---
+"Test version must be positive":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: -1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: version must be positive;" }
+---
+"Test node version must be at least the current master version":
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", node_version: "7.16.0" }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Nodes with ids [instance-000187] in positions [0] contain invalid settings" }
+  - match:
+      error.suppressed.0.reason: "/Illegal\\snode\\sversion.+$/"
+---
+"Test history_id must be present":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "    "
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: historyID should not be empty;" }
+---
+"Test at least one node must be sent":
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes: []
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: nodes must contain at least one master node;" }
+---
+"Test at least one master node is present ":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187", "node.roles": "data_hot" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: nodes must contain at least one master node;" }
+---
+"Test node settings are required":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { processors: 64, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }
+---
+"Test node settings can not be null":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: null, processors: 64, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }
+---
+"Test node processors are required":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: {}, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }
+---
+"Test node memory is required":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: {}, processors: 8, storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }
+---
+"Test node memory can not be null":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: {}, processors: 8, memory: null, storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }
+---
+"Test node storage is required":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: {}, processors: 8, memory: "64gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }
+---
+"Test node storage can not be null":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: {}, processors: 8, memory: "64gb", storage: null, node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }
+---
+"Test node version is required":
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: {}, processors: 8, memory: "64gb", storage: "128gb" }
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }
+---
+"Test node version must have content":
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187"}, processors: 64, memory: "1b", storage: "1b", node_version: " " }
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }
+---
+"Test node version can not be null":
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187"}, processors: 64, memory: "1b", storage: "1b", node_version: null }
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }

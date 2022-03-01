@@ -76,11 +76,11 @@ class AggProvider implements Writeable, ToXContentObject {
             if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(currentInterval.toString()) != null) {
                 aggs.put("calendar_interval", currentInterval.toString());
                 didRewrite = true;
-            } else if (currentInterval instanceof Number) {
-                aggs.put("fixed_interval", ((Number) currentInterval).longValue() + "ms");
+            } else if (currentInterval instanceof Number number) {
+                aggs.put("fixed_interval", number.longValue() + "ms");
                 didRewrite = true;
-            } else if (currentInterval instanceof String) {
-                aggs.put("fixed_interval", currentInterval.toString());
+            } else if (currentInterval instanceof String str) {
+                aggs.put("fixed_interval", str);
                 didRewrite = true;
             } else {
                 throw ExceptionsHelper.badRequestException(

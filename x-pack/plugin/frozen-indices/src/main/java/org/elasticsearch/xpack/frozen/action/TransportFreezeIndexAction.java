@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -37,7 +38,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -147,7 +147,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                     .masterNodeTimeout(request.masterNodeTimeout())
                     .indices(concreteIndices)
                     .waitForActiveShards(request.waitForActiveShards());
-                indexStateService.openIndex(
+                indexStateService.openIndices(
                     updateRequest,
                     delegate.delegateFailure(
                         (l, openIndexClusterStateUpdateResponse) -> l.onResponse(
@@ -193,7 +193,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                         } else {
                             settingsBuilder.remove(FrozenEngine.INDEX_FROZEN.getKey());
                             settingsBuilder.remove(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
-                            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings()) == false) {
+                            if (indexMetadata.isSearchableSnapshot() == false) {
                                 settingsBuilder.remove("index.blocks.write");
                                 blocks.removeIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
                             }
@@ -208,7 +208,8 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                     }
                     return ClusterState.builder(currentState).blocks(blocks).metadata(builder).build();
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

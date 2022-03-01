@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -28,7 +29,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class TreeInferenceModelTests extends ESTestCase {
 
     private static final int NUMBER_OF_TEST_RUNS = 20;
-    private final double eps = 1.0E-8;
 
     public static TreeInferenceModel serializeFromTrainedModel(Tree tree) throws IOException {
         NamedXContentRegistry registry = new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
@@ -166,12 +165,9 @@ public class TreeInferenceModelTests extends ESTestCase {
         );
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2, 1.0f) {
-            {
-                put("foo", 0.3);
-                put("bar", null);
-            }
-        };
+        featureMap = Maps.newMapWithExpectedSize(2);
+        featureMap.put("foo", 0.3);
+        featureMap.put("bar", null);
         assertThat(
             0.1,
             closeTo(
@@ -195,7 +191,7 @@ public class TreeInferenceModelTests extends ESTestCase {
         Tree treeObject = builder.setFeatureNames(featureNames).setClassificationLabels(Arrays.asList("cat", "dog")).build();
         TreeInferenceModel tree = deserializeFromTrainedModel(treeObject, xContentRegistry(), TreeInferenceModel::fromXContent);
         tree.rewriteFeatureIndices(Collections.emptyMap());
-        double eps = 0.000001;
+        final double eps = 0.000001;
         // This feature vector should hit the right child of the root node
         List<Double> featureVector = Arrays.asList(0.6, 0.0);
         List<Double> expectedProbs = Arrays.asList(1.0, 0.0);
@@ -223,12 +219,9 @@ public class TreeInferenceModelTests extends ESTestCase {
         }
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2) {
-            {
-                put("foo", 0.3);
-                put("bar", null);
-            }
-        };
+        featureMap = Maps.newMapWithExpectedSize(2);
+        featureMap.put("foo", 0.3);
+        featureMap.put("bar", null);
         probabilities = ((ClassificationInferenceResults) tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
             .getTopClasses();
         for (int i = 0; i < expectedProbs.size(); i++) {
@@ -274,6 +267,7 @@ public class TreeInferenceModelTests extends ESTestCase {
         tree.rewriteFeatureIndices(Collections.emptyMap());
 
         double[][] featureImportance = tree.featureImportance(new double[] { 0.25, 0.25 });
+        final double eps = 1.0E-8;
         assertThat(featureImportance[0][0], closeTo(-5.0, eps));
         assertThat(featureImportance[1][0], closeTo(-2.5, eps));
 

@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -109,8 +110,8 @@ public final class IndicesPermission {
         } else {
             matcher = StringMatcher.of(ordinaryIndices);
             if (restrictedNamesAutomaton != null) {
-                CharacterRunAutomaton characterRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
-                matcher = matcher.and("<not-restricted>", name -> characterRunAutomaton.run(name) == false);
+                CharacterRunAutomaton automaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
+                matcher = matcher.and("<not-restricted>", name -> automaton.run(name) == false);
             }
             if (restrictedIndices.isEmpty() == false) {
                 matcher = StringMatcher.of(restrictedIndices).or(matcher);
@@ -286,14 +287,11 @@ public final class IndicesPermission {
             if (indexAbstraction == null) {
                 return false;
             }
-            switch (indexAbstraction.getType()) {
-                case DATA_STREAM:
-                    return true;
-                case CONCRETE_INDEX:
-                    return indexAbstraction.getParentDataStream() != null;
-                default:
-                    return false;
-            }
+            return switch (indexAbstraction.getType()) {
+                case DATA_STREAM -> true;
+                case CONCRETE_INDEX -> indexAbstraction.getParentDataStream() != null;
+                default -> false;
+            };
         }
 
         /**
@@ -331,11 +329,11 @@ public final class IndicesPermission {
                 return List.of(indexAbstraction.getName());
             } else {
                 final List<Index> indices = indexAbstraction.getIndices();
-                final List<String> concreteIndices = new ArrayList<>(indices.size());
+                final List<String> concreteIndexNames = new ArrayList<>(indices.size());
                 for (var idx : indices) {
-                    concreteIndices.add(idx.getName());
+                    concreteIndexNames.add(idx.getName());
                 }
-                return concreteIndices;
+                return concreteIndexNames;
             }
         }
 
@@ -369,9 +367,9 @@ public final class IndicesPermission {
 
         // now... every index that is associated with the request, must be granted
         // by at least one indices permission group
-        final Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = new HashMap<>(totalResourceCount);
-        final Map<String, DocumentLevelPermissions> roleQueriesByIndex = new HashMap<>(totalResourceCount);
-        final Map<String, Boolean> grantedBuilder = new HashMap<>(totalResourceCount);
+        final Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
+        final Map<String, DocumentLevelPermissions> roleQueriesByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
+        final Map<String, Boolean> grantedBuilder = Maps.newMapWithExpectedSize(totalResourceCount);
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
@@ -484,7 +482,7 @@ public final class IndicesPermission {
         }
 
         boolean overallGranted = true;
-        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = new HashMap<>(grantedBuilder.size());
+        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedBuilder.size());
         for (Map.Entry<String, Boolean> entry : grantedBuilder.entrySet()) {
             String index = entry.getKey();
             DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);

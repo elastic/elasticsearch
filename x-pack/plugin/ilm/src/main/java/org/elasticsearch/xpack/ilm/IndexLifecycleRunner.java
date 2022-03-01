@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -30,8 +31,6 @@ import org.elasticsearch.xpack.core.ilm.AsyncWaitStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -62,13 +61,11 @@ class IndexLifecycleRunner {
         for (IndexLifecycleClusterStateUpdateTask task : tasks) {
             try {
                 state = task.execute(state);
-                builder.success(task);
+                builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
             } catch (Exception e) {
                 builder.failure(task, e);
             }
         }
-        // Trigger indices lookup creation and related validation
-        state.metadata().getIndicesLookup();
         return builder.build(state);
     };
 
@@ -90,7 +87,7 @@ class IndexLifecycleRunner {
      * Retrieve the index's current step.
      */
     static Step getCurrentStep(PolicyStepsRegistry stepRegistry, String policy, IndexMetadata indexMetadata) {
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         return getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
     }
 
@@ -100,7 +97,7 @@ class IndexLifecycleRunner {
         IndexMetadata indexMetadata,
         LifecycleExecutionState lifecycleState
     ) {
-        StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         logger.trace("[{}] retrieved current step key: {}", indexMetadata.getIndex().getName(), currentStepKey);
         if (currentStepKey == null) {
             return stepRegistry.getFirstStep(policy);
@@ -116,12 +113,12 @@ class IndexLifecycleRunner {
      */
     @Nullable
     private static Long calculateOriginationMillis(final IndexMetadata indexMetadata) {
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         Long originationDate = indexMetadata.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
-        if (lifecycleState.getLifecycleDate() == null && originationDate == -1L) {
+        if (lifecycleState.lifecycleDate() == null && originationDate == -1L) {
             return null;
         }
-        return originationDate == -1L ? lifecycleState.getLifecycleDate() : originationDate;
+        return originationDate == -1L ? lifecycleState.lifecycleDate() : originationDate;
     }
 
     /**
@@ -167,7 +164,7 @@ class IndexLifecycleRunner {
      */
     void runPeriodicStep(String policy, Metadata metadata, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final Step currentStep;
         try {
             currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
@@ -181,7 +178,7 @@ class IndexLifecycleRunner {
                 markPolicyDoesNotExist(policy, indexMetadata.getIndex(), lifecycleState);
                 return;
             } else {
-                Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+                Step.StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
                 if (TerminalPolicyStep.KEY.equals(currentStepKey)) {
                     // This index is a leftover from before we halted execution on the final phase
                     // instead of going to the completed phase, so it's okay to ignore this index
@@ -252,15 +249,15 @@ class IndexLifecycleRunner {
      */
     void onErrorMaybeRetryFailedStep(String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         Step failedStep = stepRegistry.getStep(
             indexMetadata,
-            new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(), lifecycleState.getFailedStep())
+            new StepKey(lifecycleState.phase(), lifecycleState.action(), lifecycleState.failedStep())
         );
         if (failedStep == null) {
             logger.warn(
                 "failed step [{}] for index [{}] is not part of policy [{}] anymore, or it is invalid. skipping execution",
-                lifecycleState.getFailedStep(),
+                lifecycleState.failedStep(),
                 index,
                 policy
             );
@@ -268,13 +265,13 @@ class IndexLifecycleRunner {
         }
 
         if (lifecycleState.isAutoRetryableError() != null && lifecycleState.isAutoRetryableError()) {
-            int currentRetryAttempt = lifecycleState.getFailedStepRetryCount() == null ? 1 : 1 + lifecycleState.getFailedStepRetryCount();
+            int currentRetryAttempt = lifecycleState.failedStepRetryCount() == null ? 1 : 1 + lifecycleState.failedStepRetryCount();
             logger.info(
                 "policy [{}] for index [{}] on an error step due to a transient error, moving back to the failed "
                     + "step [{}] for execution. retry attempt [{}]",
                 policy,
                 index,
-                lifecycleState.getFailedStep(),
+                lifecycleState.failedStep(),
                 currentRetryAttempt
             );
             // we can afford to drop these requests if they timeout as on the next {@link
@@ -302,7 +299,7 @@ class IndexLifecycleRunner {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         logger.error(
                             new ParameterizedMessage(
                                 "retry execution of step [{}] for index [{}] failed",
@@ -314,7 +311,7 @@ class IndexLifecycleRunner {
                     }
 
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         if (oldState.equals(newState) == false) {
                             IndexMetadata newIndexMeta = newState.metadata().index(index);
                             Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);
@@ -331,7 +328,8 @@ class IndexLifecycleRunner {
                             }
                         }
                     }
-                }
+                },
+                ClusterStateTaskExecutor.unbatched()
             );
         } else {
             logger.debug("policy [{}] for index [{}] on an error step after a terminal error, skipping execution", policy, index);
@@ -343,7 +341,7 @@ class IndexLifecycleRunner {
      */
     void maybeRunAsyncAction(ClusterState currentState, IndexMetadata indexMetadata, String policy, StepKey expectedStepKey) {
         String index = indexMetadata.getIndex().getName();
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final Step currentStep;
         try {
             currentStep = getCurrentStep(stepRegistry, policy, indexMetadata, lifecycleState);
@@ -352,7 +350,7 @@ class IndexLifecycleRunner {
             return;
         }
         if (currentStep == null) {
-            Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+            Step.StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
             if (TerminalPolicyStep.KEY.equals(currentStepKey)) {
                 // This index is a leftover from before we halted execution on the final phase
                 // instead of going to the completed phase, so it's okay to ignore this index
@@ -419,8 +417,8 @@ class IndexLifecycleRunner {
      */
     void runPolicyAfterStateChange(String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        final StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
+        final StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         if (busyIndices.contains(Tuple.tuple(indexMetadata.getIndex(), currentStepKey))) {
             // try later again, already doing work for this index at this step, no need to check for more work yet
             return;
@@ -535,7 +533,8 @@ class IndexLifecycleRunner {
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
-            })
+            }),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -583,12 +582,7 @@ class IndexLifecycleRunner {
             ),
             e
         );
-        setStepInfo(
-            index,
-            policyName,
-            LifecycleExecutionState.getCurrentStepKey(executionState),
-            new SetStepInfoUpdateTask.ExceptionWrapper(e)
-        );
+        setStepInfo(index, policyName, Step.getCurrentStepKey(executionState), new SetStepInfoUpdateTask.ExceptionWrapper(e));
     }
 
     /**
@@ -604,10 +598,10 @@ class IndexLifecycleRunner {
         ilmHistoryStore.putAsync(
             ILMHistoryItem.success(
                 indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()),
+                indexMetadata.getLifecyclePolicyName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
-                LifecycleExecutionState.fromIndexMetadata(indexMetadata)
+                indexMetadata.getLifecycleExecutionState()
             )
         );
     }
@@ -624,10 +618,10 @@ class IndexLifecycleRunner {
         ilmHistoryStore.putAsync(
             ILMHistoryItem.success(
                 metadataBeforeDeletion.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadataBeforeDeletion.getSettings()),
+                metadataBeforeDeletion.getLifecyclePolicyName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
-                LifecycleExecutionState.builder(LifecycleExecutionState.fromIndexMetadata(metadataBeforeDeletion))
+                LifecycleExecutionState.builder(metadataBeforeDeletion.getLifecycleExecutionState())
                     // Register that the delete phase is now "complete"
                     .setStep(PhaseCompleteStep.NAME)
                     .build()
@@ -648,10 +642,10 @@ class IndexLifecycleRunner {
         ilmHistoryStore.putAsync(
             ILMHistoryItem.failure(
                 indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()),
+                indexMetadata.getLifecyclePolicyName(),
                 nowSupplier.getAsLong(),
                 origination == null ? null : (nowSupplier.getAsLong() - origination),
-                LifecycleExecutionState.fromIndexMetadata(indexMetadata),
+                indexMetadata.getLifecycleExecutionState(),
                 failure
             )
         );
@@ -673,7 +667,8 @@ class IndexLifecycleRunner {
      * TODO: refactor ILM logic so that this is not required any longer. It is unreasonably expensive to only filter out duplicate tasks at
      *       this point given how these tasks are mostly set up on the cluster state applier thread.
      *
-     * @param source source string as used in {@link ClusterService#submitStateUpdateTask(String, ClusterStateTaskConfig)}
+     * @param source source string as used in {@link ClusterService#submitStateUpdateTask(String, ClusterStateTaskConfig,
+     *               ClusterStateTaskExecutor)}
      * @param task   task to submit unless already tracked in {@link #executingTasks}.
      */
     private void submitUnlessAlreadyQueued(String source, IndexLifecycleClusterStateUpdateTask task) {
@@ -686,7 +681,7 @@ class IndexLifecycleRunner {
                 busyIndices.remove(dedupKey);
                 assert removed : "tried to unregister unknown task [" + task + "]";
             }));
-            clusterService.submitStateUpdateTask(source, task, ILM_TASK_CONFIG, ILM_TASK_EXECUTOR, task);
+            clusterService.submitStateUpdateTask(source, task, ILM_TASK_CONFIG, ILM_TASK_EXECUTOR);
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }

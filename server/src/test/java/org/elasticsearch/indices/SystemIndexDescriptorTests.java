@@ -95,16 +95,17 @@ public class SystemIndexDescriptorTests extends ESTestCase {
      * Check that a system index descriptor correctly identifies the presence of a dynamic mapping when once is present.
      */
     public void testFindDynamicMappingsWithDynamicMapping() {
-        String json = "{"
-            + "  \"foo\": {"
-            + "    \"bar\": {"
-            + "      \"dynamic\": false"
-            + "    },"
-            + "    \"baz\": {"
-            + "      \"dynamic\": true"
-            + "    }"
-            + "  }"
-            + "}";
+        String json = """
+            {
+              "foo": {
+                "bar": {
+                  "dynamic": false
+                },
+                "baz": {
+                  "dynamic": true
+                }
+              }
+            }""";
 
         final Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
@@ -115,7 +116,8 @@ public class SystemIndexDescriptorTests extends ESTestCase {
      * Check that a system index descriptor correctly identifies the absence of a dynamic mapping when none are present.
      */
     public void testFindDynamicMappingsWithoutDynamicMapping() {
-        String json = "{ \"foo\": { \"bar\": { \"dynamic\": false } } }";
+        String json = """
+            { "foo": { "bar": { "dynamic": false } } }""";
 
         final Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
@@ -249,7 +251,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         assertSame(prior, compat);
     }
 
-    public void testSystemIndicesCannotAlsoBeHidden() {
+    public void testSystemIndicesMustBeHidden() {
         SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
             .setDescription("system stuff")
@@ -260,11 +262,11 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setVersionMetaKey("version")
             .setOrigin("system");
 
-        builder.setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build());
+        builder.setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
 
-        assertThat(e.getMessage(), equalTo("System indices cannot have index.hidden set to true."));
+        assertThat(e.getMessage(), equalTo("System indices must have index.hidden set to true."));
     }
 
     public void testSpecialCharactersAreReplacedWhenConvertingToAutomaton() {

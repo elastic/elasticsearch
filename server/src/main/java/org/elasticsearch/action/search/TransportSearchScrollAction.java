@@ -45,10 +45,19 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
-            Runnable action;
-            switch (scrollId.getType()) {
-                case QUERY_THEN_FETCH_TYPE:
-                    action = new SearchScrollQueryThenFetchAsyncAction(
+            Runnable action = switch (scrollId.getType()) {
+                case QUERY_THEN_FETCH_TYPE -> new SearchScrollQueryThenFetchAsyncAction(
+                    logger,
+                    clusterService,
+                    searchTransportService,
+                    searchPhaseController,
+                    request,
+                    (SearchTask) task,
+                    scrollId,
+                    listener
+                );
+                case QUERY_AND_FETCH_TYPE -> // TODO can we get rid of this?
+                    new SearchScrollQueryAndFetchAsyncAction(
                         logger,
                         clusterService,
                         searchTransportService,
@@ -58,22 +67,8 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         scrollId,
                         listener
                     );
-                    break;
-                case QUERY_AND_FETCH_TYPE: // TODO can we get rid of this?
-                    action = new SearchScrollQueryAndFetchAsyncAction(
-                        logger,
-                        clusterService,
-                        searchTransportService,
-                        searchPhaseController,
-                        request,
-                        (SearchTask) task,
-                        scrollId,
-                        listener
-                    );
-                    break;
-                default:
-                    throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
-            }
+                default -> throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
+            };
             action.run();
         } catch (Exception e) {
             listener.onFailure(e);

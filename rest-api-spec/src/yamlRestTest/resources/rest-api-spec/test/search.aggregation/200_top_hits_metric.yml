@@ -14,7 +14,7 @@ setup:
   - do:
       index:
         index:  my-index
-        id:     1
+        id:     "1"
         refresh: true
         body: |
           {
@@ -34,7 +34,7 @@ setup:
   - do:
       index:
         index:  my-index
-        id:     2
+        id:     "2"
         refresh: true
         body: |
           {
@@ -100,7 +100,7 @@ setup:
   - do:
       index:
         index:  disabled-source
-        id:     1
+        id:     "1"
         refresh: true
         body:
           users:

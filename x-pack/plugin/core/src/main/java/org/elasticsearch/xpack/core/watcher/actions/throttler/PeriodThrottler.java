@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler.T
 
 /**
  * This throttler throttles the action based on its last <b>successful</b> execution time. If the time passed since
- * the last successful execution is lower than the given period, the aciton will be throttled.
+ * the last successful execution is lower than the given period, the action will be throttled.
  */
 public class PeriodThrottler implements Throttler {
 
@@ -36,14 +36,14 @@ public class PeriodThrottler implements Throttler {
 
     @Override
     public Result throttle(String actionId, WatchExecutionContext ctx) {
-        TimeValue period = this.period;
-        if (period == null) {
+        TimeValue throttlePeriod = this.period;
+        if (throttlePeriod == null) {
             // falling back on the throttle period of the watch
-            period = ctx.watch().throttlePeriod();
+            throttlePeriod = ctx.watch().throttlePeriod();
         }
-        if (period == null) {
+        if (throttlePeriod == null) {
             // falling back on the default throttle period of watcher
-            period = ctx.defaultThrottlePeriod();
+            throttlePeriod = ctx.defaultThrottlePeriod();
         }
         ActionStatus status = ctx.watch().status().actionStatus(actionId);
         if (status.lastSuccessfulExecution() == null) {
@@ -52,11 +52,11 @@ public class PeriodThrottler implements Throttler {
         long now = clock.millis();
         long executionTime = status.lastSuccessfulExecution().timestamp().toInstant().toEpochMilli();
         TimeValue timeElapsed = TimeValue.timeValueMillis(now - executionTime);
-        if (timeElapsed.getMillis() <= period.getMillis()) {
+        if (timeElapsed.getMillis() <= throttlePeriod.getMillis()) {
             return Result.throttle(
                 PERIOD,
                 "throttling interval is set to [{}] but time elapsed since last execution is [{}]",
-                period,
+                throttlePeriod,
                 timeElapsed
             );
         }

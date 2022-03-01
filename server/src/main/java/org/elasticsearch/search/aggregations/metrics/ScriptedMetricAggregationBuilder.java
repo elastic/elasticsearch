@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
@@ -107,6 +108,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         if (hasParams) {
             out.writeMap(params);
         }
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     /**
@@ -289,6 +295,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     @Override

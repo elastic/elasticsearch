@@ -409,7 +409,7 @@ http://www.geojson.org[GeoJSON]
 {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
 
 `mvt(<zoom>/<x>/<y>@<extent>)` or `mvt(<zoom>/<x>/<y>)`:::
-experimental:[] Binary
+Binary
 https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile]. The API
 returns the tile as a base64-encoded string.
 +

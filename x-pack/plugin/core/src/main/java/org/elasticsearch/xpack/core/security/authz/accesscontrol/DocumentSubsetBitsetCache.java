@@ -13,8 +13,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -273,13 +275,28 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
         final IndexSearcher searcher = new IndexSearcher(topLevelContext);
         searcher.setQueryCache(null);
-        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        final Query rewrittenQuery = searcher.rewrite(query);
+        if (isEffectiveMatchAllDocsQuery(rewrittenQuery)) {
+            return new MatchAllRoleBitSet(context.reader().maxDoc());
+        }
+        final Weight weight = searcher.createWeight(rewrittenQuery, ScoreMode.COMPLETE_NO_SCORES, 1f);
         final Scorer s = weight.scorer(context);
         if (s == null) {
             return null;
         } else {
             return bitSetFromDocIterator(s.iterator(), context.reader().maxDoc());
         }
+    }
+
+    // Package private for testing
+    static boolean isEffectiveMatchAllDocsQuery(Query rewrittenQuery) {
+        if (rewrittenQuery instanceof ConstantScoreQuery && ((ConstantScoreQuery) rewrittenQuery).getQuery() instanceof MatchAllDocsQuery) {
+            return true;
+        }
+        if (rewrittenQuery instanceof MatchAllDocsQuery) {
+            return true;
+        }
+        return false;
     }
 
     private void maybeLogCacheFullWarning() {

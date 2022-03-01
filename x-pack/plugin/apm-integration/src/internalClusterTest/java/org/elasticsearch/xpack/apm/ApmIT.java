@@ -89,7 +89,7 @@ public class ApmIT extends SecurityIntegTestCase {
     }
 
     public void testModule() {
-        List<APM> plugins = internalCluster().getMasterNodeInstance(PluginsService.class).filterPlugins(APM.class);
+        List<APM> plugins = internalCluster().getAnyMasterNodeInstance(PluginsService.class).filterPlugins(APM.class);
         assertThat(plugins, hasSize(1));
 
         TransportService transportService = internalCluster().getInstance(TransportService.class);

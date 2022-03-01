@@ -108,45 +108,41 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     @BeforeClass
     public static void registerClients() throws Exception {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            String codeClient = "{"
-                + "\"grant_types\": [\"authorization_code\"],"
-                + "\"response_types\": [\"code\"],"
-                + "\"preferred_client_id\":\"https://my.elasticsearch.org/rp\","
-                + "\"preferred_client_secret\":\""
-                + CLIENT_SECRET
-                + "\","
-                + "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"],"
-                + "\"token_endpoint_auth_method\":\"client_secret_basic\""
-                + "}";
-            String implicitClient = "{"
-                + "\"grant_types\": [\"implicit\"],"
-                + "\"response_types\": [\"token id_token\"],"
-                + "\"preferred_client_id\":\"elasticsearch-rp\","
-                + "\"preferred_client_secret\":\""
-                + CLIENT_SECRET
-                + "\","
-                + "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]"
-                + "}";
-            String postClient = "{"
-                + "\"grant_types\": [\"authorization_code\"],"
-                + "\"response_types\": [\"code\"],"
-                + "\"preferred_client_id\":\"elasticsearch-post\","
-                + "\"preferred_client_secret\":\""
-                + CLIENT_SECRET
-                + "\","
-                + "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"],"
-                + "\"token_endpoint_auth_method\":\"client_secret_post\""
-                + "}";
-            String jwtClient = "{"
-                + "\"grant_types\": [\"authorization_code\"],"
-                + "\"response_types\": [\"code\"],"
-                + "\"preferred_client_id\":\"elasticsearch-post-jwt\","
-                + "\"preferred_client_secret\":\""
-                + CLIENT_SECRET
-                + "\","
-                + "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"],"
-                + "\"token_endpoint_auth_method\":\"client_secret_jwt\""
-                + "}";
+            String codeClient = """
+                {
+                  "grant_types": [ "authorization_code" ],
+                  "response_types": [ "code" ],
+                  "preferred_client_id": "https://my.elasticsearch.org/rp",
+                  "preferred_client_secret": "%s",
+                  "redirect_uris": [ "https://my.fantastic.rp/cb" ],
+                  "token_endpoint_auth_method": "client_secret_basic"
+                }""".formatted(CLIENT_SECRET);
+            String implicitClient = """
+                {
+                  "grant_types": [ "implicit" ],
+                  "response_types": [ "token id_token" ],
+                  "preferred_client_id": "elasticsearch-rp",
+                  "preferred_client_secret": "%s",
+                  "redirect_uris": [ "https://my.fantastic.rp/cb" ]
+                }""".formatted(CLIENT_SECRET);
+            String postClient = """
+                {
+                  "grant_types": [ "authorization_code" ],
+                  "response_types": [ "code" ],
+                  "preferred_client_id": "elasticsearch-post",
+                  "preferred_client_secret": "%s",
+                  "redirect_uris": [ "https://my.fantastic.rp/cb" ],
+                  "token_endpoint_auth_method": "client_secret_post"
+                }""".formatted(CLIENT_SECRET);
+            String jwtClient = """
+                {
+                  "grant_types": [ "authorization_code" ],
+                  "response_types": [ "code" ],
+                  "preferred_client_id": "elasticsearch-post-jwt",
+                  "preferred_client_secret": "%s",
+                  "redirect_uris": [ "https://my.fantastic.rp/cb" ],
+                  "token_endpoint_auth_method": "client_secret_jwt"
+                }""".formatted(CLIENT_SECRET);
             HttpPost httpPost = new HttpPost(REGISTRATION_URL);
             final BasicHttpContext context = new BasicHttpContext();
             httpPost.setEntity(new StringEntity(codeClient, ContentType.APPLICATION_JSON));
@@ -205,7 +201,9 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             final BasicHttpContext context = new BasicHttpContext();
             // Initiate the authentication process
             HttpPost httpPost = new HttpPost(LOGIN_API + "initAuthRequest");
-            String initJson = "{" + "  \"qs\":\"" + opAuthUri.getRawQuery() + "\"" + "}";
+            String initJson = """
+                {"qs":"%s"}
+                """.formatted(opAuthUri.getRawQuery());
             configureJsonRequest(httpPost, initJson);
             JSONObject initResponse = execute(httpClient, httpPost, context, response -> {
                 assertHttpOk(response.getStatusLine());
@@ -215,7 +213,8 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             final String sid = initResponse.getAsString("sid");
             // Actually authenticate the user with ldapAuth
             HttpPost loginHttpPost = new HttpPost(LOGIN_API + "authenticateSubject?cacheBuster=" + randomAlphaOfLength(8));
-            String loginJson = "{" + "\"username\":\"alice\"," + "\"password\":\"secret\"" + "}";
+            String loginJson = """
+                {"username":"alice","password":"secret"}""";
             configureJsonRequest(loginHttpPost, loginJson);
             JSONObject loginJsonResponse = execute(httpClient, loginHttpPost, context, response -> {
                 assertHttpOk(response.getStatusLine());
@@ -225,21 +224,20 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             HttpPut consentFetchHttpPut = new HttpPut(
                 LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
             );
-            String consentFetchJson = "{"
-                + "\"sub\": \""
-                + loginJsonResponse.getAsString("id")
-                + "\","
-                + "\"acr\": \"http://loa.c2id.com/basic\","
-                + "\"amr\": [\"pwd\"],"
-                + "\"data\": {"
-                + "\"email\": \""
-                + loginJsonResponse.getAsString("email")
-                + "\","
-                + "\"name\": \""
-                + loginJsonResponse.getAsString("name")
-                + "\""
-                + "}"
-                + "}";
+            String consentFetchJson = """
+                {
+                  "sub": "%s",
+                  "acr": "http://loa.c2id.com/basic",
+                  "amr": [ "pwd" ],
+                  "data": {
+                    "email": "%s",
+                    "name": "%s"
+                  }
+                }""".formatted(
+                loginJsonResponse.getAsString("id"),
+                loginJsonResponse.getAsString("email"),
+                loginJsonResponse.getAsString("name")
+            );
             configureJsonRequest(consentFetchHttpPut, consentFetchJson);
             JSONObject consentFetchResponse = execute(httpClient, consentFetchHttpPut, context, response -> {
                 assertHttpOk(response.getStatusLine());
@@ -250,7 +248,8 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
                 HttpPut consentHttpPut = new HttpPut(
                     LOGIN_API + "updateAuthRequest" + "/" + sid + "?cacheBuster=" + randomAlphaOfLength(8)
                 );
-                String consentJson = "{" + "\"claims\":[\"name\", \"email\"]," + "\"scope\":[\"openid\"]" + "}";
+                String consentJson = """
+                    {"claims":["name", "email"],"scope":["openid"]}""";
                 configureJsonRequest(consentHttpPut, consentJson);
                 JSONObject jsonConsentResponse = execute(httpClient, consentHttpPut, context, response -> {
                     assertHttpOk(response.getStatusLine());
@@ -497,10 +496,12 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     private void setFacilitatorUser() throws Exception {
         try (RestClient restClient = getClient()) {
             Request createRoleRequest = new Request("PUT", "/_security/role/facilitator");
-            createRoleRequest.setJsonEntity("{ \"cluster\" : [\"manage_oidc\", \"manage_token\"] }");
+            createRoleRequest.setJsonEntity("""
+                { "cluster" : ["manage_oidc", "manage_token"] }""");
             restClient.performRequest(createRoleRequest);
             Request createUserRequest = new Request("PUT", "/_security/user/facilitator");
-            createUserRequest.setJsonEntity("{ \"password\" : \"" + FACILITATOR_PASSWORD + "\", \"roles\" : [\"facilitator\"] }");
+            createUserRequest.setJsonEntity("""
+                { "password" : "%s", "roles" : ["facilitator"] }""".formatted(FACILITATOR_PASSWORD));
             restClient.performRequest(createUserRequest);
         }
     }
@@ -508,46 +509,61 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     private void setRoleMappings() throws Exception {
         try (RestClient restClient = getClient()) {
             Request createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_kibana");
-            createRoleMappingRequest.setJsonEntity(
-                "{ \"roles\" : [\"kibana_admin\"],"
-                    + "\"enabled\": true,"
-                    + "\"rules\": {"
-                    + "  \"any\" : ["
-                    + "    {\"field\": { \"realm.name\": \""
-                    + REALM_NAME
-                    + "\"} },"
-                    + "    {\"field\": { \"realm.name\": \""
-                    + REALM_NAME_PROXY
-                    + "\"} },"
-                    + "    {\"field\": { \"realm.name\": \""
-                    + REALM_NAME_CLIENT_POST_AUTH
-                    + "\"} },"
-                    + "    {\"field\": { \"realm.name\": \""
-                    + REALM_NAME_CLIENT_JWT_AUTH
-                    + "\"} }"
-                    + "  ]"
-                    + "}"
-                    + "}"
-            );
+            createRoleMappingRequest.setJsonEntity("""
+                {
+                  "roles": [ "kibana_admin" ],
+                  "enabled": true,
+                  "rules": {
+                    "any": [
+                      {
+                        "field": {
+                          "realm.name": "%s"
+                        }
+                      },
+                      {
+                        "field": {
+                          "realm.name": "%s"
+                        }
+                      },
+                      {
+                        "field": {
+                          "realm.name": "%s"
+                        }
+                      },
+                      {
+                        "field": {
+                          "realm.name": "%s"
+                        }
+                      }
+                    ]
+                  }
+                }""".formatted(REALM_NAME, REALM_NAME_PROXY, REALM_NAME_CLIENT_POST_AUTH, REALM_NAME_CLIENT_JWT_AUTH));
             restClient.performRequest(createRoleMappingRequest);
 
             createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_limited");
-            createRoleMappingRequest.setJsonEntity(
-                "{ \"roles\" : [\"limited_user\"],"
-                    + "\"enabled\": true,"
-                    + "\"rules\": {"
-                    + "\"field\": { \"realm.name\": \""
-                    + REALM_NAME_IMPLICIT
-                    + "\"}"
-                    + "}"
-                    + "}"
-            );
+            createRoleMappingRequest.setJsonEntity("""
+                {
+                  "roles": [ "limited_user" ],
+                  "enabled": true,
+                  "rules": {
+                    "field": {
+                      "realm.name": "%s"
+                    }
+                  }
+                }""".formatted(REALM_NAME_IMPLICIT));
             restClient.performRequest(createRoleMappingRequest);
 
             createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_auditor");
-            createRoleMappingRequest.setJsonEntity(
-                "{ \"roles\" : [\"auditor\"]," + "\"enabled\": true," + "\"rules\": {" + "\"field\": { \"groups\": \"audit\"}" + "}" + "}"
-            );
+            createRoleMappingRequest.setJsonEntity("""
+                {
+                  "roles": [ "auditor" ],
+                  "enabled": true,
+                  "rules": {
+                    "field": {
+                      "groups": "audit"
+                    }
+                  }
+                }""");
             restClient.performRequest(createRoleMappingRequest);
         }
     }

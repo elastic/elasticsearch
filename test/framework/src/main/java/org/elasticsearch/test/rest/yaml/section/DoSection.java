@@ -22,11 +22,10 @@ import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -186,11 +185,7 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
-                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(
-                                    NamedXContentRegistry.EMPTY,
-                                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                                    body
-                                );
+                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, body);
                                 // multiple bodies are supported e.g. in case of bulk provided as a whole string
                                 while (bodyParser.nextToken() != null) {
                                     apiCallSection.addBody(bodyParser.mapOrdered());
@@ -252,8 +247,8 @@ public class DoSection implements ExecutableSection {
         return catchParam;
     }
 
-    public void setCatch(String catchParam) {
-        this.catchParam = catchParam;
+    public void setCatch(String param) {
+        this.catchParam = param;
     }
 
     public ApiCallSection getApiCallSection() {
@@ -367,6 +362,13 @@ public class DoSection implements ExecutableSection {
             final String testPath = executionContext.getClientYamlTestCandidate() != null
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
+            if (executionContext.esVersion().after(Version.V_8_1_0)
+                || (executionContext.esVersion().major == Version.V_7_17_0.major && executionContext.esVersion().after(Version.V_7_17_1))) {
+                // #84038 and #84089 mean that this assertion fails when running against a small number of released versions, but at time of
+                // writing it's unclear exactly which released versions will contain the fix.
+                // TODO once a fixed version has been released, adjust the condition above to match.
+                checkElasticProductHeader(response.getHeaders("X-elastic-product"));
+            }
             checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch (ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
@@ -389,6 +391,31 @@ public class DoSection implements ExecutableSection {
             } else {
                 throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
             }
+        }
+    }
+
+    void checkElasticProductHeader(final List<String> productHeaders) {
+        if (productHeaders.isEmpty()) {
+            fail("Response is missing required X-Elastic-Product response header");
+        }
+        boolean headerPresent = false;
+        final List<String> unexpected = new ArrayList<>();
+        for (String header : productHeaders) {
+            if (header.equals("Elasticsearch")) {
+                headerPresent = true;
+                break;
+            } else {
+                unexpected.add(header);
+            }
+        }
+        if (headerPresent == false) {
+            StringBuilder failureMessage = new StringBuilder();
+            appendBadHeaders(
+                failureMessage,
+                unexpected,
+                "did not get expected product header [Elasticsearch], found header" + (unexpected.size() > 1 ? "s" : "")
+            );
+            fail(failureMessage.toString());
         }
     }
 
@@ -465,7 +492,7 @@ public class DoSection implements ExecutableSection {
             if (warnings.next().endsWith(RestPutIndexTemplateAction.DEPRECATION_WARNING + "\"")) {
                 logger.warn(
                     "Test [{}] uses deprecated legacy index templates and should be updated to use composable templates",
-                    (testPath == null ? "<unknown>" : testPath) + ":" + getLocation().lineNumber
+                    (testPath == null ? "<unknown>" : testPath) + ":" + getLocation().lineNumber()
                 );
                 warnings.remove();
             }
@@ -551,14 +578,11 @@ public class DoSection implements ExecutableSection {
     );
 
     private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
-        switch (name) {
-            case "attribute":
-                return parseAttributeValuesSelector(parser);
-            case "version":
-                return parseVersionSelector(parser);
-            default:
-                throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
-        }
+        return switch (name) {
+            case "attribute" -> parseAttributeValuesSelector(parser);
+            case "version" -> parseVersionSelector(parser);
+            default -> throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
+        };
     }
 
     private static NodeSelector parseAttributeValuesSelector(XContentParser parser) throws IOException {
@@ -640,36 +664,16 @@ public class DoSection implements ExecutableSection {
      * first and then running the "left" selector on the results of the "right"
      * selector.
      */
-    private static class ComposeNodeSelector implements NodeSelector {
-        private final NodeSelector lhs;
-        private final NodeSelector rhs;
-
-        private ComposeNodeSelector(NodeSelector lhs, NodeSelector rhs) {
-            this.lhs = Objects.requireNonNull(lhs, "lhs is required");
-            this.rhs = Objects.requireNonNull(rhs, "rhs is required");
+    private record ComposeNodeSelector(NodeSelector lhs, NodeSelector rhs) implements NodeSelector {
+        private ComposeNodeSelector {
+            Objects.requireNonNull(lhs, "lhs is required");
+            Objects.requireNonNull(rhs, "rhs is required");
         }
 
         @Override
         public void select(Iterable<Node> nodes) {
             rhs.select(nodes);
             lhs.select(nodes);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            ComposeNodeSelector that = (ComposeNodeSelector) o;
-            return Objects.equals(lhs, that.lhs) && Objects.equals(rhs, that.rhs);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(lhs, rhs);
         }
 
         @Override

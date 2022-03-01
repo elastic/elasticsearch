@@ -51,8 +51,7 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
             query,
             either(instanceOf(SpanNearQuery.class)).or(instanceOf(SpanTermQuery.class)).or(instanceOf(MatchAllQueryBuilder.class))
         );
-        if (query instanceof SpanNearQuery) {
-            SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+        if (query instanceof SpanNearQuery spanNearQuery) {
             assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));
             assertThat(spanNearQuery.isInOrder(), equalTo(queryBuilder.inOrder()));
             assertThat(spanNearQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
@@ -74,32 +73,32 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"span_near\" : {\n"
-            + "    \"clauses\" : [ {\n"
-            + "      \"span_term\" : {\n"
-            + "        \"field\" : {\n"
-            + "          \"value\" : \"value1\",\n"
-            + "          \"boost\" : 1.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }, {\n"
-            + "      \"span_gap\" : {\n"
-            + "        \"field\" : 2"
-            + "      }\n"
-            + "    }, {\n"
-            + "      \"span_term\" : {\n"
-            + "        \"field\" : {\n"
-            + "          \"value\" : \"value3\",\n"
-            + "          \"boost\" : 1.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    } ],\n"
-            + "    \"slop\" : 12,\n"
-            + "    \"in_order\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "span_near" : {
+                "clauses" : [ {
+                  "span_term" : {
+                    "field" : {
+                      "value" : "value1",
+                      "boost" : 1.0
+                    }
+                  }
+                }, {
+                  "span_gap" : {
+                    "field" : 2      }
+                }, {
+                  "span_term" : {
+                    "field" : {
+                      "value" : "value3",
+                      "boost" : 1.0
+                    }
+                  }
+                } ],
+                "slop" : 12,
+                "in_order" : false,
+                "boost" : 1.0
+              }
+            }""";
 
         SpanNearQueryBuilder parsed = (SpanNearQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

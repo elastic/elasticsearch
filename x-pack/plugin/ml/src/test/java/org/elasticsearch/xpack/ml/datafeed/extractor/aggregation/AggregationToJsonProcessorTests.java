@@ -240,17 +240,13 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         );
 
         String json = aggToString(Sets.newHashSet("my_value", "my_field"), createAggs(Collections.singletonList(terms)));
-        assertThat(
-            json,
-            equalTo(
-                "{\"my_field\":\"A\",\"time\":1000,\"my_value\":1.0,\"doc_count\":3} "
-                    + "{\"my_field\":\"B\",\"time\":1000,\"my_value\":10.0,\"doc_count\":6} "
-                    + "{\"my_field\":\"A\",\"time\":2000,\"my_value\":2.0,\"doc_count\":4} "
-                    + "{\"my_field\":\"B\",\"time\":2000,\"my_value\":20.0,\"doc_count\":7} "
-                    + "{\"my_field\":\"A\",\"time\":3000,\"my_value\":3.0,\"doc_count\":5} "
-                    + "{\"my_field\":\"B\",\"time\":3000,\"my_value\":30.0,\"doc_count\":8}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"my_field":"A","time":1000,"my_value":1.0,"doc_count":3} \
+            {"my_field":"B","time":1000,"my_value":10.0,"doc_count":6} \
+            {"my_field":"A","time":2000,"my_value":2.0,"doc_count":4} \
+            {"my_field":"B","time":2000,"my_value":20.0,"doc_count":7} \
+            {"my_field":"A","time":3000,"my_value":3.0,"doc_count":5} \
+            {"my_field":"B","time":3000,"my_value":30.0,"doc_count":8}"""));
     }
 
     public void testProcessGivenSingleMetricPerHistogram() throws IOException {
@@ -266,14 +262,10 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
         String json = aggToString(Sets.newHashSet("my_value"), histogramBuckets);
 
-        assertThat(
-            json,
-            equalTo(
-                "{\"time\":1000,\"my_value\":1.0,\"doc_count\":3} "
-                    + "{\"time\":2000,\"doc_count\":3} "
-                    + "{\"time\":3000,\"my_value\":3.0,\"doc_count\":5}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"time":1000,"my_value":1.0,"doc_count":3} \
+            {"time":2000,"doc_count":3} \
+            {"time":3000,"my_value":3.0,"doc_count":5}"""));
     }
 
     public void testProcessGivenTermsPerHistogram() throws IOException {
@@ -298,18 +290,14 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
         String json = aggToString(Sets.newHashSet("time", "my_field"), histogramBuckets);
 
-        assertThat(
-            json,
-            equalTo(
-                "{\"time\":1100,\"my_field\":\"a\",\"doc_count\":1} "
-                    + "{\"time\":1100,\"my_field\":\"b\",\"doc_count\":2} "
-                    + "{\"time\":1100,\"my_field\":\"c\",\"doc_count\":1} "
-                    + "{\"time\":2200,\"my_field\":\"a\",\"doc_count\":5} "
-                    + "{\"time\":2200,\"my_field\":\"b\",\"doc_count\":2} "
-                    + "{\"time\":4400,\"my_field\":\"c\",\"doc_count\":4} "
-                    + "{\"time\":4400,\"my_field\":\"b\",\"doc_count\":3}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"time":1100,"my_field":"a","doc_count":1} \
+            {"time":1100,"my_field":"b","doc_count":2} \
+            {"time":1100,"my_field":"c","doc_count":1} \
+            {"time":2200,"my_field":"a","doc_count":5} \
+            {"time":2200,"my_field":"b","doc_count":2} \
+            {"time":4400,"my_field":"c","doc_count":4} \
+            {"time":4400,"my_field":"b","doc_count":3}"""));
     }
 
     public void testProcessGivenSingleMetricPerSingleTermsPerHistogram() throws IOException {
@@ -348,18 +336,14 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
         String json = aggToString(Sets.newHashSet("my_field", "my_value"), histogramBuckets);
 
-        assertThat(
-            json,
-            equalTo(
-                "{\"time\":1000,\"my_field\":\"a\",\"my_value\":11.0,\"doc_count\":1} "
-                    + "{\"time\":1000,\"my_field\":\"b\",\"my_value\":12.0,\"doc_count\":2} "
-                    + "{\"time\":1000,\"my_field\":\"c\",\"my_value\":13.0,\"doc_count\":1} "
-                    + "{\"time\":2000,\"my_field\":\"a\",\"my_value\":21.0,\"doc_count\":5} "
-                    + "{\"time\":2000,\"my_field\":\"b\",\"my_value\":22.0,\"doc_count\":2} "
-                    + "{\"time\":4000,\"my_field\":\"c\",\"my_value\":41.0,\"doc_count\":4} "
-                    + "{\"time\":4000,\"my_field\":\"b\",\"my_value\":42.0,\"doc_count\":3}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"time":1000,"my_field":"a","my_value":11.0,"doc_count":1} \
+            {"time":1000,"my_field":"b","my_value":12.0,"doc_count":2} \
+            {"time":1000,"my_field":"c","my_value":13.0,"doc_count":1} \
+            {"time":2000,"my_field":"a","my_value":21.0,"doc_count":5} \
+            {"time":2000,"my_field":"b","my_value":22.0,"doc_count":2} \
+            {"time":4000,"my_field":"c","my_value":41.0,"doc_count":4} \
+            {"time":4000,"my_field":"b","my_value":42.0,"doc_count":3}"""));
     }
 
     public void testProcessGivenMultipleSingleMetricPerSingleTermsPerHistogram() throws IOException {
@@ -420,18 +404,14 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         includeDocCount = false;
         String json = aggToString(Sets.newHashSet("my_field", "my_value", "my_value2"), histogramBuckets);
 
-        assertThat(
-            json,
-            equalTo(
-                "{\"time\":1000,\"my_field\":\"a\",\"my_value\":111.0,\"my_value2\":112.0} "
-                    + "{\"time\":1000,\"my_field\":\"b\",\"my_value2\":122.0} "
-                    + "{\"time\":1000,\"my_field\":\"c\",\"my_value\":131.0,\"my_value2\":132.0} "
-                    + "{\"time\":2000,\"my_field\":\"a\",\"my_value\":211.0,\"my_value2\":212.0} "
-                    + "{\"time\":2000,\"my_field\":\"b\",\"my_value\":221.0,\"my_value2\":222.0} "
-                    + "{\"time\":4000,\"my_field\":\"c\",\"my_value\":411.0,\"my_value2\":412.0} "
-                    + "{\"time\":4000,\"my_field\":\"b\",\"my_value\":421.0,\"my_value2\":422.0}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"time":1000,"my_field":"a","my_value":111.0,"my_value2":112.0} \
+            {"time":1000,"my_field":"b","my_value2":122.0} \
+            {"time":1000,"my_field":"c","my_value":131.0,"my_value2":132.0} \
+            {"time":2000,"my_field":"a","my_value":211.0,"my_value2":212.0} \
+            {"time":2000,"my_field":"b","my_value":221.0,"my_value2":222.0} \
+            {"time":4000,"my_field":"c","my_value":411.0,"my_value2":412.0} \
+            {"time":4000,"my_field":"b","my_value":421.0,"my_value2":422.0}"""));
     }
 
     public void testProcessGivenUnsupportedAggregationUnderHistogram() {
@@ -470,13 +450,9 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         Histogram.Bucket histogramBucket = createHistogramBucket(1000L, 2, Arrays.asList(terms, createMax("time", 1000), maxAgg));
 
         String json = aggToString(Sets.newHashSet("terms", "max_value"), histogramBucket);
-        assertThat(
-            json,
-            equalTo(
-                "{\"time\":1000,\"max_value\":1200.0,\"terms\":\"a\",\"doc_count\":1} "
-                    + "{\"time\":1000,\"max_value\":1200.0,\"terms\":\"b\",\"doc_count\":2}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"time":1000,"max_value":1200.0,"terms":"a","doc_count":1} \
+            {"time":1000,"max_value":1200.0,"terms":"b","doc_count":2}"""));
     }
 
     public void testProcessGivenMixedBucketAndLeafAggregationsAtSameLevel_LeafFirst() throws IOException {
@@ -485,13 +461,9 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         Histogram.Bucket histogramBucket = createHistogramBucket(1000L, 2, Arrays.asList(createMax("time", 1000), maxAgg, terms));
 
         String json = aggToString(Sets.newHashSet("terms", "max_value"), histogramBucket);
-        assertThat(
-            json,
-            equalTo(
-                "{\"time\":1000,\"max_value\":1200.0,\"terms\":\"a\",\"doc_count\":1} "
-                    + "{\"time\":1000,\"max_value\":1200.0,\"terms\":\"b\",\"doc_count\":2}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"time":1000,"max_value":1200.0,"terms":"a","doc_count":1} \
+            {"time":1000,"max_value":1200.0,"terms":"b","doc_count":2}"""));
     }
 
     public void testProcessGivenBucketAndLeafAggregationsButBucketNotInFields() throws IOException {
@@ -528,14 +500,10 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
         String json = aggToString(Sets.newHashSet("time", "my_value"), histogramBuckets);
 
-        assertThat(
-            json,
-            equalTo(
-                "{\"time\":1100,\"my_value\":1.0,\"doc_count\":4} "
-                    + "{\"time\":2200,\"my_value\":2.0,\"doc_count\":5} "
-                    + "{\"time\":4400,\"my_value\":4.0,\"doc_count\":7}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"time":1100,"my_value":1.0,"doc_count":4} \
+            {"time":2200,"my_value":2.0,"doc_count":5} \
+            {"time":4400,"my_value":4.0,"doc_count":7}"""));
     }
 
     public void testProcessGivenSinglePercentilesPerHistogram() throws IOException {
@@ -552,15 +520,11 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
         String json = aggToString(Sets.newHashSet("my_field"), histogramBuckets);
 
-        assertThat(
-            json,
-            equalTo(
-                "{\"time\":1000,\"my_field\":1.0,\"doc_count\":4} "
-                    + "{\"time\":2000,\"my_field\":2.0,\"doc_count\":7} "
-                    + "{\"time\":3000,\"doc_count\":10} "
-                    + "{\"time\":4000,\"my_field\":4.0,\"doc_count\":14}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"time":1000,"my_field":1.0,"doc_count":4} \
+            {"time":2000,"my_field":2.0,"doc_count":7} \
+            {"time":3000,"doc_count":10} \
+            {"time":4000,"my_field":4.0,"doc_count":14}"""));
     }
 
     public void testProcessGivenMultiplePercentilesPerHistogram() {
@@ -620,14 +584,10 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         startTime = 2000;
         String json = aggToString(Sets.newHashSet("my_field"), histogramBuckets);
 
-        assertThat(
-            json,
-            equalTo(
-                "{\"time\":2000,\"my_field\":2.0,\"doc_count\":7} "
-                    + "{\"time\":3000,\"my_field\":3.0,\"doc_count\":10} "
-                    + "{\"time\":4000,\"my_field\":4.0,\"doc_count\":14}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"time":2000,"my_field":2.0,"doc_count":7} \
+            {"time":3000,"my_field":3.0,"doc_count":10} \
+            {"time":4000,"my_field":4.0,"doc_count":14}"""));
     }
 
     public void testBucketsBeforeStartArePruned() throws IOException {
@@ -641,10 +601,9 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         startTime = 3000;
         String json = aggToString(Sets.newHashSet("my_field"), histogramBuckets);
 
-        assertThat(
-            json,
-            equalTo("{\"time\":3000,\"my_field\":3.0,\"doc_count\":10} " + "{\"time\":4000,\"my_field\":4.0,\"doc_count\":14}")
-        );
+        assertThat(json, equalTo("""
+            {"time":3000,"my_field":3.0,"doc_count":10} \
+            {"time":4000,"my_field":4.0,"doc_count":14}"""));
     }
 
     public void testSingleBucketAgg() throws IOException {
@@ -671,13 +630,9 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
         String json = aggToString(Sets.newHashSet("field1", "field2"), histogramBuckets);
 
-        assertThat(
-            json,
-            equalTo(
-                "{\"time\":1000,\"field1\":5.0,\"field2\":3.0,\"doc_count\":4}"
-                    + " {\"time\":2000,\"field2\":1.0,\"field1\":7.0,\"doc_count\":7}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"time":1000,"field1":5.0,"field2":3.0,"doc_count":4} \
+            {"time":2000,"field2":1.0,"field1":7.0,"doc_count":7}"""));
     }
 
     public void testSingleBucketAgg_failureWithSubMultiBucket() {
@@ -712,7 +667,9 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         );
         String json = aggToString(Sets.newHashSet("geo_field"), histogramBuckets);
 
-        assertThat(json, equalTo("{\"time\":1000,\"geo_field\":\"92.1,93.1\",\"doc_count\":4}" + " {\"time\":2000,\"doc_count\":7}"));
+        assertThat(json, equalTo("""
+            {"time":1000,"geo_field":"92.1,93.1","doc_count":4} \
+            {"time":2000,"doc_count":7}"""));
     }
 
     private String aggToString(Set<String> fields, Histogram.Bucket bucket) throws IOException {

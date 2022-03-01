@@ -36,11 +36,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
 
             .build();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
@@ -90,14 +87,18 @@ public class ShardGetServiceTests extends IndexShardTestCase {
     }
 
     public void testGetFromTranslogWithStringSourceMappingOptionsAndStoredFields() throws IOException {
-        String docToIndex = "{\"foo\" : \"foo\", \"bar\" : \"bar\"}";
+        String docToIndex = """
+            {"foo" : "foo", "bar" : "bar"}
+            """;
         boolean noSource = randomBoolean();
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
         runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":\"bar\"}", "\"text\"", "foo");
     }
 
     public void testGetFromTranslogWithLongSourceMappingOptionsAndStoredFields() throws IOException {
-        String docToIndex = "{\"foo\" : 7, \"bar\" : 42}";
+        String docToIndex = """
+            {"foo" : 7, "bar" : 42}
+            """;
         boolean noSource = randomBoolean();
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
         runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":42}", "\"long\"", 7L);
@@ -116,20 +117,18 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
 
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping(
-                "{ \"properties\": { \"foo\":  { \"type\": "
-                    + fieldType
-                    + ", \"store\": true }, "
-                    + "\"bar\":  { \"type\": "
-                    + fieldType
-                    + "}}, \"_source\": { "
-                    + sourceOptions
-                    + "}}}"
-            )
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            {
+              "properties": {
+                "foo": {
+                  "type": %s,
+                  "store": true
+                },
+                "bar": { "type": %s }
+              },
+              "_source": { %s }
+              }
+            }""".formatted(fieldType, fieldType, sourceOptions)).settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
         recoverShardFromStore(primary);
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
@@ -191,11 +190,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder("index")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1)
-            .build();
+        IndexMetadata metadata = IndexMetadata.builder("index").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(shard);
         Engine.IndexResult indexResult = indexDoc(shard, "some_type", "0", "{\"foo\" : \"bar\"}");

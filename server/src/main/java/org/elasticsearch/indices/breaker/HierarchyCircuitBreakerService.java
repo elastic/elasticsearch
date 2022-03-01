@@ -31,7 +31,6 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -204,7 +203,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             }
             childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(breakerSettings));
         }
-        this.breakers = Collections.unmodifiableMap(childCircuitBreakers);
+        this.breakers = Map.copyOf(childCircuitBreakers);
         this.parentSettings = new BreakerSettings(
             CircuitBreaker.PARENT,
             TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),

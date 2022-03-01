@@ -40,6 +40,9 @@ import java.util.stream.Collectors;
  * creating the system index, upgrading its mappings, and creating an alias.
  */
 public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<SystemIndexDescriptor> {
+
+    public static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
+
     /**
      * A pattern, either with a wildcard or simple regex. Indices that match one of these patterns are considered system indices.
      * Note that this pattern must not overlap with any other {@link SystemIndexDescriptor}s and must allow an alphanumeric suffix
@@ -326,10 +329,17 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         this.description = description;
         this.mappings = mappings;
 
-        if (Objects.nonNull(settings) && settings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
-            throw new IllegalArgumentException("System indices cannot have " + IndexMetadata.SETTING_INDEX_HIDDEN + " set to true.");
+        settings = Objects.isNull(settings) ? Settings.EMPTY : settings;
+
+        if (settings.hasValue(IndexMetadata.SETTING_INDEX_HIDDEN) == false) {
+            settings = Settings.builder().put(settings).put(DEFAULT_SETTINGS).build();
         }
-        this.settings = settings;
+
+        if (settings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
+            this.settings = settings;
+        } else {
+            throw new IllegalArgumentException("System indices must have " + IndexMetadata.SETTING_INDEX_HIDDEN + " set to true.");
+        }
         this.indexFormat = indexFormat;
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
@@ -655,8 +665,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
-        public Builder setThreadPools(ExecutorNames executorNames) {
-            this.executorNames = executorNames;
+        public Builder setThreadPools(ExecutorNames threadPoolExecutorNames) {
+            this.executorNames = threadPoolExecutorNames;
             return this;
         }
 

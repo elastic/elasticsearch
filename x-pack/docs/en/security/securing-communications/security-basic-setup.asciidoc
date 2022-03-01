@@ -4,9 +4,11 @@
 <titleabbrev>Set up basic security</titleabbrev>
 ++++
 
-After adding password protection in the <<security-minimal-setup,minimal security configuration>>, you'll need to configure Transport Layer Security
-(TLS). The transport layer handles all internal communication between nodes in
-your cluster.
+When you start {es} for the first time, passwords are generated for the `elastic`
+user and TLS is automatically configured for you. If you configure security 
+manually _before_ starting your {es} nodes, the auto-configuration process will 
+respect your security configuration. You can adjust your TLS configuration at 
+any time, such as <<update-node-certs,updating node certificates>>.
 
 IMPORTANT: If your cluster has multiple nodes, then you must configure
 TLS between nodes. <<dev-vs-prod-mode,Production mode>> clusters will not start
@@ -42,15 +44,6 @@ this scenario we're applying TLS to the {es} transport port. In
 HTTP port.
 ****
 
-[[basic-setup-prerequisites]]
-==== Prerequisites
-
-Complete the steps in <<security-minimal-setup,Minimal security for the Elastic Stack>> to enable {es} security features on every node in your cluster. You can
-then encrypt communications between your nodes with TLS.
-
-NOTE: You only need to create passwords for the built-in users one time for the
-entire cluster.
-
 [[generate-certificates]]
 ==== Generate the certificate authority
 
@@ -72,8 +65,8 @@ For the transport layer, we recommend using a separate, dedicated CA instead
 of an existing, possibly shared CA so that node membership is tightly controlled. Use the `elasticsearch-certutil` tool to
 generate a CA for your cluster.
 
-. On any single node, use the `elasticsearch-certutil` tool to generate a CA for
-your cluster.
+. Before starting {es}, use the `elasticsearch-certutil` tool on any single node
+to generate a CA for your cluster.
 +
 [source,shell]
 ----
@@ -181,7 +174,7 @@ matches the DNS or IP address. See the
 
 . Complete the previous steps for each node in your cluster.
 
-. On *every* node in your cluster, restart {es}. The method for
+. On *every* node in your cluster, start {es}. The method for
 <<starting-elasticsearch,starting>> and <<starting-elasticsearch,stopping>> {es}
 varies depending on how you installed it.
 +

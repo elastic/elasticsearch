@@ -124,8 +124,8 @@ public class OutlierDetectionStats implements AnalysisStats {
         return Objects.hash(jobId, timestamp, parameters, timingStats);
     }
 
-    public String documentId(String jobId) {
-        return documentIdPrefix(jobId) + timestamp.toEpochMilli();
+    public String documentId(String _jobId) {
+        return documentIdPrefix(_jobId) + timestamp.toEpochMilli();
     }
 
     public static String documentIdPrefix(String jobId) {

@@ -829,8 +829,19 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetection_GivenIndexWithRuntimeFields() throws Exception {
         String sourceIndex = "test-outlier-detection-with-index-with-runtime-fields";
 
-        String mappings = "{\"dynamic\":false, \"runtime\": { \"runtime_numeric\": "
-            + "{ \"type\": \"double\", \"script\": { \"source\": \"emit(params._source.numeric)\", \"lang\": \"painless\" } } }}";
+        String mappings = """
+            {
+              "dynamic": false,
+              "runtime": {
+                "runtime_numeric": {
+                  "type": "double",
+                  "script": {
+                    "source": "emit(params._source.numeric)",
+                    "lang": "painless"
+                  }
+                }
+              }
+            }""";
 
         client().admin().indices().prepareCreate(sourceIndex).setMapping(mappings).get();
 

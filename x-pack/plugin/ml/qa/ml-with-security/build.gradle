@@ -236,7 +236,7 @@ tasks.named("yamlRestTest").configure {
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
-  extraConfigFile 'roles.yml', file('roles.yml')
+  rolesFile file('roles.yml')
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   user username: "ml_admin", password: "x-pack-test-password", role: "minimal,machine_learning_admin,ingest_admin"
   user username: "ml_user", password: "x-pack-test-password", role: "minimal,machine_learning_user"

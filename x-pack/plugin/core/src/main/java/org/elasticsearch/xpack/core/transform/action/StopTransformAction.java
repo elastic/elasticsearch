@@ -175,9 +175,9 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         @Override
         public boolean match(Task task) {
             if (task.getDescription().startsWith(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
-                String id = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
+                String taskId = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
                 if (expandedIds != null) {
-                    return expandedIds.contains(id);
+                    return expandedIds.contains(taskId);
                 }
             }
 

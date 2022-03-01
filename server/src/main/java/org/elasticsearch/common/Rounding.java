@@ -200,26 +200,17 @@ public abstract class Rounding implements Writeable {
         }
 
         public static DateTimeUnit resolve(byte id) {
-            switch (id) {
-                case 1:
-                    return WEEK_OF_WEEKYEAR;
-                case 2:
-                    return YEAR_OF_CENTURY;
-                case 3:
-                    return QUARTER_OF_YEAR;
-                case 4:
-                    return MONTH_OF_YEAR;
-                case 5:
-                    return DAY_OF_MONTH;
-                case 6:
-                    return HOUR_OF_DAY;
-                case 7:
-                    return MINUTES_OF_HOUR;
-                case 8:
-                    return SECOND_OF_MINUTE;
-                default:
-                    throw new ElasticsearchException("Unknown date time unit id [" + id + "]");
-            }
+            return switch (id) {
+                case 1 -> WEEK_OF_WEEKYEAR;
+                case 2 -> YEAR_OF_CENTURY;
+                case 3 -> QUARTER_OF_YEAR;
+                case 4 -> MONTH_OF_YEAR;
+                case 5 -> DAY_OF_MONTH;
+                case 6 -> HOUR_OF_DAY;
+                case 7 -> MINUTES_OF_HOUR;
+                case 8 -> SECOND_OF_MINUTE;
+                default -> throw new ElasticsearchException("Unknown date time unit id [" + id + "]");
+            };
         }
     }
 
@@ -847,20 +838,14 @@ public abstract class Rounding implements Writeable {
             private LocalDateTime nextRelevantMidnight(LocalDateTime localMidnight) {
                 assert localMidnight.toLocalTime().equals(LocalTime.MIDNIGHT) : "nextRelevantMidnight should only be called at midnight";
 
-                switch (unit) {
-                    case DAY_OF_MONTH:
-                        return localMidnight.plus(1, ChronoUnit.DAYS);
-                    case WEEK_OF_WEEKYEAR:
-                        return localMidnight.plus(7, ChronoUnit.DAYS);
-                    case MONTH_OF_YEAR:
-                        return localMidnight.plus(1, ChronoUnit.MONTHS);
-                    case QUARTER_OF_YEAR:
-                        return localMidnight.plus(3, ChronoUnit.MONTHS);
-                    case YEAR_OF_CENTURY:
-                        return localMidnight.plus(1, ChronoUnit.YEARS);
-                    default:
-                        throw new IllegalArgumentException("Unknown round-to-midnight unit: " + unit);
-                }
+                return switch (unit) {
+                    case DAY_OF_MONTH -> localMidnight.plus(1, ChronoUnit.DAYS);
+                    case WEEK_OF_WEEKYEAR -> localMidnight.plus(7, ChronoUnit.DAYS);
+                    case MONTH_OF_YEAR -> localMidnight.plus(1, ChronoUnit.MONTHS);
+                    case QUARTER_OF_YEAR -> localMidnight.plus(3, ChronoUnit.MONTHS);
+                    case YEAR_OF_CENTURY -> localMidnight.plus(1, ChronoUnit.YEARS);
+                    default -> throw new IllegalArgumentException("Unknown round-to-midnight unit: " + unit);
+                };
             }
 
             @Override
@@ -1421,16 +1406,12 @@ public abstract class Rounding implements Writeable {
 
     public static Rounding read(StreamInput in) throws IOException {
         byte id = in.readByte();
-        switch (id) {
-            case TimeUnitRounding.ID:
-                return new TimeUnitRounding(in);
-            case TimeIntervalRounding.ID:
-                return new TimeIntervalRounding(in);
-            case OffsetRounding.ID:
-                return new OffsetRounding(in);
-            default:
-                throw new ElasticsearchException("unknown rounding id [" + id + "]");
-        }
+        return switch (id) {
+            case TimeUnitRounding.ID -> new TimeUnitRounding(in);
+            case TimeIntervalRounding.ID -> new TimeIntervalRounding(in);
+            case OffsetRounding.ID -> new OffsetRounding(in);
+            default -> throw new ElasticsearchException("unknown rounding id [" + id + "]");
+        };
     }
 
     /**

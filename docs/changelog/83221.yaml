@@ -1,0 +1,5 @@
+pr: 83221
+summary: Add detail to slow cluster state warning message
+area: Cluster Coordination
+type: enhancement
+issues: []

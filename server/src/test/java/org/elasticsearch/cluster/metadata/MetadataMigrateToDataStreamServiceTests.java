@@ -53,7 +53,9 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
 
     public void testValidateRequestWithFilteredAlias() {
         String filteredAliasName = "filtered_alias";
-        AliasMetadata filteredAlias = AliasMetadata.builder(filteredAliasName).filter("{\"term\":{\"user.id\":\"kimchy\"}}").build();
+        AliasMetadata filteredAlias = AliasMetadata.builder(filteredAliasName).filter("""
+            {"term":{"user.id":"kimchy"}}
+            """).build();
         ClusterState cs = ClusterState.builder(new ClusterName("dummy"))
             .metadata(
                 Metadata.builder()

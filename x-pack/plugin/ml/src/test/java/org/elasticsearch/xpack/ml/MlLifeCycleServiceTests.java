@@ -26,11 +26,11 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.process.MlController;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
@@ -186,6 +186,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             memoryTracker
         );
 
+        // Local node is node-2 here
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -227,7 +228,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
 
         final Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
         mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds, clock);
-        assertThat(mlLifeCycleService.getShutdownStartTime(), is(clock.instant()));
+        assertThat(mlLifeCycleService.getShutdownStartTime("node-2"), is(clock.instant()));
 
         verify(datafeedRunner).vacateAllDatafeedsOnThisNode("previously assigned node [node-2-name] is shutting down");
         verify(autodetectProcessManager).vacateOpenJobsOnThisNode();
@@ -236,7 +237,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         // Calling the method again should not advance the start time
         Clock advancedClock = Clock.fixed(clock.instant().plus(Duration.ofMinutes(1)), ZoneId.systemDefault());
         mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds, advancedClock);
-        assertThat(mlLifeCycleService.getShutdownStartTime(), is(clock.instant()));
+        assertThat(mlLifeCycleService.getShutdownStartTime("node-2"), is(clock.instant()));
     }
 
     public void testSignalGracefulShutdownExcludingLocalNode() {
@@ -249,6 +250,8 @@ public class MlLifeCycleServiceTests extends ESTestCase {
             analyticsManager,
             memoryTracker
         );
+
+        // Local node is node-2 here
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -286,8 +289,12 @@ public class MlLifeCycleServiceTests extends ESTestCase {
 
         Collection<String> shutdownNodeIds = randomBoolean() ? Collections.singleton("node-1") : Arrays.asList("node-1", "node-3");
 
-        mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds, Clock.systemUTC());
-        assertThat(mlLifeCycleService.getShutdownStartTime(), nullValue());
+        final Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
+        mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds, clock);
+        // The local node, node-2, is definitely not shutting down, but we should have still recorded
+        // what time node-1 started shutting down, as we may get asked about it later
+        assertThat(mlLifeCycleService.getShutdownStartTime("node-2"), nullValue());
+        assertThat(mlLifeCycleService.getShutdownStartTime("node-1"), is(clock.instant()));
 
         verifyNoMoreInteractions(datafeedRunner, mlController, autodetectProcessManager, analyticsManager, memoryTracker);
     }

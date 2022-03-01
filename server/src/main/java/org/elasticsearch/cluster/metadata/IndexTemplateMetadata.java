@@ -7,11 +7,9 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -41,7 +39,7 @@ import java.util.Set;
 import static org.elasticsearch.core.RestApiVersion.V_8;
 import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 
-public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
+public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetadata> {
 
     private final String name;
 
@@ -201,7 +199,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     }
 
     public static Diff<IndexTemplateMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(IndexTemplateMetadata::readFrom, in);
+        return SimpleDiffable.readDiffFrom(IndexTemplateMetadata::readFrom, in);
     }
 
     @Override
@@ -211,9 +209,9 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         out.writeStringCollection(patterns);
         Settings.writeSettingsToStream(settings, out);
         out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, CompressedXContent> cursor : mappings) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
+        for (Map.Entry<String, CompressedXContent> cursor : mappings.entrySet()) {
+            out.writeString(cursor.getKey());
+            cursor.getValue().writeTo(out);
         }
         out.writeVInt(aliases.size());
         for (AliasMetadata aliasMetadata : aliases.values()) {

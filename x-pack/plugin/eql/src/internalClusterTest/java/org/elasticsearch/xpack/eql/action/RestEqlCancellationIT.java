@@ -72,7 +72,6 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(getTestTransportPlugin());
-        plugins.add(Netty4Plugin.class);
         plugins.add(NioTransportPlugin.class);
         return plugins;
     }
@@ -117,7 +116,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
         Request request = new Request("GET", "/test/_eql/search");
         request.setJsonEntity(Strings.toString(eqlSearchRequest));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID, id));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
         logger.trace("Preparing search");
 
         final PlainActionFuture<Response> future = PlainActionFuture.newFuture();
@@ -133,8 +132,8 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
         assertBusy(() -> {
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.getTaskId().getNodeId())) {
-                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.getId());
+                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.taskId().getNodeId())) {
+                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.id());
                     if (task != null) {
                         assertThat(task, instanceOf(EqlSearchTask.class));
                         EqlSearchTask eqlSearchTask = (EqlSearchTask) task;

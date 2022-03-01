@@ -58,7 +58,7 @@ class HttpTracer {
                 new ParameterizedMessage(
                     "[{}][{}][{}][{}] received request from [{}]",
                     restRequest.getRequestId(),
-                    restRequest.header(Task.X_OPAQUE_ID),
+                    restRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
                     restRequest.method(),
                     restRequest.uri(),
                     restRequest.getHttpChannel()
@@ -76,7 +76,7 @@ class HttpTracer {
      * @param restResponse  RestResponse
      * @param httpChannel   HttpChannel the response was sent on
      * @param contentLength Value of the response content length header
-     * @param opaqueHeader  Value of HTTP header {@link Task#X_OPAQUE_ID}
+     * @param opaqueHeader  Value of HTTP header {@link Task#X_OPAQUE_ID_HTTP_HEADER}
      * @param requestId     Request id as returned by {@link RestRequest#getRequestId()}
      * @param success       Whether the response was successfully sent
      */

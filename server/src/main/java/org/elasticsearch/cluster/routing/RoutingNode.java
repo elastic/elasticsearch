@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -16,7 +17,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -44,7 +44,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private final LinkedHashSet<ShardRouting> relocatingShards;
 
-    private final HashMap<Index, LinkedHashSet<ShardRouting>> shardsByIndex;
+    private final Map<Index, LinkedHashSet<ShardRouting>> shardsByIndex;
 
     public RoutingNode(String nodeId, DiscoveryNode node, ShardRouting... shards) {
         this(nodeId, node, buildShardRoutingMap(shards));
@@ -66,6 +66,23 @@ public class RoutingNode implements Iterable<ShardRouting> {
             shardsByIndex.computeIfAbsent(shardRouting.index(), k -> new LinkedHashSet<>()).add(shardRouting);
         }
         assert invariant();
+    }
+
+    private RoutingNode(RoutingNode original) {
+        this.nodeId = original.nodeId;
+        this.node = original.node;
+        this.shards = new LinkedHashMap<>(original.shards);
+        this.relocatingShards = new LinkedHashSet<>(original.relocatingShards);
+        this.initializingShards = new LinkedHashSet<>(original.initializingShards);
+        this.shardsByIndex = Maps.newLinkedHashMapWithExpectedSize(original.shardsByIndex.size());
+        for (Map.Entry<Index, LinkedHashSet<ShardRouting>> entry : original.shardsByIndex.entrySet()) {
+            shardsByIndex.put(entry.getKey(), new LinkedHashSet<>(entry.getValue()));
+        }
+        assert invariant();
+    }
+
+    RoutingNode copy() {
+        return new RoutingNode(this);
     }
 
     private static LinkedHashMap<ShardId, ShardRouting> buildShardRoutingMap(ShardRouting... shardRoutings) {

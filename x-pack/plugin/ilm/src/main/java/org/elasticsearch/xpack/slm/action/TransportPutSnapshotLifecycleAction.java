@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -79,7 +80,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
-        final Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
         clusterService.submitStateUpdateTask(
             "put-snapshot-lifecycle-" + request.getLifecycleId(),
@@ -130,7 +131,8 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
                 protected PutSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
                     return new PutSnapshotLifecycleAction.Response(acknowledged);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

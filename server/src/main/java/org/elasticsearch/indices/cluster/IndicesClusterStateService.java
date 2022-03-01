@@ -15,7 +15,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -196,6 +196,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         final ClusterState state = event.state();
+
+        final DiscoveryNode currentMaster = state.nodes().getMasterNode();
+        if (currentMaster != null && currentMaster.equals(event.previousState().nodes().getMasterNode()) == false) {
+            // master node changed, clear request deduplicator so we send out new state update requests right away without waiting for
+            // the in-flight ones to fail first
+            shardStateAction.clearRemoteShardRequestDeduplicator();
+        }
 
         // we need to clean the shards and indices we have on this node, since we
         // are going to recover them again once state persistence is disabled (no master / not recovered)

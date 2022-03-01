@@ -237,6 +237,7 @@ public class VerifierTests extends ESTestCase {
         accept(idxr, "foo where float_field == 0");
         accept(idxr, "foo where half_float_field == 0");
         accept(idxr, "foo where scaled_float_field == 0");
+        accept(idxr, "foo where unsigned_long_field == 0");
 
         // Test query against unsupported field type int
         assertEquals(

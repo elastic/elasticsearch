@@ -121,29 +121,16 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         return (objectParser, field, location, parser, value, context) -> {
             XContentParser.Token t = parser.currentToken();
             switch (t) {
-                case VALUE_STRING:
-                    consumer.accept(value, field, parser.text());
-                    break;
-                case VALUE_NUMBER:
-                    consumer.accept(value, field, parser.numberValue());
-                    break;
-                case VALUE_BOOLEAN:
-                    consumer.accept(value, field, parser.booleanValue());
-                    break;
-                case VALUE_NULL:
-                    consumer.accept(value, field, null);
-                    break;
-                case START_OBJECT:
-                    consumer.accept(value, field, parser.map());
-                    break;
-                case START_ARRAY:
-                    consumer.accept(value, field, parser.list());
-                    break;
-                default:
-                    throw new XContentParseException(
-                        parser.getTokenLocation(),
-                        "[" + objectParser.name + "] cannot parse field [" + field + "] with value type [" + t + "]"
-                    );
+                case VALUE_STRING -> consumer.accept(value, field, parser.text());
+                case VALUE_NUMBER -> consumer.accept(value, field, parser.numberValue());
+                case VALUE_BOOLEAN -> consumer.accept(value, field, parser.booleanValue());
+                case VALUE_NULL -> consumer.accept(value, field, null);
+                case START_OBJECT -> consumer.accept(value, field, parser.map());
+                case START_ARRAY -> consumer.accept(value, field, parser.list());
+                default -> throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    "[" + objectParser.name + "] cannot parse field [" + field + "] with value type [" + t + "]"
+                );
             }
         };
     }
@@ -642,7 +629,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     private void parseSub(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context) {
         final XContentParser.Token token = parser.currentToken();
         switch (token) {
-            case START_OBJECT:
+            case START_OBJECT -> {
                 parseValue(parser, fieldParser, currentFieldName, value, context);
                 /*
                  * Well behaving parsers should consume the entire object but
@@ -655,8 +642,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
                     throwMustEndOn(currentFieldName, XContentParser.Token.END_OBJECT);
                 }
-                break;
-            case START_ARRAY:
+            }
+            case START_ARRAY -> {
                 parseArray(parser, fieldParser, currentFieldName, value, context);
                 /*
                  * Well behaving parsers should consume the entire array but
@@ -669,17 +656,15 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 if (parser.currentToken() != XContentParser.Token.END_ARRAY) {
                     throwMustEndOn(currentFieldName, XContentParser.Token.END_ARRAY);
                 }
-                break;
-            case END_OBJECT:
-            case END_ARRAY:
-            case FIELD_NAME:
-                throw throwUnexpectedToken(parser, token);
-            case VALUE_STRING:
-            case VALUE_NUMBER:
-            case VALUE_BOOLEAN:
-            case VALUE_EMBEDDED_OBJECT:
-            case VALUE_NULL:
-                parseValue(parser, fieldParser, currentFieldName, value, context);
+            }
+            case END_OBJECT, END_ARRAY, FIELD_NAME -> throw throwUnexpectedToken(parser, token);
+            case VALUE_STRING, VALUE_NUMBER, VALUE_BOOLEAN, VALUE_EMBEDDED_OBJECT, VALUE_NULL -> parseValue(
+                parser,
+                fieldParser,
+                currentFieldName,
+                value,
+                context
+            );
         }
     }
 

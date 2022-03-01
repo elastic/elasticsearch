@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.cumulativecardinality;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
@@ -63,7 +64,7 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
     }
 
     @Override
-    public InternalSimpleLongValue reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalSimpleLongValue reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 

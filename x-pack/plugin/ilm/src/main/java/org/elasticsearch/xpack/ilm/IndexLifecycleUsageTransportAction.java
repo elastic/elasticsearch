@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.ActionConfigStats;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -74,7 +73,7 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
         if (lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
             metadata.indices().forEach(entry -> {
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(entry.value.getSettings());
+                String policyName = entry.value.getLifecyclePolicyName();
                 Integer indicesManaged = policyUsage.get(policyName);
                 if (indicesManaged == null) {
                     indicesManaged = 1;
@@ -108,30 +107,30 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
 
     private void collectActionConfigurations(String actionName, LifecycleAction action, ActionConfigStats.Builder consumer) {
         switch (actionName) {
-            case AllocateAction.NAME:
+            case AllocateAction.NAME -> {
                 AllocateAction allocateAction = (AllocateAction) action;
                 consumer.setAllocateNumberOfReplicas(allocateAction.getNumberOfReplicas());
-                break;
-            case ForceMergeAction.NAME:
+            }
+            case ForceMergeAction.NAME -> {
                 ForceMergeAction forceMergeAction = (ForceMergeAction) action;
                 consumer.setForceMergeMaxNumberOfSegments(forceMergeAction.getMaxNumSegments());
-                break;
-            case RolloverAction.NAME:
+            }
+            case RolloverAction.NAME -> {
                 RolloverAction rolloverAction = (RolloverAction) action;
                 consumer.setRolloverMaxAge(rolloverAction.getMaxAge());
                 consumer.setRolloverMaxDocs(rolloverAction.getMaxDocs());
                 consumer.setRolloverMaxPrimaryShardSize(rolloverAction.getMaxPrimaryShardSize());
                 consumer.setRolloverMaxSize(rolloverAction.getMaxSize());
-                break;
-            case SetPriorityAction.NAME:
+            }
+            case SetPriorityAction.NAME -> {
                 SetPriorityAction setPriorityAction = (SetPriorityAction) action;
                 consumer.setPriority(setPriorityAction.getRecoveryPriority());
-                break;
-            case ShrinkAction.NAME:
+            }
+            case ShrinkAction.NAME -> {
                 ShrinkAction shrinkAction = (ShrinkAction) action;
                 consumer.setShrinkMaxPrimaryShardSize(shrinkAction.getMaxPrimaryShardSize());
                 consumer.setShrinkNumberOfShards(shrinkAction.getNumberOfShards());
-                break;
+            }
         }
     }
 }

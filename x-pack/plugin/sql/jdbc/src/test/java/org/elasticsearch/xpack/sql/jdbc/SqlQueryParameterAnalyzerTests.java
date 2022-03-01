@@ -26,12 +26,11 @@ public class SqlQueryParameterAnalyzerTests extends ESTestCase {
     public void testSingleParameter() throws Exception {
         assertEquals(1, SqlQueryParameterAnalyzer.parametersCount("SELECT * FROM 'table' WHERE s = '?' AND b = ?"));
         assertEquals(1, SqlQueryParameterAnalyzer.parametersCount("SELECT * FROM 'table' WHERE b = ? AND s = '?'"));
-        assertEquals(
-            1,
-            SqlQueryParameterAnalyzer.parametersCount(
-                "SELECT ?/10 /* multiline  \n" + " * query \n" + " * more ? /* lines */ ? here \n" + " */ FROM foo"
-            )
-        );
+        assertEquals(1, SqlQueryParameterAnalyzer.parametersCount("""
+            SELECT ?/10 /* multiline \s
+             * query\s
+             * more ? /* lines */ ? here\s
+             */ FROM foo"""));
         assertEquals(1, SqlQueryParameterAnalyzer.parametersCount("SELECT ?"));
 
     }
@@ -40,14 +39,10 @@ public class SqlQueryParameterAnalyzerTests extends ESTestCase {
         assertEquals(4, SqlQueryParameterAnalyzer.parametersCount("SELECT ?, ?, ? , ?"));
         assertEquals(3, SqlQueryParameterAnalyzer.parametersCount("SELECT ?, ?, '?' , ?"));
         assertEquals(3, SqlQueryParameterAnalyzer.parametersCount("SELECT ?, ?\n, '?' , ?"));
-        assertEquals(
-            3,
-            SqlQueryParameterAnalyzer.parametersCount(
-                "SELECT ? - 10 -- first parameter with ????\n"
-                    + ", ? -- second parameter with random \" and ' \n"
-                    + ", ? -- last parameter without new line"
-            )
-        );
+        assertEquals(3, SqlQueryParameterAnalyzer.parametersCount("""
+            SELECT ? - 10 -- first parameter with ????
+            , ? -- second parameter with random " and '\s
+            , ? -- last parameter without new line"""));
     }
 
     public void testUnclosedJdbcEscape() {

@@ -145,6 +145,11 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.DATE;
     }
@@ -258,6 +263,11 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         if (super.equals(obj) == false) return false;
         AutoDateHistogramAggregationBuilder other = (AutoDateHistogramAggregationBuilder) obj;
         return Objects.equals(numBuckets, other.numBuckets) && Objects.equals(minimumIntervalExpression, other.minimumIntervalExpression);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     public static class RoundingInfo implements Writeable {

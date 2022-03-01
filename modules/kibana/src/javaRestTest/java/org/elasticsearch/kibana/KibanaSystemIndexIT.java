@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -68,14 +69,20 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testBulkToKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
+        request.setJsonEntity("""
+            { "index" : { "_index" : "%s", "_id" : "1" } }
+            { "foo" : "bar" }
+            """.formatted(indexName));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testRefresh() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
+        request.setJsonEntity("""
+            { "index" : { "_index" : "%s", "_id" : "1" } }
+            { "foo" : "bar" }
+            """.formatted(indexName));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 
@@ -93,7 +100,10 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testGetFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("{ \"index\" : { \"_index\" : \"" + indexName + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n");
+        request.setJsonEntity("""
+            { "index" : { "_index" : "%s", "_id" : "1" } }
+            { "foo" : "bar" }
+            """.formatted(indexName));
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
@@ -109,28 +119,31 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testMultiGetFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(
-            "{ \"index\" : { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
-                + "{ \"index\" : { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
-        );
+        request.setJsonEntity("""
+            { "index" : { "_index" : "%s", "_id" : "1" } }
+            { "foo" : "bar" }
+            { "index" : { "_index" : "%s", "_id" : "2" } }
+            { "baz" : "tag" }
+            """.formatted(indexName, indexName));
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 
         Request getRequest = request("GET", "/_mget");
-        getRequest.setJsonEntity(
-            "{ \"docs\" : [ { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"1\" }, "
-                + "{ \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"2\" } ] }\n"
-        );
+        getRequest.setJsonEntity("""
+            {
+              "docs": [
+                {
+                  "_index": "%s",
+                  "_id": "1"
+                },
+                {
+                  "_index": "%s",
+                  "_id": "2"
+                }
+              ]
+            }""".formatted(indexName, indexName));
         Response getResponse = client().performRequest(getRequest);
         assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
         String responseBody = EntityUtils.toString(getResponse.getEntity());
@@ -142,21 +155,21 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testSearchFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(
-            "{ \"index\" : { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
-                + "{ \"index\" : { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
-        );
+        request.setJsonEntity("""
+            { "index" : { "_index" : "%s", "_id" : "1" } }
+            { "foo" : "bar" }
+            { "index" : { "_index" : "%s", "_id" : "2" } }
+            { "baz" : "tag" }
+            """.formatted(indexName, indexName));
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 
         Request searchRequest = request("GET", "/" + indexName + "/_search");
-        searchRequest.setJsonEntity("{ \"query\" : { \"match_all\" : {} } }\n");
+        searchRequest.setJsonEntity("""
+            { "query" : { "match_all" : {} } }
+            """);
         Response getResponse = client().performRequest(searchRequest);
         assertThat(getResponse.getStatusLine().getStatusCode(), is(200));
         String responseBody = EntityUtils.toString(getResponse.getEntity());
@@ -168,14 +181,12 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testDeleteFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(
-            "{ \"index\" : { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
-                + "{ \"index\" : { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
-        );
+        request.setJsonEntity("""
+            { "index" : { "_index" : "%s", "_id" : "1" } }
+            { "foo" : "bar" }
+            { "index" : { "_index" : "%s", "_id" : "2" } }
+            { "baz" : "tag" }
+            """.formatted(indexName, indexName));
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
@@ -188,21 +199,21 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testDeleteByQueryFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(
-            "{ \"index\" : { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
-                + "{ \"index\" : { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
-        );
+        request.setJsonEntity("""
+            { "index" : { "_index" : "%s", "_id" : "1" } }
+            { "foo" : "bar" }
+            { "index" : { "_index" : "%s", "_id" : "2" } }
+            { "baz" : "tag" }
+            """.formatted(indexName, indexName));
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 
         Request dbqRequest = request("POST", "/" + indexName + "/_delete_by_query");
-        dbqRequest.setJsonEntity("{ \"query\" : { \"match_all\" : {} } }\n");
+        dbqRequest.setJsonEntity("""
+            { "query" : { "match_all" : {} } }
+            """);
         Response dbqResponse = client().performRequest(dbqRequest);
         assertThat(dbqResponse.getStatusLine().getStatusCode(), is(200));
     }
@@ -216,6 +227,27 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         request.setJsonEntity("{ \"index.blocks.read_only\" : false }");
         response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
+    }
+
+    public void testCannotCreateVisibleSystemIndex() {
+        Request request = request("PUT", "/" + indexName);
+        request.setJsonEntity("{\"settings\": {\"index.hidden\":\"false\"}}");
+        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(
+            exception.getMessage(),
+            containsString("Cannot create system index [" + indexName + "] with [index.hidden] set to 'false'")
+        );
+    }
+
+    public void testCannotSetVisible() throws IOException {
+        Request putIndexRequest = request("PUT", "/" + indexName);
+        Response response = client().performRequest(putIndexRequest);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        Request putSettingsRequest = request("PUT", "/" + indexName + "/_settings");
+        putSettingsRequest.setJsonEntity("{ \"index.hidden\" : false }");
+        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(putSettingsRequest));
+        assertThat(exception.getMessage(), containsString("Cannot set [index.hidden] to 'false' on system indices: [" + indexName + "]"));
     }
 
     public void testGetIndex() throws IOException {
@@ -257,23 +289,22 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testScrollingDocs() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(
-            "{ \"index\" : { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"1\" } }\n{ \"foo\" : \"bar\" }\n"
-                + "{ \"index\" : { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"2\" } }\n{ \"baz\" : \"tag\" }\n"
-                + "{ \"index\" : { \"_index\" : \""
-                + indexName
-                + "\", \"_id\" : \"3\" } }\n{ \"baz\" : \"tag\" }\n"
-        );
+        request.setJsonEntity("""
+            { "index" : { "_index" : "%s", "_id" : "1" } }
+            { "foo" : "bar" }
+            { "index" : { "_index" : "%s", "_id" : "2" } }
+            { "baz" : "tag" }
+            { "index" : { "_index" : "%s", "_id" : "3" } }
+            { "baz" : "tag" }
+            """.formatted(indexName, indexName, indexName));
         request.addParameter("refresh", "true");
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 
         Request searchRequest = request("GET", "/" + indexName + "/_search");
-        searchRequest.setJsonEntity("{ \"size\" : 1,\n\"query\" : { \"match_all\" : {} } }\n");
+        searchRequest.setJsonEntity("""
+            { "size" : 1, "query" : { "match_all" : {} } }
+            """);
         searchRequest.addParameter("scroll", "1m");
         response = client().performRequest(searchRequest);
         assertThat(response.getStatusLine().getStatusCode(), is(200));

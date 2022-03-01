@@ -64,7 +64,7 @@ public class GeoTileCellIdSource extends ValuesSource.Numeric {
         }
 
         @Override
-        int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
+        protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
             values[valuesIdx] = GeoTileUtils.longEncode(target.getLon(), target.getLat(), precision);
             return valuesIdx + 1;
         }
@@ -97,7 +97,7 @@ public class GeoTileCellIdSource extends ValuesSource.Numeric {
         }
 
         @Override
-        int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
+        protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
             final int x = GeoTileUtils.getXTile(target.getLon(), this.tiles);
             final int y = GeoTileUtils.getYTile(target.getLat(), this.tiles);
             if (validTile(x, y)) {

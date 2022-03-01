@@ -1,0 +1,5 @@
+pr: 82763
+summary: Make wildcard accessible from the scripting field API
+area: Infra/Scripting
+type: enhancement
+issues: []

@@ -28,8 +28,8 @@ public class SearchContextSourcePrinter {
         } else {
             builder.append("source[], ");
         }
-        if (searchContext.getTask() != null && searchContext.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
-            builder.append("id[").append(searchContext.getTask().getHeader(Task.X_OPAQUE_ID)).append("], ");
+        if (searchContext.getTask() != null && searchContext.getTask().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER) != null) {
+            builder.append("id[").append(searchContext.getTask().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER)).append("], ");
         } else {
             builder.append("id[], ");
         }

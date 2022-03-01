@@ -10,17 +10,20 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class InternalFilters extends InternalMultiBucketAggregation<InternalFilters, InternalFilters.InternalBucket> implements Filters {
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements Filters.Bucket {
@@ -106,6 +109,15 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         public int hashCode() {
             return Objects.hash(getClass(), key, keyed, docCount, aggregations);
         }
+
+        InternalBucket finalizeSampling(SamplingContext samplingContext) {
+            return new InternalBucket(
+                key,
+                samplingContext.scaleUp(docCount),
+                InternalAggregations.finalizeSampling(aggregations, samplingContext),
+                keyed
+            );
+        }
     }
 
     private final List<InternalBucket> buckets;
@@ -166,7 +178,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     @Override
     public InternalBucket getBucketByKey(String key) {
         if (bucketMap == null) {
-            bucketMap = new HashMap<>(buckets.size());
+            bucketMap = Maps.newMapWithExpectedSize(buckets.size());
             for (InternalBucket bucket : buckets) {
                 bucketMap.put(bucket.getKey(), bucket);
             }
@@ -175,7 +187,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         List<List<InternalBucket>> bucketsList = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalFilters filters = (InternalFilters) aggregation;
@@ -203,7 +215,17 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     }
 
     @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, ReduceContext context) {
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalFilters(
+            name,
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            keyed,
+            getMetadata()
+        );
+    }
+
+    @Override
+    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         InternalBucket reduced = null;
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());

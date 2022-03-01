@@ -283,13 +283,14 @@ public class NodeShutdownIT extends ESRestTestCase {
         // Create an index, pin the allocation to the node we're about to shut down
         final String indexName = "test-idx";
         Request createIndexRequest = new Request("PUT", indexName);
-        createIndexRequest.setJsonEntity(
-            "{\"settings\":  {\"number_of_shards\": "
-                + numberOfShards
-                + ", \"number_of_replicas\": 0, \"index.routing.allocation.require._id\": \""
-                + nodeIdToShutdown
-                + "\"}}"
-        );
+        createIndexRequest.setJsonEntity("""
+            {
+              "settings": {
+                "number_of_shards": %s,
+                "number_of_replicas": 0,
+                "index.routing.allocation.require._id": "%s"
+              }
+            }""".formatted(numberOfShards, nodeIdToShutdown));
         assertOK(client().performRequest(createIndexRequest));
 
         // Mark the node for shutdown

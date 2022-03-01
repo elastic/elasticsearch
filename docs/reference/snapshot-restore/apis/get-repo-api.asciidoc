@@ -97,13 +97,11 @@ URL repository. See <<snapshots-read-only-repository>>.
 
 More repository types are available through these official plugins:
 
-* {plugins}/repository-s3.html[repository-s3] for S3 repository support
+* <<repository-s3, repository-s3>> for S3 repository support
 * {plugins}/repository-hdfs.html[repository-hdfs] for HDFS repository support in
   Hadoop environments
-* {plugins}/repository-azure.html[repository-azure] for Azure storage
-  repositories
-* {plugins}/repository-gcs.html[repository-gcs] for Google Cloud Storage
-  repositories
+* <<repository-azure,repository-azure>> for Azure storage repositories
+* <<repository-gcs,repository-gcs>> for Google Cloud Storage repositories
 --
 
 `settings`::

@@ -88,13 +88,9 @@ public class InternalRealmsTests extends ESTestCase {
     }
 
     private boolean isStandardRealm(String type) {
-        switch (type) {
-            case LdapRealmSettings.LDAP_TYPE:
-            case LdapRealmSettings.AD_TYPE:
-            case PkiRealmSettings.TYPE:
-                return true;
-            default:
-                return false;
-        }
+        return switch (type) {
+            case LdapRealmSettings.LDAP_TYPE, LdapRealmSettings.AD_TYPE, PkiRealmSettings.TYPE -> true;
+            default -> false;
+        };
     }
 }

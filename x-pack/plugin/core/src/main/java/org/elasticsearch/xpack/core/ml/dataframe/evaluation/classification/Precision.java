@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -101,15 +102,15 @@ public class Precision implements EvaluationMetric {
         EvaluationParameters parameters,
         EvaluationFields fields
     ) {
-        String actualField = fields.getActualField();
+        String actualFieldName = fields.getActualField();
         String predictedField = fields.getPredictedField();
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
-        this.actualField.trySet(actualField);
+        this.actualField.trySet(actualFieldName);
         if (topActualClassNames.get() == null) {  // This is step 1
             return Tuple.tuple(
                 List.of(
                     AggregationBuilders.terms(ACTUAL_CLASSES_NAMES_AGG_NAME)
-                        .field(actualField)
+                        .field(actualFieldName)
                         .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
                         .size(MAX_CLASSES_CARDINALITY)
                 ),
@@ -121,7 +122,7 @@ public class Precision implements EvaluationMetric {
                 .stream()
                 .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(predictedField, className).lenient(true)))
                 .toArray(KeyedFilter[]::new);
-            Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
+            Script script = PainlessScripts.buildIsEqualScript(actualFieldName, predictedField);
             return Tuple.tuple(
                 List.of(
                     AggregationBuilders.filters(BY_PREDICTED_CLASS_AGG_NAME, keyedFiltersPredicted)
@@ -140,8 +141,8 @@ public class Precision implements EvaluationMetric {
 
     @Override
     public void process(Aggregations aggs) {
-        if (topActualClassNames.get() == null && aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME) instanceof Terms) {
-            Terms topActualClassesAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
+        final Aggregation classNamesAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
+        if (topActualClassNames.get() == null && classNamesAgg instanceof Terms topActualClassesAgg) {
             if (topActualClassesAgg.getSumOfOtherDocCounts() > 0) {
                 // This means there were more than {@code MAX_CLASSES_CARDINALITY} buckets.
                 // We cannot calculate average precision accurately, so we fail.
@@ -154,11 +155,11 @@ public class Precision implements EvaluationMetric {
                 topActualClassesAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList())
             );
         }
+        final Aggregation byPredicted = aggs.get(BY_PREDICTED_CLASS_AGG_NAME);
+        final Aggregation avgPrecision = aggs.get(AVG_PRECISION_AGG_NAME);
         if (result.get() == null
-            && aggs.get(BY_PREDICTED_CLASS_AGG_NAME) instanceof Filters
-            && aggs.get(AVG_PRECISION_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
-            Filters byPredictedClassAgg = aggs.get(BY_PREDICTED_CLASS_AGG_NAME);
-            NumericMetricsAggregation.SingleValue avgPrecisionAgg = aggs.get(AVG_PRECISION_AGG_NAME);
+            && byPredicted instanceof Filters byPredictedClassAgg
+            && avgPrecision instanceof NumericMetricsAggregation.SingleValue avgPrecisionAgg) {
             List<PerClassSingleValue> classes = new ArrayList<>(byPredictedClassAgg.getBuckets().size());
             for (Filters.Bucket bucket : byPredictedClassAgg.getBuckets()) {
                 String className = bucket.getKeyAsString();

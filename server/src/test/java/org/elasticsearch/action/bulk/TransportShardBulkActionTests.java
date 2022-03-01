@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.replication.TransportWriteAction.WritePr
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -86,13 +86,20 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         .build();
 
     private IndexMetadata indexMetadata() throws IOException {
-        return IndexMetadata.builder("index")
-            .putMapping(
-                "{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" + "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}"
-            )
-            .settings(idxSettings)
-            .primaryTerm(0, 1)
-            .build();
+        return IndexMetadata.builder("index").putMapping("""
+            {
+              "properties": {
+                "foo": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                }
+              }
+            }""").settings(idxSettings).primaryTerm(0, 1).build();
     }
 
     public void testExecuteBulkIndexRequest() throws Exception {

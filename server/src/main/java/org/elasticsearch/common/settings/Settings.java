@@ -22,19 +22,18 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -133,7 +132,7 @@ public final class Settings implements ToXContentFragment {
     }
 
     private Map<String, Object> getAsStructuredMap() {
-        Map<String, Object> map = new HashMap<>(2);
+        Map<String, Object> map = Maps.newMapWithExpectedSize(2);
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
             processSetting(map, "", entry.getKey(), entry.getValue());
         }
@@ -165,7 +164,7 @@ public final class Settings implements ToXContentFragment {
             String rest = setting.substring(prefixLength + 1);
             Object existingValue = map.get(prefix + key);
             if (existingValue == null) {
-                Map<String, Object> newMap = new HashMap<>(2);
+                Map<String, Object> newMap = Maps.newMapWithExpectedSize(2);
                 processSetting(newMap, "", rest, value);
                 map.put(prefix + key, newMap);
             } else {
@@ -614,15 +613,46 @@ public final class Settings implements ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Settings settings = SettingsFilter.filterSettings(params, this);
         if (params.paramAsBoolean("flat_settings", false) == false) {
-            for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            toXContentFlat(builder, settings);
         } else {
-            for (Map.Entry<String, Object> entry : settings.settings.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            toXContent(builder, settings);
         }
         return builder;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void toXContent(XContentBuilder builder, Settings settings) throws IOException {
+        for (Map.Entry<String, Object> entry : settings.settings.entrySet()) {
+            final Object value = entry.getValue();
+            final String key = entry.getKey();
+            if (value instanceof String) {
+                // most setting values are string
+                builder.field(key, (String) value);
+            } else if (value instanceof List) {
+                // all setting lists are lists of String so we can save the expensive type detection in the builder
+                builder.stringListField(key, (List<String>) value);
+            } else {
+                // this should be rare, let the builder figure out the type
+                builder.field(key, value);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void toXContentFlat(XContentBuilder builder, Settings settings) throws IOException {
+        for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
+            final Object value = entry.getValue();
+            final String key = entry.getKey();
+            if (value instanceof String) {
+                builder.field(key, (String) value);
+            } else if (value instanceof Map) {
+                // lots of maps in flattened settings so far cheaper to check here then to have the XContent builder figure out the type
+                builder.field(key).map((Map<String, ?>) value);
+            } else {
+                // this should be rare, let the builder figure out the type
+                builder.field(key, value);
+            }
+        }
     }
 
     /**
@@ -653,16 +683,16 @@ public final class Settings implements ToXContentFragment {
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
                         + "column number: [{}]",
                     e,
-                    parser.getTokenLocation().lineNumber,
-                    parser.getTokenLocation().columnNumber
+                    parser.getTokenLocation().lineNumber(),
+                    parser.getTokenLocation().columnNumber()
                 );
             }
             if (lastToken != null) {
                 throw new ElasticsearchParseException(
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
                         + "column number: [{}]",
-                    parser.getTokenLocation().lineNumber,
-                    parser.getTokenLocation().columnNumber
+                    parser.getTokenLocation().lineNumber(),
+                    parser.getTokenLocation().columnNumber()
                 );
             }
         }
@@ -720,8 +750,8 @@ public final class Settings implements ToXContentFragment {
             throw new ElasticsearchParseException(
                 "null-valued setting found for key [{}] found at line number [{}], column number [{}]",
                 key,
-                parser.getTokenLocation().lineNumber,
-                parser.getTokenLocation().columnNumber
+                parser.getTokenLocation().lineNumber(),
+                parser.getTokenLocation().columnNumber()
             );
         }
     }
@@ -1107,10 +1137,7 @@ public final class Settings implements ToXContentFragment {
          * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
-            try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)
-            ) {
+            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, source)) {
                 this.put(fromXContent(parser, true, true));
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]", e);
@@ -1140,10 +1167,7 @@ public final class Settings implements ToXContentFragment {
                 throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
             }
             // fromXContent doesn't use named xcontent or deprecation.
-            try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, is)
-            ) {
+            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, is)) {
                 if (parser.currentToken() == null) {
                     if (parser.nextToken() == null) {
                         return this; // empty file

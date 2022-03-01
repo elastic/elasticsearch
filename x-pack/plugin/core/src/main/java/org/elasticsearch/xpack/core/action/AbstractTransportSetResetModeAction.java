@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -115,7 +116,8 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
                     logger.trace(() -> new ParameterizedMessage("Executing cluster state update for [{}]", featureName()));
                     return setState(currentState, request);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

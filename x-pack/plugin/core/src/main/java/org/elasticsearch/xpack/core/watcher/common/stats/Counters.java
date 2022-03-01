@@ -29,8 +29,8 @@ public class Counters implements Writeable {
     private ObjectLongHashMap<String> counters = new ObjectLongHashMap<>();
 
     public Counters(StreamInput in) throws IOException {
-        int counters = in.readVInt();
-        for (int i = 0; i < counters; i++) {
+        int numCounters = in.readVInt();
+        for (int i = 0; i < numCounters; i++) {
             inc(in.readString(), in.readVLong());
         }
     }

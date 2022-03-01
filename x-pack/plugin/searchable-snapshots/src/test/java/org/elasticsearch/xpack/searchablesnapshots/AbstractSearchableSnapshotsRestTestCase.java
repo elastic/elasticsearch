@@ -42,7 +42,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
@@ -300,8 +299,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             assertThat(snapshotShardsStats.size(), equalTo(1));
             for (Map<String, Object> value : snapshotShardsStats.get(0).values()) {
-                assertThat(extractValue(value, "stats.total.file_count"), equalTo(1));
-                assertThat(extractValue(value, "stats.incremental.file_count"), lessThanOrEqualTo(1));
+                assertThat(extractValue(value, "stats.total.file_count"), equalTo(0));
+                assertThat(extractValue(value, "stats.incremental.file_count"), equalTo(0));
             }
 
             deleteIndex(restoredIndexName);
@@ -330,28 +329,27 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         final int randomTieBreaker = randomIntBetween(0, numDocs - 1);
         Map<String, Object> searchResults;
         switch (randomInt(3)) {
-            case 0:
+            case 0 -> {
                 searchResults = search(indexName, QueryBuilders.termQuery("field", String.valueOf(randomTieBreaker)), ignoreThrottled);
                 assertThat(extractValue(searchResults, "hits.total.value"), equalTo(1));
                 @SuppressWarnings("unchecked")
                 Map<String, Object> searchHit = (Map<String, Object>) ((List<?>) extractValue(searchResults, "hits.hits")).get(0);
                 assertThat(extractValue(searchHit, "_index"), equalTo(indexName));
                 assertThat(extractValue(searchHit, "_source.field"), equalTo(randomTieBreaker));
-                break;
-            case 1:
+            }
+            case 1 -> {
                 searchResults = search(indexName, QueryBuilders.rangeQuery("field").lt(randomTieBreaker), ignoreThrottled);
                 assertThat(extractValue(searchResults, "hits.total.value"), equalTo(randomTieBreaker));
-                break;
-            case 2:
+            }
+            case 2 -> {
                 searchResults = search(indexName, QueryBuilders.rangeQuery("field").gte(randomTieBreaker), ignoreThrottled);
                 assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs - randomTieBreaker));
-                break;
-            case 3:
+            }
+            case 3 -> {
                 searchResults = search(indexName, QueryBuilders.matchQuery("text", "document"), ignoreThrottled);
                 assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
-                break;
-            default:
-                fail("Unsupported randomized search query");
+            }
+            default -> fail("Unsupported randomized search query");
         }
     }
 

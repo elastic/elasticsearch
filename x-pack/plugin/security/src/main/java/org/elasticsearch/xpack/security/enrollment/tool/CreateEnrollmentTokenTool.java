@@ -22,16 +22,19 @@ import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.security.enrollment.ExternalEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
 
+import java.net.URL;
 import java.util.List;
 import java.util.function.Function;
 
 public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
 
     private final OptionSpec<String> scope;
+    private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, ExternalEnrollmentTokenGenerator, Exception> createEnrollmentTokenFunction;
     static final List<String> ALLOWED_SCOPES = List.of("node", "kibana");
 
     CreateEnrollmentTokenTool() {
+
         this(
             environment -> new CommandLineHttpClient(environment),
             environment -> KeyStoreWrapper.load(environment.configFile()),
@@ -46,6 +49,7 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
     ) {
         super(clientFunction, keyStoreFunction, "Creates enrollment tokens for elasticsearch nodes and kibana instances");
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
+        this.clientFunction = clientFunction;
         scope = parser.acceptsAll(List.of("scope", "s"), "The scope of this enrollment token, can be either \"node\" or \"kibana\"")
             .withRequiredArg()
             .required();
@@ -74,12 +78,15 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
     protected void executeCommand(Terminal terminal, OptionSet options, Environment env, String username, SecureString password)
         throws Exception {
         final String tokenScope = scope.value(options);
+        final URL baseUrl = options.has(urlOption)
+            ? new URL(options.valueOf(urlOption))
+            : new URL(clientFunction.apply(env).getDefaultURL());
         try {
             ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = createEnrollmentTokenFunction.apply(env);
             if (tokenScope.equals("node")) {
-                terminal.println(externalEnrollmentTokenGenerator.createNodeEnrollmentToken(username, password).getEncoded());
+                terminal.println(externalEnrollmentTokenGenerator.createNodeEnrollmentToken(username, password, baseUrl).getEncoded());
             } else {
-                terminal.println(externalEnrollmentTokenGenerator.createKibanaEnrollmentToken(username, password).getEncoded());
+                terminal.println(externalEnrollmentTokenGenerator.createKibanaEnrollmentToken(username, password, baseUrl).getEncoded());
             }
         } catch (Exception e) {
             terminal.errorPrintln("Unable to create enrollment token for scope [" + tokenScope + "]");

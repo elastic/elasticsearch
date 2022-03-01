@@ -11,15 +11,13 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -280,11 +278,11 @@ public class OpenIdConnectRealmSettings {
         }, Setting.Property.NodeScope)
     );
 
-    public static final ClaimSetting PRINCIPAL_CLAIM = new ClaimSetting("principal");
-    public static final ClaimSetting GROUPS_CLAIM = new ClaimSetting("groups");
-    public static final ClaimSetting NAME_CLAIM = new ClaimSetting("name");
-    public static final ClaimSetting DN_CLAIM = new ClaimSetting("dn");
-    public static final ClaimSetting MAIL_CLAIM = new ClaimSetting("mail");
+    public static final ClaimSetting PRINCIPAL_CLAIM = new ClaimSetting(TYPE, "principal");
+    public static final ClaimSetting GROUPS_CLAIM = new ClaimSetting(TYPE, "groups");
+    public static final ClaimSetting NAME_CLAIM = new ClaimSetting(TYPE, "name");
+    public static final ClaimSetting DN_CLAIM = new ClaimSetting(TYPE, "dn");
+    public static final ClaimSetting MAIL_CLAIM = new ClaimSetting(TYPE, "mail");
 
     public static Set<Setting.AffixSetting<?>> getSettings() {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet(
@@ -325,44 +323,4 @@ public class OpenIdConnectRealmSettings {
         return set;
     }
 
-    /**
-     * The OIDC realm offers a number of settings that rely on claim values that are populated by the OP in the ID Token or the User Info
-     * response.
-     * Each claim has 2 settings:
-     * <ul>
-     * <li>The name of the OpenID Connect claim to use</li>
-     * <li>An optional java pattern (regex) to apply to that claim value in order to extract the substring that should be used.</li>
-     * </ul>
-     * For example, the Elasticsearch User Principal could be configured to come from the OpenID Connect standard claim "email",
-     * and extract only the local-part of the user's email address (i.e. the name before the '@').
-     * This class encapsulates those 2 settings.
-     */
-    public static final class ClaimSetting {
-        public static final String CLAIMS_PREFIX = "claims.";
-        public static final String CLAIM_PATTERNS_PREFIX = "claim_patterns.";
-
-        private final Setting.AffixSetting<String> claim;
-        private final Setting.AffixSetting<String> pattern;
-
-        public ClaimSetting(String name) {
-            claim = RealmSettings.simpleString(TYPE, CLAIMS_PREFIX + name, Setting.Property.NodeScope);
-            pattern = RealmSettings.simpleString(TYPE, CLAIM_PATTERNS_PREFIX + name, Setting.Property.NodeScope);
-        }
-
-        public Collection<Setting.AffixSetting<?>> settings() {
-            return Arrays.asList(getClaim(), getPattern());
-        }
-
-        public String name(RealmConfig config) {
-            return getClaim().getConcreteSettingForNamespace(config.name()).getKey();
-        }
-
-        public Setting.AffixSetting<String> getClaim() {
-            return claim;
-        }
-
-        public Setting.AffixSetting<String> getPattern() {
-            return pattern;
-        }
-    }
 }

@@ -21,6 +21,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.cloneWithNewTruncation;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.createTokenizationUpdate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -65,12 +67,7 @@ public class NerConfigUpdateTests extends AbstractBWCSerializationTestCase<NerCo
         );
 
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
-        Tokenization tokenization = new BertTokenization(
-            originalConfig.getTokenization().doLowerCase(),
-            originalConfig.getTokenization().withSpecialTokens(),
-            originalConfig.getTokenization().maxSequenceLength(),
-            truncate
-        );
+        Tokenization tokenization = cloneWithNewTruncation(originalConfig.getTokenization(), truncate);
         assertThat(
             new NerConfig(
                 originalConfig.getVocabularyConfig(),
@@ -78,7 +75,11 @@ public class NerConfigUpdateTests extends AbstractBWCSerializationTestCase<NerCo
                 originalConfig.getClassificationLabels(),
                 originalConfig.getResultsField()
             ),
-            equalTo(new NerConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(truncate)).build().apply(originalConfig))
+            equalTo(
+                new NerConfigUpdate.Builder().setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate))
+                    .build()
+                    .apply(originalConfig)
+            )
         );
     }
 

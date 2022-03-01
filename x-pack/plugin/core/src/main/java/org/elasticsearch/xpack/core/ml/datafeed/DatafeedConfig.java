@@ -12,7 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -83,7 +83,7 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  * used around integral types and booleans so they can take <code>null</code>
  * values.
  */
-public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
+public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXContentObject {
 
     private static final Version RUNTIME_MAPPINGS_INTRODUCED = Version.V_7_11_0;
 
@@ -957,11 +957,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return this;
         }
 
-        private Builder setAggregationsSafe(AggProvider aggProvider) {
+        private Builder setAggregationsSafe(AggProvider provider) {
             if (this.aggProvider != null) {
                 throw ExceptionsHelper.badRequestException("Found two aggregation definitions: [aggs] and [aggregations]");
             }
-            this.aggProvider = aggProvider;
+            this.aggProvider = provider;
             return this;
         }
 
@@ -1035,7 +1035,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (MlStrings.isValidId(id) == false) {
                 throw ExceptionsHelper.badRequestException(getMessage(INVALID_ID, ID.getPreferredName(), id));
             }
-            if (indices == null || indices.isEmpty() || indices.contains(null) || indices.contains("")) {
+            if (indices == null || indices.isEmpty() || indices.contains("")) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
             }
 
@@ -1045,7 +1045,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
             setDefaultQueryDelay();
             if (indicesOptions == null) {
-                indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+                indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
             }
             return new DatafeedConfig(
                 id,
@@ -1097,8 +1097,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
 
             for (AggregationBuilder agg : histogramAggregation.getSubAggregations()) {
-                if (agg instanceof MaxAggregationBuilder) {
-                    MaxAggregationBuilder maxAgg = (MaxAggregationBuilder) agg;
+                if (agg instanceof MaxAggregationBuilder maxAgg) {
                     if (maxAgg.field().equals(timeField)) {
                         return;
                     }

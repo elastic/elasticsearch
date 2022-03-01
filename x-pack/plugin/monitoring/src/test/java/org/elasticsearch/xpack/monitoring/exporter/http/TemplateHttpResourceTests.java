@@ -28,10 +28,52 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
     private final String templateName = ".my_template";
 
     // the internal representation has the type, the external representation should not
-    private final String templateValueInternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\":{\"_doc\""
-        + ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}}},\"aliases\":{}}";
-    private final String templateValueExternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\""
-        + ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}},\"aliases\":{}}";
+    private final String templateValueInternal = """
+        {
+          "order": 0,
+          "index_patterns": [ ".xyz-*" ],
+          "settings": {},
+          "mappings": {
+            "_doc": {
+              "properties": {
+                "one": {
+                  "properties": {
+                    "two": {
+                      "properties": {
+                        "name": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "aliases": {}
+        }""";
+    private final String templateValueExternal = """
+        {
+          "order": 0,
+          "index_patterns": [ ".xyz-*" ],
+          "settings": {},
+          "mappings": {
+            "properties": {
+              "one": {
+                "properties": {
+                  "two": {
+                    "properties": {
+                      "name": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "aliases": {}
+        }""";
     private final Supplier<String> template = () -> templateValueInternal;
     private final int minimumVersion = Math.min(MonitoringTemplateUtils.LAST_UPDATED_VERSION, Version.CURRENT.id);
 

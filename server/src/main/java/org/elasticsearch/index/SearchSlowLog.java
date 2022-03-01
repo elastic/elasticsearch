@@ -196,7 +196,7 @@ public final class SearchSlowLog implements SearchOperationListener {
                 messageFields.put("elasticsearch.slowlog.source", "{}");
             }
 
-            messageFields.put("elasticsearch.slowlog.id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            messageFields.put("elasticsearch.slowlog.id", context.getTask().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER));
             return messageFields;
         }
 

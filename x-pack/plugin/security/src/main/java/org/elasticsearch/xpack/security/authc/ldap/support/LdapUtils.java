@@ -225,10 +225,10 @@ public final class LdapUtils {
         ActionListener<SearchResultEntry> listener,
         String... attributes
     ) {
-        if (ldap instanceof LDAPConnection) {
-            searchForEntry((LDAPConnection) ldap, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
-        } else if (ldap instanceof LDAPConnectionPool) {
-            searchForEntry((LDAPConnectionPool) ldap, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
+        if (ldap instanceof LDAPConnection ldapConnection) {
+            searchForEntry(ldapConnection, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
+        } else if (ldap instanceof LDAPConnectionPool ldapConnectionPool) {
+            searchForEntry(ldapConnectionPool, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
         } else {
             throw new IllegalArgumentException("unsupported LDAPInterface implementation: " + ldap);
         }
@@ -333,10 +333,10 @@ public final class LdapUtils {
         ActionListener<List<SearchResultEntry>> listener,
         String... attributes
     ) {
-        if (ldap instanceof LDAPConnection) {
-            search((LDAPConnection) ldap, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
-        } else if (ldap instanceof LDAPConnectionPool) {
-            search((LDAPConnectionPool) ldap, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
+        if (ldap instanceof LDAPConnection ldapConnection) {
+            search(ldapConnection, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
+        } else if (ldap instanceof LDAPConnectionPool ldapConnectionPool) {
+            search(ldapConnectionPool, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, listener, attributes);
         } else {
             throw new IllegalArgumentException("unsupported LDAPInterface implementation: " + ldap);
         }
@@ -436,14 +436,10 @@ public final class LdapUtils {
      * purposes of this method.
      */
     private static boolean isSuccess(SearchResult searchResult) {
-        switch (searchResult.getResultCode().intValue()) {
-            case ResultCode.SUCCESS_INT_VALUE:
-            case ResultCode.COMPARE_FALSE_INT_VALUE:
-            case ResultCode.COMPARE_TRUE_INT_VALUE:
-                return true;
-            default:
-                return false;
-        }
+        return switch (searchResult.getResultCode().intValue()) {
+            case ResultCode.SUCCESS_INT_VALUE, ResultCode.COMPARE_FALSE_INT_VALUE, ResultCode.COMPARE_TRUE_INT_VALUE -> true;
+            default -> false;
+        };
     }
 
     private static SearchResult emptyResult(SearchResult parentResult) {

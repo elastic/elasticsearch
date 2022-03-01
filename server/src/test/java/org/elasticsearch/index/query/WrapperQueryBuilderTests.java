@@ -51,17 +51,12 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             throw new UncheckedIOException(e);
         }
 
-        switch (randomInt(2)) {
-            case 0:
-                return new WrapperQueryBuilder(wrappedQuery.toString());
-            case 1:
-
-                return new WrapperQueryBuilder(BytesReference.toBytes(bytes));
-            case 2:
-                return new WrapperQueryBuilder(bytes);
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomInt(2)) {
+            case 0 -> new WrapperQueryBuilder(wrappedQuery.toString());
+            case 1 -> new WrapperQueryBuilder(BytesReference.toBytes(bytes));
+            case 2 -> new WrapperQueryBuilder(bytes);
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     @Override
@@ -93,7 +88,12 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n" + "  \"wrapper\" : {\n" + "    \"query\" : \"e30=\"\n" + "  }\n" + "}";
+        String json = """
+            {
+              "wrapper" : {
+                "query" : "e30="
+              }
+            }""";
 
         WrapperQueryBuilder parsed = (WrapperQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -119,10 +119,12 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     public void testRewriteWithInnerName() throws IOException {
-        QueryBuilder builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}");
+        QueryBuilder builder = new WrapperQueryBuilder("""
+            { "match_all" : {"_name" : "foobar"}}""");
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(searchExecutionContext));
-        builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}").queryName("outer");
+        builder = new WrapperQueryBuilder("""
+            { "match_all" : {"_name" : "foobar"}}""").queryName("outer");
         assertEquals(
             new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
             builder.rewrite(searchExecutionContext)

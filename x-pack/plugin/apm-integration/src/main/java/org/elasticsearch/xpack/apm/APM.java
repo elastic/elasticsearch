@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.apm;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -40,7 +40,7 @@ import java.util.function.Supplier;
 
 public class APM extends Plugin implements NetworkPlugin {
 
-    public static final Set<String> TRACE_HEADERS = Set.of(Task.TRACE_PARENT, Task.TRACE_STATE);
+    public static final Set<String> TRACE_HEADERS = Set.of(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE);
 
     private final SetOnce<APMTracer> tracer = new SetOnce<>();
     private final Settings settings;

@@ -31,7 +31,11 @@ import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlSearchRequest> {
 
     // TODO: possibly add mutations
-    static String defaultTestFilter = "{\n" + "   \"match\" : {\n" + "       \"foo\": \"bar\"\n" + "   }" + "}";
+    static String defaultTestFilter = """
+        {
+           "match" : {
+               "foo": "bar"
+           }}""";
 
     static String defaultTestIndex = "endgame-*";
     boolean ccsMinimizeRoundtrips;

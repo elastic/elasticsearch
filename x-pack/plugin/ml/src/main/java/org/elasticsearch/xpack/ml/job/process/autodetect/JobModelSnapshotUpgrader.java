@@ -13,7 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -71,6 +71,9 @@ public final class JobModelSnapshotUpgrader {
     private final AutodetectProcessFactory autodetectProcessFactory;
     private final JobResultsPersister jobResultsPersister;
     private final NativeStorageProvider nativeStorageProvider;
+    // Not volatile as only used in synchronized methods
+    private AutodetectProcess process;
+    private JobSnapshotUpgraderResultProcessor processor;
 
     JobModelSnapshotUpgrader(
         SnapshotUpgradeTask task,
@@ -98,11 +101,13 @@ public final class JobModelSnapshotUpgrader {
         this.snapshotId = task.getSnapshotId();
     }
 
-    void start() {
+    synchronized void start() {
+        task.setJobModelSnapshotUpgrader(this);
+
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autodetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
 
-        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(
+        process = autodetectProcessFactory.createAutodetectProcess(
             jobId + "-" + snapshotId,
             job,
             params,
@@ -119,12 +124,7 @@ public final class JobModelSnapshotUpgrader {
                 }
             }
         );
-        JobSnapshotUpgraderResultProcessor processor = new JobSnapshotUpgraderResultProcessor(
-            jobId,
-            snapshotId,
-            jobResultsPersister,
-            process
-        );
+        processor = new JobSnapshotUpgraderResultProcessor(jobId, snapshotId, jobResultsPersister, process);
         ProcessWorkerExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
@@ -135,6 +135,8 @@ public final class JobModelSnapshotUpgrader {
             // the process too, so that other submitted operations to threadpool are stopped.
             try {
                 IOUtils.close(process);
+                process = null;
+                processor = null;
             } catch (IOException ioe) {
                 logger.error("Can't close autodetect", ioe);
             }
@@ -157,6 +159,24 @@ public final class JobModelSnapshotUpgrader {
             logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to set task to failed", task.getJobId(), task.getSnapshotId()), f);
             listener.onFailure(f);
         }));
+    }
+
+    public synchronized void killProcess(String reason) {
+        if (process != null) {
+            try {
+                logger.debug("[{}] killing upgrade process for model snapshot [{}]: reason [{}]", jobId, snapshotId, reason);
+                if (processor != null) {
+                    processor.setProcessKilled();
+                }
+                process.kill(true);
+                process = null;
+                processor = null;
+            } catch (IOException e) {
+                logger.error(new ParameterizedMessage("[{}] failed to kill upgrade process for model snapshot [{}]", jobId, snapshotId), e);
+            }
+        } else {
+            logger.warn("[{}] attempt to kill upgrade process for model snapshot [{}] when no such process exists", jobId, snapshotId);
+        }
     }
 
     private class Executor {

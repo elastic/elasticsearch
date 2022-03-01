@@ -1,0 +1,5 @@
+pr: 83218
+summary: Copy `trace.id` in threadcontext stash
+area: Infra/Core
+type: bug
+issues: []

@@ -10,9 +10,9 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
@@ -78,37 +78,31 @@ public class AggregationCollectorTests extends AggregatorTestCase {
         ScriptService scriptService = mock(ScriptService.class);
         when(scriptService.compile(any(), any())).then(inv -> {
             Script script = (Script) inv.getArguments()[0];
-            AggregationScript.Factory factory;
-            switch (script.getIdOrCode()) {
-                case "no_scores":
-                    factory = (params, lookup) -> new AggregationScript.LeafFactory() {
-                        @Override
-                        public AggregationScript newInstance(LeafReaderContext ctx) throws IOException {
-                            return null;
-                        }
+            AggregationScript.Factory factory = switch (script.getIdOrCode()) {
+                case "no_scores" -> (params, lookup) -> new AggregationScript.LeafFactory() {
+                    @Override
+                    public AggregationScript newInstance(LeafReaderContext ctx) throws IOException {
+                        return null;
+                    }
 
-                        @Override
-                        public boolean needs_score() {
-                            return false;
-                        }
-                    };
-                    break;
-                case "with_scores":
-                    factory = (params, lookup) -> new AggregationScript.LeafFactory() {
-                        @Override
-                        public AggregationScript newInstance(LeafReaderContext ctx) throws IOException {
-                            return null;
-                        }
+                    @Override
+                    public boolean needs_score() {
+                        return false;
+                    }
+                };
+                case "with_scores" -> (params, lookup) -> new AggregationScript.LeafFactory() {
+                    @Override
+                    public AggregationScript newInstance(LeafReaderContext ctx) throws IOException {
+                        return null;
+                    }
 
-                        @Override
-                        public boolean needs_score() {
-                            return true;
-                        }
-                    };
-                    break;
-                default:
-                    throw new UnsupportedOperationException();
-            }
+                    @Override
+                    public boolean needs_score() {
+                        return true;
+                    }
+                };
+                default -> throw new UnsupportedOperationException();
+            };
             return factory;
         });
         return scriptService;

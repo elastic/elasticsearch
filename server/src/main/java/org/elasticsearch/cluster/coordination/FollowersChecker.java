@@ -193,7 +193,7 @@ public class FollowersChecker {
             throw new CoordinationStateRejectedException("rejecting " + request + " since local state is " + this);
         }
 
-        transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+        transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws IOException {
                 logger.trace("responding to {} on slow path", request);
@@ -266,20 +266,7 @@ public class FollowersChecker {
         }
     }
 
-    static class FastResponseState {
-        final long term;
-        final Mode mode;
-
-        FastResponseState(final long term, final Mode mode) {
-            this.term = term;
-            this.mode = mode;
-        }
-
-        @Override
-        public String toString() {
-            return "FastResponseState{" + "term=" + term + ", mode=" + mode + '}';
-        }
-    }
+    record FastResponseState(long term, Mode mode) {}
 
     /**
      * A checker for an individual follower.
@@ -371,7 +358,7 @@ public class FollowersChecker {
         }
 
         void failNode(String reason) {
-            transportService.getThreadPool().generic().execute(new Runnable() {
+            transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new Runnable() {
                 @Override
                 public void run() {
                     synchronized (mutex) {

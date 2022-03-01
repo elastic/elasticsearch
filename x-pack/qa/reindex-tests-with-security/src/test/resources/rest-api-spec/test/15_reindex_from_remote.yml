@@ -6,7 +6,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -41,7 +41,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -87,7 +87,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -132,7 +132,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -166,12 +166,12 @@
   - do:
       index:
         index:        source
-        id:           1
+        id:           "1"
         body:         { "user": "kimchy" }
   - do:
       index:
         index:        source
-        id:           2
+        id:           "2"
         body:         { "user": "another" }
   - do:
       indices.refresh: {}
@@ -226,12 +226,12 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      2
+        id:      "2"
         body:    { "text": "test", "hidden": true }
   - do:
       indices.refresh: {}
@@ -289,7 +289,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test", "foo": "z", "bar": "z" }
   - do:
       indices.refresh: {}
@@ -356,7 +356,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -391,7 +391,7 @@
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}

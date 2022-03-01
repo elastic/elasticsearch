@@ -61,14 +61,7 @@ public class SslDiagnostics {
         SERVER
     }
 
-    private static class IssuerTrust {
-        private final List<X509Certificate> issuerCerts;
-        private final boolean verified;
-
-        private IssuerTrust(List<X509Certificate> issuerCerts, boolean verified) {
-            this.issuerCerts = issuerCerts;
-            this.verified = verified;
-        }
+    private record IssuerTrust(List<X509Certificate> issuerCerts, boolean verified) {
 
         private static IssuerTrust noMatchingCertificate() {
             return new IssuerTrust(null, false);

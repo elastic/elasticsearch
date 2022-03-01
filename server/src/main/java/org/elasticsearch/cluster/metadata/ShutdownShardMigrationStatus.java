@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject {
-    private static final Version ALLOCATION_DECISION_ADDED_VERSION = Version.V_8_0_0;
+    private static final Version ALLOCATION_DECISION_ADDED_VERSION = Version.V_7_16_0;
 
     private final SingleNodeShutdownMetadata.Status status;
     private final long shardsRemaining;

@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import io.github.nik9000.mapmatcher.MapMatcher;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
@@ -20,7 +18,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -29,6 +26,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -57,6 +55,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -64,13 +63,14 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.internal.ContextIndexSearcherTests.DocumentSubsetDirectoryReader;
+import org.elasticsearch.test.MapMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,9 +83,9 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
-import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -540,12 +540,13 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 InternalAggregation result = aggregator.buildTopLevel();
                 result = result.reduce(
                     List.of(result),
-                    InternalAggregation.ReduceContext.forFinalReduction(
+                    new AggregationReduceContext.ForFinal(
                         context.bigArrays(),
                         getMockScriptService(),
+                        () -> false,
+                        builder,
                         b -> {},
-                        PipelineTree.EMPTY,
-                        () -> false
+                        PipelineTree.EMPTY
                     )
                 );
                 InternalFilters filters = (InternalFilters) result;
@@ -828,15 +829,15 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(b.getDocCount(), equalTo(1L));
                 InternalMax max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(100.0));
-                InternalSum sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(100.0));
+                Sum sum = b.getAggregations().get("s");
+                assertThat(sum.value(), equalTo(100.0));
 
                 b = filters.getBucketByKey("q2");
                 assertThat(b.getDocCount(), equalTo(2L));
                 max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(10.0));
                 sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(15.0));
+                assertThat(sum.value(), equalTo(15.0));
 
                 assertThat(impl, equalTo(FilterByFilterAggregator.class));
                 assertMap(
@@ -903,15 +904,15 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(b.getDocCount(), equalTo(3334L));
                 InternalMax max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(9999.0));
-                InternalSum sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(16668333.0));
+                Sum sum = b.getAggregations().get("s");
+                assertThat(sum.value(), equalTo(16668333.0));
 
                 b = filters.getBucketByKey("q2");
                 assertThat(b.getDocCount(), equalTo(6666L));
                 max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(9998.0));
                 sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(33326667.0));
+                assertThat(sum.value(), equalTo(33326667.0));
 
                 assertThat(impl, equalTo(FilterByFilterAggregator.class));
                 assertMap(
@@ -981,15 +982,15 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(b.getDocCount(), equalTo(3334L));
                 InternalMax max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(9999.0));
-                InternalSum sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(16668333.0));
+                Sum sum = b.getAggregations().get("s");
+                assertThat(sum.value(), equalTo(16668333.0));
 
                 b = filters.getBucketByKey("2019-12-10 to 2020-01-09");
                 assertThat(b.getDocCount(), equalTo(6666L));
                 max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(9998.0));
                 sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(33326667.0));
+                assertThat(sum.value(), equalTo(33326667.0));
 
                 assertThat(impl, equalTo(FilterByFilterAggregator.class));
                 assertMap(

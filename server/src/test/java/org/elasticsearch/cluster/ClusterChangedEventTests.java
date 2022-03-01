@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -32,6 +30,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -357,9 +356,9 @@ public class ClusterChangedEventTests extends ESTestCase {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
         builder.stateUUID(UUIDs.randomBase64UUID());
         Metadata.Builder metadataBuilder = Metadata.builder(previousState.metadata());
-        for (ObjectObjectCursor<String, Metadata.Custom> customMetadata : previousState.metadata().customs()) {
-            if (customMetadata.value instanceof TestCustomMetadata) {
-                metadataBuilder.removeCustom(customMetadata.key);
+        for (Map.Entry<String, Metadata.Custom> customMetadata : previousState.metadata().customs().entrySet()) {
+            if (customMetadata.getValue() instanceof TestCustomMetadata) {
+                metadataBuilder.removeCustom(customMetadata.getKey());
             }
         }
         for (TestCustomMetadata testCustomMetadata : customMetadataList) {
@@ -531,23 +530,11 @@ public class ClusterChangedEventTests extends ESTestCase {
         for (IndexMetadata indexMetadata : previousState.metadata().indices().values()) {
             stateIndices.add(indexMetadata.getIndex());
         }
-        final int numDel;
-        switch (deletionQuantity) {
-            case DELETE_ALL: {
-                numDel = stateIndices.size();
-                break;
-            }
-            case DELETE_NONE: {
-                numDel = 0;
-                break;
-            }
-            case DELETE_RANDOM: {
-                numDel = randomIntBetween(0, Math.max(stateIndices.size() - 1, 0));
-                break;
-            }
-            default:
-                throw new AssertionError("Unhandled mode [" + deletionQuantity + "]");
-        }
+        final int numDel = switch (deletionQuantity) {
+            case DELETE_ALL -> stateIndices.size();
+            case DELETE_NONE -> 0;
+            case DELETE_RANDOM -> randomIntBetween(0, Math.max(stateIndices.size() - 1, 0));
+        };
         final boolean changeClusterUUID = randomBoolean();
         final List<Index> addedIndices = addIndices(numAdd, randomAlphaOfLengthBetween(5, 10));
         List<Index> delIndices;

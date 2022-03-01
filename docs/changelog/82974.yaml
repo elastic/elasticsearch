@@ -1,0 +1,6 @@
+pr: 82974
+summary: Support GKE Workload Identity for Searchable Snapshots
+area: Snapshot/Restore
+type: bug
+issues:
+ - 82702

@@ -15,33 +15,49 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
 public class JoinHelperTests extends ESTestCase {
@@ -50,15 +66,16 @@ public class JoinHelperTests extends ESTestCase {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             capturingTransport,
-            deterministicTaskQueue.getThreadPool(),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
             null,
             Collections.emptySet(),
-            new ClusterConnectionManager(Settings.EMPTY, capturingTransport)
+            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext())
         );
         JoinHelper joinHelper = new JoinHelper(
             Settings.EMPTY,
@@ -90,7 +107,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest[] capturedRequests1 = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests1.length, equalTo(1));
         CapturedRequest capturedRequest1 = capturedRequests1[0];
-        assertEquals(node1, capturedRequest1.node);
+        assertEquals(node1, capturedRequest1.node());
 
         assertTrue(joinHelper.isJoinPending());
 
@@ -102,7 +119,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest[] capturedRequests2 = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests2.length, equalTo(1));
         CapturedRequest capturedRequest2 = capturedRequests2[0];
-        assertEquals(node2, capturedRequest2.node);
+        assertEquals(node2, capturedRequest2.node());
 
         // check that sending another join to node1 is a noop as the previous join is still in progress
         joinHelper.sendJoinRequest(node1, 0L, optionalJoin1);
@@ -116,7 +133,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest[] capturedRequests1a = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests1a.length, equalTo(1));
         CapturedRequest capturedRequest1a = capturedRequests1a[0];
-        assertEquals(node1, capturedRequest1a.node);
+        assertEquals(node1, capturedRequest1a.node());
 
         // check that sending another join to node2 works if the optionalJoin is different
         Optional<Join> optionalJoin2a = optionalJoin2.isPresent() && randomBoolean()
@@ -126,7 +143,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest[] capturedRequests2a = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests2a.length, equalTo(1));
         CapturedRequest capturedRequest2a = capturedRequests2a[0];
-        assertEquals(node2, capturedRequest2a.node);
+        assertEquals(node2, capturedRequest2a.node());
 
         // complete all the joins and check that isJoinPending is updated
         assertTrue(joinHelper.isJoinPending());
@@ -148,9 +165,9 @@ public class JoinHelperTests extends ESTestCase {
 
     private void completeJoinRequest(CapturingTransport capturingTransport, CapturedRequest request, boolean mightSucceed) {
         if (mightSucceed && randomBoolean()) {
-            capturingTransport.handleResponse(request.requestId, TransportResponse.Empty.INSTANCE);
+            capturingTransport.handleResponse(request.requestId(), TransportResponse.Empty.INSTANCE);
         } else {
-            capturingTransport.handleRemoteError(request.requestId, new CoordinationStateRejectedException("dummy"));
+            capturingTransport.handleRemoteError(request.requestId(), new CoordinationStateRejectedException("dummy"));
         }
     }
 
@@ -316,7 +333,73 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest[] capturedRequests1a = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests1a.length, equalTo(1));
         CapturedRequest capturedRequest1a = capturedRequests1a[0];
-        assertEquals(node1, capturedRequest1a.node);
+        assertEquals(node1, capturedRequest1a.node());
+    }
+
+    public void testJoinValidationFailsOnUnreadableClusterState() throws Exception {
+        final List<Releasable> releasables = new ArrayList<>(3);
+        try {
+            final ThreadPool threadPool = new TestThreadPool("test");
+            releasables.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+
+            final TransportService remoteTransportService = MockTransportService.createNewService(
+                Settings.builder().put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true).build(),
+                Version.CURRENT,
+                threadPool
+            );
+            releasables.add(remoteTransportService);
+
+            new JoinHelper(
+                Settings.EMPTY,
+                null,
+                null,
+                remoteTransportService,
+                () -> 0L,
+                () -> null,
+                (joinRequest, joinCallback) -> { throw new AssertionError(); },
+                startJoinRequest -> { throw new AssertionError(); },
+                Collections.emptyList(),
+                (s, p, r) -> {},
+                () -> { throw new AssertionError(); },
+                new JoinReasonService(() -> 0L)
+            );
+
+            remoteTransportService.start();
+            remoteTransportService.acceptIncomingRequests();
+
+            final TransportService localTransportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                threadPool
+            );
+            releasables.add(localTransportService);
+
+            localTransportService.start();
+            localTransportService.acceptIncomingRequests();
+
+            AbstractSimpleTransportTestCase.connectToNode(localTransportService, remoteTransportService.getLocalNode());
+
+            final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
+            localTransportService.sendRequest(
+                remoteTransportService.getLocalNode(),
+                JoinHelper.JOIN_VALIDATE_ACTION_NAME,
+                new ValidateJoinRequest(ClusterState.builder(ClusterName.DEFAULT).putCustom("test", new BadCustom()).build()),
+                new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
+            );
+
+            final RemoteTransportException exception = expectThrows(
+                ExecutionException.class,
+                RemoteTransportException.class,
+                () -> future.get(10, TimeUnit.SECONDS)
+            );
+            assertThat(exception, instanceOf(RemoteTransportException.class));
+            assertThat(exception.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(exception.getCause().getMessage(), containsString("Unknown NamedWriteable"));
+
+        } finally {
+            Collections.reverse(releasables);
+            Releasables.close(releasables);
+        }
     }
 
     private static class HandshakingCapturingTransport extends CapturingTransport {
@@ -332,5 +415,26 @@ public class JoinHelperTests extends ESTestCase {
                 super.onSendRequest(requestId, action, request, node);
             }
         }
+    }
+
+    private static class BadCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "deliberately-unknown";
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

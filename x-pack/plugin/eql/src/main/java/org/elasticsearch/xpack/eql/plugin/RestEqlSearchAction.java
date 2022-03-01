@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -85,8 +85,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
                      * contain as cause the VerificationException with "*,-*" pattern but we'll rewrite the INFE here with the initial
                      * pattern that failed resolving. More details here https://github.com/elastic/elasticsearch/issues/63529
                      */
-                    if (e instanceof IndexNotFoundException) {
-                        IndexNotFoundException infe = (IndexNotFoundException) e;
+                    if (e instanceof IndexNotFoundException infe) {
                         if (infe.getIndex() != null && infe.getIndex().getName().equals("Unknown index [*,-*]")) {
                             finalException = new IndexNotFoundException(indices, infe.getCause());
                         }

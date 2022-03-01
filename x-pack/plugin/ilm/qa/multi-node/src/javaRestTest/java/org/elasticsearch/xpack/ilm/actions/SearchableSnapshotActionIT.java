@@ -244,7 +244,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                     TimeValue.ZERO,
                     Map.of(
                         RolloverAction.NAME,
-                        new RolloverAction(null, null, null, 1L),
+                        new RolloverAction(null, null, null, 1L, null),
                         SearchableSnapshotAction.NAME,
                         new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))
                     )
@@ -275,7 +275,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L),
+                    new RolloverAction(null, null, null, 1L, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo)
                 )
@@ -354,7 +354,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L),
+                    new RolloverAction(null, null, null, 1L, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo)
                 )
@@ -427,7 +427,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // restore the datastream
         Request restoreSnapshot = new Request("POST", "/_snapshot/" + snapshotRepo + "/" + dsSnapshotName + "/_restore");
         restoreSnapshot.addParameter("wait_for_completion", "true");
-        restoreSnapshot.setJsonEntity("{\"indices\": \"" + dataStream + "\", \"include_global_state\": true}");
+        restoreSnapshot.setJsonEntity("{\"indices\": \"" + dataStream + "\", \"include_global_state\": false}");
         assertOK(client().performRequest(restoreSnapshot));
 
         assertThat(indexExists(searchableSnapMountedIndexName), is(true));
@@ -446,7 +446,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + "-000001";
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         Map<String, LifecycleAction> hotActions = new HashMap<>();
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null));
         hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()));
         createPolicy(
             client(),
@@ -614,7 +614,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L),
+                    new RolloverAction(null, null, null, 1L, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo, randomBoolean())
                 )

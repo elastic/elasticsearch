@@ -9,14 +9,16 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -37,7 +39,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.TimestampField.FIXED
  * ids corresponding to component templates that should be composed in order when creating a new
  * index.
  */
-public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTemplate> implements ToXContentObject {
+public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTemplate>, ToXContentObject {
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");
@@ -91,7 +93,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private final Boolean allowAutoCreate;
 
     static Diff<ComposableIndexTemplate> readITV2DiffFrom(StreamInput in) throws IOException {
-        return AbstractDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
+        return SimpleDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
     }
 
     public static ComposableIndexTemplate parse(XContentParser parser) throws IOException {
@@ -275,12 +277,25 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         ComposableIndexTemplate other = (ComposableIndexTemplate) obj;
         return Objects.equals(this.indexPatterns, other.indexPatterns)
             && Objects.equals(this.template, other.template)
-            && Objects.equals(this.componentTemplates, other.componentTemplates)
+            && componentTemplatesEquals(this.componentTemplates, other.componentTemplates)
             && Objects.equals(this.priority, other.priority)
             && Objects.equals(this.version, other.version)
             && Objects.equals(this.metadata, other.metadata)
             && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
             && Objects.equals(this.allowAutoCreate, other.allowAutoCreate);
+    }
+
+    static boolean componentTemplatesEquals(List<String> c1, List<String> c2) {
+        if (Objects.equals(c1, c2)) {
+            return true;
+        }
+        if (c1 == null && c2.isEmpty()) {
+            return true;
+        }
+        if (c2 == null && c1.isEmpty()) {
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -292,28 +307,42 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         private static final ParseField HIDDEN = new ParseField("hidden");
         private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
+        private static final ParseField INDEX_MODE = new ParseField("index_mode");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0], a[1] != null && (boolean) a[1])
+            args -> {
+                IndexMode indexMode;
+                if (IndexSettings.isTimeSeriesModeEnabled()) {
+                    indexMode = args[2] != null ? IndexMode.fromString((String) args[2]) : null;
+                } else {
+                    indexMode = null;
+                }
+                return new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1], indexMode);
+            }
         );
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
+            if (IndexSettings.isTimeSeriesModeEnabled()) {
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
+            }
         }
 
         private final boolean hidden;
         private final boolean allowCustomRouting;
+        private final IndexMode indexMode;
 
         public DataStreamTemplate() {
-            this(false, false);
+            this(false, false, null);
         }
 
-        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting) {
+        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting, IndexMode indexMode) {
             this.hidden = hidden;
             this.allowCustomRouting = allowCustomRouting;
+            this.indexMode = indexMode;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
@@ -322,6 +351,11 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
                 allowCustomRouting = in.readBoolean();
             } else {
                 allowCustomRouting = false;
+            }
+            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                indexMode = in.readOptionalEnum(IndexMode.class);
+            } else {
+                indexMode = null;
             }
         }
 
@@ -355,11 +389,19 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return allowCustomRouting;
         }
 
+        @Nullable
+        public IndexMode getIndexMode() {
+            return indexMode;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
                 out.writeBoolean(allowCustomRouting);
+            }
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeOptionalEnum(indexMode);
             }
         }
 
@@ -368,6 +410,9 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             builder.startObject();
             builder.field("hidden", hidden);
             builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
+            if (indexMode != null) {
+                builder.field(INDEX_MODE.getPreferredName(), indexMode);
+            }
             builder.endObject();
             return builder;
         }
@@ -377,12 +422,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting;
+            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting && indexMode == that.indexMode;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden, allowCustomRouting);
+            return Objects.hash(hidden, allowCustomRouting, indexMode);
         }
     }
 

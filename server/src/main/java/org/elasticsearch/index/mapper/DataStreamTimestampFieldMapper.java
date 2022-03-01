@@ -13,13 +13,15 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.TimestampBounds;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -136,7 +138,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
-        if (dateFieldMapper.fieldType().isSearchable() == false) {
+        if (dateFieldMapper.fieldType().isIndexed() == false) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
         }
         if (dateFieldMapper.fieldType().hasDocValues() == false) {
@@ -207,27 +209,43 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] encountered multiple values");
         }
 
-        validateTimestamp(fields[0], context);
+        TimestampBounds bounds = context.indexSettings().getTimestampBounds();
+        if (bounds != null) {
+            validateTimestamp(bounds.startTime(), bounds.endTime(), fields[0], context);
+        }
     }
 
-    private void validateTimestamp(IndexableField field, DocumentParserContext context) {
-        if (context.indexSettings().getMode() == null || context.indexSettings().getMode() != IndexMode.TIME_SERIES) {
-            return;
-        }
+    private void validateTimestamp(long startTime, long endTime, IndexableField field, DocumentParserContext context) {
+        long originValue = field.numericValue().longValue();
+        long value = originValue;
 
-        long value = field.numericValue().longValue();
-        if (context.mappingLookup().getMapper(DEFAULT_PATH).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
+        Resolution resolution;
+        if (context.mappingLookup()
+            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .typeName()
+            .equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
+            resolution = Resolution.NANOSECONDS;
             value /= NSEC_PER_MSEC;
+        } else {
+            resolution = Resolution.MILLISECONDS;
         }
 
-        long startTime = context.indexSettings().getTimeSeriesStartTime();
         if (value < startTime) {
-            throw new IllegalArgumentException("time series index @timestamp value [" + value + "] must be larger than " + startTime);
+            throw new IllegalArgumentException(
+                "time series index @timestamp value ["
+                    + resolution.toInstant(originValue)
+                    + "] must be larger than "
+                    + Instant.ofEpochMilli(startTime)
+            );
         }
 
-        long endTime = context.indexSettings().getTimeSeriesEndTime();
         if (value >= endTime) {
-            throw new IllegalArgumentException("time series index @timestamp value [" + value + "] must be smaller than " + endTime);
+            throw new IllegalArgumentException(
+                "time series index @timestamp value ["
+                    + resolution.toInstant(originValue)
+                    + "] must be smaller than "
+                    + Instant.ofEpochMilli(endTime)
+            );
         }
     }
 

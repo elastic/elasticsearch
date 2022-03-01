@@ -1,7 +1,0 @@
-pr: 77128
-summary: Handle cgroups v2 in `OsProbe`
-area: Infra/Core
-type: enhancement
-issues:
- - 77126
- - 76812

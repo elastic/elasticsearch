@@ -45,17 +45,15 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         List<FieldCapabilitiesIndexResponse> newResponses = new ArrayList<>(response.getIndexResponses());
         int mutation = response.getIndexResponses().isEmpty() ? 0 : randomIntBetween(0, 2);
         switch (mutation) {
-            case 0:
-                newResponses.add(FieldCapabilitiesResponseTests.createRandomIndexResponse());
-                break;
-            case 1:
+            case 0 -> newResponses.add(FieldCapabilitiesResponseTests.createRandomIndexResponse());
+            case 1 -> {
                 int toRemove = randomInt(newResponses.size() - 1);
                 newResponses.remove(toRemove);
-                break;
-            case 2:
+            }
+            case 2 -> {
                 int toReplace = randomInt(newResponses.size() - 1);
                 newResponses.set(toReplace, FieldCapabilitiesResponseTests.createRandomIndexResponse());
-                break;
+            }
         }
         return new FieldCapabilitiesNodeResponse(newResponses, Collections.emptyMap(), response.getUnmatchedShardIds());
     }

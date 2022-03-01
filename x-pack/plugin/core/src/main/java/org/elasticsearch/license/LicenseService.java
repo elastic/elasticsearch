@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -23,11 +24,11 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -109,8 +110,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Currently active license
      */
-    private final AtomicReference<License> currentLicense = new AtomicReference<>();
-    private SchedulerEngine scheduler;
+    private final AtomicReference<License> currentLicenseHolder = new AtomicReference<>();
+    private final SchedulerEngine scheduler;
     private final Clock clock;
 
     /**
@@ -121,7 +122,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Callbacks to notify relative to license expiry
      */
-    private List<ExpirationCallback> expirationCallbacks = new ArrayList<>();
+    private final List<ExpirationCallback> expirationCallbacks = new ArrayList<>();
 
     /**
      * Which license types are permitted to be uploaded to the cluster
@@ -175,15 +176,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     static CharSequence buildExpirationMessage(long expirationMillis, boolean expired) {
         String expiredMsg = expired ? "expired" : "will expire";
-        String general = LoggerMessageFormat.format(
-            null,
-            "License [{}] on [{}].\n"
-                + "# If you have a new license, please update it. Otherwise, please reach out to\n"
-                + "# your support contact.\n"
-                + "# ",
-            expiredMsg,
-            DATE_FORMATTER.formatMillis(expirationMillis)
-        );
+        String general = LoggerMessageFormat.format(null, """
+            License [{}] on [{}].
+            # If you have a new license, please update it. Otherwise, please reach out to
+            # your support contact.
+            #\s""", expiredMsg, DATE_FORMATTER.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }
@@ -305,7 +302,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                         mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(newLicense, trialVersion));
                         return ClusterState.builder(currentState).metadata(mdBuilder).build();
                     }
-                }
+                },
+                ClusterStateTaskExecutor.unbatched()
             );
         }
     }
@@ -362,12 +360,17 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Remove license from the cluster state metadata
      */
-    public void removeLicense(final DeleteLicenseRequest request, final ActionListener<PostStartBasicResponse> listener) {
+    public void removeLicense(final ActionListener<PostStartBasicResponse> listener) {
         final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
-        clusterService.submitStateUpdateTask(
+        final StartBasicClusterTask task = new StartBasicClusterTask(
+            logger,
+            clusterService.getClusterName().value(),
+            clock,
+            startBasicRequest,
             "delete license",
-            new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock, startBasicRequest, listener)
+            listener
         );
+        clusterService.submitStateUpdateTask(task.getDescription(), task, ClusterStateTaskExecutor.unbatched());
     }
 
     public License getLicense() {
@@ -391,12 +394,19 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             );
         }
         StartTrialClusterTask task = new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener);
-        clusterService.submitStateUpdateTask("started trial license", task);
+        clusterService.submitStateUpdateTask(StartTrialClusterTask.TASK_SOURCE, task, ClusterStateTaskExecutor.unbatched());
     }
 
     void startBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
-        StartBasicClusterTask task = new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener);
-        clusterService.submitStateUpdateTask("start basic license", task);
+        StartBasicClusterTask task = new StartBasicClusterTask(
+            logger,
+            clusterService.getClusterName().value(),
+            clock,
+            request,
+            "start basic license",
+            listener
+        );
+        clusterService.submitStateUpdateTask(task.getDescription(), task, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -407,8 +417,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      */
     private void registerOrUpdateSelfGeneratedLicense() {
         clusterService.submitStateUpdateTask(
-            "maybe generate license for cluster",
-            new StartupSelfGeneratedLicenseTask(settings, clock, clusterService)
+            StartupSelfGeneratedLicenseTask.TASK_SOURCE,
+            new StartupSelfGeneratedLicenseTask(settings, clock, clusterService),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -438,7 +449,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.removeListener(this);
         scheduler.stop();
         // clear current license
-        currentLicense.set(null);
+        currentLicenseHolder.set(null);
     }
 
     @Override
@@ -558,9 +569,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
-            final License previousLicense = currentLicense.get();
+            final License previousLicense = currentLicenseHolder.get();
             if (license.equals(previousLicense) == false) {
-                currentLicense.set(license);
+                currentLicenseHolder.set(license);
                 license.setOperationModeFileWatcher(operationModeFileWatcher);
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, nextLicenseCheck(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {
@@ -609,15 +620,13 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         return getLicense(licensesMetadata);
     }
 
-    static License getLicense(final LicensesMetadata metadata) {
+    static License getLicense(@Nullable final LicensesMetadata metadata) {
         if (metadata != null) {
             License license = metadata.getLicense();
             if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
                 return license;
             } else if (license != null) {
-                boolean autoGeneratedLicense = License.isAutoGeneratedLicense(license.signature());
-                if ((autoGeneratedLicense && SelfGeneratedLicense.verify(license))
-                    || (autoGeneratedLicense == false && LicenseVerifier.verifyLicense(license))) {
+                if (license.verified()) {
                     return license;
                 }
             }

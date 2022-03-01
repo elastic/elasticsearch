@@ -37,7 +37,6 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   headerLine = "name,version,url,license,sourceURL"
   target = new File(providers.systemProperty('csv')
                       .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
-                      .forUseAtConfigurationTime()
                       .get()
   )
   // explicitly add our dependency on the JDK
@@ -274,6 +273,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
         }
       }
+    }
+    all {
+      resolutionStrategy.dependencySubstitution {
+        substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:elasticsearch-log4j") because "patched to remove JndiLookup clas"}
     }
   }
 

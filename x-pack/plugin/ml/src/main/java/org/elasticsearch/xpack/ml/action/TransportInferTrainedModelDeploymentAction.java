@@ -23,6 +23,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
@@ -83,14 +84,19 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
                     );
                     return;
                 }
-                String message = "Cannot perform requested action because deployment [" + deploymentId + "] is not started";
+                String message = "Trained model [" + deploymentId + "] is not deployed";
                 listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             }, listener::onFailure));
             return;
         }
+        if (allocation.getAllocationState() == AllocationState.STOPPING) {
+            String message = "Trained model [" + deploymentId + "] is STOPPING";
+            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
+            return;
+        }
         String[] randomRunningNode = allocation.getStartedNodes();
         if (randomRunningNode.length == 0) {
-            String message = "Cannot perform requested action because deployment [" + deploymentId + "] is not yet running on any node";
+            String message = "Trained model [" + deploymentId + "] is not allocated to any nodes";
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }

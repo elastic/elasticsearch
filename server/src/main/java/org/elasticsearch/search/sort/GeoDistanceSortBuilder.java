@@ -352,6 +352,11 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
+
+    @Override
     public boolean equals(Object object) {
         if (this == object) {
             return true;
@@ -603,7 +608,12 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
-                return new LatLonPointIndexFieldData(fieldName, CoreValuesSourceType.GEOPOINT);
+                return new LatLonPointIndexFieldData(
+                    fieldName,
+                    CoreValuesSourceType.GEOPOINT,
+                    // we do not support scripting for unmapped sorts
+                    (dv, n) -> { throw new UnsupportedOperationException(); }
+                );
             } else {
                 throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
             }
@@ -654,8 +664,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
-                return new DoubleComparator(numHits, null, null, reversed, sortPos) {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+                return new DoubleComparator(numHits, null, null, reversed, false) {
                     @Override
                     public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                         return new DoubleLeafComparator(context) {

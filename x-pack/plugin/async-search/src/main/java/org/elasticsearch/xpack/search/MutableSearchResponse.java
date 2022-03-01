@@ -85,6 +85,7 @@ class MutableSearchResponse {
      * Updates the response with the result of a partial reduction.
      * @param reducedAggs is a strategy for producing the reduced aggs
      */
+    @SuppressWarnings("HiddenField")
     synchronized void updatePartialResponse(
         int successfulShards,
         TotalHits totalHits,
@@ -138,11 +139,11 @@ class MutableSearchResponse {
     /**
      * Adds a shard failure concurrently (non-blocking).
      */
-    void addQueryFailure(int shardIndex, ShardSearchFailure failure) {
+    void addQueryFailure(int shardIndex, ShardSearchFailure shardSearchFailure) {
         synchronized (this) {
             failIfFrozen();
         }
-        queryFailures.set(shardIndex, failure);
+        queryFailures.set(shardIndex, shardSearchFailure);
     }
 
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
@@ -290,9 +291,9 @@ class MutableSearchResponse {
         }
         List<ShardSearchFailure> failures = new ArrayList<>();
         for (int i = 0; i < queryFailures.length(); i++) {
-            ShardSearchFailure failure = queryFailures.get(i);
-            if (failure != null) {
-                failures.add(failure);
+            ShardSearchFailure shardSearchFailure = queryFailures.get(i);
+            if (shardSearchFailure != null) {
+                failures.add(shardSearchFailure);
             }
         }
         return failures.toArray(ShardSearchFailure[]::new);

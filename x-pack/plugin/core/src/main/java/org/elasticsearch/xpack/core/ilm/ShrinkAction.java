@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -171,7 +171,7 @@ public class ShrinkAction implements LifecycleAction {
                             + "Skipping this action",
                         ShrinkAction.NAME,
                         indexMetadata.getIndex().getName(),
-                        LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())
+                        indexMetadata.getLifecyclePolicyName()
                     );
                     return true;
                 }

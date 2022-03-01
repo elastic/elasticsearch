@@ -121,13 +121,9 @@ public class NodeRestUsageIT extends ESRestTestCase {
             () -> client().performRequest(new Request("GET", "_nodes/usage/_all,rest_actions"))
         );
         assertNotNull(exception);
-        assertThat(
-            exception.getMessage(),
-            containsString(
-                "\"type\":\"illegal_argument_exception\","
-                    + "\"reason\":\"request [_nodes/usage/_all,rest_actions] contains _all and individual metrics [_all,rest_actions]\""
-            )
-        );
+        assertThat(exception.getMessage(), containsString("""
+            "type":"illegal_argument_exception",\
+            "reason":"request [_nodes/usage/_all,rest_actions] contains _all and individual metrics [_all,rest_actions]\""""));
     }
 
     @SuppressWarnings("unchecked")
@@ -146,10 +142,25 @@ public class NodeRestUsageIT extends ESRestTestCase {
         Map<String, Map<String, Long>> beforeCombinedAggsUsage = getTotalUsage(beforeNodesMap);
         // Do some requests to get some rest usage stats
         Request create = new Request("PUT", "/test");
-        create.setJsonEntity(
-            "{\"mappings\": {\"properties\": { \"str\": {\"type\": \"keyword\"}, "
-                + "\"foo\": {\"type\": \"keyword\"}, \"num\": {\"type\": \"long\"}, \"start\": {\"type\": \"date\"} } }}"
-        );
+        create.setJsonEntity("""
+                {
+                  "mappings": {
+                    "properties": {
+                      "str": {
+                        "type": "keyword"
+                      },
+                      "foo": {
+                        "type": "keyword"
+                      },
+                      "num": {
+                        "type": "long"
+                      },
+                      "start": {
+                        "type": "date"
+                      }
+                    }
+                  }
+                }""");
         client().performRequest(create);
 
         Request searchRequest = new Request("GET", "/test/_search");

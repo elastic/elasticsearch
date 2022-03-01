@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -350,6 +351,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     protected InternalMultiTerms create(
         String name,
         List<Bucket> buckets,
@@ -415,11 +417,13 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, Bucket prototype) {
         return new Bucket(prototype.terms, docCount, aggs, prototype.showDocCountError, docCountError, formats, keyConverters);
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public InternalMultiTerms create(List<Bucket> buckets) {
         return new InternalMultiTerms(
             name,
@@ -456,18 +460,10 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                 InternalMultiTerms agg = (InternalMultiTerms) aggregation;
                 KeyConverter keyConverter = agg.keyConverters.get(i);
                 switch (keyConverter) {
-                    case DOUBLE:
-                        hasDouble = true;
-                        break;
-                    case LONG:
-                        hasLong = true;
-                        break;
-                    case UNSIGNED_LONG:
-                        hasUnsignedLong = true;
-                        break;
-                    default:
-                        hasNonNumber = true;
-                        break;
+                    case DOUBLE -> hasDouble = true;
+                    case LONG -> hasLong = true;
+                    case UNSIGNED_LONG -> hasUnsignedLong = true;
+                    default -> hasNonNumber = true;
                 }
             }
             if (hasNonNumber && (hasDouble || hasUnsignedLong || hasLong)) {
@@ -493,9 +489,9 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     private InternalAggregation promoteToDouble(InternalAggregation aggregation, boolean[] needsPromotion) {
         InternalMultiTerms multiTerms = (InternalMultiTerms) aggregation;
-        List<Bucket> buckets = multiTerms.getBuckets();
+        List<Bucket> multiTermsBuckets = multiTerms.getBuckets();
         List<List<Object>> newKeys = new ArrayList<>();
-        for (InternalMultiTerms.Bucket bucket : buckets) {
+        for (InternalMultiTerms.Bucket bucket : multiTermsBuckets) {
             newKeys.add(new ArrayList<>(bucket.terms.size()));
         }
 
@@ -505,20 +501,20 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             DocValueFormat format = formats.get(i);
             if (needsPromotion[i]) {
                 newKeyConverters.add(KeyConverter.DOUBLE);
-                for (int j = 0; j < buckets.size(); j++) {
-                    newKeys.get(j).add(converter.toDouble(format, buckets.get(j).terms.get(i)));
+                for (int j = 0; j < multiTermsBuckets.size(); j++) {
+                    newKeys.get(j).add(converter.toDouble(format, multiTermsBuckets.get(j).terms.get(i)));
                 }
             } else {
                 newKeyConverters.add(converter);
-                for (int j = 0; j < buckets.size(); j++) {
-                    newKeys.get(j).add(buckets.get(j).terms.get(i));
+                for (int j = 0; j < multiTermsBuckets.size(); j++) {
+                    newKeys.get(j).add(multiTermsBuckets.get(j).terms.get(i));
                 }
             }
         }
 
-        List<Bucket> newBuckets = new ArrayList<>(buckets.size());
-        for (int i = 0; i < buckets.size(); i++) {
-            Bucket oldBucket = buckets.get(i);
+        List<Bucket> newBuckets = new ArrayList<>(multiTermsBuckets.size());
+        for (int i = 0; i < multiTermsBuckets.size(); i++) {
+            Bucket oldBucket = multiTermsBuckets.get(i);
             newBuckets.add(
                 new Bucket(
                     newKeys.get(i),
@@ -555,7 +551,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     public InternalAggregation reduce(
         List<InternalAggregation> aggregations,
-        ReduceContext reduceContext,
+        AggregationReduceContext reduceContext,
         boolean[] needsPromotionToDouble
     ) {
         if (needsPromotionToDouble != null) {
@@ -570,7 +566,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         return reduce(aggregations, reduceContext, needsPromotionToDouble(aggregations));
     }
 

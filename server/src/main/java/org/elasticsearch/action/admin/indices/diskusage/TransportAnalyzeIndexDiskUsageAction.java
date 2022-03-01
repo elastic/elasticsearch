@@ -106,9 +106,8 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         final Map<String, IndexDiskUsageStats> combined = new HashMap<>();
         for (int i = 0; i < shardsResponses.length(); i++) {
             final Object r = shardsResponses.get(i);
-            if (r instanceof AnalyzeDiskUsageShardResponse) {
+            if (r instanceof AnalyzeDiskUsageShardResponse resp) {
                 ++successfulShards;
-                AnalyzeDiskUsageShardResponse resp = (AnalyzeDiskUsageShardResponse) r;
                 combined.compute(resp.getIndex(), (k, v) -> v == null ? resp.stats : v.add(resp.stats));
             } else if (r instanceof DefaultShardOperationFailedException) {
                 shardFailures.add((DefaultShardOperationFailedException) r);

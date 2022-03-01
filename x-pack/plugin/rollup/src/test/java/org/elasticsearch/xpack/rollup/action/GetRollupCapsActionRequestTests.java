@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -106,7 +107,7 @@ public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTest
         String indexPattern = randomBoolean() ? randomAlphaOfLength(10) : randomAlphaOfLength(10) + "-*";
 
         int num = randomIntBetween(1, 5);
-        Map<String, Object> jobs = new HashMap<>(num);
+        Map<String, Object> jobs = Maps.newMapWithExpectedSize(num);
         for (int i = 0; i < num; i++) {
             String jobName = randomAlphaOfLength(5);
             jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName));
@@ -139,7 +140,7 @@ public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTest
         int indexCounter = 0;
         for (int j = 0; j < 5; j++) {
 
-            Map<String, Object> jobs = new HashMap<>(num);
+            Map<String, Object> jobs = Maps.newMapWithExpectedSize(num);
             for (int i = 0; i < num; i++) {
                 String jobName = randomAlphaOfLength(10);
                 String indexName = Integer.toString(indexCounter);
@@ -174,7 +175,7 @@ public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTest
                 selectedIndexName = indexName;
             }
 
-            Map<String, Object> jobs = new HashMap<>(num);
+            Map<String, Object> jobs = Maps.newMapWithExpectedSize(num);
             for (int i = 0; i < num; i++) {
                 String jobName = randomAlphaOfLength(5);
                 jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName, indexName));
@@ -220,7 +221,7 @@ public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTest
         String jobName = randomAlphaOfLength(5);
         RollupJobConfig job = ConfigTestHelpers.randomRollupJobConfig(random(), jobName);
 
-        Map<String, Object> metaMap = new HashMap<>(2);
+        Map<String, Object> metaMap = Maps.newMapWithExpectedSize(2);
         metaMap.put("foo", Collections.singletonMap("bar", "baz"));
         metaMap.put(RollupField.ROLLUP_META, Collections.singletonMap(jobName, job));
 
@@ -244,10 +245,10 @@ public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTest
         int numUnrelated = randomIntBetween(0, 10);
         for (int i = 0; i < numUnrelated; i++) {
             int numFields = randomIntBetween(0, 5);
-            Map<String, Object> fields = new HashMap<>(numFields);
+            Map<String, Object> fields = Maps.newMapWithExpectedSize(numFields);
             for (int j = 0; j < numFields; j++) {
                 int numFields2 = randomIntBetween(0, 2);
-                Map<String, String> fields2 = new HashMap<>(numFields2);
+                Map<String, String> fields2 = Maps.newMapWithExpectedSize(numFields2);
                 for (int k = 0; k < numFields; k++) {
                     fields2.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
                 }
@@ -257,7 +258,7 @@ public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTest
         }
 
         int numJobs = randomIntBetween(1, 5);
-        Map<String, Object> jobs = new HashMap<>(numJobs);
+        Map<String, Object> jobs = Maps.newMapWithExpectedSize(numJobs);
         for (int i = 0; i < numJobs; i++) {
             String name = randomAlphaOfLength(5);
             jobs.put(name, ConfigTestHelpers.randomRollupJobConfig(random(), name));

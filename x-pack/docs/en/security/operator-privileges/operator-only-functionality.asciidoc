@@ -22,12 +22,15 @@ given {es} version.
 * <<autoscaling-put-autoscaling-policy>>
 * <<autoscaling-delete-autoscaling-policy>>
 * <<repo-analysis-api>>
+* <<update-desired-nodes>>
+* <<get-desired-nodes>>
+* <<delete-desired-nodes>>
 
 [[operator-only-dynamic-cluster-settings]]
 ==== Operator-only dynamic cluster settings
 
 * All <<ip-filtering,IP filtering>> settings
-* The following the dynamic <<ml-settings,machine learning settings>>:
+* The following dynamic <<ml-settings,machine learning settings>>:
   - `xpack.ml.node_concurrent_job_allocations`
   - `xpack.ml.max_machine_memory_percent`
   - `xpack.ml.use_auto_machine_memory_percent`
@@ -38,3 +41,9 @@ given {es} version.
   - `xpack.ml.enable_config_migration`
   - `xpack.ml.persist_results_max_retries`
 * The <<cluster-routing-disk-threshold,`cluster.routing.allocation.disk.threshold_enabled` setting>>
+* The following <<recovery-settings-for-managed-services,recovery settings for managed services>>:
+  - `node.bandwidth.recovery.operator.factor`
+  - `node.bandwidth.recovery.operator.factor.read`
+  - `node.bandwidth.recovery.operator.factor.write`
+  - `node.bandwidth.recovery.operator.factor.max_overcommit`
+

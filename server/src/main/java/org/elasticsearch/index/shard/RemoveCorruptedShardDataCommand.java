@@ -197,13 +197,12 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
     protected void dropCorruptMarkerFiles(Terminal terminal, Path path, Directory directory, boolean clean) throws IOException {
         if (clean) {
-            confirm(
-                "This shard has been marked as corrupted but no corruption can now be detected.\n"
-                    + "This may indicate an intermittent hardware problem. The corruption marker can be \n"
-                    + "removed, but there is a risk that data has been undetectably lost.\n\n"
-                    + "Are you taking a risk of losing documents and proceed with removing a corrupted marker ?",
-                terminal
-            );
+            confirm("""
+                This shard has been marked as corrupted but no corruption can now be detected.
+                This may indicate an intermittent hardware problem. The corruption marker can be
+                removed, but there is a risk that data has been undetectably lost.
+
+                Are you taking a risk of losing documents and proceed with removing a corrupted marker ?""", terminal);
         }
         String[] files = directory.listAll();
         for (String file : files) {

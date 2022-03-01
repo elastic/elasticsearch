@@ -176,15 +176,7 @@ public class JoinReasonService {
         }
     };
 
-    private static class PresentNode implements TrackedNode {
-
-        private final String ephemeralId;
-        private final int removalCount;
-
-        PresentNode(String ephemeralId, int removalCount) {
-            this.ephemeralId = ephemeralId;
-            this.removalCount = removalCount;
-        }
+    private record PresentNode(String ephemeralId, int removalCount) implements TrackedNode {
 
         @Override
         public TrackedNode present(String ephemeralId) {
@@ -216,22 +208,13 @@ public class JoinReasonService {
         }
     }
 
-    private static class AbsentNode implements TrackedNode {
-
-        private final String ephemeralId;
-        private final int removalCount;
-        private final long removalTimeMillis;
-        private final String removingNodeName;
-        @Nullable // if removal reason not known, e.g. if removed by a different master
-        private final String removalReason;
-
-        AbsentNode(String ephemeralId, int removalCount, long removalTimeMillis, String removingNodeName, @Nullable String removalReason) {
-            this.ephemeralId = ephemeralId;
-            this.removalCount = removalCount;
-            this.removalTimeMillis = removalTimeMillis;
-            this.removingNodeName = removingNodeName;
-            this.removalReason = removalReason;
-        }
+    private record AbsentNode(
+        String ephemeralId,
+        int removalCount,
+        long removalTimeMillis,
+        String removingNodeName,
+        @Nullable String removalReason // if removal reason not known, e.g. if removed by a different master
+    ) implements TrackedNode {
 
         @Override
         public TrackedNode present(String ephemeralId) {

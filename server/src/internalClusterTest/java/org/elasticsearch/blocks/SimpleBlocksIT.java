@@ -444,8 +444,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
         Consumer<Exception> exceptionConsumer = t -> {
             Throwable cause = ExceptionsHelper.unwrapCause(t);
-            if (cause instanceof ClusterBlockException) {
-                ClusterBlockException e = (ClusterBlockException) cause;
+            if (cause instanceof ClusterBlockException e) {
                 assertThat(e.blocks(), hasSize(1));
                 assertTrue(e.blocks().stream().allMatch(b -> b.id() == block.getBlock().id()));
             } else {

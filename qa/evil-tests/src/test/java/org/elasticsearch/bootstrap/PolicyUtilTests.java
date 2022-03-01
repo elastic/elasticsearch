@@ -89,15 +89,15 @@ public class PolicyUtilTests extends ESTestCase {
     public void testPluginPolicyInfoNoJars() throws Exception {
         Path noJarsPlugin = makeDummyPlugin("dummy.policy");
         PluginPolicyInfo info = PolicyUtil.readPolicyInfo(noJarsPlugin);
-        assertThat(info.policy, is(not(nullValue())));
-        assertThat(info.jars, emptyIterable());
+        assertThat(info.policy(), is(not(nullValue())));
+        assertThat(info.jars(), emptyIterable());
     }
 
     public void testPluginPolicyInfo() throws Exception {
         Path plugin = makeDummyPlugin("dummy.policy", "foo.jar", "foo.txt", "bar.jar");
         PluginPolicyInfo info = PolicyUtil.readPolicyInfo(plugin);
-        assertThat(info.policy, is(not(nullValue())));
-        assertThat(info.jars, containsInAnyOrder(plugin.resolve("foo.jar").toUri().toURL(), plugin.resolve("bar.jar").toUri().toURL()));
+        assertThat(info.policy(), is(not(nullValue())));
+        assertThat(info.jars(), containsInAnyOrder(plugin.resolve("foo.jar").toUri().toURL(), plugin.resolve("bar.jar").toUri().toURL()));
     }
 
     public void testPolicyMissingCodebaseProperty() throws Exception {
@@ -247,6 +247,7 @@ public class PolicyUtilTests extends ESTestCase {
         "javax.management.MBeanPermission * setAttribute",
         "javax.management.MBeanPermission * unregisterMBean",
         "javax.management.MBeanServerPermission *",
+        "javax.management.MBeanTrustPermission register",
         "javax.security.auth.AuthPermission doAs",
         "javax.security.auth.AuthPermission doAsPrivileged",
         "javax.security.auth.AuthPermission getSubject",

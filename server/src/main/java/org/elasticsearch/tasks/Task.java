@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Current task information
@@ -27,7 +28,7 @@ public class Task implements Traceable {
     /**
      * The request header to mark tasks with specific ids
      */
-    public static final String X_OPAQUE_ID = "X-Opaque-Id";
+    public static final String X_OPAQUE_ID_HTTP_HEADER = "X-Opaque-Id";
 
     /**
      * The request header which is contained in HTTP request. We parse trace.id from it and store it in thread context.
@@ -35,7 +36,13 @@ public class Task implements Traceable {
      * has to be declared as a header copied over from http request.
      * May also be used internally when apm plugin is enabled.
      */
-    public static final String TRACE_PARENT = "traceparent";
+    public static final String TRACE_PARENT_HTTP_HEADER = "traceparent";
+
+    /**
+     * A request header that indicates the origin of the request from Elastic stack. The value will stored in ThreadContext
+     * and emitted to ES logs
+     */
+    public static final String X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
     /**
      * Is used internally to pass the apm trace context between the nodes
@@ -47,6 +54,8 @@ public class Task implements Traceable {
      * Has to be declared as a header copied over for tasks.
      */
     public static final String TRACE_ID = "trace.id";
+
+    public static final Set<String> HEADERS_TO_COPY = Set.of(X_OPAQUE_ID_HTTP_HEADER, TRACE_ID, X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
 
     private final long id;
 

@@ -54,13 +54,13 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         String fieldName = null;
         Object value;
         switch (randomIntBetween(0, 3)) {
-            case 0:
+            case 0 -> {
                 if (randomBoolean()) {
                     fieldName = BOOLEAN_FIELD_NAME;
                 }
                 value = randomBoolean();
-                break;
-            case 1:
+            }
+            case 1 -> {
                 if (randomBoolean()) {
                     fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
                 }
@@ -71,21 +71,20 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
                     value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
                 }
-                break;
-            case 2:
+            }
+            case 2 -> {
                 if (randomBoolean()) {
                     fieldName = INT_FIELD_NAME;
                 }
                 value = randomInt(10000);
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (randomBoolean()) {
                     fieldName = DOUBLE_FIELD_NAME;
                 }
                 value = randomDouble();
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
 
         if (fieldName == null) {
@@ -150,20 +149,21 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     public void testIdsFromJson() throws IOException {
-        String query = "{"
-            + "\"pinned\" : {"
-            + "  \"organic\" : {"
-            + "    \"term\" : {"
-            + "      \"tag\" : {"
-            + "        \"value\" : \"tech\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  }, "
-            + "  \"ids\" : [ \"1\",\"2\" ],"
-            + "  \"boost\":1.0 "
-            + "}"
-            + "}";
+        String query = """
+            {
+              "pinned": {
+                "organic": {
+                  "term": {
+                    "tag": {
+                      "value": "tech",
+                      "boost": 1.0
+                    }
+                  }
+                },
+                "ids": [ "1", "2" ],
+                "boost": 1.0
+              }
+            }""";
 
         PinnedQueryBuilder queryBuilder = (PinnedQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
@@ -173,20 +173,21 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     public void testDocsFromJson() throws IOException {
-        String query = "{"
-            + "\"pinned\" : {"
-            + "  \"organic\" : {"
-            + "    \"term\" : {"
-            + "      \"tag\" : {"
-            + "        \"value\" : \"tech\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  }, "
-            + "  \"docs\" : [{ \"_index\": \"test\", \"_id\": \"1\" }, { \"_index\": \"test\", \"_id\": \"2\" }],"
-            + "  \"boost\":1.0 "
-            + "}"
-            + "}";
+        String query = """
+            {
+              "pinned": {
+                "organic": {
+                  "term": {
+                    "tag": {
+                      "value": "tech",
+                      "boost": 1.0
+                    }
+                  }
+                },
+                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ],
+                "boost": 1.0
+              }
+            }""";
 
         PinnedQueryBuilder queryBuilder = (PinnedQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);

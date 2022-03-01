@@ -8,9 +8,9 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
@@ -128,6 +128,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "4")
                 .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
                 .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "10s")
                 .build()
         );
     }
@@ -241,10 +242,10 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("failure [{}]", source), e);
+                public void onFailure(Exception e) {
+                    logger.warn("failure [sneaky-update]", e);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
 
         // Save the new elected master node
         final String newMasterNode = internalCluster().getMasterName(majoritySide.get(0));

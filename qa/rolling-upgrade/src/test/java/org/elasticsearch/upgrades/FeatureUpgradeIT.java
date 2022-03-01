@@ -36,21 +36,23 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"feature_test_index_old\"}}\n" + "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            bulk.setJsonEntity("""
+                {"index": {"_index": "feature_test_index_old"}}
+                {"f1": "v1", "f2": "v2"}
+                """);
             client().performRequest(bulk);
 
             // start a async reindex job
             Request reindex = new Request("POST", "/_reindex");
-            reindex.setJsonEntity(
-                "{\n"
-                    + "  \"source\":{\n"
-                    + "    \"index\":\"feature_test_index_old\"\n"
-                    + "  },\n"
-                    + "  \"dest\":{\n"
-                    + "    \"index\":\"feature_test_index_reindex\"\n"
-                    + "  }\n"
-                    + "}"
-            );
+            reindex.setJsonEntity("""
+                {
+                  "source":{
+                    "index":"feature_test_index_old"
+                  },
+                  "dest":{
+                    "index":"feature_test_index_reindex"
+                  }
+                }""");
             reindex.addParameter("wait_for_completion", "false");
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");

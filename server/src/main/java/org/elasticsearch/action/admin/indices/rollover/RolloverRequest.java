@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
@@ -24,7 +25,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -46,6 +46,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
     private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
     private static final ParseField MAX_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
+    private static final ParseField MAX_PRIMARY_SHARD_DOCS_CONDITION = new ParseField(MaxPrimaryShardDocsCondition.NAME);
 
     static {
         CONDITION_PARSER.declareString(
@@ -69,6 +70,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
                 new MaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxPrimaryShardSizeCondition.NAME))
             ),
             MAX_PRIMARY_SHARD_SIZE_CONDITION
+        );
+        CONDITION_PARSER.declareLong(
+            (conditions, value) -> conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(value)),
+            MAX_PRIMARY_SHARD_DOCS_CONDITION
         );
 
         PARSER.declareField(
@@ -123,7 +128,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String rolloverTarget;
     private String newIndexName;
     private boolean dryRun;
-    private final Map<String, Condition<?>> conditions = new HashMap<>(2);
+    private final Map<String, Condition<?>> conditions = Maps.newMapWithExpectedSize(2);
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
@@ -254,6 +259,17 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             throw new IllegalArgumentException(maxPrimaryShardSizeCondition + " condition is already set");
         }
         this.conditions.put(maxPrimaryShardSizeCondition.name, maxPrimaryShardSizeCondition);
+    }
+
+    /**
+     * Adds a size-based condition to check if the docs of the largest primary shard has at least <code>numDocs</code>
+     */
+    public void addMaxPrimaryShardDocsCondition(long numDocs) {
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(numDocs);
+        if (this.conditions.containsKey(maxPrimaryShardDocsCondition.name)) {
+            throw new IllegalArgumentException(maxPrimaryShardDocsCondition.name + " condition is already set");
+        }
+        this.conditions.put(maxPrimaryShardDocsCondition.name, maxPrimaryShardDocsCondition);
     }
 
     public boolean isDryRun() {

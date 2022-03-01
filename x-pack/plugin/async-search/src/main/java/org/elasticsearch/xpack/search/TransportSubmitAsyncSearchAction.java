@@ -13,8 +13,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
@@ -23,7 +23,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -43,8 +43,9 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportSubmitAsyncSearchAction extends HandledTransportAction<SubmitAsyncSearchRequest, AsyncSearchResponse> {
+    private final ClusterService clusterService;
     private final NodeClient nodeClient;
-    private final BiFunction<Supplier<Boolean>, SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
+    private final BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext> requestToAggReduceContextBuilder;
     private final TransportSearchAction searchAction;
     private final ThreadContext threadContext;
     private final AsyncTaskIndexService<AsyncSearchResponse> store;
@@ -62,6 +63,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         BigArrays bigArrays
     ) {
         super(SubmitAsyncSearchAction.NAME, transportService, actionFilters, SubmitAsyncSearchRequest::new);
+        this.clusterService = clusterService;
         this.nodeClient = nodeClient;
         this.requestToAggReduceContextBuilder = (task, request) -> searchService.aggReduceContextBuilder(task, request).forFinalReduction();
         this.searchAction = searchAction;
@@ -144,13 +146,16 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
     private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, Task submitTask, TimeValue keepAlive) {
         String docID = UUIDs.randomBase64UUID();
-        Map<String, String> originHeaders = ClientHelper.filterSecurityHeaders(nodeClient.threadPool().getThreadContext().getHeaders());
+        Map<String, String> originHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            nodeClient.threadPool().getThreadContext(),
+            clusterService.state()
+        );
         SearchRequest searchRequest = new SearchRequest(request.getSearchRequest()) {
             @Override
             public AsyncSearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {
                 AsyncExecutionId searchId = new AsyncExecutionId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
-                Function<Supplier<Boolean>, Supplier<InternalAggregation.ReduceContext>> aggReduceContextSupplierFactory = (
-                    isCancelled) -> () -> requestToAggReduceContextBuilder.apply(isCancelled, request.getSearchRequest());
+                Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory =
+                    isCancelled -> () -> requestToAggReduceContextBuilder.apply(isCancelled, request.getSearchRequest());
                 return new AsyncSearchTask(
                     id,
                     type,

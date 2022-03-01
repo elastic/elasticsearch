@@ -90,10 +90,10 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndDataIsValid() throws Exception {
-        StringBuilder input = new StringBuilder();
-        input.append("{\"time\":\"1\", \"metric\":\"foo\", \"value\":\"1.0\"}");
-        input.append("{\"time\":\"2\", \"metric\":\"bar\", \"value\":\"2.0\"}");
-        InputStream inputStream = createInputStream(input.toString());
+        String input = """
+            {"time":"1", "metric":"foo", "value":"1.0"}\
+            {"time":"2", "metric":"bar", "value":"2.0"}""";
+        InputStream inputStream = createInputStream(input);
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
@@ -117,10 +117,10 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         builder.setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(null));
         analysisConfig = builder.build();
 
-        StringBuilder input = new StringBuilder();
-        input.append("{\"time\":\"1\", \"message\":\"Node 1 started\"}");
-        input.append("{\"time\":\"2\", \"message\":\"Node 2 started\"}");
-        InputStream inputStream = createInputStream(input.toString());
+        String input = """
+            {"time":"1", "message":"Node 1 started"}\
+            {"time":"2", "message":"Node 2 started"}""";
+        InputStream inputStream = createInputStream(input);
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         try (
@@ -150,11 +150,11 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndTimestampsAreOutOfOrder() throws Exception {
-        StringBuilder input = new StringBuilder();
-        input.append("{\"time\":\"3\", \"metric\":\"foo\", \"value\":\"3.0\"}");
-        input.append("{\"time\":\"1\", \"metric\":\"bar\", \"value\":\"1.0\"}");
-        input.append("{\"time\":\"2\", \"metric\":\"bar\", \"value\":\"2.0\"}");
-        InputStream inputStream = createInputStream(input.toString());
+        String input = """
+            {"time":"3", "metric":"foo", "value":"3.0"}\
+            {"time":"1", "metric":"bar", "value":"1.0"}\
+            {"time":"2", "metric":"bar", "value":"2.0"}""";
+        InputStream inputStream = createInputStream(input);
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
@@ -176,15 +176,15 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
             .setBucketSpan(TimeValue.timeValueSeconds(10))
             .build();
 
-        StringBuilder input = new StringBuilder();
-        input.append("{\"time\":\"4\", \"metric\":\"foo\", \"value\":\"4.0\"}");
-        input.append("{\"time\":\"5\", \"metric\":\"foo\", \"value\":\"5.0\"}");
-        input.append("{\"time\":\"3\", \"metric\":\"bar\", \"value\":\"3.0\"}");
-        input.append("{\"time\":\"4\", \"metric\":\"bar\", \"value\":\"4.0\"}");
-        input.append("{\"time\":\"2\", \"metric\":\"bar\", \"value\":\"2.0\"}");
-        input.append("{\"time\":\"12\", \"metric\":\"bar\", \"value\":\"12.0\"}");
-        input.append("{\"time\":\"2\", \"metric\":\"bar\", \"value\":\"2.0\"}");
-        InputStream inputStream = createInputStream(input.toString());
+        String input = """
+            {"time":"4", "metric":"foo", "value":"4.0"}\
+            {"time":"5", "metric":"foo", "value":"5.0"}\
+            {"time":"3", "metric":"bar", "value":"3.0"}\
+            {"time":"4", "metric":"bar", "value":"4.0"}\
+            {"time":"2", "metric":"bar", "value":"2.0"}\
+            {"time":"12", "metric":"bar", "value":"12.0"}\
+            {"time":"2", "metric":"bar", "value":"2.0"}""";
+        InputStream inputStream = createInputStream(input);
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
@@ -210,13 +210,13 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
             TimeValue.timeValueSeconds(2)
         ).setBucketSpan(TimeValue.timeValueSeconds(1)).setLatency(TimeValue.timeValueSeconds(2)).build();
 
-        StringBuilder input = new StringBuilder();
-        input.append("{\"time\":\"4\", \"metric\":\"foo\", \"value\":\"4.0\"}");
-        input.append("{\"time\":\"5\", \"metric\":\"foo\", \"value\":\"5.0\"}");
-        input.append("{\"time\":\"3\", \"metric\":\"bar\", \"value\":\"3.0\"}");
-        input.append("{\"time\":\"4\", \"metric\":\"bar\", \"value\":\"4.0\"}");
-        input.append("{\"time\":\"2\", \"metric\":\"bar\", \"value\":\"2.0\"}");
-        InputStream inputStream = createInputStream(input.toString());
+        String input = """
+            {"time":"4", "metric":"foo", "value":"4.0"}\
+            {"time":"5", "metric":"foo", "value":"5.0"}\
+            {"time":"3", "metric":"bar", "value":"3.0"}\
+            {"time":"4", "metric":"bar", "value":"4.0"}\
+            {"time":"2", "metric":"bar", "value":"2.0"}""";
+        InputStream inputStream = createInputStream(input);
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
@@ -242,11 +242,11 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
-        StringBuilder input = new StringBuilder();
-        input.append("{\"time\":\"1\", \"value\":\"1.0\"}");
-        input.append("{\"time\":\"2\" \"value\":\"2.0\"}");
-        input.append("{\"time\":\"3\", \"value\":\"3.0\"}");
-        InputStream inputStream = createInputStream(input.toString());
+        String input = """
+            {"time":"1", "value":"1.0"}\
+            {"time":"2" "value":"2.0"}\
+            {"time":"3", "value":"3.0"}""";
+        InputStream inputStream = createInputStream(input);
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
@@ -270,11 +270,11 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
-        StringBuilder input = new StringBuilder();
-        input.append("{\"time\":\"1\", \"nested\":{\"value\":\"1.0\"}}");
-        input.append("{\"time\":\"2\", \"nested\":{\"value\":\"2.0\"} \"foo\":\"bar\"}");
-        input.append("{\"time\":\"3\", \"nested\":{\"value\":\"3.0\"}}");
-        InputStream inputStream = createInputStream(input.toString());
+        String input = """
+            {"time":"1", "nested":{"value":"1.0"}}\
+            {"time":"2", "nested":{"value":"2.0"} "foo":"bar"}\
+            {"time":"3", "nested":{"value":"3.0"}}""";
+        InputStream inputStream = createInputStream(input);
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
@@ -296,10 +296,9 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
-        StringBuilder input = new StringBuilder();
-        input.append("{\"time\":\"1\", \"value\":\"2.0\"}");
-        input.append("{\"time");
-        InputStream inputStream = createInputStream(input.toString());
+        String input = """
+            {"time":"1", "value":"2.0"}{"time""";
+        InputStream inputStream = createInputStream(input);
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
 
@@ -313,10 +312,10 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
-        StringBuilder input = new StringBuilder();
-        input.append("{\"time\":\"1\", \"array\":[\"foo\", \"bar\"], \"value\":\"1.0\"}");
-        input.append("{\"time\":\"2\", \"array\":[], \"value\":\"2.0\"}");
-        InputStream inputStream = createInputStream(input.toString());
+        String input = """
+            {"time":"1", "array":["foo", "bar"], "value":"1.0"}\
+            {"time":"2", "array":[], "value":"2.0"}""";
+        InputStream inputStream = createInputStream(input);
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
@@ -339,14 +338,14 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
-        StringBuilder input = new StringBuilder();
-        input.append("{\"time\":\"1\", \"f1\":\"foo\", \"value\":\"1.0\"}");
-        input.append("{\"time\":\"2\", \"value\":\"2.0\"}");
-        input.append("{\"time\":\"3\", \"f1\":\"bar\"}");
-        input.append("{}");
-        input.append("{\"time\":\"4\", \"value\":\"3.0\"}");
+        String input = """
+            {"time":"1", "f1":"foo", "value":"1.0"}\
+            {"time":"2", "value":"2.0"}\
+            {"time":"3", "f1":"bar"}\
+            {}\
+            {"time":"4", "value":"3.0"}""";
 
-        InputStream inputStream = createInputStream(input.toString());
+        InputStream inputStream = createInputStream(input);
         JsonDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});

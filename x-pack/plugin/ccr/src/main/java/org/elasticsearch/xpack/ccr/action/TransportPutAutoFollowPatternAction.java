@@ -12,9 +12,10 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -94,7 +95,10 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             return;
         }
         final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
-        final Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state()
+        );
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
@@ -107,7 +111,8 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
                             public ClusterState execute(ClusterState currentState) {
                                 return innerPut(request, filteredHeaders, currentState, remoteClusterState.getState());
                             }
-                        }
+                        },
+                        ClusterStateTaskExecutor.unbatched()
                     );
                 } else {
                     listener.onFailure(e);
@@ -201,13 +206,10 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             request.getParameters().getReadPollTimeout()
         );
         patterns.put(request.getName(), autoFollowPattern);
-        ClusterState.Builder newState = ClusterState.builder(localState);
-        newState.metadata(
-            Metadata.builder(localState.getMetadata())
-                .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
-                .build()
+
+        return localState.copyAndUpdateMetadata(
+            metadata -> metadata.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
         );
-        return newState.build();
     }
 
     private static void markExistingIndicesAsAutoFollowedForNewPatterns(

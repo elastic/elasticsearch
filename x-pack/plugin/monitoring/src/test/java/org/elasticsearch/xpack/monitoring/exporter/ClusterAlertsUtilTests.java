@@ -117,7 +117,7 @@ public class ClusterAlertsUtilTests extends ESTestCase {
 
         assertWarnings(
             "[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch "
-                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+                + "and will be removed in a future release."
         );
     }
 
@@ -128,7 +128,7 @@ public class ClusterAlertsUtilTests extends ESTestCase {
 
         assertWarnings(
             "[xpack.monitoring.exporters.any.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch "
-                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+                + "and will be removed in a future release."
         );
     }
 
@@ -136,10 +136,10 @@ public class ClusterAlertsUtilTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .putList("xpack.monitoring.exporters." + name + ".cluster_alerts.management.blacklist", blacklist)
             .build();
-        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterService mockClusterService = mock(ClusterService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        return new Exporter.Config(name, "local", settings, clusterService, licenseState);
+        return new Exporter.Config(name, "local", settings, mockClusterService, licenseState);
     }
 
 }

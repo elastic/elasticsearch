@@ -16,6 +16,7 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -112,15 +113,16 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         }
 
                         @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             logger.debug("Removed repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
                         }
 
                         @Override
-                        public void onFailure(String source, Exception e) {
+                        public void onFailure(Exception e) {
                             logger.warn("Failed to remove repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
                         }
-                    }
+                    },
+                    ClusterStateTaskExecutor.unbatched()
                 );
             }
         });
@@ -217,12 +219,12 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         after(e, null);
                     }
 
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         startedCleanup = true;
                         logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
                         threadPool.executor(ThreadPool.Names.SNAPSHOT)
@@ -266,7 +268,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                 }
 
                                 @Override
-                                public void onFailure(String source, Exception e) {
+                                public void onFailure(Exception e) {
                                     if (failure != null) {
                                         e.addSuppressed(failure);
                                     }
@@ -278,7 +280,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                 }
 
                                 @Override
-                                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                                     if (failure == null) {
                                         logger.info(
                                             "Done with repository cleanup on [{}][{}] with result [{}]",
@@ -299,10 +301,12 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                         listener.onFailure(failure);
                                     }
                                 }
-                            }
+                            },
+                            ClusterStateTaskExecutor.unbatched()
                         );
                     }
-                }
+                },
+                ClusterStateTaskExecutor.unbatched()
             );
         }, listener::onFailure);
     }

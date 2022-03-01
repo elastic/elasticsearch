@@ -48,16 +48,16 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
 
     @Override
     public Tokenization apply(Tokenization originalConfig) {
-        if (isNoop()) {
-            return originalConfig;
-        }
-
         if (originalConfig instanceof BertTokenization == false) {
             throw ExceptionsHelper.badRequestException(
                 "Tokenization config of type [{}] can not be updated with a request of type [{}]",
                 originalConfig.getName(),
                 getName()
             );
+        }
+
+        if (isNoop()) {
+            return originalConfig;
         }
 
         return new BertTokenization(

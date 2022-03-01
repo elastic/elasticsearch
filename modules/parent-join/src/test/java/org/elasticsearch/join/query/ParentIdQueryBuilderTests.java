@@ -108,21 +108,40 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     }
 
     public void testFromJson() throws IOException {
-        String query = "{\n"
-            + "  \"parent_id\" : {\n"
-            + "    \"type\" : \"child\",\n"
-            + "    \"id\" : \"123\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 3.0,\n"
-            + "    \"_name\" : \"name\""
-            + "  }\n"
-            + "}";
+        String query = """
+            {
+              "parent_id" : {
+                "type" : "child",
+                "id" : "123",
+                "ignore_unmapped" : true,
+                "boost" : 3.0,
+                "_name" : "name"  }
+            }""";
         ParentIdQueryBuilder queryBuilder = (ParentIdQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
         assertThat(queryBuilder.getType(), Matchers.equalTo("child"));
         assertThat(queryBuilder.getId(), Matchers.equalTo("123"));
         assertThat(queryBuilder.boost(), Matchers.equalTo(3f));
         assertThat(queryBuilder.queryName(), Matchers.equalTo("name"));
+    }
+
+    public void testDefaultsRemoved() throws IOException {
+        String query = """
+            {
+              "parent_id" : {
+                "type" : "child",
+                "id" : "123",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
+        checkGeneratedJson("""
+              {
+              "parent_id" : {
+                "type" : "child",
+                "id" : "123"
+              }
+            }""", parseQuery(query));
     }
 
     public void testIgnoreUnmapped() throws IOException {

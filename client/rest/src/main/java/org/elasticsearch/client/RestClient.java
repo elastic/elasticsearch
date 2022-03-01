@@ -46,6 +46,7 @@ import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.nio.client.HttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
@@ -118,6 +119,7 @@ public class RestClient implements Closeable {
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final WarningsHandler warningsHandler;
     private final boolean compressionEnabled;
+    private final boolean metaHeaderEnabled;
 
     RestClient(
         CloseableHttpAsyncClient client,
@@ -127,7 +129,8 @@ public class RestClient implements Closeable {
         FailureListener failureListener,
         NodeSelector nodeSelector,
         boolean strictDeprecationMode,
-        boolean compressionEnabled
+        boolean compressionEnabled,
+        boolean metaHeaderEnabled
     ) {
         this.client = client;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
@@ -136,6 +139,7 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         this.compressionEnabled = compressionEnabled;
+        this.metaHeaderEnabled = metaHeaderEnabled;
         setNodes(nodes);
     }
 
@@ -208,6 +212,13 @@ public class RestClient implements Closeable {
         }
         List<Node> nodes = Arrays.stream(hosts).map(Node::new).collect(Collectors.toList());
         return new RestClientBuilder(nodes);
+    }
+
+    /**
+     * Get the underlying HTTP client.
+     */
+    public HttpAsyncClient getHttpClient() {
+        return this.client;
     }
 
     /**
@@ -784,6 +795,13 @@ public class RestClient implements Closeable {
             }
             if (compressionEnabled) {
                 req.addHeader("Accept-Encoding", "gzip");
+            }
+            if (metaHeaderEnabled) {
+                if (req.containsHeader(RestClientBuilder.META_HEADER_NAME) == false) {
+                    req.setHeader(RestClientBuilder.META_HEADER_NAME, RestClientBuilder.META_HEADER_VALUE);
+                }
+            } else {
+                req.removeHeaders(RestClientBuilder.META_HEADER_NAME);
             }
         }
 

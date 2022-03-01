@@ -730,7 +730,7 @@ public class PersistedClusterStateService {
         boolean fullStateWritten = false;
         private final AtomicBoolean closed = new AtomicBoolean();
         private final byte[] documentBuffer;
-        @Nullable // if assertions disabled
+        @Nullable // if assertions disabled or we explicitly don't want to assert on commit in a test
         private final CheckedBiConsumer<Path, DirectoryReader, IOException> assertOnCommit;
 
         private Writer(

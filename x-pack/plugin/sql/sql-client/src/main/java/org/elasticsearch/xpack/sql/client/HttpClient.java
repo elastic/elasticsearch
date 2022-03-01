@@ -35,7 +35,7 @@ import java.security.PrivilegedAction;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 
@@ -120,8 +120,8 @@ public class HttpClient {
     ) throws SQLException {
         byte[] requestBytes = toContent(request);
         String query = "error_trace";
-        Tuple<Map<String, List<String>>, byte[]> response = java.security.AccessController.doPrivileged(
-            (PrivilegedAction<ResponseOrException<Tuple<Map<String, List<String>>, byte[]>>>) () -> JreHttpUrlConnection.http(
+        Tuple<Function<String, List<String>>, byte[]> response = java.security.AccessController.doPrivileged(
+            (PrivilegedAction<ResponseOrException<Tuple<Function<String, List<String>>, byte[]>>>) () -> JreHttpUrlConnection.http(
                 path,
                 query,
                 cfg,
@@ -133,7 +133,7 @@ public class HttpClient {
                 )
             )
         ).getResponseOrThrowException();
-        List<String> warnings = response.v1().get("Warning");
+        List<String> warnings = response.v1().apply("Warning");
         return new Tuple<>(
             fromContent(response.v1(), response.v2(), responseParser),
             warnings == null ? Collections.emptyList() : warnings
@@ -168,8 +168,8 @@ public class HttpClient {
 
     @SuppressWarnings({ "removal" })
     private <Response> Response get(String path, CheckedFunction<JsonParser, Response, IOException> responseParser) throws SQLException {
-        Tuple<Map<String, List<String>>, byte[]> response = java.security.AccessController.doPrivileged(
-            (PrivilegedAction<ResponseOrException<Tuple<Map<String, List<String>>, byte[]>>>) () -> JreHttpUrlConnection.http(
+        Tuple<Function<String, List<String>>, byte[]> response = java.security.AccessController.doPrivileged(
+            (PrivilegedAction<ResponseOrException<Tuple<Function<String, List<String>>, byte[]>>>) () -> JreHttpUrlConnection.http(
                 path,
                 "error_trace",
                 cfg,
@@ -190,7 +190,7 @@ public class HttpClient {
         }
     }
 
-    private Tuple<Map<String, List<String>>, byte[]> readFrom(InputStream inputStream, Map<String, List<String>> headers) {
+    private Tuple<Function<String, List<String>>, byte[]> readFrom(InputStream inputStream, Function<String, List<String>> headers) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             Streams.copy(inputStream, out);
@@ -202,11 +202,12 @@ public class HttpClient {
     }
 
     private <Response> Response fromContent(
-        Map<String, List<String>> headers,
+        Function<String, List<String>> headers,
         byte[] bytesReference,
         CheckedFunction<JsonParser, Response, IOException> responseParser
     ) {
-        List<String> contentTypeHeaders = headers.get("content-type");
+        List<String> contentTypeHeaders = headers.apply("Content-Type");
+
         String contentType = contentTypeHeaders == null || contentTypeHeaders.isEmpty() ? null : contentTypeHeaders.get(0);
         ContentType type = ContentFactory.parseMediaType(contentType);
         if (type == null) {

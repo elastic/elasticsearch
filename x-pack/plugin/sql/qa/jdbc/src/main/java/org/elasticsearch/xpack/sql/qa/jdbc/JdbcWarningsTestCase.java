@@ -16,9 +16,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Properties;
 
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
 public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
@@ -56,13 +59,20 @@ public abstract class JdbcWarningsTestCase extends JdbcIntegrationTestCase {
 
         try (Connection connection = esJdbc(props); Statement statement = connection.createStatement()) {
             ResultSet rs = statement.executeQuery("SELECT * FROM FROZEN test_data");
+            List<String> warnings = new LinkedList<>();
             SQLWarning warning = rs.getWarnings();
-            assertThat(warning.getMessage(), containsString("[FROZEN] syntax is deprecated because frozen indices have been deprecated."));
+            while (warning != null) {
+                warnings.add(warning.getMessage());
+                warning = warning.getNextWarning();
+            }
+
             assertThat(
-                warning.getNextWarning().getMessage(),
-                containsString("[index_include_frozen] parameter is deprecated because frozen indices have been deprecated.")
+                warnings,
+                containsInAnyOrder(
+                    containsString("[FROZEN] syntax is deprecated because frozen indices have been deprecated."),
+                    containsString("[index_include_frozen] parameter is deprecated because frozen indices have been deprecated.")
+                )
             );
-            assertNull(warning.getNextWarning().getNextWarning());
         }
     }
 

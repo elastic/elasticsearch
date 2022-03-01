@@ -20,6 +20,7 @@ import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLClientInfoException;
@@ -31,8 +32,8 @@ import java.sql.SQLRecoverableException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTimeoutException;
 import java.util.Base64;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
@@ -152,7 +153,7 @@ public class JreHttpUrlConnection implements Closeable {
 
     public <R> ResponseOrException<R> request(
         CheckedConsumer<OutputStream, IOException> doc,
-        CheckedBiFunction<InputStream, Map<String, List<String>>, R, IOException> parser,
+        CheckedBiFunction<InputStream, Function<String, List<String>>, R, IOException> parser,
         String requestMethod
     ) throws ClientException {
         return request(doc, parser, requestMethod, "application/json");
@@ -160,7 +161,7 @@ public class JreHttpUrlConnection implements Closeable {
 
     public <R> ResponseOrException<R> request(
         CheckedConsumer<OutputStream, IOException> doc,
-        CheckedBiFunction<InputStream, Map<String, List<String>>, R, IOException> parser,
+        CheckedBiFunction<InputStream, Function<String, List<String>>, R, IOException> parser,
         String requestMethod,
         String contentTypeHeader
     ) throws ClientException {
@@ -176,13 +177,30 @@ public class JreHttpUrlConnection implements Closeable {
             }
             if (shouldParseBody(con.getResponseCode())) {
                 try (InputStream stream = getStream(con, con.getInputStream())) {
-                    return new ResponseOrException<>(parser.apply(new BufferedInputStream(stream), con.getHeaderFields()));
+                    return new ResponseOrException<>(parser.apply(new BufferedInputStream(stream), getHeaderFields(con)));
                 }
             }
             return parserError();
         } catch (IOException ex) {
             throw new ClientException("Cannot POST address " + url + " (" + ex.getMessage() + ")", ex);
         }
+    }
+
+    private Function<String, List<String>> getHeaderFields(URLConnection con) {
+        return header -> {
+            // HTTP headers are case-insensitive but the map returned by `URLConnection.getHeaderFields` is case-sensitive.
+            // The linear scan below replicates the linear case-insensitive lookup of `URLConnection.getHeaderField(String)`.
+            List<String> values = new LinkedList<>();
+            int i = 0;
+            String value = con.getHeaderField(i);
+            while (value != null) {
+                if (header.equalsIgnoreCase(con.getHeaderFieldKey(i))) {
+                    values.add(value);
+                }
+                value = con.getHeaderField(++i);
+            }
+            return values;
+        };
     }
 
     private boolean shouldParseBody(int responseCode) {

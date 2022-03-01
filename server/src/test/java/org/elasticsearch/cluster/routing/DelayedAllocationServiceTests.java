@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -29,6 +30,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -152,7 +154,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         assertNotNull(nodeId);
 
         // remove node that has replica and reroute
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId)).build();
+        clusterState = stateWithoutNodeId(clusterState, nodeId);
         clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
         ClusterState stateWithDelayedShard = clusterState;
         // make sure the replica is marked as delayed (i.e. not reallocated)
@@ -505,9 +507,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             assertNotNull(nodeIdOfBarReplica);
 
             // remove node that has replica and reroute
-            clusterState = ClusterState.builder(stateWithDelayedShard)
-                .nodes(DiscoveryNodes.builder(stateWithDelayedShard.nodes()).remove(nodeIdOfBarReplica))
-                .build();
+            clusterState = stateWithoutNodeId(stateWithDelayedShard, nodeIdOfBarReplica);
             ClusterState stateWithShorterDelay = allocationService.disassociateDeadNodes(clusterState, true, "fake node left");
             delayedAllocationService.setNanoTimeOverride(clusterChangeEventTimestampNanos);
             delayedAllocationService.clusterChanged(
@@ -526,6 +526,28 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             shorterDelayedRerouteTask.nextDelay.nanos(),
             equalTo(shorterDelaySetting.nanos() - (clusterChangeEventTimestampNanos - nodeLeftTimestampNanos))
         );
+    }
+
+    private ClusterState stateWithoutNodeId(ClusterState currentState, String nodeIdToRemove) {
+        final String currentMasterId = currentState.nodes().getMasterNodeId();
+        final String newMasterId;
+        if (currentMasterId.equals(nodeIdToRemove)) {
+            newMasterId = randomFrom(Sets.difference(currentState.nodes().getNodes().keySet(), Set.of(nodeIdToRemove)));
+        } else {
+            newMasterId = currentMasterId;
+        }
+        final String currentLocalNodeId = currentState.nodes().getLocalNodeId();
+        final String newLocalNodeId;
+        if (currentLocalNodeId.equals(nodeIdToRemove)) {
+            newLocalNodeId = randomFrom(Sets.difference(currentState.nodes().getNodes().keySet(), Set.of(nodeIdToRemove)));
+        } else {
+            newLocalNodeId = currentMasterId;
+        }
+        return ClusterState.builder(currentState)
+            .nodes(
+                DiscoveryNodes.builder(currentState.nodes()).remove(nodeIdToRemove).masterNodeId(newMasterId).localNodeId(newLocalNodeId)
+            )
+            .build();
     }
 
     private static class TestDelayAllocationService extends DelayedAllocationService {

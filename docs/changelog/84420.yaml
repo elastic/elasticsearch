@@ -1,0 +1,6 @@
+pr: 84420
+summary: Register the named X-content parser for snapshot upgrade params
+area: Machine Learning
+type: bug
+issues:
+ - 84419

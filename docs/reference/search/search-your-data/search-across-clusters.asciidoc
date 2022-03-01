@@ -430,26 +430,31 @@ image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 [[ccs-supported-configurations]]
 === Supported {ccs} configurations
 
-Elastic only supports searches from a local cluster to a remote cluster running:
+In 8.0+, Elastic supports searches from a local cluster to a remote cluster
+running:
 
 * The previous minor version.
 * The same version.
-* A newer version. This version must also be compatible with the local cluster
-as outlined in the following matrix.
-+
-[%collapsible]
+* A newer minor version in the same major version.
+
+Elastic also supports searches from a local cluster running the last minor
+version of a major version to a remote cluster running any minor version in the
+following major version. For example, a local 7.17 cluster can search any
+remote 8.x cluster.
+
 [[ccs-version-compatibility]]
-.Version compatibility matrix
-====
-include::{es-repo-dir}/modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
-====
+include::{es-repo-dir}/search/search-your-data/ccs-version-compat-matrix.asciidoc[]
 
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
 clusters must use the same {es} version.
 
-For example, a local 8.0 cluster can search a remote {prev-major-last}, 8.0, or
-8.1 cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8
+For example, a local 8.0 cluster can search a remote 7.17 or any remote 8.x
+cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8
 cluster is not supported.
+
+Only features that exist across all searched clusters are supported. Using a
+feature with a remote cluster where the feature is not supported will result in
+undefined behavior.
 
 A {ccs} using an unsupported configuration may still work. However, such
 searches aren't tested by Elastic, and their behavior isn't guaranteed.
@@ -463,8 +468,7 @@ on the same version of {es}. If you need to maintain clusters with different
 versions, you can:
 
 * Maintain a dedicated cluster for {ccs}. Keep this cluster on the earliest
-version needed to search the other clusters. For example, if you have 6.8, 7.14,
-and {prev-major-last} clusters, you can maintain a dedicated 6.8 cluster to use
+version needed to search the other clusters. For example, if you have 7.17 and 8.x clusters, you can maintain a dedicated 7.17 cluster to use
 as the local cluster for {ccs}.
 
 * Keep each cluster no more than one minor version apart. This lets you use any

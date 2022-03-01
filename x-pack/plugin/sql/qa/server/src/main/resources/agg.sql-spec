@@ -89,6 +89,8 @@ groupByConstantLocalWithWhereContradiction
 SELECT COUNT(*), 'c' c WHERE 1 = 2 GROUP BY c;
 groupByConstantWithHavingContradiction
 SELECT COUNT(*), 'c' c FROM test_emp GROUP BY c HAVING c = 'z';
+groupByConstantWithMultipleMatchingRecords
+SELECT 1 as c FROM test_emp WHERE gender = 'F' GROUP BY c;
 
 // multiple group by
 groupByMultiOnText

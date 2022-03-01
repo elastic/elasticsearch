@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
@@ -20,6 +22,7 @@ import java.nio.file.Path;
 import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -28,7 +31,6 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
-
 import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
@@ -61,7 +63,7 @@ class StoreTrustConfig extends TrustConfig {
 
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
-        final Path storePath = CertParsingUtils.resolvePath(trustStorePath, environment);
+        final Path storePath = resolveTrustStorePath(environment);
         try {
             KeyStore trustStore = getStore(storePath, trustStoreType, trustStorePassword);
             return CertParsingUtils.trustManager(trustStore, trustStoreAlgorithm);
@@ -90,6 +92,14 @@ class StoreTrustConfig extends TrustConfig {
             }
         }
         return certificates;
+    }
+
+    protected Path resolveTrustStorePath(Environment environment) {
+        return CertParsingUtils.resolvePath(trustStorePath, environment);
+    }
+
+    protected KeyStore getStore(Path path) throws GeneralSecurityException, IOException {
+        return getStore(path, trustStoreType, trustStorePassword);
     }
 
     @Override

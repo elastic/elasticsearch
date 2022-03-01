@@ -1010,14 +1010,12 @@ public class PersistedClusterStateService {
         private boolean assertOnCommit() {
             if (assertOnCommit != null /* TODO && Randomness.get().nextInt(100) == 0 */) {
                 // only rarely run this assertion since reloading the whole state can be quite expensive
-                try {
-                    for (final var metadataIndexWriter : metadataIndexWriters) {
-                        try (var directoryReader = DirectoryReader.open(metadataIndexWriter.indexWriter)) {
-                            assertOnCommit.accept(metadataIndexWriter.path, directoryReader);
-                        }
+                for (final var metadataIndexWriter : metadataIndexWriters) {
+                    try (var directoryReader = DirectoryReader.open(metadataIndexWriter.indexWriter)) {
+                        assertOnCommit.accept(metadataIndexWriter.path, directoryReader);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
                     }
-                } catch (Exception e) {
-                    throw new AssertionError(e);
                 }
             }
 

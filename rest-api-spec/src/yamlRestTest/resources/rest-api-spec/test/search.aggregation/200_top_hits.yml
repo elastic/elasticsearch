@@ -227,8 +227,8 @@ named queries:
 ---
 fetch fields:
   - skip:
-        version: " - 6.99.99"
-        reason:  "total hits moved in 7.0.0"
+        version: " - 7.9.99"
+        reason:  "fetch fields to top_hits in 7.10.0"
 
   - do:
       search:

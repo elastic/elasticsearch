@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -91,10 +90,7 @@ public class IndexPrivilegeTests extends ESTestCase {
         );
 
         assertThat(
-            Operations.subsetOf(
-                IndexPrivilege.get(Set.of("monitor")).automaton,
-                IndexPrivilege.get(Set.of("manage")).automaton
-            ),
+            Operations.subsetOf(IndexPrivilege.get(Set.of("monitor")).automaton, IndexPrivilege.get(Set.of("manage")).automaton),
             is(true)
         );
 

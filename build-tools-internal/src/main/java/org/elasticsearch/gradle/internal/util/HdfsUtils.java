@@ -39,7 +39,7 @@ public class HdfsUtils {
                 return true;
             } else {
                 throw new IllegalStateException(
-                    "HADOOP_HOME: " + path + " is invalid, does not contain hadoop native libraries in \\$HADOOP_HOME/bin"
+                    "HADOOP_HOME: " + path + " is invalid, does not contain hadoop native libraries in \\$HADOOP_HOME\\bin"
                 );
             }
         }

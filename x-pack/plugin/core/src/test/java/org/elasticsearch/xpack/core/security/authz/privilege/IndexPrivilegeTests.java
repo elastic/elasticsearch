@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -24,6 +25,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public class IndexPrivilegeTests extends ESTestCase {
@@ -40,16 +42,18 @@ public class IndexPrivilegeTests extends ESTestCase {
         final int read = Iterables.indexOf(names, "read"::equals);
         final int write = Iterables.indexOf(names, "write"::equals);
         final int index = Iterables.indexOf(names, "index"::equals);
-        final int create_doc = Iterables.indexOf(names, "create_doc"::equals);
+        final int createDoc = Iterables.indexOf(names, "create_doc"::equals);
         final int delete = Iterables.indexOf(names, "delete"::equals);
+        final int viewIndexMetadata = Iterables.indexOf(names, "view_index_metadata"::equals);
 
         assertThat(read, lessThan(all));
         assertThat(manage, lessThan(all));
         assertThat(monitor, lessThan(manage));
         assertThat(write, lessThan(all));
         assertThat(index, lessThan(write));
-        assertThat(create_doc, lessThan(index));
+        assertThat(createDoc, lessThan(index));
         assertThat(delete, lessThan(write));
+        assertThat(viewIndexMetadata, lessThan(manage));
     }
 
     public void testFindPrivilegesThatGrant() {
@@ -67,4 +71,13 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(Set.copyOf(privileges), equalTo(Set.of("read", "view_index_metadata", "manage", "all")));
     }
 
+    public void testViewIndexMetadataIsCoveredByManage() {
+        assertThat(
+            Operations.subsetOf(
+                IndexPrivilege.get(Set.of("view_index_metadata")).automaton,
+                IndexPrivilege.get(Set.of("manage")).automaton
+            ),
+            is(true)
+        );
+    }
 }

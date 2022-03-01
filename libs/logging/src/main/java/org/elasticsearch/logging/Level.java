@@ -17,24 +17,23 @@ import java.util.concurrent.ConcurrentMap;
 
 public final class Level {
 
-    public static final Level OFF = new Level("OFF", StandardLevels.OFF);
-
+    public static final Level OFF   = new Level("OFF"  , StandardLevels.OFF);
     public static final Level FATAL = new Level("FATAL", StandardLevels.FATAL);
-
     public static final Level ERROR = new Level("ERROR", StandardLevels.ERROR);
-
-    public static final Level WARN = new Level("WARN", StandardLevels.WARN);
-
-    public static final Level INFO = new Level("INFO", StandardLevels.INFO);
-
+    public static final Level WARN  = new Level("WARN" , StandardLevels.WARN);
+    public static final Level INFO  = new Level("INFO" , StandardLevels.INFO);
     public static final Level DEBUG = new Level("DEBUG", StandardLevels.DEBUG);
-
     public static final Level TRACE = new Level("TRACE", StandardLevels.TRACE);
-
-    public static final Level ALL = new Level("ALL", StandardLevels.ALL);
+    public static final Level ALL   = new Level("ALL"  , StandardLevels.ALL);
 
     private static final ConcurrentMap<String, Level> LEVELS = new ConcurrentHashMap<>();
-
+static{
+    LEVELS.put(OFF  .name, OFF   );
+    LEVELS.put(FATAL.name, FATAL );
+    LEVELS.put(ERROR.name, ERROR );
+    LEVELS.put(WARN .name, WARN  );
+    LEVELS.put(INFO .name, INFO  );
+}
     private final String name;
 
     private final int severity;

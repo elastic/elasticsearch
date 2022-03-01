@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;

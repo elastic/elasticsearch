@@ -16,6 +16,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.elasticsearch.logging.MockLogAppender;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -134,8 +135,9 @@ public class Loggers {
             }
         }
     }
-
-    static void addAppender(final Logger logger, final Appender appender) {
+    public static void addAppender(final org.elasticsearch.logging.Logger logger, final MockLogAppender appender) {
+    }
+    public static void addAppender(final Logger logger, final Appender appender) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         config.addAppender(appender);
@@ -148,7 +150,11 @@ public class Loggers {
         ctx.updateLoggers();
     }
 
-    static void removeAppender(final Logger logger, final Appender appender) {
+    public static void removeAppender(final org.elasticsearch.logging.Logger logger, final MockLogAppender appender) {
+
+    }
+
+    public static void removeAppender(final Logger logger, final Appender appender) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());

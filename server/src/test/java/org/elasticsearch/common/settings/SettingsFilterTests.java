@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.Strings;
@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;

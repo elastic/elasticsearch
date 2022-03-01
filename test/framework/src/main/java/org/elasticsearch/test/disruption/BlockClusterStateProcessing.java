@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.test.disruption;
 
-import org.apache.logging.log4j.core.util.Throwables;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -48,7 +48,7 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
-                    Throwables.rethrow(e);
+                    ExceptionsHelper.rethrow(e);
                 }
             }
         }, new ActionListener<>() {

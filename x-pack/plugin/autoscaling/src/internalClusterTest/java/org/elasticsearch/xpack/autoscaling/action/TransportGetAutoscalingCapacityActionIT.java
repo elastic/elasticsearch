@@ -14,7 +14,7 @@ import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;

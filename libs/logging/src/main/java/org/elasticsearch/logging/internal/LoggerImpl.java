@@ -19,6 +19,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     @Override
+    public Level getLevel() {
+        return Util.elasticsearchLevel(log4jLogger.getLevel());
+    }
+
+    @Override
     public String getName() {
         return log4jLogger.getName();
     }

@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.logging.internal.RateLimitingFilter;
+//import org.elasticsearch.logging.internal.RateLimitingFilter;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.deprecation.logging.RestDeprecationCacheResetActi
 import org.elasticsearch.xpack.deprecation.logging.TransportDeprecationCacheResetAction;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -107,21 +108,21 @@ public class Deprecation extends Plugin implements ActionPlugin {
         );
         templateRegistry.initialize();
 
-        final RateLimitingFilter rateLimitingFilterForIndexing = new RateLimitingFilter();
+//        final RateLimitingFilter rateLimitingFilterForIndexing = new RateLimitingFilter();
         // enable on start.
 //        rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.get(environment.settings()));
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, rateLimitingFilterForIndexing::setUseXOpaqueId);
+//        clusterService.getClusterSettings()
+//            .addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, rateLimitingFilterForIndexing::setUseXOpaqueId);
+//
+//        final DeprecationIndexingComponent component = DeprecationIndexingComponent.createDeprecationIndexingComponent(
+//            client,
+//            environment.settings(),
+//            rateLimitingFilterForIndexing,
+//            WRITE_DEPRECATION_LOGS_TO_INDEX.get(environment.settings()), // pass the default on startup
+//            clusterService
+//        );
 
-        final DeprecationIndexingComponent component = DeprecationIndexingComponent.createDeprecationIndexingComponent(
-            client,
-            environment.settings(),
-            rateLimitingFilterForIndexing,
-            WRITE_DEPRECATION_LOGS_TO_INDEX.get(environment.settings()), // pass the default on startup
-            clusterService
-        );
-
-        return List.of(component, rateLimitingFilterForIndexing);
+        return Collections.emptyList();//List.of(component, rateLimitingFilterForIndexing);
     }
 
     @Override

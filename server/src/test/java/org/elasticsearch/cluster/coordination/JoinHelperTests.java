@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;

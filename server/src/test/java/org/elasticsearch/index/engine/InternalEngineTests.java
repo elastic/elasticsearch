@@ -10,7 +10,7 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.apache.logging.log4j.core.LogEvent;

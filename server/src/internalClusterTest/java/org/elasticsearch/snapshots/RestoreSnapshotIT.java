@@ -8,7 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.Version;
@@ -30,7 +30,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.nio.file.Path;

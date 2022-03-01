@@ -11,7 +11,7 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.action.ActionFuture;
@@ -60,7 +60,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;

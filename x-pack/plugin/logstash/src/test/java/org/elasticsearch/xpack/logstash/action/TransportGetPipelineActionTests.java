@@ -24,7 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;

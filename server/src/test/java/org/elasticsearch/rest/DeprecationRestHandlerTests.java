@@ -9,7 +9,7 @@ package org.elasticsearch.rest;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;

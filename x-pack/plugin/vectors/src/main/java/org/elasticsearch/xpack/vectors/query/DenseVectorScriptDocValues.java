@@ -26,7 +26,7 @@ public abstract class DenseVectorScriptDocValues extends ScriptDocValues<BytesRe
 
     private final int dims;
 
-    public DenseVectorScriptDocValues(DenseVectorjava.util.function.Supplier<?> supplier, int dims) {
+    public DenseVectorScriptDocValues(DenseVectorSupplier<?> supplier, int dims) {
         super(supplier);
         this.dims = dims;
     }
@@ -58,7 +58,7 @@ public abstract class DenseVectorScriptDocValues extends ScriptDocValues<BytesRe
         );
     }
 
-    public static DenseVectorScriptDocValues empty(DenseVectorjava.util.function.Supplier<?> supplier, int dims) {
+    public static DenseVectorScriptDocValues empty(DenseVectorSupplier<?> supplier, int dims) {
         return new DenseVectorScriptDocValues(supplier, dims) {
             @Override
             public float[] getVectorValue() {

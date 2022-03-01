@@ -8,7 +8,7 @@
 
 package org.elasticsearch.test.test;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;

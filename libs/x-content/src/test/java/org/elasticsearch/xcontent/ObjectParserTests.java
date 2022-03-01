@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.xcontent;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedFunction;

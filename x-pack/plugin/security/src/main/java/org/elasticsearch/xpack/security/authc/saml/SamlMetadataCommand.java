@@ -19,7 +19,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
-import org.elasticsearch.logging.internal.Loggers;
+//import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -144,7 +144,7 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         // OpenSAML prints a lot of _stuff_ at info level, that really isn't needed in a command line tool.
-        Loggers.setLevel(LogManager.getLogger("org.opensaml"), Level.WARN);
+//        Loggers.setLevel(LogManager.getLogger("org.opensaml"), Level.WARN);
 
         final Logger logger = LogManager.getLogger(getClass());
         SamlUtils.initialize(logger);

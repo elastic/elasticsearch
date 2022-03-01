@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.ParameterizedMessage;
@@ -37,7 +37,7 @@ import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;

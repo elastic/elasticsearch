@@ -22,9 +22,9 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.logging.internal.ECSJsonLayout;
-import org.elasticsearch.logging.internal.Loggers;
-import org.elasticsearch.logging.internal.RateLimitingFilter;
+//import org.elasticsearch.logging.internal.ECSJsonLayout;
+//import org.elasticsearch.logging.internal.Loggers;
+//import org.elasticsearch.logging.internal.RateLimitingFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -50,7 +50,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     private  DeprecationIndexingAppender appender;
     private final BulkProcessor processor;
-    private final RateLimitingFilter rateLimitingFilterForIndexing;
+//    private final RateLimitingFilter rateLimitingFilterForIndexing;
     private final ClusterService clusterService;
 
     private final AtomicBoolean flushEnabled = new AtomicBoolean(false);
@@ -58,11 +58,11 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     private DeprecationIndexingComponent(
         Client client,
         Settings settings,
-        RateLimitingFilter rateLimitingFilterForIndexing,
+        Object rateLimitingFilterForIndexing,
         boolean enableDeprecationLogIndexingDefault,
         ClusterService clusterService
     ) {
-        this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
+//        this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
         this.clusterService = clusterService;
 
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
@@ -89,14 +89,14 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     public static DeprecationIndexingComponent createDeprecationIndexingComponent(
         Client client,
         Settings settings,
-        RateLimitingFilter rateLimitingFilterForIndexing,
+        Object rateLimitingFilterForIndexing,
         boolean enableDeprecationLogIndexingDefault,
         ClusterService clusterService
     ) {
         final DeprecationIndexingComponent deprecationIndexingComponent = new DeprecationIndexingComponent(
             client,
             settings,
-            rateLimitingFilterForIndexing,
+            null,
             enableDeprecationLogIndexingDefault,
             clusterService
         );

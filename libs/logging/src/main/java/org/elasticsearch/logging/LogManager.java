@@ -23,4 +23,10 @@ public class LogManager {
     public static Logger getLogger() {
         return null;
     }
+
+    public static Logger getRootLogger() {
+        return getLogger("");
+    }
+
+    //getRootLogger do we want it?
 }

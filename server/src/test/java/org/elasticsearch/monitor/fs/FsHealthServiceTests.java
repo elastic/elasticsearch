@@ -8,7 +8,7 @@
 
 package org.elasticsearch.monitor.fs;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.apache.lucene.mockfile.FilterFileChannel;
@@ -21,7 +21,7 @@ import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;

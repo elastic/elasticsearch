@@ -26,6 +26,20 @@ public final class Util {
         };
     }
 
+    static  org.elasticsearch.logging.Level elasticsearchLevel(final org.apache.logging.log4j.Level level) {
+        return switch (level.getStandardLevel().intLevel()) {
+            case StandardLevels.OFF ->   org.elasticsearch.logging.Level.OFF;
+            case StandardLevels.FATAL -> org.elasticsearch.logging.Level.FATAL;
+            case StandardLevels.ERROR -> org.elasticsearch.logging.Level.ERROR;
+            case StandardLevels.WARN ->  org.elasticsearch.logging.Level.WARN;
+            case StandardLevels.INFO ->  org.elasticsearch.logging.Level.INFO;
+            case StandardLevels.DEBUG -> org.elasticsearch.logging.Level.DEBUG;
+            case StandardLevels.TRACE -> org.elasticsearch.logging.Level.TRACE;
+            case StandardLevels.ALL ->   org.elasticsearch.logging.Level.ALL;
+            default -> throw new IllegalStateException("unexpected level:" + level);
+        };
+    }
+
     static org.apache.logging.log4j.Logger log4jLogger(final org.elasticsearch.logging.Logger logger) {
         if (logger instanceof org.apache.logging.log4j.Logger log4jLogger) {
             return log4jLogger;

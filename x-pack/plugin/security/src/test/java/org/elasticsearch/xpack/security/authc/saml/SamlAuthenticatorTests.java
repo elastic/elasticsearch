@@ -14,7 +14,7 @@ import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
 import org.junit.Before;

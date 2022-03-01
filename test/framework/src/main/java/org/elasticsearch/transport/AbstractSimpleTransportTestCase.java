@@ -8,10 +8,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.ParameterizedMessage;
-import java.util.function.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
@@ -25,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -41,11 +36,15 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.MockLogAppender;
+import org.elasticsearch.logging.ParameterizedMessage;
+import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -1239,7 +1238,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         MockLogAppender appender = new MockLogAppender();
         try {
             appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+            ///../elasticsearch/test/framework/src/main/java/org/elasticsearch/transport/AbstractSimpleTransportTestCase.java:1241: error: cannot access Logger
+            //            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+//            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:test"
@@ -1380,7 +1381,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             assertBusy(appender::assertAllExpectationsMatched);
         } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+//            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
             appender.stop();
         }
     }

@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.logging.internal.RateLimitingFilter;
+//import org.elasticsearch.logging.internal.RateLimitingFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,7 +32,7 @@ public class TransportDeprecationCacheResetAction extends TransportNodesAction<
 
     private static final Logger logger = LogManager.getLogger(TransportDeprecationCacheResetAction.class);
 
-    private final RateLimitingFilter rateLimitingFilterForIndexing;
+//    private final RateLimitingFilter rateLimitingFilterForIndexing;
 
     @Inject
     public TransportDeprecationCacheResetAction(
@@ -40,7 +40,7 @@ public class TransportDeprecationCacheResetAction extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        RateLimitingFilter rateLimitingFilterForIndexing
+        Object rateLimitingFilterForIndexing
     ) {
         super(
             DeprecationCacheResetAction.NAME,
@@ -53,7 +53,7 @@ public class TransportDeprecationCacheResetAction extends TransportNodesAction<
             ThreadPool.Names.MANAGEMENT,
             DeprecationCacheResetAction.NodeResponse.class
         );
-        this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
+//        this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
     }
 
     @Override
@@ -77,7 +77,7 @@ public class TransportDeprecationCacheResetAction extends TransportNodesAction<
 
     @Override
     protected DeprecationCacheResetAction.NodeResponse nodeOperation(DeprecationCacheResetAction.NodeRequest request, Task task) {
-        rateLimitingFilterForIndexing.reset();
+//        rateLimitingFilterForIndexing.reset();
         logger.debug("Deprecation cache was reset");
         return new DeprecationCacheResetAction.NodeResponse(transportService.getLocalNode());
     }

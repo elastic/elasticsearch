@@ -79,6 +79,7 @@ public class LoggingListener extends RunListener {
      */
     private static Logger resolveLogger(String loggerName) {
         if (loggerName.equalsIgnoreCase("_root")) {
+            //TODO PG do we want to have getRootLogger?
             return LogManager.getRootLogger();
         }
         return LogManager.getLogger(loggerName);

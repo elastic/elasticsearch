@@ -8,16 +8,13 @@
 package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -28,14 +25,12 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

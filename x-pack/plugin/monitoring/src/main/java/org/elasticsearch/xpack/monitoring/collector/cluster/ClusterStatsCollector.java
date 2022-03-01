@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;

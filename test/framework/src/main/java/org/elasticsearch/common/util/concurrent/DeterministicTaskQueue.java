@@ -10,7 +10,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
-import org.apache.logging.log4j.CloseableThreadContext;
+//import org.apache.logging.log4j.CloseableThreadContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -512,9 +512,10 @@ public class DeterministicTaskQueue {
         return new Runnable() {
             @Override
             public void run() {
-                try (CloseableThreadContext.Instance ignored = CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, nodeId)) {
-                    runnable.run();
-                }
+
+//                try (CloseableThreadContext.Instance ignored = CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, nodeId)) {
+//                    runnable.run();
+//                }
             }
 
             @Override

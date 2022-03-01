@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.core.security.audit.logfile;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.Layout;
-import org.elasticsearch.logging.core.LogEvent;
-import org.elasticsearch.logging.core.LoggerContext;
-import org.elasticsearch.logging.core.StringLayout;
-import org.elasticsearch.logging.core.appender.AbstractAppender;
-import org.elasticsearch.logging.core.config.Configuration;
-import org.elasticsearch.logging.core.config.LoggerConfig;
-import org.elasticsearch.logging.core.filter.RegexFilter;
+//import org.elasticsearch.logging.core.Layout;
+//import org.elasticsearch.logging.core.LogEvent;
+//import org.elasticsearch.logging.core.LoggerContext;
+//import org.elasticsearch.logging.core.StringLayout;
+//import org.elasticsearch.logging.core.appender.AbstractAppender;
+//import org.elasticsearch.logging.core.config.Configuration;
+//import org.elasticsearch.logging.core.config.LoggerConfig;
+//import org.elasticsearch.logging.core.filter.RegexFilter;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.core.Nullable;
 
@@ -46,24 +46,25 @@ public class CapturingLogger {
      *            format the event.
      * @return The new logger.
      */
-    public static Logger newCapturingLogger(final Level level, @Nullable StringLayout layout) throws IllegalAccessException {
+    public static Logger newCapturingLogger(final Level level, @Nullable Object layout) throws IllegalAccessException {
         // careful, don't "bury" this on the call stack, unless you know what you're doing
         final StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
         final String name = caller.getClassName() + "." + caller.getMethodName() + "." + level.toString();
         final Logger logger = LogManager.getLogger(name);
         Loggers.setLevel(logger, level);
-        final MockAppender appender = new MockAppender(name, layout);
-        appender.start();
-        Loggers.addAppender(logger, appender);
+//        final MockAppender appender = new MockAppender(name, layout);
+//        appender.start();
+//        Loggers.addAppender(logger, appender);
         return logger;
     }
 
-    private static MockAppender getMockAppender(final String name) {
-        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
-        final Configuration config = ctx.getConfiguration();
-        final LoggerConfig loggerConfig = config.getLoggerConfig(name);
-        return (MockAppender) loggerConfig.getAppenders().get(name);
-    }
+//    private static MockAppender getMockAppender(final String name) {
+////        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+////        final Configuration config = ctx.getConfiguration();
+////        final LoggerConfig loggerConfig = config.getLoggerConfig(name);
+////        return (MockAppender) loggerConfig.getAppenders().get(name);
+//        return null;
+//    }
 
     /**
      * Checks if the logger's appender has captured any events.
@@ -73,8 +74,8 @@ public class CapturingLogger {
      * @return {@code true} if no event has been captured, {@code false} otherwise.
      */
     public static boolean isEmpty(final String name) {
-        final MockAppender appender = getMockAppender(name);
-        return appender.isEmpty();
+//        final MockAppender appender = getMockAppender(name);
+        return false;//appender.isEmpty();
     }
 
     /**
@@ -87,63 +88,63 @@ public class CapturingLogger {
      * @return A list of captured events formated to {@code String}.
      */
     public static List<String> output(final String name, final Level level) {
-        final MockAppender appender = getMockAppender(name);
-        return appender.output(level);
+//        final MockAppender appender = getMockAppender(name);
+        return null;//appender.output(level);
     }
 
-    private static class MockAppender extends AbstractAppender {
-
-        public final List<String> error = new ArrayList<>();
-        public final List<String> warn = new ArrayList<>();
-        public final List<String> info = new ArrayList<>();
-        public final List<String> debug = new ArrayList<>();
-        public final List<String> trace = new ArrayList<>();
-
-        private MockAppender(final String name, StringLayout layout) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), layout);
-        }
-
-        @Override
-        public void append(LogEvent event) {
-            switch (event.getLevel().toString()) {
-                // we can not keep a reference to the event here because Log4j is using a thread
-                // local instance under the hood
-                case "ERROR" -> error.add(formatMessage(event));
-                case "WARN" -> warn.add(formatMessage(event));
-                case "INFO" -> info.add(formatMessage(event));
-                case "DEBUG" -> debug.add(formatMessage(event));
-                case "TRACE" -> trace.add(formatMessage(event));
-                default -> throw invalidLevelException(event.getLevel());
-            }
-        }
-
-        private String formatMessage(LogEvent event) {
-            final Layout<?> layout = getLayout();
-            if (layout instanceof StringLayout) {
-                return ((StringLayout) layout).toSerializable(event);
-            } else {
-                return event.getMessage().getFormattedMessage();
-            }
-        }
-
-        private IllegalArgumentException invalidLevelException(Level level) {
-            return new IllegalArgumentException("invalid level, expected [ERROR|WARN|INFO|DEBUG|TRACE] but was [" + level + "]");
-        }
-
-        public boolean isEmpty() {
-            return error.isEmpty() && warn.isEmpty() && info.isEmpty() && debug.isEmpty() && trace.isEmpty();
-        }
-
-        public List<String> output(Level level) {
-            return switch (level.toString()) {
-                case "ERROR" -> error;
-                case "WARN" -> warn;
-                case "INFO" -> info;
-                case "DEBUG" -> debug;
-                case "TRACE" -> trace;
-                default -> throw invalidLevelException(level);
-            };
-        }
-    }
+//    private static class MockAppender extends AbstractAppender {
+//
+//        public final List<String> error = new ArrayList<>();
+//        public final List<String> warn = new ArrayList<>();
+//        public final List<String> info = new ArrayList<>();
+//        public final List<String> debug = new ArrayList<>();
+//        public final List<String> trace = new ArrayList<>();
+//
+//        private MockAppender(final String name, StringLayout layout) throws IllegalAccessException {
+//            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), layout);
+//        }
+//
+//        @Override
+//        public void append(LogEvent event) {
+//            switch (event.getLevel().toString()) {
+//                // we can not keep a reference to the event here because Log4j is using a thread
+//                // local instance under the hood
+//                case "ERROR" -> error.add(formatMessage(event));
+//                case "WARN" -> warn.add(formatMessage(event));
+//                case "INFO" -> info.add(formatMessage(event));
+//                case "DEBUG" -> debug.add(formatMessage(event));
+//                case "TRACE" -> trace.add(formatMessage(event));
+//                default -> throw invalidLevelException(event.getLevel());
+//            }
+//        }
+//
+//        private String formatMessage(LogEvent event) {
+//            final Layout<?> layout = getLayout();
+//            if (layout instanceof StringLayout) {
+//                return ((StringLayout) layout).toSerializable(event);
+//            } else {
+//                return event.getMessage().getFormattedMessage();
+//            }
+//        }
+//
+//        private IllegalArgumentException invalidLevelException(Level level) {
+//            return new IllegalArgumentException("invalid level, expected [ERROR|WARN|INFO|DEBUG|TRACE] but was [" + level + "]");
+//        }
+//
+//        public boolean isEmpty() {
+//            return error.isEmpty() && warn.isEmpty() && info.isEmpty() && debug.isEmpty() && trace.isEmpty();
+//        }
+//
+//        public List<String> output(Level level) {
+//            return switch (level.toString()) {
+//                case "ERROR" -> error;
+//                case "WARN" -> warn;
+//                case "INFO" -> info;
+//                case "DEBUG" -> debug;
+//                case "TRACE" -> trace;
+//                default -> throw invalidLevelException(level);
+//            };
+//        }
+//    }
 
 }

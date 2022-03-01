@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.LogEvent;
-import org.elasticsearch.logging.message.Message;
+//import org.elasticsearch.logging.core.LogEvent;
+//import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.junit.Before;
 
@@ -54,20 +54,20 @@ public class ExpressionModelTests extends ESTestCase {
         ExpressionModel model = new ExpressionModel();
         model.defineField("some_int", randomIntBetween(1, 99));
 
-        doWithLoggingExpectations(
-            List.of(new NoMessagesExpectation()),
-            () -> assertThat(model.test("another_field", List.of(new FieldValue(null))), is(true))
-        );
+//        doWithLoggingExpectations(
+//            List.of(new NoMessagesExpectation()),
+//            () -> assertThat(model.test("another_field", List.of(new FieldValue(null))), is(true))
+//        );
     }
 
     public void testCheckAgainstDefinedFieldDoesNotLog() throws Exception {
         ExpressionModel model = new ExpressionModel();
         model.defineField("some_int", randomIntBetween(1, 99));
 
-        doWithLoggingExpectations(
-            List.of(new NoMessagesExpectation()),
-            () -> assertThat(model.test("some_int", List.of(new FieldValue(randomIntBetween(100, 200)))), is(false))
-        );
+//        doWithLoggingExpectations(
+//            List.of(new NoMessagesExpectation()),
+//            () -> assertThat(model.test("some_int", List.of(new FieldValue(randomIntBetween(100, 200)))), is(false))
+//        );
     }
 
     private void doWithLoggingExpectations(List<? extends MockLogAppender.LoggingExpectation> expectations, CheckedRunnable<Exception> body)
@@ -88,19 +88,19 @@ public class ExpressionModelTests extends ESTestCase {
         }
     }
 
-    private class NoMessagesExpectation implements MockLogAppender.LoggingExpectation {
-
-        private List<Message> messages = new ArrayList<>();
-
-        @Override
-        public void match(LogEvent event) {
-            messages.add(event.getMessage());
-        }
-
-        @Override
-        public void assertMatched() {
-            assertThat(messages, empty());
-        }
-    }
+//    private class NoMessagesExpectation implements MockLogAppender.LoggingExpectation {
+//
+//        private List<Message> messages = new ArrayList<>();
+//
+//        @Override
+//        public void match(LogEvent event) {
+//            messages.add(event.getMessage());
+//        }
+//
+//        @Override
+//        public void assertMatched() {
+//            assertThat(messages, empty());
+//        }
+//    }
 
 }

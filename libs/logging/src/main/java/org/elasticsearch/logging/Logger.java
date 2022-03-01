@@ -13,6 +13,7 @@ import java.util.Objects;
 
 public interface Logger {
 
+    Level getLevel();
     String getName();
 
     boolean isLoggable(Level level);

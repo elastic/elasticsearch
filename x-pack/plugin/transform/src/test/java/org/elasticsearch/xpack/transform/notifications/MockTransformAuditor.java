@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 /*
  * Test mock auditor to verify audit expectations.
  *
- * Shamelessly cop...inspired by {@link org.elasticsearch.test.MockLogAppender}
+ * Shamelessly cop...inspired by {@link org.elasticsearch.logging.MockLogAppender}
  *
  * TODO: ideally this would be a generalized  MockAuditor, but the current inheritance doesn't let us
  */

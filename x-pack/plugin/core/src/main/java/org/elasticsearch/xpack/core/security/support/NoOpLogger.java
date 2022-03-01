@@ -25,6 +25,11 @@ public class NoOpLogger implements Logger {
 
 
     @Override
+    public Level getLevel() {
+        return null;
+    }
+
+    @Override
     public String getName() {
         return null;
     }

@@ -24,7 +24,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;

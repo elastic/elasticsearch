@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.test.disruption;
 
-import org.apache.logging.log4j.core.util.Throwables;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -53,7 +53,7 @@ public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
                     try {
                         latch.await();
                     } catch (InterruptedException e) {
-                        Throwables.rethrow(e);
+                        ExceptionsHelper.rethrow(e);
                     }
                 }
                 return currentState;

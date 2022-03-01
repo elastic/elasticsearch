@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsReq
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportLogger;

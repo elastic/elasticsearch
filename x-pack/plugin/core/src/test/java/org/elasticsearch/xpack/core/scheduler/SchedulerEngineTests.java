@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -231,7 +232,7 @@ public class SchedulerEngineTests extends ESTestCase {
     }
 
     private static void verifyDebugLogging(Logger mockLogger) {
-        verify(mockLogger, atLeastOnce()).debug(any(MessageSupplier.class));
+        verify(mockLogger, atLeastOnce()).debug(any(Supplier.class));
     }
 
 }

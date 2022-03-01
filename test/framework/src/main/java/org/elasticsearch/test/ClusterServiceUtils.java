@@ -7,9 +7,8 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.logging.Logger;
-import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -32,6 +31,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -67,7 +67,7 @@ public class ClusterServiceUtils {
         try {
             latch.await();
             if (exception.get() != null) {
-                Throwables.rethrow(exception.get());
+                ExceptionsHelper.rethrow(exception.get());
             }
         } catch (InterruptedException e) {
             throw new ElasticsearchException("unexpected exception", e);

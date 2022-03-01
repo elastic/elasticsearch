@@ -8,7 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.apache.logging.log4j.core.LogEvent;
@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 
 import java.io.BufferedReader;
 import java.io.IOException;

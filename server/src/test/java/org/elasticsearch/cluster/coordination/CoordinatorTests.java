@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.apache.logging.log4j.core.LogEvent;
@@ -42,7 +42,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.logging.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 

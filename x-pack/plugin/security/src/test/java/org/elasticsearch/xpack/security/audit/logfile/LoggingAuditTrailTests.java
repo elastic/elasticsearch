@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.audit.logfile;
 
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.core.layout.PatternLayout;
+//import org.elasticsearch.logging.core.layout.PatternLayout;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
@@ -27,7 +27,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.logging.internal.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -217,7 +216,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         protected abstract String expectedMessage();
     }
 
-    private static PatternLayout patternLayout;
+    private static Object patternLayout;
     private static String customAnonymousUsername;
     private static boolean reservedRealmEnabled;
     private Settings settings;
@@ -247,7 +246,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(properties.getProperty("appender.audit_rolling.layout.type"), is("PatternLayout"));
         final String patternLayoutFormat = properties.getProperty("appender.audit_rolling.layout.pattern");
         assertThat(patternLayoutFormat, is(notNullValue()));
-        patternLayout = PatternLayout.newBuilder().withPattern(patternLayoutFormat).withCharset(StandardCharsets.UTF_8).build();
+        patternLayout = null;//PatternLayout.newBuilder().withPattern(patternLayoutFormat).withCharset(StandardCharsets.UTF_8).build();
         customAnonymousUsername = randomAlphaOfLength(8);
         reservedRealmEnabled = randomBoolean();
     }
@@ -308,8 +307,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES,
-                LoggingAuditTrail.FILTER_POLICY_IGNORE_ACTIONS,
-                Loggers.LOG_LEVEL_SETTING
+                LoggingAuditTrail.FILTER_POLICY_IGNORE_ACTIONS/*,
+                Loggers.LOG_LEVEL_SETTING*/
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -334,7 +333,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 randomFrom("2001:db8:85a3:8d3:1319:8a2e:370:7348", "203.0.113.195", "203.0.113.195, 70.41.3.18, 150.172.238.178")
             );
         }
-        logger = CapturingLogger.newCapturingLogger(randomFrom(Level.OFF, Level.FATAL, Level.ERROR, Level.WARN, Level.INFO), patternLayout);
+        logger = CapturingLogger.newCapturingLogger(randomFrom(Level.OFF, Level.FATAL, Level.ERROR, Level.WARN, Level.INFO), null/*patternLayout*/);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         apiKeyService = new ApiKeyService(
             settings,

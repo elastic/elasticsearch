@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.settings;
 
-import org.apache.logging.log4j.Level;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;

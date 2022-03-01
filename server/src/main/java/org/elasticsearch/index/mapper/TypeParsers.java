@@ -150,15 +150,22 @@ public class TypeParsers {
                 }
 
                 Mapper.TypeParser typeParser = parserContext.typeParser(type);
-                if (typeParser == null) {
+
+                if (typeParser == null && parserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
                     throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + multiFieldName + "]");
                 }
-                if (typeParser instanceof FieldMapper.TypeParser == false) {
+                if (typeParser == null
+                    || (parserContext.indexVersionCreated().isLegacyIndexVersion() && typeParser.supportsLegacyField() == false)) {
+                    multiFieldsBuilder.accept(
+                        PlaceHolderFieldMapper.PARSER.apply(type).parse(multiFieldName, multiFieldNodes, parserContext)
+                    );
+                } else if (typeParser instanceof FieldMapper.TypeParser == false) {
                     throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
+                } else {
+                    FieldMapper.TypeParser fieldTypeParser = (FieldMapper.TypeParser) typeParser;
+                    FieldMapper.Builder fieldBuilder = fieldTypeParser.parse(multiFieldName, multiFieldNodes, parserContext);
+                    multiFieldsBuilder.accept(fieldBuilder);
                 }
-
-                FieldMapper.TypeParser fieldTypeParser = (FieldMapper.TypeParser) typeParser;
-                multiFieldsBuilder.accept(fieldTypeParser.parse(multiFieldName, multiFieldNodes, parserContext));
                 multiFieldNodes.remove("type");
                 MappingParser.checkNoRemainingFields(propName, multiFieldNodes);
             }
@@ -197,4 +204,5 @@ public class TypeParsers {
         }
         return similarityProvider;
     }
+
 }

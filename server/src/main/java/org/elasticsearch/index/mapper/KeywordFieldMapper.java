@@ -137,8 +137,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
 
-        private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, null)
-            .acceptsNull();
+        private final Parameter<String> normalizer;
 
         private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
             "split_queries_on_whitespace",
@@ -162,6 +161,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
+            this.normalizer = Parameter.stringParam(
+                "normalizer",
+                indexCreatedVersion.isLegacyIndexVersion(),
+                m -> toType(m).normalizerName,
+                null
+            ).acceptsNull();
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
@@ -251,7 +256,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                 assert indexAnalyzers != null;
                 normalizer = indexAnalyzers.getNormalizer(normalizerName);
                 if (normalizer == null) {
-                    throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
+                    if (indexCreatedVersion.isLegacyIndexVersion()) {
+                        // TODO: log warning
+                        normalizer = Lucene.KEYWORD_ANALYZER;
+                    } else {
+                        throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
+                    }
                 }
                 searchAnalyzer = quoteAnalyzer = normalizer;
                 if (splitQueriesOnWhitespace.getValue()) {
@@ -281,7 +291,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), c.indexVersionCreated())
+        (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), c.indexVersionCreated()),
+        true
     );
 
     public static final class KeywordFieldType extends StringFieldType {

@@ -994,7 +994,10 @@ public class NumberFieldMapper extends FieldMapper {
         NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
-            this.parser = new TypeParser((n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated()));
+            this.parser = new TypeParser(
+                (n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated()),
+                true
+            );
         }
 
         /** Get the associated type name. */

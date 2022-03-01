@@ -266,7 +266,12 @@ public final class DateFieldMapper extends FieldMapper {
             DateFormatter defaultFormat = resolution == Resolution.MILLISECONDS
                 ? DEFAULT_DATE_TIME_FORMATTER
                 : DEFAULT_DATE_TIME_NANOS_FORMATTER;
-            this.format = Parameter.stringParam("format", false, m -> toType(m).format, defaultFormat.pattern());
+            this.format = Parameter.stringParam(
+                "format",
+                indexCreatedVersion.isLegacyIndexVersion(),
+                m -> toType(m).format,
+                defaultFormat.pattern()
+            );
             if (dateFormatter != null) {
                 this.format.setValue(dateFormatter.pattern());
                 this.locale.setValue(dateFormatter.locale());
@@ -277,7 +282,12 @@ public final class DateFieldMapper extends FieldMapper {
             try {
                 return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
+                if (indexCreatedVersion.isLegacyIndexVersion()) {
+                    // TODO: log warning
+                    return DateFormatter.forPattern(format.getDefaultValue()).withLocale(locale.getValue());
+                } else {
+                    throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
+                }
             }
         }
 
@@ -351,7 +361,7 @@ public final class DateFieldMapper extends FieldMapper {
             ignoreMalformedByDefault,
             c.indexVersionCreated()
         );
-    });
+    }, true);
 
     public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
@@ -363,7 +373,7 @@ public final class DateFieldMapper extends FieldMapper {
             ignoreMalformedByDefault,
             c.indexVersionCreated()
         );
-    });
+    }, true);
 
     public static final class DateFieldType extends MappedFieldType {
         protected final DateFormatter dateTimeFormatter;

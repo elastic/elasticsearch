@@ -56,6 +56,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -1578,7 +1579,16 @@ public class RestoreService implements ClusterStateApplier {
         if (snapshotIndexMetadata.getCreationVersion().before(Version.fromString("5.0.0"))) {
             throw new IllegalArgumentException("can't restore an index created before version 5.0.0");
         }
-        IndexMetadata.Builder convertedIndexMetadata = IndexMetadata.builder(snapshotIndexMetadata);
+        IndexMetadata.Builder convertedIndexMetadataBuilder = IndexMetadata.builder(snapshotIndexMetadata);
+        convertedIndexMetadataBuilder.settings(
+            Settings.builder()
+                .put(snapshotIndexMetadata.getSettings())
+                .put(IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.getKey(), clusterState.getNodes().getSmallestNonClientNodeVersion())
+        );
+        snapshotIndexMetadata = convertedIndexMetadataBuilder.build();
+
+        convertedIndexMetadataBuilder = IndexMetadata.builder(snapshotIndexMetadata);
+
         MappingMetadata mappingMetadata = snapshotIndexMetadata.mapping();
         if (mappingMetadata != null) {
             Map<String, Object> loadedMappingSource = mappingMetadata.rawSourceAsMap();
@@ -1597,21 +1607,84 @@ public class RestoreService implements ClusterStateApplier {
             }
 
             Map<String, Object> newMappingSource = new LinkedHashMap<>();
-            newMappingSource.put("_meta", legacyMapping);
+
+            // mappings keyed by type
+            Map<String, Object> mergedMapping = new LinkedHashMap<>();
+            // bring to single type by merging maps
+            for (Map.Entry<String, Object> typeMapping : loadedMappingSource.entrySet()) {
+                if (typeMapping.getValue() instanceof Map<?, ?>) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> mapping = ((Map<String, Object>) typeMapping.getValue());
+                    if (mergedMapping.isEmpty()) {
+                        mergedMapping.putAll(mapping);
+                    } else {
+                        XContentHelper.mergeDefaults(mergedMapping, mapping);
+                    }
+                }
+            }
+
+            // reorder top-level map so that _meta appears in right place
+            // the order is type, dynamic, enabled, _meta, and then the rest
+            if (mergedMapping.containsKey("type")) {
+                newMappingSource.put("type", mergedMapping.remove("type"));
+            }
+            if (mergedMapping.containsKey("dynamic")) {
+                newMappingSource.put("dynamic", mergedMapping.remove("dynamic"));
+            }
+            if (mergedMapping.containsKey("enabled")) {
+                newMappingSource.put("enabled", mergedMapping.remove("enabled"));
+            }
+
+            // if existing mapping already has a _meta section, merge it with new _meta/legacy_mappings
+            if (sourceOnlySnapshot == false && mergedMapping.containsKey("_meta") && mergedMapping.get("_meta") instanceof Map<?, ?>) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> oldMeta = (Map<String, Object>) mergedMapping.remove("_meta");
+                Map<String, Object> newMeta = new LinkedHashMap<>();
+                newMeta.putAll(oldMeta);
+                newMeta.putAll(legacyMapping);
+                newMappingSource.put("_meta", newMeta);
+            } else {
+                newMappingSource.put("_meta", legacyMapping);
+            }
+
+            // now add the actual mapping
+            if (sourceOnlySnapshot == false) {
+                newMappingSource.putAll(mergedMapping);
+            } else {
+                // TODO: automatically add runtime field definitions for source-only snapshots
+            }
 
             Map<String, Object> newMapping = new LinkedHashMap<>();
             newMapping.put(mappingMetadata.type(), newMappingSource);
 
-            convertedIndexMetadata.putMapping(new MappingMetadata(mappingMetadata.type(), newMapping));
+            MappingMetadata updatedMappingMetadata = new MappingMetadata(mappingMetadata.type(), newMapping);
+            convertedIndexMetadataBuilder.putMapping(updatedMappingMetadata);
+            IndexMetadata convertedIndexMetadata = convertedIndexMetadataBuilder.build();
+
+            try {
+                indexMetadataVerifier.checkMappingsCompatibility(convertedIndexMetadata);
+                return convertedIndexMetadata;
+            } catch (Exception e) {
+                logger.warn(
+                    new ParameterizedMessage("could not import mappings for legacy index {}", snapshotIndexMetadata.getIndex().getName()),
+                    e
+                );
+                // put mapping into _meta/legacy_mappings instead without adding anything else
+                convertedIndexMetadataBuilder = IndexMetadata.builder(snapshotIndexMetadata);
+
+                newMappingSource.clear();
+                newMappingSource.put("_meta", legacyMapping);
+
+                newMapping = new LinkedHashMap<>();
+                newMapping.put(mappingMetadata.type(), newMappingSource);
+
+                updatedMappingMetadata = new MappingMetadata(mappingMetadata.type(), newMapping);
+                convertedIndexMetadataBuilder.putMapping(updatedMappingMetadata);
+            }
         }
 
-        convertedIndexMetadata.settings(
-            Settings.builder()
-                .put(snapshotIndexMetadata.getSettings())
-                .put(IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.getKey(), clusterState.getNodes().getSmallestNonClientNodeVersion())
-        );
         // TODO: _routing? Perhaps we don't need to obey any routing here as stuff is read-only anyway and get API will be disabled
-        return convertedIndexMetadata.build();
+        return convertedIndexMetadataBuilder.build();
     }
 
     private static IndexMetadata.Builder restoreToCreateNewIndex(IndexMetadata snapshotIndexMetadata, String renamedIndexName) {

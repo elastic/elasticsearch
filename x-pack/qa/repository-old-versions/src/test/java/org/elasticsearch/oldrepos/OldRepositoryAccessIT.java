@@ -24,7 +24,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.GetMappingsRequest;
-import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -49,7 +48,6 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -448,16 +446,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(sourceForDoc(num), searchResponse.getHits().getHits()[0].getSourceAsString());
 
         if (sourceOnlyRepository == false) {
-            // check that doc values can be accessed by (reverse) sorting on numeric val field
-            // first add mapping for field (this will be done automatically in the future)
-            XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
-            mappingBuilder.startObject().startObject("properties");
-            mappingBuilder.startObject("val").field("type", "long").endObject();
-            mappingBuilder.endObject().endObject();
-            assertTrue(
-                client.indices().putMapping(new PutMappingRequest(index).source(mappingBuilder), RequestOptions.DEFAULT).isAcknowledged()
-            );
-
             // search using reverse sort on val
             searchResponse = client.search(
                 new SearchRequest(index).source(

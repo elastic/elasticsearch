@@ -35,6 +35,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +63,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected final CopyTo copyTo;
     protected final boolean hasScript;
     protected final String onScriptError;
+    protected final Map<String, Object> unknownParams = new LinkedHashMap<>();
 
     /**
      * Create a FieldMapper with no index analyzers
@@ -1172,6 +1174,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
+        protected final Map<String, Object> unknownParams = new LinkedHashMap<>();
 
         /**
          * Creates a new Builder with a field name
@@ -1190,6 +1193,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             for (FieldMapper subField : initializer.multiFields) {
                 multiFieldsBuilder.add(subField);
             }
+            unknownParams.putAll(initializer.unknownParams);
             return this;
         }
 
@@ -1201,6 +1205,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 multiFieldsBuilder.update(newSubField, MapperBuilderContext.forPath(parentPath(newSubField.name())));
             }
             this.copyTo.reset(in.copyTo);
+            unknownParams.putAll(in.unknownParams);
             validate();
         }
 
@@ -1244,6 +1249,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
+            }
+            for (Map.Entry<String, Object> unknownParam : unknownParams.entrySet()) {
+                builder.field(unknownParam.getKey(), unknownParam.getValue());
             }
             return builder;
         }
@@ -1306,6 +1314,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     parameter = paramsMap.get(propName);
                 }
                 if (parameter == null) {
+                    if (parserContext.indexVersionCreated().isLegacyIndexVersion()) {
+                        // ignore
+                        unknownParams.put(propName, propNode);
+                        iterator.remove();
+                        continue;
+                    }
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
                         deprecationLogger.warn(
                             DeprecationCategory.API,
@@ -1390,21 +1404,28 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         private final BiFunction<String, MappingParserContext, Builder> builderFunction;
         private final BiConsumer<String, MappingParserContext> contextValidator;
+        private boolean supportsLegacyField;
 
         /**
          * Creates a new TypeParser
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
-            this(builderFunction, (n, c) -> {});
+            this(builderFunction, (n, c) -> {}, false);
+        }
+
+        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, boolean supportsLegacyField) {
+            this(builderFunction, (n, c) -> {}, supportsLegacyField);
         }
 
         public TypeParser(
             BiFunction<String, MappingParserContext, Builder> builderFunction,
-            BiConsumer<String, MappingParserContext> contextValidator
+            BiConsumer<String, MappingParserContext> contextValidator,
+            boolean supportsLegacyField
         ) {
             this.builderFunction = builderFunction;
             this.contextValidator = contextValidator;
+            this.supportsLegacyField = supportsLegacyField;
         }
 
         @Override
@@ -1413,6 +1434,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Builder builder = builderFunction.apply(name, parserContext);
             builder.parse(name, parserContext, node);
             return builder;
+        }
+
+        @Override
+        public boolean supportsLegacyField() {
+            return supportsLegacyField;
         }
     }
 

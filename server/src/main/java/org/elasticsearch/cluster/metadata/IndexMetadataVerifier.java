@@ -127,7 +127,7 @@ public class IndexMetadataVerifier {
      * policy guarantees we can read mappings from previous compatible index versions. A failure here would
      * indicate a compatibility bug (which are unfortunately not that uncommon).
      */
-    private void checkMappingsCompatibility(IndexMetadata indexMetadata) {
+    public void checkMappingsCompatibility(IndexMetadata indexMetadata) {
         try {
 
             // We cannot instantiate real analysis server or similarity service at this point because the node

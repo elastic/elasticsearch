@@ -34,6 +34,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     public interface TypeParser {
         Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException;
+
+        default boolean supportsLegacyField() {
+            return false;
+        }
     }
 
     private final String simpleName;

@@ -124,6 +124,11 @@ public final class FieldAliasMapper extends Mapper {
             }
             return builder.path(path);
         }
+
+        @Override
+        public boolean supportsLegacyField() {
+            return true;
+        }
     }
 
     public static class Builder extends Mapper.Builder {

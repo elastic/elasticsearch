@@ -109,7 +109,8 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())),
-        notInMultiFields(CONTENT_TYPE)
+        notInMultiFields(CONTENT_TYPE),
+        false
     );
 
     private final Explicit<Boolean> ignoreMalformed;

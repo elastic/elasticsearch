@@ -142,7 +142,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler(), c.indexVersionCreated()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler(), c.indexVersionCreated()), true);
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 

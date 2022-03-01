@@ -178,7 +178,7 @@ public class IpFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
         return new Builder(n, c.scriptCompiler(), ignoreMalformedByDefault, c.indexVersionCreated());
-    });
+    }, true);
 
     public static final class IpFieldType extends SimpleMappedFieldType {
 

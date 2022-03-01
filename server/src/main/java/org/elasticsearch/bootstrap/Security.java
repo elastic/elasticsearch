@@ -20,6 +20,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
+import java.io.FilePermission;
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -39,6 +40,7 @@ import java.security.Policy;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -173,12 +175,12 @@ final class Security {
         return policy;
     }
 
-    private static Permissions createRecursiveDataPathPermission(Environment environment) throws IOException {
+    private static List<FilePermission> createRecursiveDataPathPermission(Environment environment) throws IOException {
         Permissions policy = new Permissions();
         for (Path path : environment.dataFiles()) {
             addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", true);
         }
-        return policy;
+        return toFilePermissions(policy);
     }
 
     /** Adds access to classpath jars/classes for jar hell scan, etc */
@@ -385,5 +387,21 @@ final class Security {
     @SuppressForbidden(reason = "access violation required")
     private static Field getDeclaredField(Class<?> c, String name) throws NoSuchFieldException {
         return c.getDeclaredField(name);
+    }
+
+    /**
+     * Assumes the given {@link Permissions} only contains {@link FilePermission} elements and returns them as
+     * a list.
+     *
+     * @param permissions permissions to unwrap
+     * @return list of file permissions found
+     */
+    static List<FilePermission> toFilePermissions(Permissions permissions) {
+        return permissions.elementsAsStream().map(p -> {
+            if (p instanceof FilePermission == false) {
+                throw new AssertionError("[" + p + "] was not a file permission");
+            }
+            return (FilePermission) p;
+        }).toList();
     }
 }

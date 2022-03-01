@@ -130,7 +130,9 @@ setup:
 
 ---
 "top_hits aggregation with sequence numbers":
-
+ - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/84500"
   - do:
       search:
         index: my-index

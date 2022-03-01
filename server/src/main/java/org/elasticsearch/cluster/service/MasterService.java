@@ -49,7 +49,6 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
@@ -321,7 +320,7 @@ public class MasterService extends AbstractLifecycleComponent {
                                     threadPool
                                 )
                             )
-                            .collect(Collectors.toList())
+                            .toList()
                     ),
                     new ActionListener<>() {
                         @Override
@@ -537,7 +536,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 task.getAgeInMillis(),
                 pending.executing
             );
-        }).collect(Collectors.toList());
+        }).toList();
     }
 
     /**

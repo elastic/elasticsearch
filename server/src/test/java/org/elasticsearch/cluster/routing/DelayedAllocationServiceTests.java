@@ -400,6 +400,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         verifyNoMoreInteractions(clusterService);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84520")
     public void testDelayedUnassignedScheduleRerouteRescheduledOnShorterDelay() throws Exception {
         TimeValue delaySetting = timeValueSeconds(30);
         TimeValue shorterDelaySetting = timeValueMillis(100);

@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.ObjectParser.ValueType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -406,7 +407,7 @@ public abstract class AbstractObjectParser<Value, Context> {
         if (currentToken.isValue()
             || currentToken == XContentParser.Token.VALUE_NULL
             || currentToken == XContentParser.Token.START_OBJECT) {
-            return List.of(itemParser.parse(parser, context)); // single value
+            return Collections.singletonList(itemParser.parse(parser, context)); // single value
         }
         final List<T> list = new ArrayList<>();
         XContentParser.Token token;

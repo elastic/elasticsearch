@@ -1,0 +1,11 @@
+pr: 84476
+summary: Deprecation for truststores with no trust entries
+area: TLS
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecation for truststores with no trust entries
+  area: TLS
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

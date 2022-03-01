@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -80,10 +81,34 @@ public class IndexPrivilegeTests extends ESTestCase {
         );
     }
 
-    public void testViewIndexMetadataIsCoveredByManage() {
+    public void testRelationshipBetweenPrivileges() {
         assertThat(
             Operations.subsetOf(
                 IndexPrivilege.get(Set.of("view_index_metadata")).automaton,
+                IndexPrivilege.get(Set.of("manage")).automaton
+            ),
+            is(true)
+        );
+
+        assertThat(
+            Operations.subsetOf(
+                IndexPrivilege.get(Set.of("monitor")).automaton,
+                IndexPrivilege.get(Set.of("manage")).automaton
+            ),
+            is(true)
+        );
+
+        assertThat(
+            Operations.subsetOf(
+                IndexPrivilege.get(Set.of("create", "create_doc", "index", "delete")).automaton,
+                IndexPrivilege.get(Set.of("write")).automaton
+            ),
+            is(true)
+        );
+
+        assertThat(
+            Operations.subsetOf(
+                IndexPrivilege.get(Set.of("create_index", "delete_index")).automaton,
                 IndexPrivilege.get(Set.of("manage")).automaton
             ),
             is(true)

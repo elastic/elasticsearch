@@ -398,10 +398,11 @@ public class JwtRestIT extends ESRestTestCase {
         return builder.build();
     }
 
-    private SignedJWT signJWt(JWSSigner signer, String algorithm, JWTClaimsSet claimsSet) throws JOSEException, ParseException {
+    private SignedJWT signJWt(JWSSigner signer, String algorithm, JWTClaimsSet claimsSet) throws JOSEException {
         final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(algorithm)).build();
-        final SignedJWT unsignedJwt = new SignedJWT(jwtHeader, claimsSet);
-        return JwtValidateUtil.signJwt(signer, unsignedJwt);
+        final SignedJWT jwt = new SignedJWT(jwtHeader, claimsSet);
+        jwt.sign(signer);
+        return jwt;
     }
 
     private TestSecurityClient getSecurityClient(SignedJWT jwt, Optional<String> sharedSecret) {

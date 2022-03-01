@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;

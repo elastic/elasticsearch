@@ -229,6 +229,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
@@ -407,6 +408,11 @@ public class Security extends Plugin
     public static final LicensedFeature.Persistent OIDC_REALM_FEATURE = LicensedFeature.persistent(
         REALMS_FEATURE_FAMILY,
         "oidc",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Persistent JWT_REALM_FEATURE = LicensedFeature.persistent(
+        REALMS_FEATURE_FAMILY,
+        "jwt",
         License.OperationMode.PLATINUM
     );
     public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE = LicensedFeature.persistent(
@@ -1088,6 +1094,7 @@ public class Security extends Plugin
         if (AuthenticationServiceField.RUN_AS_ENABLED.get(settings)) {
             headers.add(new RestHeaderDefinition(AuthenticationServiceField.RUN_AS_USER_HEADER, false));
         }
+        headers.add(new RestHeaderDefinition(JwtRealm.HEADER_CLIENT_AUTHENTICATION, false));
         return headers;
     }
 

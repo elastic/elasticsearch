@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -491,7 +492,11 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     private static ClusterState applyUpdates(ClusterState state, SnapshotsService.ShardSnapshotUpdate... updates) throws Exception {
-        return SnapshotsService.SHARD_STATE_EXECUTOR.execute(state, Arrays.asList(updates)).resultingState();
+        return ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            state,
+            SnapshotsService.SHARD_STATE_EXECUTOR,
+            Arrays.asList(updates)
+        );
     }
 
     private static SnapshotsInProgress.Entry snapshotEntry(

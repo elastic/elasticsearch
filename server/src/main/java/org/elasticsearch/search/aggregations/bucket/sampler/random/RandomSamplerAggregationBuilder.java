@@ -51,7 +51,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     private int seed = Randomness.get().nextInt();
     private double p = 0.1;
 
-    RandomSamplerAggregationBuilder(String name) {
+    public RandomSamplerAggregationBuilder(String name) {
         super(name);
     }
 

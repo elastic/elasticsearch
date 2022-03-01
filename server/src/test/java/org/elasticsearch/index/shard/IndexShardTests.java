@@ -3580,7 +3580,7 @@ public class IndexShardTests extends IndexShardTestCase {
             while (stop.get() == false) {
                 try {
                     Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
-                    assertThat(readMeta.getNumDocs(), equalTo(numDocs));
+                    assertThat(readMeta.numDocs(), equalTo(numDocs));
                     assertThat(storeFileMetadatas.recoveryDiff(readMeta).different.size(), equalTo(0));
                     assertThat(storeFileMetadatas.recoveryDiff(readMeta).missing.size(), equalTo(0));
                     assertThat(storeFileMetadatas.recoveryDiff(readMeta).identical.size(), equalTo(storeFileMetadatas.size()));

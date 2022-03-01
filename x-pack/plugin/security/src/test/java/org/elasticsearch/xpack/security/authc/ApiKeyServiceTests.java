@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -1214,18 +1215,39 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNull(service.getApiKeyAuthCache().get(docId));
     }
 
-    public void testWillGetLookedUpByRealmNameIfExists() {
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("auth_by", "auth_by_type", "node");
-        final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef("looked_up_by", "looked_up_by_type", "node");
-        final Authentication authentication = new Authentication(new User("user"), authenticatedBy, lookedUpBy);
-        assertEquals("looked_up_by", ApiKeyService.getCreatorRealmName(authentication));
-    }
+    public void testGetCreatorRealm() {
+        final User user = AuthenticationTests.randomUser();
 
-    public void testWillGetLookedUpByRealmTypeIfExists() {
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("auth_by", "auth_by_type", "node");
-        final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef("looked_up_by", "looked_up_by_type", "node");
-        final Authentication authentication = new Authentication(new User("user"), authenticatedBy, lookedUpBy);
-        assertEquals("looked_up_by_type", ApiKeyService.getCreatorRealmType(authentication));
+        // API key authentication
+        final String apiKeyId = randomAlphaOfLength(20);
+        final Authentication authentication1 = AuthenticationTests.randomApiKeyAuthentication(user, apiKeyId);
+        assertThat(ApiKeyService.getCreatorRealmName(authentication1), equalTo(AuthenticationField.API_KEY_CREATOR_REALM_NAME));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication1), equalTo(AuthenticationField.API_KEY_CREATOR_REALM_TYPE));
+
+        // API key run-as
+        final RealmRef lookupRealmRef = AuthenticationTests.randomRealmRef(false);
+        final Authentication authentication2 = authentication1.runAs(AuthenticationTests.randomUser(), lookupRealmRef);
+        assertThat(ApiKeyService.getCreatorRealmName(authentication2), equalTo(lookupRealmRef.getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication2), equalTo(lookupRealmRef.getType()));
+
+        // Realm
+        final Authentication authentication3 = AuthenticationTests.randomRealmAuthentication(false);
+        assertThat(ApiKeyService.getCreatorRealmName(authentication3), equalTo(authentication3.getSourceRealm().getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication3), equalTo(authentication3.getSourceRealm().getType()));
+
+        // Realm run-as
+        final Authentication authentication4 = authentication3.runAs(AuthenticationTests.randomUser(), lookupRealmRef);
+        assertThat(ApiKeyService.getCreatorRealmName(authentication4), equalTo(lookupRealmRef.getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication4), equalTo(lookupRealmRef.getType()));
+
+        // Others (cannot run-as)
+        final Authentication authentication5 = randomFrom(
+            AuthenticationTests.randomServiceAccountAuthentication(),
+            AuthenticationTests.randomAnonymousAuthentication(),
+            AuthenticationTests.randomInternalAuthentication()
+        );
+        assertThat(ApiKeyService.getCreatorRealmName(authentication5), equalTo(authentication5.getSourceRealm().getName()));
+        assertThat(ApiKeyService.getCreatorRealmType(authentication5), equalTo(authentication5.getSourceRealm().getType()));
     }
 
     public void testAuthWillTerminateIfGetThreadPoolIsSaturated() throws ExecutionException, InterruptedException {
@@ -1434,7 +1456,10 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testGetApiKeyMetadata() throws IOException {
         final Authentication apiKeyAuthentication = mock(Authentication.class);
         when(apiKeyAuthentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
-        when(apiKeyAuthentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(apiKeyAuthentication.getAuthenticatedBy()).thenReturn(
+            new RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, randomAlphaOfLengthBetween(3, 8))
+        );
+        when(apiKeyAuthentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
         if (apiKeyMetadata == null) {
             when(apiKeyAuthentication.getMetadata()).thenReturn(Map.of());
@@ -1451,14 +1476,14 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
 
         final Authentication authentication = mock(Authentication.class);
-        when(authentication.getAuthenticationType()).thenReturn(
-            randomValueOtherThan(AuthenticationType.API_KEY, () -> randomFrom(AuthenticationType.values()))
+        when(authentication.getAuthenticatedBy()).thenReturn(
+            new RealmRef(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(3, 8))
         );
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> ApiKeyService.getApiKeyMetadata(authentication)
         );
-        assertThat(e.getMessage(), containsString("authentication type must be [api_key]"));
+        assertThat(e.getMessage(), containsString("authentication realm must be [_es_api_key]"));
     }
 
     public static class Utils {

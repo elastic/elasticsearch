@@ -137,7 +137,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    public void testShouldBeRedWhenThereAreRestartingPrimaries() {
+    public void testShouldBeGreenWhenThereAreRestartingPrimaries() {
         var greenIndices = randomList(1, 10, indexGenerator("green-index-", AVAILABLE, AVAILABLE));
         var restartingIndex = index("restarting-index-", RESTARTING);
         var clusterState = createClusterStateWith(appendToCopy(greenIndices, restartingIndex));
@@ -147,9 +147,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             service.calculate(),
             equalTo(
                 createExpectedResult(
-                    RED,
-                    "This cluster has 1 unavailable primary.",
-                    Map.of("unassigned_primaries", 1, "started_primaries", greenIndices.size(), "started_replicas", greenIndices.size())
+                    GREEN,
+                    "This cluster has 1 restarting primary.",
+                    Map.of("restarting_primaries", 1, "started_primaries", greenIndices.size(), "started_replicas", greenIndices.size())
                 )
             )
         );
@@ -181,6 +181,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             override.getOrDefault("unassigned_primaries", 0),
             "initializing_primaries",
             override.getOrDefault("initializing_primaries", 0),
+            "restarting_primaries",
+            override.getOrDefault("restarting_primaries", 0),
             "started_primaries",
             override.getOrDefault("started_primaries", 0),
             "unassigned_replicas",

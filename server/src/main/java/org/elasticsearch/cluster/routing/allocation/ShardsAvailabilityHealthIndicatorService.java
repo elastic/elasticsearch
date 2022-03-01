@@ -37,6 +37,7 @@ import static org.elasticsearch.health.ServerHealthComponents.DATA;
  * * GREEN otherwise
  * <p>
  * Each shard needs to be available and replicated in order to guarantee high availability and prevent data loses.
+ * Shards allocated on nodes scheduled for restart (using nodes shutdown API) will not degrade this indicator health.
  */
 public class ShardsAvailabilityHealthIndicatorService implements HealthIndicatorService {
 
@@ -110,7 +111,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         public HealthStatus getStatus() {
-            if (primaries.unassigned > 0 || primaries.unassigned_restarting > 0) {
+            if (primaries.unassigned > 0) {
                 return RED;
             } else if (replicas.unassigned > 0) {
                 return YELLOW;
@@ -127,11 +128,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || replicas.unassigned_restarting > 0) {
                 builder.append(
                     Stream.of(
-                        createMessage(
-                            primaries.unassigned + primaries.unassigned_restarting,
-                            "unavailable primary",
-                            " unavailable primaries"
-                        ),
+                        createMessage(primaries.unassigned, "unavailable primary", " unavailable primaries"),
+                        createMessage(primaries.unassigned_restarting, "restarting primary", " restarting primaries"),
                         createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
                         createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
                     ).flatMap(Function.identity()).collect(joining(" , "))
@@ -154,9 +152,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             return new SimpleHealthIndicatorDetails(
                 Map.of(
                     "unassigned_primaries",
-                    primaries.unassigned + primaries.unassigned_restarting,
+                    primaries.unassigned,
                     "initializing_primaries",
                     primaries.initializing,
+                    "restarting_primaries",
+                    primaries.unassigned_restarting,
                     "started_primaries",
                     primaries.started,
                     "unassigned_replicas",

@@ -410,6 +410,10 @@ public class DiscoveryNodesTests extends ESTestCase {
                 Version.fromString("6.3.0")
             )
         );
+        discoBuilder.localNodeId("node_" + between(1, 3));
+        if (randomBoolean()) {
+            discoBuilder.masterNodeId("node_" + between(1, 3));
+        }
         discoBuilder.add(
             new DiscoveryNode(
                 "name_" + 3,

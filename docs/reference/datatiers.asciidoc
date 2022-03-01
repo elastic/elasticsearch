@@ -29,9 +29,24 @@ You can configure <<index-lifecycle-management, {ilm}>> ({ilm-init}) policies
 to automatically transition your time series data through the hot, warm, and cold tiers
 according to your performance, resiliency and data retention requirements.
 
-A node's <<data-node, data role>> is configured in `elasticsearch.yml`.
-For example, the highest-performance nodes in a cluster might be assigned to both the hot and content tiers:
+The default configuration for an {ecloud} deployment includes one data tier of
+{es} nodes that handle both hot and content data. Warm, cold, and frozen data
+tiers can be added to a new deployment when it is created, or to an existing
+deployment at any time.  
 
+Add data tiers to a new deployment by opening the *Advanced settings* page and
+selecting *+ Add capacity* for the data tiers that you want to add.  
+
+image::images/data-tiers/ess-advanced-config-data-tiers.png[{ecloud}'s deployment Advanced configuration page,align=center]
+
+Data tiers can also be added to an existing {ecloud} deployment by editing the
+deployment in the link:{ess-console}[{ecloud} console] and selecting
+*+ Add capacity* for the data tiers that you want to add.
+
+NOTE: If you are configuring a self-managed {es} cluster, then each node's
+<<data-node, data role>> is configured in `elasticsearch.yml`.
+For example, the highest-performance nodes in a cluster might be assigned to both
+the hot and content tiers:
 [source,yaml]
 --------------------------------------------------
 node.roles: ["data_hot", "data_content"]

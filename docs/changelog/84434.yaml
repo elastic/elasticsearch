@@ -3,4 +3,5 @@ summary: Skip the shrink step if the number of shards of the shrunk index is the
   with the original
 area: ILM+SLM
 type: bug
-issues: []
+issues:
+  - 80180

@@ -56,7 +56,7 @@ import java.util.function.BiConsumer;
  * all of the {@link Rounding.Prepared#fixedRoundingPoints() fixed rounding points}.
  */
 class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(DateHistogramAggregator.class);
 
     /**
      * Build an {@link Aggregator} for a {@code date_histogram} aggregation.

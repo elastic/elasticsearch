@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 @SuppressWarnings("removal")
-public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase {
+public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
 
     private static final String REVIEWS_INDEX_NAME = "basic-crud-reviews";
     private static final int NUM_USERS = 28;

@@ -196,7 +196,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             var argumentProvider = new CompileModulePathArgumentProvider(isModuleProject, moduleCompileClasspath);
             task.getOptions().getCompilerArgumentProviders().add(argumentProvider);
             FileCollection classpath = task.getClasspath();
-            if (task.getClasspath() != null) {
+            if (isIdea() == false && task.getClasspath() != null) {
                 FileCollection trimmedClasspath = classpath.minus(moduleCompileClasspath);
                 task.setClasspath(project.files(trimmedClasspath));
             }
@@ -282,5 +282,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     static String pathToString(String path) {
         return Arrays.stream(path.split(File.pathSeparator)).sorted().collect(Collectors.joining("\n  ", "[\n  ", "]"));
+    }
+
+    static boolean isIdea() {
+        return System.getProperty("idea.active", "false").equals("true");
     }
 }

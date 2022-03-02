@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ImmutableOpenMapTests extends ESTestCase {
 
@@ -101,6 +102,18 @@ public class ImmutableOpenMapTests extends ESTestCase {
             regionCurrencySymbols.keySet().stream().filter(e -> e.startsWith("U") == false).collect(Collectors.toSet()),
             equalTo(Set.of("Japan", "EU", "Korea"))
         );
+    }
+
+    public void testIntMapKeySet() {
+        ImmutableOpenIntMap<String> map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").fPut(2, "bar").build();
+        Set<Integer> expectedKeys = Set.of(1, 2);
+        Set<Integer> actualKeys = map.keySet();
+        assertThat(actualKeys.contains(1), is(true));
+        assertThat(actualKeys.contains(2), is(true));
+        assertThat(actualKeys, equalTo(expectedKeys));
+        assertThat(expectedKeys, equalTo(actualKeys));
+        assertThat(expectedKeys.stream().filter(actualKeys::contains).count(), equalTo(2L));
+        assertThat(actualKeys.stream().filter(expectedKeys::contains).count(), equalTo(2L));
     }
 
     public void testSortedKeysSet() {

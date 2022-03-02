@@ -94,7 +94,6 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
         it.systemProperty 'tests.old_cluster_version', oldVersion
         it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
         it.nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
-        it.nonInputProperties.systemProperty('tests.rest.cluster.readiness', baseCluster.map(c -> c.allReadinessPortURI.join(",")))
         it.nonInputProperties.systemProperty('tests.clustername', baseName)
     }
 

@@ -41,6 +41,7 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     public void testRestartCRUD() throws Exception {
         checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue(), null);
+        assertEquals("Nothing", this.getTestReadinessPorts());
     }
 
     public void testRemoveCRUD() throws Exception {

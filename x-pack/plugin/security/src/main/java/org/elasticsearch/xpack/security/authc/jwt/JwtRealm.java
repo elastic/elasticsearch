@@ -362,12 +362,16 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
             // Delegated role lookup: If enabled, lookup in authz realms. Otherwise, fall through to JWT realm role mapping.
             if (this.delegatedAuthorizationSupport.hasDelegation()) {
-                this.delegatedAuthorizationSupport.resolve(principal, ActionListener.wrap(success -> {
-                    // Intercept the delegated authorization listener response to log roles. Empty roles is OK.
-                    final User user = success.getValue();
-                    final String rolesString = Arrays.toString(user.roles());
-                    LOGGER.debug("Realm [" + super.name() + "] delegated roles [" + rolesString + "] for principal=[" + principal + "].");
-                    listener.onResponse(success);
+                this.delegatedAuthorizationSupport.resolve(principal, ActionListener.wrap(result -> {
+                    if (result.isAuthenticated()) {
+                        // Intercept the delegated authorization listener response to log roles. Empty roles is OK.
+                        final User user = result.getValue();
+                        final String rolesString = Arrays.toString(user.roles());
+                        LOGGER.debug(
+                            "Realm [" + super.name() + "] delegated roles [" + rolesString + "] for principal=[" + principal + "]."
+                        );
+                    }
+                    listener.onResponse(result);
                 }, e -> {
                     final String msg = "Realm [" + super.name() + "] delegated roles failed for principal=[" + principal + "].";
                     LOGGER.warn(msg, e);

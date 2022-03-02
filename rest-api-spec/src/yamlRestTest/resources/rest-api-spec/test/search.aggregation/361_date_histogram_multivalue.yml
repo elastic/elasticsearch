@@ -31,6 +31,10 @@ setup:
 
 ---
 "Multi-value date histogram":
+  - skip:
+      version: " - 8.1.99"
+      reason:  Bug fixed in 8.2.0
+
   - do:
       search:
         body:
@@ -47,6 +51,10 @@ setup:
   - length: { aggregations.datehisto.buckets: 2 }
 ---
 "Multi-value without filter by filter":
+  - skip:
+      version: " - 8.1.99"
+      reason:  Bug fixed in 8.2.0
+
   - do:
       cluster.put_settings:
         body:

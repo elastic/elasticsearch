@@ -9,6 +9,9 @@ setup:
               properties:
                 date:
                   type: date
+                date_not_indexed:
+                  type: date
+                  index: false
   - do:
       cluster.health:
         wait_for_status: green
@@ -19,7 +22,7 @@ setup:
         refresh: true
         body:
           - '{"index": {}}'
-          - '{ "date":["2021-05-01","2021-04-01","2021-04-22"] }'
+          - '{ "date":["2021-05-01","2021-04-01","2021-04-22"], "date_not_indexed":["2021-05-01","2021-04-01","2021-03-22"]}'
 ---
  teardown:
 
@@ -49,6 +52,27 @@ setup:
 
   - match: { hits.total.value: 1 }
   - length: { aggregations.datehisto.buckets: 2 }
+
+---
+"Multi-value date histogram docvalues only":
+  - skip:
+      version: " - 8.1.99"
+      reason:  Bug fixed in 8.2.0
+
+  - do:
+      search:
+        body:
+          query:
+            match:
+              date_not_indexed: "2021-04-01"
+          aggs:
+            datehisto:
+              date_histogram:
+                field: "date_not_indexed"
+                calendar_interval: "1M"
+
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.datehisto.buckets: 3 }
 ---
 "Multi-value without filter by filter":
   - skip:

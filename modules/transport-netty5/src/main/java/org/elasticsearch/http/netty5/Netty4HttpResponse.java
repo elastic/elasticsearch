@@ -20,7 +20,7 @@ import org.elasticsearch.transport.netty5.Netty5Utils;
 public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpResponse {
 
     Netty4HttpResponse(HttpVersion version, RestStatus status, BytesReference content) {
-        super(version, HttpResponseStatus.valueOf(status.getStatus()), Netty5Utils.toByteBuf(content));
+        super(version, HttpResponseStatus.valueOf(status.getStatus()), Netty5Utils.toBuffer(content));
     }
 
     @Override

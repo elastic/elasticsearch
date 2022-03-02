@@ -10,13 +10,14 @@ package org.elasticsearch.http.netty5;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.buffer.api.Buffer;
+import io.netty.buffer.api.BufferAllocator;
+import io.netty.buffer.api.adaptor.ByteBufAdaptor;
+import io.netty.buffer.api.adaptor.ByteBufBuffer;
+import io.netty.channel.*;
+import io.netty.channel.nio.NioHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -32,10 +33,12 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpVersion;
 
+import io.netty.util.concurrent.Future;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.netty5.Netty5Utils;
 import org.elasticsearch.transport.netty5.NettyAllocator;
 
 import java.io.Closeable;
@@ -46,6 +49,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
@@ -55,12 +59,12 @@ import static org.junit.Assert.fail;
 /**
  * Tiny helper to send http requests over netty.
  */
-class Netty4HttpClient implements Closeable {
+class Netty5HttpClient implements Closeable {
 
     static Collection<String> returnHttpResponseBodies(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
         for (FullHttpResponse response : responses) {
-            list.add(response.content().toString(StandardCharsets.UTF_8));
+            list.add(response.payload().toString(StandardCharsets.UTF_8));
         }
         return list;
     }
@@ -75,16 +79,18 @@ class Netty4HttpClient implements Closeable {
 
     private final Bootstrap clientBootstrap;
 
-    Netty4HttpClient() {
+    Netty5HttpClient() {
         clientBootstrap = new Bootstrap().channel(NettyAllocator.getChannelType())
             .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
-            .group(new NioEventLoopGroup(1));
+            .group(new SingleThreadEventLoop(r -> {
+                return new Thread(r);
+            }, NioHandler.newFactory().newHandler()));
     }
 
     public List<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {
         List<HttpRequest> requests = new ArrayList<>(uris.length);
         for (int i = 0; i < uris.length; i++) {
-            final HttpRequest httpRequest = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
+            final HttpRequest httpRequest = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i], Netty5Utils.EMPTY_BUFFER);
             httpRequest.headers().add(HOST, "localhost");
             httpRequest.headers().add("X-Opaque-ID", String.valueOf(i));
             httpRequest.headers().add("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
@@ -116,7 +122,7 @@ class Netty4HttpClient implements Closeable {
     ) throws InterruptedException {
         List<HttpRequest> requests = new ArrayList<>(urisAndBodies.size());
         for (Tuple<String, CharSequence> uriAndBody : urisAndBodies) {
-            ByteBuf content = Unpooled.copiedBuffer(uriAndBody.v2(), StandardCharsets.UTF_8);
+            Buffer content = ByteBufBuffer.wrap(Unpooled.copiedBuffer(uriAndBody.v2(), StandardCharsets.UTF_8));
             HttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uriAndBody.v1(), content);
             request.headers().add(HttpHeaderNames.HOST, "localhost");
             request.headers().add(HttpHeaderNames.CONTENT_LENGTH, content.readableBytes());
@@ -133,13 +139,13 @@ class Netty4HttpClient implements Closeable {
 
         clientBootstrap.handler(new CountDownLatchHandler(latch, content));
 
-        ChannelFuture channelFuture = null;
+        Future<Channel> channelFuture = null;
         try {
             channelFuture = clientBootstrap.connect(remoteAddress);
             channelFuture.sync();
 
             for (HttpRequest request : requests) {
-                channelFuture.channel().writeAndFlush(request);
+                channelFuture.getNow().writeAndFlush(request);
             }
             if (latch.await(30L, TimeUnit.SECONDS) == false) {
                 fail("Failed to get all expected responses.");
@@ -147,7 +153,7 @@ class Netty4HttpClient implements Closeable {
 
         } finally {
             if (channelFuture != null) {
-                channelFuture.channel().close().sync();
+                channelFuture.getNow().close().sync();
             }
         }
 
@@ -178,15 +184,14 @@ class Netty4HttpClient implements Closeable {
             ch.pipeline().addLast(new HttpResponseDecoder());
             ch.pipeline().addLast(new HttpRequestEncoder());
             ch.pipeline().addLast(new HttpContentDecompressor());
-            ch.pipeline().addLast(new HttpObjectAggregator(maxContentLength));
+            ch.pipeline().addLast(new HttpObjectAggregator<>(maxContentLength));
             ch.pipeline().addLast(new SimpleChannelInboundHandler<HttpObject>() {
                 @Override
-                protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
+                protected void messageReceived(ChannelHandlerContext ctx, HttpObject msg) {
                     final FullHttpResponse response = (FullHttpResponse) msg;
                     // We copy the buffer manually to avoid a huge allocation on a pooled allocator. We have
                     // a test that tracks huge allocations, so we want to avoid them in this test code.
-                    ByteBuf newContent = Unpooled.copiedBuffer(((FullHttpResponse) msg).content());
-                    content.add(response.replace(newContent));
+                    content.add(response);
                     latch.countDown();
                 }
 

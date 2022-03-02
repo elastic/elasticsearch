@@ -8,8 +8,8 @@
 
 package org.elasticsearch.http.netty5;
 
+import io.netty.buffer.api.Resource;
 import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.util.ReferenceCounted;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.network.NetworkService;
@@ -80,7 +80,7 @@ public class Netty4BadRequestTests extends ESTestCase {
 
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange()).build();
         try (
-            HttpServerTransport httpServerTransport = new Netty4HttpServerTransport(
+            HttpServerTransport httpServerTransport = new Netty5HttpServerTransport(
                 settings,
                 networkService,
                 bigArrays,
@@ -94,7 +94,7 @@ public class Netty4BadRequestTests extends ESTestCase {
             httpServerTransport.start();
             final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
-            try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
+            try (Netty5HttpClient nettyHttpClient = new Netty5HttpClient()) {
                 final Collection<FullHttpResponse> responses = nettyHttpClient.get(
                     transportAddress.address(),
                     "/_cluster/settings?pretty=%"
@@ -102,7 +102,7 @@ public class Netty4BadRequestTests extends ESTestCase {
                 try {
                     assertThat(responses, hasSize(1));
                     assertThat(responses.iterator().next().status().code(), equalTo(400));
-                    final Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
+                    final Collection<String> responseBodies = Netty5HttpClient.returnHttpResponseBodies(responses);
                     assertThat(responseBodies, hasSize(1));
                     assertThat(responseBodies.iterator().next(), containsString("\"type\":\"bad_parameter_exception\""));
                     assertThat(
@@ -112,7 +112,7 @@ public class Netty4BadRequestTests extends ESTestCase {
                         )
                     );
                 } finally {
-                    responses.forEach(ReferenceCounted::release);
+                    responses.forEach(Resource::close);
                 }
             }
         }

@@ -10,7 +10,6 @@ package org.elasticsearch.http.netty5;
 
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -18,6 +17,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.QueryStringDecoder;
 
+import io.netty.util.concurrent.Future;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,6 +26,7 @@ import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.netty5.Netty5Utils;
 import org.junit.After;
 
 import java.nio.channels.ClosedChannelException;
@@ -33,11 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -45,7 +42,7 @@ import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.hamcrest.core.Is.is;
 
-public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
+public class Netty5HttpPipeliningHandlerTests extends ESTestCase {
 
     private final ExecutorService handlerService = Executors.newFixedThreadPool(randomIntBetween(4, 8));
     private final ExecutorService eventLoopService = Executors.newFixedThreadPool(1);
@@ -78,7 +75,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     public void testThatPipeliningWorksWithFastSerializedRequests() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(
-            new Netty4HttpPipeliningHandler(logger, numberOfRequests),
+            new Netty5HttpPipeliningHandler(logger, numberOfRequests),
             new WorkEmulatorHandler()
         );
 
@@ -107,7 +104,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(
-            new Netty4HttpPipeliningHandler(logger, numberOfRequests),
+            new Netty5HttpPipeliningHandler(logger, numberOfRequests),
             new WorkEmulatorHandler()
         );
 
@@ -139,7 +136,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     public void testThatPipeliningClosesConnectionWithTooManyEvents() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(
-            new Netty4HttpPipeliningHandler(logger, numberOfRequests),
+            new Netty5HttpPipeliningHandler(logger, numberOfRequests),
             new WorkEmulatorHandler()
         );
 
@@ -168,7 +165,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testPipeliningRequestsAreReleased() throws InterruptedException {
         final int numberOfRequests = 10;
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests + 1));
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty5HttpPipeliningHandler(logger, numberOfRequests + 1));
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + i));
@@ -180,20 +177,18 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             requests.add(inbound);
         }
 
-        ArrayList<ChannelPromise> promises = new ArrayList<>();
+        ArrayList<Future<Void>> promises = new ArrayList<>();
         for (int i = 1; i < requests.size(); ++i) {
-            ChannelPromise promise = embeddedChannel.newPromise();
-            promises.add(promise);
             HttpPipelinedRequest pipelinedRequest = requests.get(i);
             HttpPipelinedResponse resp = pipelinedRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
-            embeddedChannel.writeAndFlush(resp, promise);
+            promises.add(embeddedChannel.writeAndFlush(resp));
         }
 
-        for (ChannelPromise promise : promises) {
+        for (Future<Void> promise : promises) {
             assertFalse(promise.isDone());
         }
         embeddedChannel.close().syncUninterruptibly();
-        for (ChannelPromise promise : promises) {
+        for (Future<Void> promise : promises) {
             assertTrue(promise.isDone());
             assertTrue(promise.cause() instanceof ClosedChannelException);
         }
@@ -202,19 +197,19 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     private void assertReadHttpMessageHasContent(EmbeddedChannel embeddedChannel, String expectedContent) {
         FullHttpResponse response = (FullHttpResponse) embeddedChannel.outboundMessages().poll();
         assertNotNull("Expected response to exist, maybe you did not wait long enough?", response);
-        assertNotNull("Expected response to have content " + expectedContent, response.content());
-        String data = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
+        assertNotNull("Expected response to have content " + expectedContent, response.payload());
+        String data = response.payload().toString(StandardCharsets.UTF_8);
         assertThat(data, is(expectedContent));
     }
 
     private Netty4HttpRequest createHttpRequest(String uri) {
-        return new Netty4HttpRequest(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri));
+        return new Netty4HttpRequest(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri, Netty5Utils.EMPTY_BUFFER));
     }
 
     private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
         @Override
-        protected void channelRead0(final ChannelHandlerContext ctx, HttpPipelinedRequest pipelinedRequest) {
+        protected void messageReceived(final ChannelHandlerContext ctx, HttpPipelinedRequest pipelinedRequest) {
             final org.elasticsearch.http.HttpRequest request = pipelinedRequest.getDelegateRequest();
             final QueryStringDecoder decoder = new QueryStringDecoder(request.uri());
 
@@ -231,9 +226,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             handlerService.submit(() -> {
                 try {
                     waitingLatch.await(1000, TimeUnit.SECONDS);
-                    final ChannelPromise promise = ctx.newPromise();
                     eventLoopService.submit(() -> {
-                        ctx.write(httpResponse, promise);
+                        ctx.write(httpResponse);
                         finishingLatch.countDown();
                     });
                 } catch (InterruptedException e) {

@@ -18,15 +18,15 @@ import org.elasticsearch.http.HttpPipelinedRequest;
 @ChannelHandler.Sharable
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
-    private final Netty4HttpServerTransport serverTransport;
+    private final Netty5HttpServerTransport serverTransport;
 
-    Netty4HttpRequestHandler(Netty4HttpServerTransport serverTransport) {
+    Netty4HttpRequestHandler(Netty5HttpServerTransport serverTransport) {
         this.serverTransport = serverTransport;
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest httpRequest) {
-        final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
+    protected void messageReceived(ChannelHandlerContext ctx, HttpPipelinedRequest httpRequest) {
+        final Netty4HttpChannel channel = ctx.channel().attr(Netty5HttpServerTransport.HTTP_CHANNEL_KEY).get();
         boolean success = false;
         try {
             serverTransport.incomingRequest(httpRequest, channel);
@@ -41,7 +41,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         ExceptionsHelper.maybeDieOnAnotherThread(cause);
-        Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
+        Netty4HttpChannel channel = ctx.channel().attr(Netty5HttpServerTransport.HTTP_CHANNEL_KEY).get();
         if (cause instanceof Error) {
             serverTransport.onException(channel, new Exception(cause));
         } else {

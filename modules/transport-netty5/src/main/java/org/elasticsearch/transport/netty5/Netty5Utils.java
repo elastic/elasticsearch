@@ -68,6 +68,10 @@ public class Netty5Utils {
         }
     }
 
+    public static Buffer toBuffer(final BytesReference reference) {
+        return BufferAllocator.onHeapUnpooled().copyOf(BytesReference.toBytes(reference));
+    }
+
     /**
      * Turns the given BytesReference into a ByteBuf. Note: the returned ByteBuf will reference the internal
      * pages of the BytesReference. Don't free the bytes of reference before the ByteBuf goes out of scope.

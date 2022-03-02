@@ -12,20 +12,23 @@ import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
 
 import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.Promise;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpPipeliningAggregator;
 
 import java.nio.channels.ClosedChannelException;
+import java.util.List;
 
 /**
  * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.
  */
-public class Netty4HttpPipeliningHandler extends ChannelHandlerAdapter {
+public class Netty5HttpPipeliningHandler extends ChannelHandlerAdapter {
 
     private final Logger logger;
-    private final HttpPipeliningAggregator<Future<Void>> aggregator;
+    private final HttpPipeliningAggregator<Promise<Void>> aggregator;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
@@ -34,7 +37,7 @@ public class Netty4HttpPipeliningHandler extends ChannelHandlerAdapter {
      * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel connection; this is
      *                      required as events cannot queue up indefinitely
      */
-    public Netty4HttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
+    public Netty5HttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
         this.logger = logger;
         this.aggregator = new HttpPipeliningAggregator<>(maxEventsHeld);
     }
@@ -51,10 +54,11 @@ public class Netty4HttpPipeliningHandler extends ChannelHandlerAdapter {
         assert msg instanceof HttpPipelinedResponse : "Invalid message type: " + msg.getClass();
         HttpPipelinedResponse response = (HttpPipelinedResponse) msg;
         boolean success = false;
+        final Promise<Void> promise = ctx.newPromise();
         try {
-            List<Tuple<HttpPipelinedResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
-            for (Tuple<HttpPipelinedResponse, ChannelPromise> readyResponse : readyResponses) {
-                ctx.write(readyResponse.v1().getDelegateRequest(), readyResponse.v2());
+            List<Tuple<HttpPipelinedResponse, Promise<Void>>> readyResponses = aggregator.write(response, promise);
+            for (Tuple<HttpPipelinedResponse, Promise<Void>> readyResponse : readyResponses) {
+                ctx.write(readyResponse.v1().getDelegateRequest());
             }
             success = true;
         } catch (IllegalStateException e) {
@@ -64,15 +68,16 @@ public class Netty4HttpPipeliningHandler extends ChannelHandlerAdapter {
                 promise.setFailure(new ClosedChannelException());
             }
         }
+        return promise.asFuture();
     }
 
     @Override
-    public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-        List<Tuple<HttpPipelinedResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
+    public Future<Void> close(ChannelHandlerContext ctx) {
+        List<Tuple<HttpPipelinedResponse, Promise<Void>>> inflightResponses = aggregator.removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
-            for (Tuple<HttpPipelinedResponse, ChannelPromise> inflightResponse : inflightResponses) {
+            for (Tuple<HttpPipelinedResponse, Promise<Void>> inflightResponse : inflightResponses) {
                 try {
                     inflightResponse.v2().setFailure(closedChannelException);
                 } catch (RuntimeException e) {
@@ -80,6 +85,6 @@ public class Netty4HttpPipeliningHandler extends ChannelHandlerAdapter {
                 }
             }
         }
-        ctx.close(promise);
+        return ctx.close();
     }
 }

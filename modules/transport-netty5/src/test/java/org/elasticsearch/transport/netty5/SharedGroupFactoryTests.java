@@ -9,7 +9,7 @@
 package org.elasticsearch.transport.netty5;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.netty5.Netty4HttpServerTransport;
+import org.elasticsearch.http.netty5.Netty5HttpServerTransport;
 import org.elasticsearch.test.ESTestCase;
 
 public final class SharedGroupFactoryTests extends ESTestCase {
@@ -38,7 +38,7 @@ public final class SharedGroupFactoryTests extends ESTestCase {
 
     public void testNonSharedEventLoops() throws Exception {
         Settings settings = Settings.builder()
-            .put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), randomIntBetween(1, 10))
+            .put(Netty5HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), randomIntBetween(1, 10))
             .build();
         SharedGroupFactory sharedGroupFactory = new SharedGroupFactory(settings);
         SharedGroupFactory.SharedGroup httpGroup = sharedGroupFactory.getHttpGroup();

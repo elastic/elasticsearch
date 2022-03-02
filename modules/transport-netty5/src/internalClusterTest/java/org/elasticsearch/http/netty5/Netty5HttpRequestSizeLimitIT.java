@@ -8,6 +8,7 @@
 
 package org.elasticsearch.http.netty5;
 
+import io.netty.buffer.api.Resource;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.ReferenceCounted;
@@ -19,7 +20,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty4.Netty4HttpClient;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.hasSize;
  * a single node "cluster".
  */
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numClientNodes = 0, numDataNodes = 1)
-public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
+public class Netty5HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
 
     private static final ByteSizeValue LIMIT = new ByteSizeValue(2, ByteSizeUnit.KB);
 
@@ -78,7 +78,7 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
-        try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
+        try (Netty5HttpClient nettyHttpClient = new Netty5HttpClient()) {
             Collection<FullHttpResponse> singleResponse = nettyHttpClient.post(transportAddress.address(), requests.subList(0, 1));
             try {
                 assertThat(singleResponse, hasSize(1));
@@ -89,10 +89,10 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
                     assertThat(multipleResponses, hasSize(requests.size()));
                     assertAtLeastOnceExpectedStatus(multipleResponses, HttpResponseStatus.TOO_MANY_REQUESTS);
                 } finally {
-                    multipleResponses.forEach(ReferenceCounted::release);
+                    multipleResponses.forEach(Resource::close);
                 }
             } finally {
-                singleResponse.forEach(ReferenceCounted::release);
+                singleResponse.forEach(Resource::close);
             }
         }
     }
@@ -108,13 +108,13 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
-        try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
+        try (Netty5HttpClient nettyHttpClient = new Netty5HttpClient()) {
             Collection<FullHttpResponse> responses = nettyHttpClient.put(transportAddress.address(), requestUris);
             try {
                 assertThat(responses, hasSize(requestUris.size()));
                 assertAllInExpectedStatus(responses, HttpResponseStatus.OK);
             } finally {
-                responses.forEach(ReferenceCounted::release);
+                responses.forEach(Resource::close);
             }
         }
     }

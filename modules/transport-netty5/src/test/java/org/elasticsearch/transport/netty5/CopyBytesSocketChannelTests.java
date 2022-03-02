@@ -12,14 +12,17 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledByteBufAllocator;
+
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoop;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.channel.nio.NioEventLoopGroup;
-
+import io.netty.channel.SingleThreadEventLoop;
+import io.netty.channel.nio.NioHandler;
+import io.netty.util.concurrent.Future;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,7 +45,7 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
     private final AtomicInteger clientBytesReceived = new AtomicInteger();
     private final ConcurrentLinkedQueue<ByteBuf> serverReceived = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<ByteBuf> clientReceived = new ConcurrentLinkedQueue<>();
-    private NioEventLoopGroup eventLoopGroup;
+    private EventLoopGroup eventLoopGroup;
     private InetSocketAddress serverAddress;
     private Channel serverChannel;
 
@@ -50,7 +53,9 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
     @SuppressForbidden(reason = "calls getLocalHost")
     public void setUp() throws Exception {
         super.setUp();
-        eventLoopGroup = new NioEventLoopGroup(1);
+        eventLoopGroup = new SingleThreadEventLoop(r -> {
+            return new Thread(r);
+        }, NioHandler.newFactory().newHandler());
         ServerBootstrap serverBootstrap = new ServerBootstrap();
         serverBootstrap.channel(CopyBytesServerSocketChannel.class);
         serverBootstrap.group(eventLoopGroup);
@@ -62,7 +67,7 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
                 accepted.set((CopyBytesSocketChannel) ch);
                 ch.pipeline().addLast(new SimpleChannelInboundHandler<>() {
                     @Override
-                    protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
+                    protected void messageReceived(ChannelHandlerContext ctx, Object msg) {
                         ByteBuf buffer = (ByteBuf) msg;
                         serverBytesReceived.addAndGet(buffer.readableBytes());
                         serverReceived.add(buffer.retain());
@@ -71,11 +76,11 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
             }
         });
 
-        ChannelFuture bindFuture = serverBootstrap.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0));
+        Future<Channel> bindFuture = serverBootstrap.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0));
         assertTrue(bindFuture.await(10, TimeUnit.SECONDS));
-        serverAddress = (InetSocketAddress) bindFuture.channel().localAddress();
+        serverAddress = (InetSocketAddress) bindFuture.getNow().localAddress();
         bindFuture.isSuccess();
-        serverChannel = bindFuture.channel();
+        serverChannel = bindFuture.getNow();
     }
 
     @Override
@@ -98,7 +103,7 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
             protected void initChannel(Channel ch) {
                 ch.pipeline().addLast(new SimpleChannelInboundHandler<>() {
                     @Override
-                    protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
+                    protected void messageReceived(ChannelHandlerContext ctx, Object msg) {
                         ByteBuf buffer = (ByteBuf) msg;
                         clientBytesReceived.addAndGet(buffer.readableBytes());
                         clientReceived.add(buffer.retain());
@@ -107,22 +112,22 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
             }
         });
 
-        ChannelFuture connectFuture = bootstrap.connect(serverAddress);
+        Future<Channel> connectFuture = bootstrap.connect(serverAddress);
         connectFuture.await(10, TimeUnit.SECONDS);
         assertTrue(connectFuture.isSuccess());
-        CopyBytesSocketChannel copyChannel = (CopyBytesSocketChannel) connectFuture.channel();
+        CopyBytesSocketChannel copyChannel = (CopyBytesSocketChannel) connectFuture.getNow();
         ByteBuf clientData = generateData();
         ByteBuf serverData = generateData();
 
         try {
             assertBusy(() -> assertNotNull(accepted.get()));
             int clientBytesToWrite = clientData.readableBytes();
-            ChannelFuture clientWriteFuture = copyChannel.writeAndFlush(clientData.retainedSlice());
+            Future<Void> clientWriteFuture = copyChannel.writeAndFlush(clientData.retainedSlice());
             clientWriteFuture.await(10, TimeUnit.SECONDS);
             assertBusy(() -> assertEquals(clientBytesToWrite, serverBytesReceived.get()));
 
             int serverBytesToWrite = serverData.readableBytes();
-            ChannelFuture serverWriteFuture = accepted.get().writeAndFlush(serverData.retainedSlice());
+            Future<Void> serverWriteFuture = accepted.get().writeAndFlush(serverData.retainedSlice());
             assertTrue(serverWriteFuture.await(10, TimeUnit.SECONDS));
             assertBusy(() -> assertEquals(serverBytesToWrite, clientBytesReceived.get()));
 
@@ -145,8 +150,8 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
 
     public static class VerifyingCopyChannel extends CopyBytesSocketChannel {
 
-        public VerifyingCopyChannel() {
-            super();
+        public VerifyingCopyChannel(EventLoop eventLoop) {
+            super(eventLoop);
         }
 
         @Override

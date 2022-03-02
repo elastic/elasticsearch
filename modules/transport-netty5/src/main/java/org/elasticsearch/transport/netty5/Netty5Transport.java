@@ -9,12 +9,15 @@ package org.elasticsearch.transport.netty5;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.*;
-import io.netty.channel.AdaptiveRecvByteBufAllocator;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.FixedRecvByteBufAllocator;
-import io.netty.channel.RecvByteBufAllocator;
+import io.netty.channel.AdaptiveRecvBufferAllocator;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerAdapter;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.FixedRecvBufferAllocator;
+import io.netty.channel.RecvBufferAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.util.AttributeKey;
 
@@ -89,7 +92,7 @@ public class Netty5Transport extends TcpTransport {
     public static final Setting<Integer> NETTY_BOSS_COUNT = intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
     private final SharedGroupFactory sharedGroupFactory;
-    private final RecvByteBufAllocator recvByteBufAllocator;
+    private final RecvBufferAllocator recvByteBufAllocator;
     private final ByteSizeValue receivePredictorMin;
     private final ByteSizeValue receivePredictorMax;
     private final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
@@ -115,9 +118,9 @@ public class Netty5Transport extends TcpTransport {
         this.receivePredictorMin = NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
         this.receivePredictorMax = NETTY_RECEIVE_PREDICTOR_MAX.get(settings);
         if (receivePredictorMax.getBytes() == receivePredictorMin.getBytes()) {
-            recvByteBufAllocator = new FixedRecvByteBufAllocator((int) receivePredictorMax.getBytes());
+            recvByteBufAllocator = new FixedRecvBufferAllocator((int) receivePredictorMax.getBytes());
         } else {
-            recvByteBufAllocator = new AdaptiveRecvByteBufAllocator(
+            recvByteBufAllocator = new AdaptiveRecvBufferAllocator(
                 (int) receivePredictorMin.getBytes(),
                 (int) receivePredictorMin.getBytes(),
                 (int) receivePredictorMax.getBytes()

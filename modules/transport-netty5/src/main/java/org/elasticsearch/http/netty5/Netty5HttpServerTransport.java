@@ -10,16 +10,14 @@ package org.elasticsearch.http.netty5;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.FixedRecvByteBufAllocator;
-import io.netty.channel.RecvByteBufAllocator;
+import io.netty.channel.FixedRecvBufferAllocator;
+import io.netty.channel.RecvBufferAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
-import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
@@ -29,6 +27,7 @@ import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
 
+import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -74,8 +73,8 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUS
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 
-public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
-    private static final Logger logger = LogManager.getLogger(Netty4HttpServerTransport.class);
+public class Netty5HttpServerTransport extends AbstractHttpServerTransport {
+    private static final Logger logger = LogManager.getLogger(Netty5HttpServerTransport.class);
 
     /*
      * Size in bytes of an individual message received by io.netty.handler.codec.MessageAggregator which accumulates the content for an
@@ -130,7 +129,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final int pipeliningMaxEvents;
 
     private final SharedGroupFactory sharedGroupFactory;
-    private final RecvByteBufAllocator recvByteBufAllocator;
+    private final RecvBufferAllocator recvByteBufAllocator;
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
@@ -138,7 +137,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private volatile ServerBootstrap serverBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
-    public Netty4HttpServerTransport(
+    public Netty5HttpServerTransport(
         Settings settings,
         NetworkService networkService,
         BigArrays bigArrays,
@@ -160,7 +159,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
 
         ByteSizeValue receivePredictor = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
-        recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
+        recvByteBufAllocator = new FixedRecvBufferAllocator(receivePredictor.bytesAsInt());
 
         logger.debug(
             "using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], "
@@ -256,8 +255,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     protected HttpServerChannel bind(InetSocketAddress socketAddress) throws Exception {
-        ChannelFuture future = serverBootstrap.bind(socketAddress).sync();
-        Channel channel = future.channel();
+        Future<Channel> future = serverBootstrap.bind(socketAddress).sync();
+        Channel channel = future.getNow();
         Netty4HttpServerChannel httpServerChannel = new Netty4HttpServerChannel(channel);
         channel.attr(HTTP_SERVER_CHANNEL_KEY).set(httpServerChannel);
         return httpServerChannel;
@@ -289,11 +288,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
-        private final Netty4HttpServerTransport transport;
+        private final Netty5HttpServerTransport transport;
         private final Netty4HttpRequestHandler requestHandler;
         private final HttpHandlingSettings handlingSettings;
 
-        protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
+        protected HttpChannelHandler(final Netty5HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.requestHandler = new Netty4HttpRequestHandler(transport);
@@ -307,22 +306,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
                 handlingSettings.getMaxInitialLineLength(),
-                handlingSettings.getMaxHeaderSize(),
-                handlingSettings.getMaxChunkSize()
+                handlingSettings.getMaxHeaderSize()
             );
-            decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
-            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+            final HttpObjectAggregator aggregator = new HttpObjectAggregator<>(handlingSettings.getMaxContentLength());
             ch.pipeline().addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
             ch.pipeline().addLast("request_creator", Netty4HttpRequestCreator.INSTANCE);
-            ch.pipeline().addLast("response_creator", Netty4HttpResponseCreator.INSTANCE);
-            ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
+            ch.pipeline().addLast("response_creator", Netty5HttpResponseCreator.INSTANCE);
+            ch.pipeline().addLast("pipelining", new Netty5HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
             transport.serverAcceptedChannel(nettyHttpChannel);
         }
@@ -335,11 +331,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @ChannelHandler.Sharable
-    private static class ServerChannelExceptionHandler extends ChannelInboundHandlerAdapter {
+    private static class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
 
-        private final Netty4HttpServerTransport transport;
+        private final Netty5HttpServerTransport transport;
 
-        private ServerChannelExceptionHandler(Netty4HttpServerTransport transport) {
+        private ServerChannelExceptionHandler(Netty5HttpServerTransport transport) {
             this.transport = transport;
         }
 

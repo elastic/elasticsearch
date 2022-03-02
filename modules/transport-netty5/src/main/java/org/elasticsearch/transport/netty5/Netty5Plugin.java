@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty5.Netty4HttpServerTransport;
+import org.elasticsearch.http.netty5.Netty5HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -43,9 +43,9 @@ public class Netty5Plugin extends Plugin implements NetworkPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-            Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
-            Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT,
-            Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
+            Netty5HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
+            Netty5HttpServerTransport.SETTING_HTTP_WORKER_COUNT,
+            Netty5HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
             Netty5Transport.WORKER_COUNT,
             Netty5Transport.NETTY_RECEIVE_PREDICTOR_SIZE,
             Netty5Transport.NETTY_RECEIVE_PREDICTOR_MIN,
@@ -102,7 +102,7 @@ public class Netty5Plugin extends Plugin implements NetworkPlugin {
     ) {
         return Collections.singletonMap(
             NETTY_HTTP_TRANSPORT_NAME,
-            () -> new Netty4HttpServerTransport(
+            () -> new Netty5HttpServerTransport(
                 settings,
                 networkService,
                 bigArrays,

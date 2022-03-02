@@ -19,7 +19,6 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportLogger;
-import org.elasticsearch.transport.netty4.ESLoggingHandler;
 
 import java.io.IOException;
 

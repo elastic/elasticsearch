@@ -8,13 +8,12 @@
 
 package org.elasticsearch.http.netty5;
 
+import io.netty.buffer.api.Resource;
 import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.util.ReferenceCounted;
 
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty4.Netty4HttpClient;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
@@ -25,7 +24,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
-public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
+public class Netty5PipeliningIT extends ESNetty4IntegTestCase {
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -39,15 +38,15 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
         TransportAddress transportAddress = randomFrom(boundAddresses);
 
-        try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
+        try (Netty5HttpClient nettyHttpClient = new Netty5HttpClient()) {
             Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests);
             try {
                 assertThat(responses, hasSize(5));
 
-                Collection<String> opaqueIds = Netty4HttpClient.returnOpaqueIds(responses);
+                Collection<String> opaqueIds = Netty5HttpClient.returnOpaqueIds(responses);
                 assertOpaqueIdsInOrder(opaqueIds);
             } finally {
-                responses.forEach(ReferenceCounted::release);
+                responses.forEach(Resource::close);
             }
         }
     }

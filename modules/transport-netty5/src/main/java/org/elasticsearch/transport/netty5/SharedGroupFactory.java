@@ -8,8 +8,8 @@
 
 package org.elasticsearch.transport.netty5;
 
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.MultithreadEventLoopGroup;
+import io.netty.channel.nio.NioHandler;
 import io.netty.util.concurrent.Future;
 
 import org.apache.logging.log4j.LogManager;
@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty5.Netty4HttpServerTransport;
+import org.elasticsearch.http.netty5.Netty5HttpServerTransport;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.util.concurrent.TimeUnit;
@@ -29,7 +29,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 /**
  * Creates and returns {@link io.netty.channel.EventLoopGroup} instances. It will return a shared group for
  * both {@link #getHttpGroup()} and {@link #getTransportGroup()} if
- * {@link Netty4HttpServerTransport#SETTING_HTTP_WORKER_COUNT} is configured to be 0.
+ * {@link Netty5HttpServerTransport#SETTING_HTTP_WORKER_COUNT} is configured to be 0.
  * If that setting is not 0, then it will return a different group in the {@link #getHttpGroup()} call.
  */
 public final class SharedGroupFactory {
@@ -46,7 +46,7 @@ public final class SharedGroupFactory {
     public SharedGroupFactory(Settings settings) {
         this.settings = settings;
         this.workerCount = Netty5Transport.WORKER_COUNT.get(settings);
-        this.httpWorkerCount = Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.get(settings);
+        this.httpWorkerCount = Netty5HttpServerTransport.SETTING_HTTP_WORKER_COUNT.get(settings);
     }
 
     public Settings getSettings() {
@@ -66,9 +66,10 @@ public final class SharedGroupFactory {
             return getGenericGroup();
         } else {
             if (dedicatedHttpGroup == null) {
-                NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(
+                MultithreadEventLoopGroup eventLoopGroup = new MultithreadEventLoopGroup(
                     httpWorkerCount,
-                    daemonThreadFactory(settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)
+                    daemonThreadFactory(settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX),
+                    NioHandler.newFactory()
                 );
                 dedicatedHttpGroup = new SharedGroup(new RefCountedGroup(eventLoopGroup));
             }
@@ -78,9 +79,10 @@ public final class SharedGroupFactory {
 
     private SharedGroup getGenericGroup() {
         if (genericGroup == null) {
-            EventLoopGroup eventLoopGroup = new NioEventLoopGroup(
+            MultithreadEventLoopGroup eventLoopGroup = new MultithreadEventLoopGroup(
                 workerCount,
-                EsExecutors.daemonThreadFactory(settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX)
+                EsExecutors.daemonThreadFactory(settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX),
+                NioHandler.newFactory()
             );
             this.genericGroup = new RefCountedGroup(eventLoopGroup);
         } else {
@@ -91,9 +93,9 @@ public final class SharedGroupFactory {
 
     private static class RefCountedGroup extends AbstractRefCounted {
 
-        private final EventLoopGroup eventLoopGroup;
+        private final MultithreadEventLoopGroup eventLoopGroup;
 
-        private RefCountedGroup(EventLoopGroup eventLoopGroup) {
+        private RefCountedGroup(MultithreadEventLoopGroup eventLoopGroup) {
             this.eventLoopGroup = eventLoopGroup;
         }
 
@@ -121,7 +123,7 @@ public final class SharedGroupFactory {
             this.refCountedGroup = refCountedGroup;
         }
 
-        public EventLoopGroup getLowLevelGroup() {
+        public MultithreadEventLoopGroup getLowLevelGroup() {
             return refCountedGroup.eventLoopGroup;
         }
 

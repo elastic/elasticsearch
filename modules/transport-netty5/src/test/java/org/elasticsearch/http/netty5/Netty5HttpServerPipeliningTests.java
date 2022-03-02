@@ -10,10 +10,10 @@ package org.elasticsearch.http.netty5;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.buffer.api.Resource;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.util.ReferenceCounted;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.contains;
 /**
  * This test just tests, if he pipelining works in general with out any connection the Elasticsearch handler
  */
-public class Netty4HttpServerPipeliningTests extends ESTestCase {
+public class Netty5HttpServerPipeliningTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
@@ -86,28 +86,28 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 }
             }
 
-            try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
+            try (Netty5HttpClient nettyHttpClient = new Netty5HttpClient()) {
                 Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[] {}));
                 try {
-                    Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
+                    Collection<String> responseBodies = Netty5HttpClient.returnHttpResponseBodies(responses);
                     assertThat(responseBodies, contains(requests.toArray()));
                 } finally {
-                    responses.forEach(ReferenceCounted::release);
+                    responses.forEach(Resource::close);
                 }
             }
         }
     }
 
-    class CustomNettyHttpServerTransport extends Netty4HttpServerTransport {
+    class CustomNettyHttpServerTransport extends Netty5HttpServerTransport {
 
         private final ExecutorService executorService = Executors.newCachedThreadPool();
 
         CustomNettyHttpServerTransport(final Settings settings) {
             super(
                 settings,
-                Netty4HttpServerPipeliningTests.this.networkService,
-                Netty4HttpServerPipeliningTests.this.bigArrays,
-                Netty4HttpServerPipeliningTests.this.threadPool,
+                Netty5HttpServerPipeliningTests.this.networkService,
+                Netty5HttpServerPipeliningTests.this.bigArrays,
+                Netty5HttpServerPipeliningTests.this.threadPool,
                 xContentRegistry(),
                 new NullDispatcher(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -128,11 +128,11 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
     }
 
-    private class CustomHttpChannelHandler extends Netty4HttpServerTransport.HttpChannelHandler {
+    private class CustomHttpChannelHandler extends Netty5HttpServerTransport.HttpChannelHandler {
 
         private final ExecutorService executorService;
 
-        CustomHttpChannelHandler(Netty4HttpServerTransport transport, ExecutorService executorService) {
+        CustomHttpChannelHandler(Netty5HttpServerTransport transport, ExecutorService executorService) {
             super(transport, transport.handlingSettings);
             this.executorService = executorService;
         }
@@ -154,7 +154,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         }
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest msg) throws Exception {
+        protected void messageReceived(ChannelHandlerContext ctx, HttpPipelinedRequest msg) {
             executorService.submit(new PossiblySlowRunnable(ctx, msg));
         }
 
@@ -200,8 +200,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                     assert uri.matches("/\\d+");
                 }
 
-                final ChannelPromise promise = ctx.newPromise();
-                ctx.writeAndFlush(response, promise);
+                ctx.writeAndFlush(response);
             } finally {
                 pipelinedRequest.release();
             }

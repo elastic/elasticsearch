@@ -85,9 +85,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Tests for the {@link Netty4HttpServerTransport} class.
+ * Tests for the {@link Netty5HttpServerTransport} class.
  */
-public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportTestCase {
+public class Netty5HttpServerTransportTests extends AbstractHttpServerTransportTestCase {
 
     private NetworkService networkService;
     private ThreadPool threadPool;
@@ -114,7 +114,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
     }
 
     /**
-     * Test that {@link Netty4HttpServerTransport} supports the "Expect: 100-continue" HTTP header
+     * Test that {@link Netty5HttpServerTransport} supports the "Expect: 100-continue" HTTP header
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectContinueHeader() throws InterruptedException {
@@ -124,7 +124,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
     }
 
     /**
-     * Test that {@link Netty4HttpServerTransport} responds to a
+     * Test that {@link Netty5HttpServerTransport} responds to a
      * 100-continue expectation with too large a content-length
      * with a 413 status.
      * @throws InterruptedException if the client communication with the server is interrupted
@@ -138,7 +138,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
     }
 
     /**
-     * Test that {@link Netty4HttpServerTransport} responds to an unsupported expectation with a 417 status.
+     * Test that {@link Netty5HttpServerTransport} responds to an unsupported expectation with a 417 status.
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectUnsupportedExpectation() throws InterruptedException {
@@ -168,7 +168,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             }
         };
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Netty5HttpServerTransport transport = new Netty5HttpServerTransport(
                 settings,
                 networkService,
                 bigArrays,
@@ -181,7 +181,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (Netty5HttpClient client = new Netty5HttpClient()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Netty5Utils.EMPTY_BUFFER);
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
@@ -211,7 +211,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
     public void testBindUnavailableAddress() {
         Settings initialSettings = createSettings();
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Netty5HttpServerTransport transport = new Netty5HttpServerTransport(
                 initialSettings,
                 networkService,
                 bigArrays,
@@ -229,7 +229,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 .put("network.host", remoteAddress.getAddress())
                 .build();
             try (
-                Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(
+                Netty5HttpServerTransport otherTransport = new Netty5HttpServerTransport(
                     settings,
                     networkService,
                     bigArrays,
@@ -281,7 +281,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
 
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Netty5HttpServerTransport transport = new Netty5HttpServerTransport(
                 settings,
                 networkService,
                 bigArrays,
@@ -295,7 +295,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (Netty5HttpClient client = new Netty5HttpClient()) {
                 final String url = "/" + new String(new byte[maxInitialLineLength], StandardCharsets.UTF_8);
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url, Netty5Utils.EMPTY_BUFFER);
 
@@ -340,7 +340,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         };
 
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Netty5HttpServerTransport transport = new Netty5HttpServerTransport(
                 Settings.EMPTY,
                 networkService,
                 bigArrays,
@@ -354,7 +354,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (Netty5HttpClient client = new Netty5HttpClient()) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url, Netty5Utils.EMPTY_BUFFER);
                 request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
                 long numOfHugeAllocations = getHugeAllocationCount();
@@ -406,7 +406,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             .build();
 
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Netty5HttpServerTransport transport = new Netty5HttpServerTransport(
                 settings,
                 networkService,
                 bigArrays,
@@ -421,7 +421,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             // Test pre-flight request
-            try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (Netty5HttpClient client = new Netty5HttpClient()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/", BufferAllocator.offHeapPooled().allocate(0));
                 request.headers().add(CorsHandler.ORIGIN, "elastic.co");
                 request.headers().add(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, "POST");
@@ -435,7 +435,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             }
 
             // Test short-circuited request
-            try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (Netty5HttpClient client = new Netty5HttpClient()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/", BufferAllocator.offHeapPooled().allocate(0));
                 request.headers().add(CorsHandler.ORIGIN, "elastic2.co");
 
@@ -475,7 +475,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             return new Thread(r);
         }, NioHandler.newFactory().newHandler());
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+            Netty5HttpServerTransport transport = new Netty5HttpServerTransport(
                 settings,
                 networkService,
                 bigArrays,

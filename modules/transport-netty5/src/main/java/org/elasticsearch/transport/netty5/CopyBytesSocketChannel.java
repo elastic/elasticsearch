@@ -26,6 +26,7 @@ package org.elasticsearch.transport.netty5;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOutboundBuffer;
+import io.netty.channel.EventLoop;
 import io.netty.channel.RecvBufferAllocator;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
@@ -58,8 +59,8 @@ public class CopyBytesSocketChannel extends Netty5NioSocketChannel {
     private static final ThreadLocal<ByteBuffer> ioBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE));
     private final WriteConfig writeConfig = new WriteConfig();
 
-    public CopyBytesSocketChannel() {
-        super();
+    public CopyBytesSocketChannel(EventLoop eventLoop) {
+        super(eventLoop);
     }
 
     CopyBytesSocketChannel(Channel parent, SocketChannel socket) {

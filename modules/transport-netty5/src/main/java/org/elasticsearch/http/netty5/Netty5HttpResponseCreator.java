@@ -8,11 +8,10 @@
 
 package org.elasticsearch.http.netty5;
 
-import io.netty.buffer.ByteBuf;
+import io.netty.buffer.api.Buffer;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageEncoder;
-import io.netty.handler.codec.compression.JdkZlibEncoder;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
@@ -24,14 +23,14 @@ import org.elasticsearch.transport.netty5.NettyAllocator;
 import java.util.List;
 
 /**
- * Split up large responses to prevent batch compression {@link JdkZlibEncoder} down the pipeline.
+ * Split up large responses to prevent batch compression down the pipeline.
  */
 @ChannelHandler.Sharable
-final class Netty4HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpResponse> {
+final class Netty5HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpResponse> {
 
-    static final Netty4HttpResponseCreator INSTANCE = new Netty4HttpResponseCreator();
+    static final Netty5HttpResponseCreator INSTANCE = new Netty5HttpResponseCreator();
 
-    private Netty4HttpResponseCreator() {}
+    private Netty5HttpResponseCreator() {}
 
     private static final String DO_NOT_SPLIT = "es.unsafe.do_not_split_http_responses";
 
@@ -46,16 +45,16 @@ final class Netty4HttpResponseCreator extends MessageToMessageEncoder<Netty4Http
 
     @Override
     protected void encode(ChannelHandlerContext ctx, Netty4HttpResponse msg, List<Object> out) {
-        if (DO_NOT_SPLIT_HTTP_RESPONSES || msg.content().readableBytes() <= SPLIT_THRESHOLD) {
-            out.add(msg.retain());
+        if (DO_NOT_SPLIT_HTTP_RESPONSES || msg.payload().readableBytes() <= SPLIT_THRESHOLD) {
+            out.add(msg);
         } else {
             HttpResponse response = new DefaultHttpResponse(msg.protocolVersion(), msg.status(), msg.headers());
             out.add(response);
-            ByteBuf content = msg.content();
+            Buffer content = msg.payload();
             while (content.readableBytes() > SPLIT_THRESHOLD) {
-                out.add(new DefaultHttpContent(content.readRetainedSlice(SPLIT_THRESHOLD)));
+                out.add(new DefaultHttpContent(content.readSplit(SPLIT_THRESHOLD)));
             }
-            out.add(new DefaultLastHttpContent(content.readRetainedSlice(content.readableBytes())));
+            out.add(new DefaultLastHttpContent(content.readSplit(content.readableBytes())));
         }
     }
 }

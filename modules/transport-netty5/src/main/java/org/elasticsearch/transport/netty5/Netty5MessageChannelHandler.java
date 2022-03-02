@@ -10,13 +10,11 @@ package org.elasticsearch.transport.netty5;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
 
 import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.Promise;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -95,9 +93,11 @@ final class Netty5MessageChannelHandler extends ChannelHandlerAdapter {
     public Future<Void> write(ChannelHandlerContext ctx, Object msg) {
         assert msg instanceof ByteBuf;
         assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
+        final Promise<Void> promise = ctx.newPromise();
         final boolean queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
         assert queued;
         assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
+        return promise.asFuture();
     }
 
     @Override
@@ -152,14 +152,14 @@ final class Netty5MessageChannelHandler extends ChannelHandlerAdapter {
             } else {
                 writeBuffer = write.buf;
             }
-            final ChannelFuture writeFuture = ctx.write(writeBuffer);
+            final Future<Void> writeFuture = ctx.write(writeBuffer);
             needsFlush = true;
             if (sliced == false) {
                 currentWrite = null;
                 writeFuture.addListener(future -> {
                     assert ctx.executor().inEventLoop();
                     if (future.isSuccess()) {
-                        write.promise.trySuccess();
+                        write.promise.trySuccess(null);
                     } else {
                         write.promise.tryFailure(future.cause());
                     }
@@ -203,9 +203,9 @@ final class Netty5MessageChannelHandler extends ChannelHandlerAdapter {
 
         private final ByteBuf buf;
 
-        private final Future<Void> promise;
+        private final Promise<Void> promise;
 
-        WriteOperation(ByteBuf buf, Future<Void> promise) {
+        WriteOperation(ByteBuf buf, Promise<Void> promise) {
             this.buf = buf;
             this.promise = promise;
         }

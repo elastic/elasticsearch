@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class BinaryDocValuesField implements DocValuesField<ByteBuffer>, ScriptDocValues.Supplier<BytesRef> {
+public class BinaryDocValuesField implements DocValuesField<ByteBuffer>, DocValuesSupplier<BytesRef> {
 
     private final SortedBinaryDocValues input;
     private final String name;

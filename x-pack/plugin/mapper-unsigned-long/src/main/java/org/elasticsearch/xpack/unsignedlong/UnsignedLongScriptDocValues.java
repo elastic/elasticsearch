@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.script.field.DocValuesSupplier;
 
 public class UnsignedLongScriptDocValues extends ScriptDocValues<Long> {
 
-    public UnsignedLongScriptDocValues(Supplier<Long> supplier) {
+    public UnsignedLongScriptDocValues(DocValuesSupplier<Long> supplier) {
         super(supplier);
     }
 

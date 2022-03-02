@@ -15,7 +15,8 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesSupplier;
+import org.elasticsearch.script.field.ValuesSuppliers;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -32,32 +33,6 @@ import java.util.function.UnaryOperator;
  * values form multiple documents.
  */
 public abstract class ScriptDocValues<T> extends AbstractList<T> {
-
-    /**
-     * Supplies values to different ScriptDocValues as we
-     * convert them to wrappers around {@link DocValuesField}.
-     * This allows for different {@link DocValuesField} to implement
-     * this supplier class in many-to-one relationship since
-     * {@link DocValuesField} are more specific where
-     * ({byte, short, int, long, _version, murmur3, etc.} -> {long})
-     */
-    public interface Supplier<T> {
-        void setNextDocId(int docId) throws IOException;
-
-        T getInternal(int index);
-
-        int size();
-    }
-
-    protected final Supplier<T> supplier;
-
-    public ScriptDocValues(Supplier<T> supplier) {
-        this.supplier = supplier;
-    }
-
-    public Supplier<T> getSupplier() {
-        return supplier;
-    }
 
     // Throw meaningful exceptions if someone tries to modify the ScriptDocValues.
     @Override
@@ -95,7 +70,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Longs extends ScriptDocValues<Long> {
 
-        public Longs(Supplier<Long> supplier) {
+        public Longs(DocValuesSupplier<Long> supplier) {
             super(supplier);
         }
 
@@ -117,7 +92,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Dates extends ScriptDocValues<ZonedDateTime> {
 
-        public Dates(Supplier<ZonedDateTime> supplier) {
+        public Dates(DocValuesSupplier<ZonedDateTime> supplier) {
             super(supplier);
         }
 
@@ -151,7 +126,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static class DoublesSupplier implements Supplier<Double> {
+    public static class DoublesSupplier implements DocValuesSupplier<Double> {
 
         private final SortedNumericDoubleValues in;
         private double[] values = new double[0];
@@ -195,7 +170,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Doubles extends ScriptDocValues<Double> {
 
-        public Doubles(Supplier<Double> supplier) {
+        public Doubles(DocValuesSupplier<Double> supplier) {
             super(supplier);
         }
 
@@ -222,7 +197,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public abstract static class Geometry<T> extends ScriptDocValues<T> {
 
-        public Geometry(Supplier<T> supplier) {
+        public Geometry(DocValuesSupplier<T> supplier) {
             super(supplier);
         }
 
@@ -242,7 +217,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public abstract double getMercatorHeight();
     }
 
-    public interface GeometrySupplier<T> extends Supplier<T> {
+    public interface GeometrySupplier<T> extends DocValuesSupplier<T> {
 
         GeoPoint getInternalCentroid();
 
@@ -367,8 +342,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Booleans extends ScriptDocValues<Boolean> {
 
-        public Booleans(Supplier<Boolean> supplier) {
-            super(supplier);
+        private final ValuesSuppliers.BooleanValueSupplier supplier;
+
+        public Booleans(ValuesSuppliers.BooleanValueSupplier supplier) {
+            this.supplier = supplier;
         }
 
         public boolean getValue() {
@@ -379,7 +356,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Boolean get(int index) {
             throwIfEmpty();
-            return supplier.getInternal(index);
+            return supplier.get(index);
         }
 
         @Override
@@ -388,7 +365,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static class StringsSupplier implements Supplier<String> {
+    public static class StringsSupplier implements DocValuesSupplier<String> {
 
         private final SortedBinaryDocValues in;
         private BytesRefBuilder[] values = new BytesRefBuilder[0];
@@ -445,7 +422,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static class Strings extends ScriptDocValues<String> {
 
-        public Strings(Supplier<String> supplier) {
+        public Strings(DocValuesSupplier<String> supplier) {
             super(supplier);
         }
 
@@ -472,7 +449,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class BytesRefs extends ScriptDocValues<BytesRef> {
 
-        public BytesRefs(Supplier<BytesRef> supplier) {
+        public BytesRefs(DocValuesSupplier<BytesRef> supplier) {
             super(supplier);
         }
 

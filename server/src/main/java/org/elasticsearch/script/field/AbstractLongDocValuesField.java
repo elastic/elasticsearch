@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
-public abstract class AbstractLongDocValuesField implements ScriptDocValues.Supplier<Long>, DocValuesField<Long> {
+public abstract class AbstractLongDocValuesField implements DocValuesSupplier<Long>, DocValuesField<Long> {
 
     protected final String name;
     // used for backwards compatibility for old-style "doc" access

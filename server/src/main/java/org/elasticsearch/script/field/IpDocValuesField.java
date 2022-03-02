@@ -29,9 +29,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class IpDocValuesField implements DocValuesField<IPAddress>, ScriptDocValues.Supplier<String> {
+public class IpDocValuesField implements DocValuesField<IPAddress>, DocValuesSupplier<String> {
     protected final String name;
-    protected final ScriptDocValues.Supplier<InetAddress> raw;
+    protected final DocValuesSupplier<InetAddress> raw;
 
     // used for backwards compatibility for old-style "doc" access
     // as a delegate to this field class
@@ -139,7 +139,7 @@ public class IpDocValuesField implements DocValuesField<IPAddress>, ScriptDocVal
     }
 
     /** Used if we have access to global ordinals */
-    protected static class SortedSetIpSupplier implements ScriptDocValues.Supplier<InetAddress> {
+    protected static class SortedSetIpSupplier implements DocValuesSupplier<InetAddress> {
         private final SortedSetDocValues in;
         private long[] ords = new long[0];
         private int count;
@@ -176,7 +176,7 @@ public class IpDocValuesField implements DocValuesField<IPAddress>, ScriptDocVal
     }
 
     /** Used if we do not have global ordinals, such as in the IP runtime field see: {@link IpScriptFieldData} */
-    protected static class SortedBinaryIpSupplier implements ScriptDocValues.Supplier<InetAddress> {
+    protected static class SortedBinaryIpSupplier implements DocValuesSupplier<InetAddress> {
         private final SortedBinaryDocValues in;
         private BytesRefBuilder[] values = new BytesRefBuilder[0];
         private int count;

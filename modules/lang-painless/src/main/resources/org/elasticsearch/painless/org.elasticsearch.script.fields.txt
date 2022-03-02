@@ -31,7 +31,7 @@ class org.elasticsearch.script.field.BinaryDocValuesField @dynamic_type {
   ByteBuffer get(int, ByteBuffer)
 }
 
-class org.elasticsearch.script.field.BooleanDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.BooleanField @dynamic_type {
   boolean get(boolean)
   boolean get(int, boolean)
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesSupplier;
 import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -170,8 +171,8 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getLongValuesAsNanos(), name);
+        public DocValuesSupplier getScriptField(String name) {
+            return toScriptField.getScriptField(getLongValuesAsNanos());
         }
 
         @Override
@@ -235,8 +236,8 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getLongValues(), name);
+        public DocValuesSupplier getScriptField(String name) {
+            return toScriptField.getScriptField(getLongValues());
         }
     }
 }

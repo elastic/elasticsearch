@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class AbstractKeywordDocValuesField implements DocValuesField<String>, ScriptDocValues.Supplier<String> {
+public class AbstractKeywordDocValuesField implements DocValuesField<String>, DocValuesSupplier<String> {
 
     protected final SortedBinaryDocValues input;
     protected final String name;

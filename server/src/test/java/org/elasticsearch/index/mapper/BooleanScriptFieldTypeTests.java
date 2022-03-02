@@ -39,7 +39,7 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.field.BooleanDocValuesField;
+import org.elasticsearch.script.field.BooleanField;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -150,7 +150,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                         return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
-                                BooleanDocValuesField booleans = (BooleanDocValuesField) field("test");
+                                BooleanField booleans = (BooleanField) field("test");
                                 return booleans.getInternal(0) ? 3 : 0;
                             }
                         };

@@ -24,9 +24,11 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.time.Instant;
 import java.util.Date;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
@@ -69,6 +71,8 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(0, 1) // userCacheSizeRange
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
+        assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(false));
+
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
         final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
@@ -83,7 +87,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
     public void testJwtAuthcRealmAuthenticateWithAuthzRealms() throws Exception {
         this.jwtIssuerAndRealms = this.generateJwtIssuerRealmPairs(
             new MinMax(1, 3), // realmsRange
-            new MinMax(0, 3), // authzRange
+            new MinMax(1, 3), // authzRange
             new MinMax(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
             new MinMax(1, 3), // audiencesRange
             new MinMax(1, 3), // usersRange
@@ -92,11 +96,31 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
             new MinMax(0, 1) // userCacheSizeRange
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = this.randomJwtIssuerRealmPair();
+        assertThat(jwtIssuerAndRealm.realm().delegatedAuthorizationSupport.hasDelegation(), is(true));
+
         final User user = this.randomUser(jwtIssuerAndRealm.issuer());
         final SecureString jwt = this.randomJwt(jwtIssuerAndRealm, user);
         final SecureString clientSecret = jwtIssuerAndRealm.realm().clientAuthenticationSharedSecret;
         final MinMax jwtAuthcRange = new MinMax(2, 3);
         this.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcRange);
+
+        // Test with user that doesn't exist in authz realm
+        final String unresolvableUsername = randomValueOtherThanMany(
+            candidate -> jwtIssuerAndRealm.issuer().users.containsKey(candidate),
+            () -> randomAlphaOfLengthBetween(4, 12)
+        );
+        final User unresolvableUser = new User(unresolvableUsername);
+        JwtAuthenticationToken token = new JwtAuthenticationToken(randomJwt(jwtIssuerAndRealm, unresolvableUser), clientSecret);
+
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        jwtIssuerAndRealm.realm().authenticate(token, future);
+        final AuthenticationResult<User> result = future.actionGet();
+        assertThat(result.isAuthenticated(), is(false));
+        assertThat(result.getException(), nullValue());
+        assertThat(
+            result.getMessage(),
+            containsString("[" + unresolvableUsername + "] was authenticated, but no user could be found in realms [")
+        );
     }
 
     /**

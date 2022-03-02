@@ -156,7 +156,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
         map.entrySet().forEach(entry -> hMap.put(entry.getKey(), entry.getValue()));
 
         ImmutableOpenMap.Builder<Long, String> builder3 = ImmutableOpenMap.builder(map.size());
-        builder3.putAll(hMap);
+        builder3.putAllFromMap(hMap);
 
         assertThat("forEach should match", map, equalTo(builder1.build()));
         assertThat("forEach on a stream should match", map, equalTo(builder2.build()));
@@ -251,6 +251,10 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertTrue(map.entrySet().contains(entry(1, null)));
         assertFalse(map.containsKey(2));
         assertFalse(map.entrySet().contains(entry(2, null)));
+    }
+
+    public void testContainsValue() {
+        assertTrue(countryPopulations.containsValue(37_846_611));
     }
 
     public void testIntMapContainsValue() {

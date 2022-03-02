@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.Channels;
@@ -536,8 +535,8 @@ public class NodeShutdownIT extends ESRestTestCase {
     private boolean getReadinessStatus(Integer port) throws Exception {
         InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
 
-        try (SocketChannel channel = SocketChannel.open(socketAddress)) {
-            return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
+        return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
+            try (SocketChannel channel = SocketChannel.open(socketAddress)) {
                 try {
                     BufferedReader reader = new BufferedReader(Channels.newReader(channel, StandardCharsets.UTF_8));
                     String message = reader.readLine();
@@ -546,9 +545,9 @@ public class NodeShutdownIT extends ESRestTestCase {
                 } catch (IOException ignored) {}
 
                 return false;
-            });
-        } catch (ConnectException expectedSometimes) {
-            return false;
-        }
+            } catch (IOException expectedSometimes) {
+                return false;
+            }
+        });
     }
 }

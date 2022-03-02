@@ -16,7 +16,6 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.Channels;
@@ -239,16 +238,16 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         }
     }
 
-    private boolean getStatus(ReadinessService readinessService) throws Exception {
+    private boolean getStatus(ReadinessService readinessService) {
         return getStatus(readinessService.boundAddress().publishAddress().getPort());
     }
 
     @SuppressForbidden(reason = "Intentional socket open")
-    private boolean getStatus(Integer port) throws Exception {
+    private boolean getStatus(Integer port) {
         InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
 
-        try (SocketChannel channel = SocketChannel.open(socketAddress)) {
-            return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
+        return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
+            try (SocketChannel channel = SocketChannel.open(socketAddress)) {
                 try {
                     BufferedReader reader = new BufferedReader(Channels.newReader(channel, StandardCharsets.UTF_8));
                     String message = reader.readLine();
@@ -257,9 +256,9 @@ public class ReadinessClusterIT extends ESIntegTestCase {
                 } catch (IOException ignored) {}
 
                 return false;
-            });
-        } catch (ConnectException expectedSometimes) {
-            return false;
-        }
+            } catch (IOException expectedSometimes) {
+                return false;
+            }
+        });
     }
 }

@@ -170,6 +170,7 @@ public class ShrinkAction implements LifecycleAction {
                         indexMetadata.getLifecyclePolicyName()
                     );
                     listener.onResponse(true);
+                    return;
                 }
                 String indexName = indexMetadata.getIndex().getName();
                 client.admin()

@@ -629,6 +629,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
      * rather than a yaml integration test because it requires creating many many
      * documents and that is hard to express in yaml.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/84540")
     public void testFilterByFilter() throws InterruptedException, IOException {
         assertAcked(
             client().admin()

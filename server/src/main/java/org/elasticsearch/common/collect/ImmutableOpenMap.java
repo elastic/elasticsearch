@@ -454,7 +454,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
         /**
          * Puts all the entries in the map to the builder.
          */
-        public Builder<KType, VType> putAll(Map<KType, VType> map) {
+        public Builder<KType, VType> putAllFromMap(Map<KType, VType> map) {
             for (Map.Entry<KType, VType> entry : map.entrySet()) {
                 this.map.put(entry.getKey(), entry.getValue());
             }

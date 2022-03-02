@@ -158,7 +158,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     public ImmutableOpenMap<String, DiscoveryNode> getMasterAndDataNodes() {
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(dataNodes);
-        nodes.putAll((Map<String, DiscoveryNode>) masterNodes);
+        nodes.putAll(masterNodes);
         return nodes.build();
     }
 
@@ -740,7 +740,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
             }
 
             return new DiscoveryNodes(
-                ImmutableOpenMap.<String, DiscoveryNode>builder(nodes.size()).putAll(nodes).build(),
+                ImmutableOpenMap.<String, DiscoveryNode>builder(nodes.size()).putAllFromMap(nodes).build(),
                 dataNodesBuilder.build(),
                 masterNodesBuilder.build(),
                 ingestNodesBuilder.build(),

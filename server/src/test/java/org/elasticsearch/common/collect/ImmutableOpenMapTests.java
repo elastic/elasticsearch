@@ -143,7 +143,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
         map.entrySet().forEach(entry -> hMap.put(entry.getKey(), entry.getValue()));
 
         ImmutableOpenMap.Builder<Long, String> builder3 = ImmutableOpenMap.builder(map.size());
-        builder3.putAll(hMap);
+        builder3.putAllFromMap(hMap);
 
         assertThat("forEach should match", map, equalTo(builder1.build()));
         assertThat("forEach on a stream should match", map, equalTo(builder2.build()));

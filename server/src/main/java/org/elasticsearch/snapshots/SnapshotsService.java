@@ -1910,7 +1910,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             entries.add(entryToUpdate);
         } else {
             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap.builder(entryToUpdate.shards());
-            updatedStatus.putAll((Map<ShardId, ShardSnapshotStatus>) updatedShardAssignments.build());
+            updatedStatus.putAll(updatedShardAssignments.build());
             entries.add(entryToUpdate.withShardStates(updatedStatus.build()));
         }
     }
@@ -1926,7 +1926,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> updatedStatus = ImmutableOpenMap.builder(
                 entryToUpdate.shardsByRepoShardId()
             );
-            updatedStatus.putAll((Map<RepositoryShardId, ShardSnapshotStatus>) updatedShardAssignments.build());
+            updatedStatus.putAll(updatedShardAssignments.build());
             entries.add(entryToUpdate.withClones(updatedStatus.build()));
         }
     }

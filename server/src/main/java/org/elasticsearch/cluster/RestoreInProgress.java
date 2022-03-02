@@ -86,7 +86,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         public Builder() {}
 
         public Builder(RestoreInProgress restoreInProgress) {
-            entries.putAll((Map<String, Entry>) restoreInProgress.entries);
+            entries.putAll(restoreInProgress.entries);
         }
 
         public Builder add(Entry entry) {

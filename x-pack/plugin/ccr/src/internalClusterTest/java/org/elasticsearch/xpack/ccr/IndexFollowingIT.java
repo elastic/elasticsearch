@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -1365,8 +1363,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 new Index("index1", leaderUUID)
             );
 
-            for (final ObjectCursor<IndexShardRoutingTable> shardRoutingTable : leaderRoutingTable.index("index1").shards().values()) {
-                final ShardId shardId = shardRoutingTable.value.shardId();
+            for (final IndexShardRoutingTable shardRoutingTable : leaderRoutingTable.index("index1").shards().values()) {
+                final ShardId shardId = shardRoutingTable.shardId();
                 leaderClient().execute(
                     RetentionLeaseActions.Remove.INSTANCE,
                     new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId)

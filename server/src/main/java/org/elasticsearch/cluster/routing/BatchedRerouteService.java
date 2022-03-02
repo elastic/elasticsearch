@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -160,7 +161,7 @@ public class BatchedRerouteService implements RerouteService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     ActionListener.onResponse(currentListeners, newState);
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            }, newExecutor());
         } catch (Exception e) {
             synchronized (mutex) {
                 assert currentListeners.isEmpty() == (pendingRerouteListeners != currentListeners);
@@ -175,5 +176,10 @@ public class BatchedRerouteService implements RerouteService {
                 new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e)
             );
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

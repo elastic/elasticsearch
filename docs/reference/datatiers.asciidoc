@@ -119,6 +119,8 @@ To add a warm, cold, or frozen tier when you create a deployment:
 
 . Click **+ Add capacity** for any data tiers to add.
 
+. Click **Save** at the bottom of the page to save your changes.
+
 [role="screenshot"]
 image::images/data-tiers/ess-advanced-config-data-tiers.png[{ecloud}'s deployment Advanced configuration page,align=center]
 

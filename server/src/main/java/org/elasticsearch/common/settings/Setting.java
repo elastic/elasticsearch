@@ -578,14 +578,11 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            List<String> skipTheseDeprecations = settings.getAsList("deprecation.skip_deprecated_settings");
-            if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
-                String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
-                if (this.isDeprecatedWarningOnly()) {
-                    Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
-                } else {
-                    Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
-                }
+            String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
+            if (this.isDeprecatedWarningOnly()) {
+                Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
+            } else {
+                Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
             }
         }
     }

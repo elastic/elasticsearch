@@ -21,13 +21,16 @@ import java.util.OptionalInt;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.VOCABULARY;
 
+/**
+ * Base tokenization class for NLP models
+ */
 public interface NlpTokenizer extends Releasable {
 
     TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations);
 
-    TokenizationResult.Tokens tokenize(String seq, Tokenization.Truncate truncate);
+    List<TokenizationResult.Tokens> tokenize(String seq, Tokenization.Truncate truncate, int span, int sequenceId);
 
-    TokenizationResult.Tokens tokenize(String seq1, String seq2, Tokenization.Truncate truncate);
+    TokenizationResult.Tokens tokenize(String seq1, String seq2, Tokenization.Truncate truncate, int sequenceId);
 
     NlpTask.RequestBuilder requestBuilder();
 
@@ -38,6 +41,10 @@ public interface NlpTokenizer extends Releasable {
     OptionalInt getMaskTokenId();
 
     String getMaskToken();
+
+    default int getSpan() {
+        return -1;
+    }
 
     static NlpTokenizer build(Vocabulary vocabulary, Tokenization params) {
         ExceptionsHelper.requireNonNull(params, TOKENIZATION);

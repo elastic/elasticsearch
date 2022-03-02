@@ -28,7 +28,7 @@ import static org.elasticsearch.test.hamcrest.ThrowableAssertions.assertThatThro
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RepositoryIntegrityHealthIndicatorServiceTestIT extends AbstractSnapshotIntegTestCase {
+public class RepositoryIntegrityHealthIndicatorServiceIT extends AbstractSnapshotIntegTestCase {
 
     public void testRepositoryIntegrityHealthIndicator() throws IOException, InterruptedException {
 

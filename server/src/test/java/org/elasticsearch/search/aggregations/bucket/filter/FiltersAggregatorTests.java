@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -98,7 +97,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/84540")
 public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testEmpty() throws Exception {
         Directory directory = newDirectory();
@@ -1298,6 +1296,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(buildDocWithField.apply(i));
             }
+            iw.addDocument(List.of());  // Create a document without the field to prever DocValueFieldExists from being rewritten to MatchAll
         }, (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(result.getBuckets(), hasSize(1));
             assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));

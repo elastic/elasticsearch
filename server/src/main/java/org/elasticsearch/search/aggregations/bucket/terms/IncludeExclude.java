@@ -29,6 +29,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -316,7 +317,12 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
      * @param include   The regular expression pattern for the terms to be included
      * @param exclude   The regular expression pattern for the terms to be excluded
      */
-    public IncludeExclude(String include, String exclude, SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
+    public IncludeExclude(
+        @Nullable String include,
+        @Nullable String exclude,
+        @Nullable SortedSet<BytesRef> includeValues,
+        @Nullable SortedSet<BytesRef> excludeValues
+    ) {
         if (include == null && exclude == null && includeValues == null && excludeValues == null) {
             throw new IllegalArgumentException();
         }

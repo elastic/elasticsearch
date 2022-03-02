@@ -309,8 +309,11 @@ public class PolicyStepsRegistry {
         // n.b. we're using instance equality here for the IndexMetadata rather than object equality because it's fast,
         // this means that we're erring on the side of cache misses (if the IndexMetadata changed in any way, it'll be
         // a new instance, so we'll miss-and-repopulate the cache for the index in question)
-        if (cachedStep != null && cachedStep.v1() == indexMetadata && cachedStep.v2().getKey().equals(stepKey)) {
-            return cachedStep.v2();
+        if (cachedStep != null && cachedStep.v1() == indexMetadata) {
+            assert cachedStep.v2() != null;
+            if (cachedStep.v2() != null && cachedStep.v2().getKey().equals(stepKey)) {
+                return cachedStep.v2();
+            }
         }
 
         if (ErrorStep.NAME.equals(stepKey.getName())) {

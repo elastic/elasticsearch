@@ -44,7 +44,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$ES_TMPDIR" ]; then
-  ES_TMPDIR=`"$JAVA" "$XSHARE" --module-path "$LAUNCHERS_CLASSPATH" -m org.elasticsearch.launchers/org.elasticsearch.tools.launchers.TempDirectory`
+  ES_TMPDIR=`"$JAVA" "$XSHARE" --module-path "$LAUNCHERS_MODULEPATH" -m org.elasticsearch.launchers/org.elasticsearch.tools.launchers.TempDirectory`
 fi
 
 if [ -z "$LIBFFI_TMPDIR" ]; then

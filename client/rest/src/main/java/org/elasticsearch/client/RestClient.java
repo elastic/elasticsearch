@@ -570,7 +570,7 @@ public class RestClient implements Closeable {
     }
 
     private static void addSuppressedException(Exception suppressedException, Exception currentException) {
-        if (suppressedException != null) {
+        if (suppressedException != null && suppressedException != currentException) {
             currentException.addSuppressed(suppressedException);
         }
     }

@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.RecyclingBytesStreamOutput;
 import org.elasticsearch.common.io.Streams;
@@ -971,7 +972,7 @@ public class PersistedClusterStateService {
         }
 
         private boolean assertOnCommit() {
-            if (assertOnCommit != null /* TODO && Randomness.get().nextInt(100) == 0 */) {
+            if (assertOnCommit != null && Randomness.get().nextInt(100) == 0) {
                 // only rarely run this assertion since reloading the whole state can be quite expensive
                 for (final MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                     try (DirectoryReader directoryReader = DirectoryReader.open(metadataIndexWriter.indexWriter)) {

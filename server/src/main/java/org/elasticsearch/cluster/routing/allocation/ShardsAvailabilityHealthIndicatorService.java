@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -63,13 +65,14 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public HealthIndicatorResult calculate() {
 
         var state = clusterService.state();
+        var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus();
 
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (IndexShardRoutingTable shardRouting : indexShardRouting) {
-                status.addPrimary(shardRouting.primaryShard());
+                status.addPrimary(shardRouting.primaryShard(), shutdown);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard);
+                    status.addReplica(replicaShard, shutdown);
                 }
             }
         }
@@ -83,10 +86,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private int initializing = 0;
         private int started = 0;
 
-        public void increment(ShardRouting routing) {
+        public void increment(ShardRouting routing, NodesShutdownMetadata metadata) {
             switch (routing.state()) {
                 case UNASSIGNED -> {
-                    if (routing.unassignedInfo() != null && routing.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_RESTARTING) {
+                    if (isUnassignedDueToTimelyRestart(routing, metadata)) {
                         unassigned_restarting++;
                     } else {
                         unassigned++;
@@ -98,16 +101,30 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
+    private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata metadata) {
+        var info = routing.unassignedInfo();
+        if (info == null || info.getReason() != UnassignedInfo.Reason.NODE_RESTARTING) {
+            return false;
+        }
+        var shutdown = metadata.getAllNodeMetadataMap().get(info.getLastAllocatedNodeId());
+        if (shutdown == null || shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+            return false;
+        }
+        var now = System.currentTimeMillis();
+        var restartingAllocationDelayExpiration = shutdown.getStartedAtMillis() + shutdown.getAllocationDelay().getMillis();
+        return now <= restartingAllocationDelayExpiration;
+    }
+
     private static class ShardAllocationStatus {
         private final ShardAllocationCounts primaries = new ShardAllocationCounts();
         private final ShardAllocationCounts replicas = new ShardAllocationCounts();
 
-        public void addPrimary(ShardRouting routing) {
-            primaries.increment(routing);
+        public void addPrimary(ShardRouting routing, NodesShutdownMetadata metadata) {
+            primaries.increment(routing, metadata);
         }
 
-        public void addReplica(ShardRouting routing) {
-            replicas.increment(routing);
+        public void addReplica(ShardRouting routing, NodesShutdownMetadata metadata) {
+            replicas.increment(routing, metadata);
         }
 
         public HealthStatus getStatus() {

@@ -232,17 +232,10 @@ public class PermissionsIT extends ESRestTestCase {
             Map<String, DocumentField> fields = hit.getFields();
             assertEquals(1, fields.size());
             switch (hit.getId()) {
-                case "1":
-                    assertEquals("2009", fields.get("year").getValue().toString());
-                    break;
-                case "2":
-                    assertEquals("2016", fields.get("year").getValue().toString());
-                    break;
-                case "3":
-                    assertEquals("2018", fields.get("year").getValue().toString());
-                    break;
-                default:
-                    throw new UnsupportedOperationException();
+                case "1" -> assertEquals("2009", fields.get("year").getValue().toString());
+                case "2" -> assertEquals("2016", fields.get("year").getValue().toString());
+                case "3" -> assertEquals("2018", fields.get("year").getValue().toString());
+                default -> throw new UnsupportedOperationException();
             }
         }
 

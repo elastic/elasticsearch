@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -478,7 +479,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     public void testCanMatchFilteringOnCoordinatorThatCanBeSkipped() throws Exception {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
-        DataStream dataStream = new DataStream(
+        DataStream dataStream = DataStreamTestHelper.newInstance(
             "mydata",
             new DataStream.TimestampField("@timestamp"),
             List.of(dataStreamIndex1, dataStreamIndex2)
@@ -551,7 +552,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     public void testCanMatchFilteringOnCoordinatorParsingFails() throws Exception {
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
-        DataStream dataStream = new DataStream(
+        DataStream dataStream = DataStreamTestHelper.newInstance(
             "mydata",
             new DataStream.TimestampField("@timestamp"),
             List.of(dataStreamIndex1, dataStreamIndex2)
@@ -592,7 +593,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         // Generate indices
         Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
-        DataStream dataStream = new DataStream(
+        DataStream dataStream = DataStreamTestHelper.newInstance(
             "mydata",
             new DataStream.TimestampField("@timestamp"),
             List.of(dataStreamIndex1, dataStreamIndex2)

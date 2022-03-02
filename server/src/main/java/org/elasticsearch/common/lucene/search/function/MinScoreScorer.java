@@ -61,15 +61,25 @@ final class MinScoreScorer extends Scorer {
 
     @Override
     public TwoPhaseIterator twoPhaseIterator() {
-        final TwoPhaseIterator inTwoPhase = this.in.twoPhaseIterator();
-        final DocIdSetIterator approximation = inTwoPhase == null ? in.iterator() : inTwoPhase.approximation();
+        TwoPhaseIterator inTwoPhase = in.twoPhaseIterator();
+        DocIdSetIterator approximation;
+        if (inTwoPhase == null) {
+            approximation = in.iterator();
+            if (TwoPhaseIterator.unwrap(approximation) != null) {
+                inTwoPhase = TwoPhaseIterator.unwrap(approximation);
+                approximation = inTwoPhase.approximation();
+            }
+        } else {
+            approximation = inTwoPhase.approximation();
+        }
+        final TwoPhaseIterator finalTwoPhase = inTwoPhase;
         return new TwoPhaseIterator(approximation) {
 
             @Override
             public boolean matches() throws IOException {
                 // we need to check the two-phase iterator first
                 // otherwise calling score() is illegal
-                if (inTwoPhase != null && inTwoPhase.matches() == false) {
+                if (finalTwoPhase != null && finalTwoPhase.matches() == false) {
                     return false;
                 }
                 curScore = in.score();
@@ -79,7 +89,7 @@ final class MinScoreScorer extends Scorer {
             @Override
             public float matchCost() {
                 return 1000f // random constant for the score computation
-                    + (inTwoPhase == null ? 0 : inTwoPhase.matchCost());
+                    + (finalTwoPhase == null ? 0 : finalTwoPhase.matchCost());
             }
         };
     }

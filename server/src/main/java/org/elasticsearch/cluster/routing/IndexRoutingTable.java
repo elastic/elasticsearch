@@ -11,8 +11,8 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.cursors.IntCursor;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
@@ -52,7 +52,7 @@ import java.util.function.Predicate;
  * represented as {@link ShardRouting}.
  * </p>
  */
-public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
+public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Iterable<IndexShardRoutingTable> {
 
     private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = List.of(
         ShardRouting::unassigned,
@@ -315,7 +315,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     }
 
     public static Diff<IndexRoutingTable> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(IndexRoutingTable::readFrom, in);
+        return SimpleDiffable.readDiffFrom(IndexRoutingTable::readFrom, in);
     }
 
     @Override
@@ -362,14 +362,14 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         }
 
         /**
-         * Initializes a new empty index, as as a result of opening a closed index.
+         * Initializes a new empty index, as a result of opening a closed index.
          */
         public Builder initializeAsFromCloseToOpen(IndexMetadata indexMetadata) {
             return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null));
         }
 
         /**
-         * Initializes a new empty index, as as a result of closing an opened index.
+         * Initializes a new empty index, as a result of closing an opened index.
          */
         public Builder initializeAsFromOpenToClose(IndexMetadata indexMetadata) {
             return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, null));

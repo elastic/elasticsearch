@@ -1,0 +1,6 @@
+pr: 83478
+summary: Add range checks to interval multiplication operation
+area: SQL
+type: bug
+issues:
+ - 83336

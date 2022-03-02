@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -17,7 +18,11 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -40,6 +45,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
@@ -199,6 +206,31 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         assertMappingsAndSettings(TestSystemIndexDescriptor.getNewMappings(), concreteIndex);
         assertAliases(concreteIndex);
+    }
+
+    public void testConcurrentAutoCreates() throws InterruptedException {
+        internalCluster().startNodes(3);
+
+        final Client client = client();
+        final int count = randomIntBetween(5, 30);
+        final CountDownLatch latch = new CountDownLatch(count);
+        final ActionListener<BulkResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(BulkResponse o) {
+                latch.countDown();
+                assertFalse(o.hasFailures());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                latch.countDown();
+                throw new AssertionError(e);
+            }
+        };
+        for (int i = 0; i < count; i++) {
+            client.bulk(new BulkRequest().add(new IndexRequest(INDEX_NAME).source(Map.of("foo", "bar"))), listener);
+        }
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
     /**

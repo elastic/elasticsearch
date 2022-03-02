@@ -231,8 +231,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 }
                 // in case of a bridge partition, shard allocation can fail "index.allocation.max_retries" times if the master
                 // is the super-connected node and recovery source and target are on opposite sides of the bridge
-                if (disruptionScheme instanceof NetworkDisruption
-                    && ((NetworkDisruption) disruptionScheme).getDisruptedLinks() instanceof Bridge) {
+                if (disruptionScheme instanceof NetworkDisruption networkDisruption
+                    && networkDisruption.getDisruptedLinks() instanceof Bridge) {
                     assertBusy(() -> assertAcked(client().admin().cluster().prepareReroute().setRetryFailed(true)));
                 }
                 ensureGreen("test");

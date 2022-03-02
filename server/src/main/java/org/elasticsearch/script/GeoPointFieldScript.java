@@ -119,8 +119,7 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
 
     @Override
     protected void emitFromObject(Object value) {
-        if (value instanceof List<?>) {
-            List<?> values = (List<?>) value;
+        if (value instanceof List<?> values) {
             if (values.size() > 0 && values.get(0) instanceof Number) {
                 emitPoint(value);
             } else {

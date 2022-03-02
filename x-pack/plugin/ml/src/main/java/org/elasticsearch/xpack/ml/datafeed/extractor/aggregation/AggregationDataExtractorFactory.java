@@ -18,35 +18,19 @@ import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
-import java.util.Objects;
-
-public class AggregationDataExtractorFactory implements DataExtractorFactory {
-
-    private final Client client;
-    private final DatafeedConfig datafeedConfig;
-    private final Job job;
-    private final NamedXContentRegistry xContentRegistry;
-    private final DatafeedTimingStatsReporter timingStatsReporter;
+public record AggregationDataExtractorFactory(
+    Client client,
+    DatafeedConfig datafeedConfig,
+    Job job,
+    NamedXContentRegistry xContentRegistry,
+    DatafeedTimingStatsReporter timingStatsReporter
+) implements DataExtractorFactory {
 
     public static AggregatedSearchRequestBuilder requestBuilder(Client client, String[] indices, IndicesOptions indicesOptions) {
         return (searchSourceBuilder) -> new SearchRequestBuilder(client, SearchAction.INSTANCE).setSource(searchSourceBuilder)
             .setIndicesOptions(indicesOptions)
             .setAllowPartialSearchResults(false)
             .setIndices(indices);
-    }
-
-    public AggregationDataExtractorFactory(
-        Client client,
-        DatafeedConfig datafeedConfig,
-        Job job,
-        NamedXContentRegistry xContentRegistry,
-        DatafeedTimingStatsReporter timingStatsReporter
-    ) {
-        this.client = Objects.requireNonNull(client);
-        this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
-        this.job = Objects.requireNonNull(job);
-        this.xContentRegistry = xContentRegistry;
-        this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
     }
 
     @Override

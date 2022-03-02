@@ -49,7 +49,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
@@ -113,7 +113,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
@@ -162,7 +162,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
@@ -211,7 +211,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
@@ -279,7 +279,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
@@ -378,7 +378,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
 
         mb.put(
-            new DataStream(
+            DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField("@timestamp"),
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())

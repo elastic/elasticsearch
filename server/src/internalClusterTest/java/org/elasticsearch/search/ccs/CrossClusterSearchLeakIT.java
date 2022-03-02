@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -78,7 +77,10 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
         final InternalTestCluster remoteCluster = cluster("cluster_a");
         int minRemotes = between(2, 5);
         remoteCluster.ensureAtLeastNumDataNodes(minRemotes);
-        List<String> remoteDataNodes = StreamSupport.stream(remoteCluster.clusterService().state().nodes().spliterator(), false)
+        List<String> remoteDataNodes = remoteCluster.clusterService()
+            .state()
+            .nodes()
+            .stream()
             .filter(DiscoveryNode::canContainData)
             .map(DiscoveryNode::getName)
             .collect(Collectors.toList());

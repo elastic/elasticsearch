@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestDocument.Metadata;
@@ -256,7 +257,7 @@ public class AppendProcessorTests extends ESTestCase {
             @Override
             Object randomValue() {
                 int numItems = randomIntBetween(1, 10);
-                Map<String, Object> map = new HashMap<>(numItems);
+                Map<String, Object> map = Maps.newMapWithExpectedSize(numItems);
                 for (int i = 0; i < numItems; i++) {
                     map.put(randomAlphaOfLengthBetween(1, 10), randomFrom(Scalar.values()).randomValue());
                 }

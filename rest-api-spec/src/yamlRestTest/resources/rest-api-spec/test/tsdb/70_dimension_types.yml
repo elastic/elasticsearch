@@ -1,7 +1,7 @@
 keyword dimension:
   - skip:
       features: close_to
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -74,7 +74,7 @@ keyword dimension:
 long dimension:
   - skip:
       features: close_to
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -149,7 +149,7 @@ long dimension:
 ip dimension:
   - skip:
       features: close_to
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:

@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -48,6 +49,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A {@link FilterLeafReader} that exposes only a subset
@@ -122,7 +124,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /** An automaton that only accepts authorized fields. */
     private final CharacterRunAutomaton filter;
     /** {@link Terms} cache with filtered stats for the {@link FieldNamesFieldMapper} field. */
-    private final Terms fieldNamesFilterTerms;
+    private volatile Optional<Terms> fieldNamesFilterTerms;
 
     /**
      * Wrap a single segment, exposing a subset of its fields.
@@ -137,8 +139,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.filter = filter;
-        final Terms fieldNameTerms = super.terms(FieldNamesFieldMapper.NAME);
-        this.fieldNamesFilterTerms = fieldNameTerms == null ? null : new FieldNamesTerms(fieldNameTerms);
     }
 
     /** returns true if this field is allowed. */
@@ -429,10 +429,22 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         if (hasField(field) == false) {
             return null;
         } else if (FieldNamesFieldMapper.NAME.equals(field)) {
-            // for the _field_names field, fields for the document
-            // are encoded as postings, where term is the field.
-            // so we hide terms for fields we filter out.
-            return fieldNamesFilterTerms;
+            // For the _field_names field, fields for the document are encoded as postings, where term is the field, so we hide terms for
+            // fields we filter out.
+            // Compute this lazily so that the DirectoryReader wrapper works together with RewriteCachingDirectoryReader (used by the
+            // can match phase in the frozen tier), which does not implement the terms() method.
+            if (fieldNamesFilterTerms == null) {
+                synchronized (this) {
+                    if (fieldNamesFilterTerms == null) {
+                        assert Transports.assertNotTransportThread("resolving filter terms");
+                        final Terms fieldNameTerms = super.terms(FieldNamesFieldMapper.NAME);
+                        this.fieldNamesFilterTerms = fieldNameTerms == null
+                            ? Optional.empty()
+                            : Optional.of(new FieldNamesTerms(fieldNameTerms));
+                    }
+                }
+            }
+            return fieldNamesFilterTerms.orElse(null);
         } else {
             return terms;
         }

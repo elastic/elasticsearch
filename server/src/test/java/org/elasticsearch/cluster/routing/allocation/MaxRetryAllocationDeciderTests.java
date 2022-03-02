@@ -122,7 +122,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), containsString("boom"));
 
         // manual resetting of retry count
-        newState = strategy.reroute(clusterState, new AllocationCommands(), false, true).getClusterState();
+        newState = strategy.reroute(clusterState, new AllocationCommands(), false, true).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();
@@ -202,7 +202,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 new MaxRetryAllocationDecider().canForceAllocatePrimary(
                     unassignedPrimary,
                     null,
-                    new RoutingAllocation(null, null, clusterState, null, null, 0)
+                    new RoutingAllocation(null, clusterState, null, null, 0)
                 )
             );
         }
@@ -231,7 +231,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 new MaxRetryAllocationDecider().canForceAllocatePrimary(
                     unassignedPrimary,
                     null,
-                    new RoutingAllocation(null, null, clusterState, null, null, 0)
+                    new RoutingAllocation(null, clusterState, null, null, 0)
                 )
             );
         }
@@ -271,7 +271,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             new MaxRetryAllocationDecider().canForceAllocatePrimary(
                 routingTable.index("idx").shard(0).shards().get(0),
                 null,
-                new RoutingAllocation(null, null, clusterState, null, null, 0)
+                new RoutingAllocation(null, clusterState, null, null, 0)
             )
         );
 
@@ -308,7 +308,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             new MaxRetryAllocationDecider().canForceAllocatePrimary(
                 unassignedPrimary,
                 null,
-                new RoutingAllocation(null, null, clusterState, null, null, 0)
+                new RoutingAllocation(null, clusterState, null, null, 0)
             )
         );
     }

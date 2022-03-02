@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
@@ -67,7 +68,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             this.nullValue = nullValueParam(
                 m -> builder(m).nullValue.get(),
                 (n, c, o) -> o == null ? null : parseNullValue(o, ignoreZValue.get().value(), ignoreMalformed.get().value()),
-                () -> null
+                () -> null,
+                XContentBuilder::field
             ).acceptsNull();
         }
 
@@ -143,12 +145,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     @Override
     protected void index(DocumentParserContext context, CartesianPoint point) throws IOException {
-        if (fieldType().isSearchable()) {
+        if (fieldType().isIndexed()) {
             context.doc().add(new XYPointField(fieldType().name(), (float) point.getX(), (float) point.getY()));
         }
         if (fieldType().hasDocValues()) {
             context.doc().add(new XYDocValuesField(fieldType().name(), (float) point.getX(), (float) point.getY()));
-        } else if (fieldType().isStored() || fieldType().isSearchable()) {
+        } else if (fieldType().isStored() || fieldType().isIndexed()) {
             context.addToFieldNames(fieldType().name());
         }
         if (fieldType().isStored()) {

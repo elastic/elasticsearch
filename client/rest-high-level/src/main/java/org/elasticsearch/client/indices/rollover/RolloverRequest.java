@@ -15,12 +15,12 @@ import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -31,7 +31,7 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
     private final String alias;
     private final String newIndexName;
     private boolean dryRun;
-    private final Map<String, Condition<?>> conditions = new HashMap<>(2);
+    private final Map<String, Condition<?>> conditions = Maps.newMapWithExpectedSize(2);
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private final CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 

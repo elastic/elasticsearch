@@ -119,7 +119,7 @@ public class IndexingStateProcessorTests extends ESTestCase {
     }
 
     public void testStateRead_StateDocumentCreated() throws IOException {
-        testStateRead(SearchHits.empty(), ".ml-state-write");
+        testStateRead(SearchHits.EMPTY_WITH_TOTAL_HITS, ".ml-state-write");
     }
 
     public void testStateRead_StateDocumentUpdated() throws IOException {
@@ -181,7 +181,7 @@ public class IndexingStateProcessorTests extends ESTestCase {
      */
     @Timeout(millis = 10 * 1000)
     public void testLargeStateRead() throws Exception {
-        when(searchResponse.getHits()).thenReturn(SearchHits.empty());
+        when(searchResponse.getHits()).thenReturn(SearchHits.EMPTY_WITH_TOTAL_HITS);
 
         StringBuilder builder = new StringBuilder(NUM_LARGE_DOCS * (LARGE_DOC_SIZE + 10)); // 10 for header and separators
         for (int docNum = 1; docNum <= NUM_LARGE_DOCS; ++docNum) {

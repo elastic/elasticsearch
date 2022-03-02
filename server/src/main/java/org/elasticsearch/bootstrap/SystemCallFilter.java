@@ -199,32 +199,15 @@ final class SystemCallFilter {
     static final int SECCOMP_DATA_NR_OFFSET = 0x00;
     static final int SECCOMP_DATA_ARCH_OFFSET = 0x04;
 
-    static class Arch {
-        /** AUDIT_ARCH_XXX constant from linux/audit.h */
-        final int audit;
-        /** syscall limit (necessary for blacklisting on amd64, to ban 32-bit syscalls) */
-        final int limit;
-        /** __NR_fork */
-        final int fork;
-        /** __NR_vfork */
-        final int vfork;
-        /** __NR_execve */
-        final int execve;
-        /**  __NR_execveat */
-        final int execveat;
-        /** __NR_seccomp */
-        final int seccomp;
-
-        Arch(int audit, int limit, int fork, int vfork, int execve, int execveat, int seccomp) {
-            this.audit = audit;
-            this.limit = limit;
-            this.fork = fork;
-            this.vfork = vfork;
-            this.execve = execve;
-            this.execveat = execveat;
-            this.seccomp = seccomp;
-        }
-    }
+    record Arch(
+        int audit,    // AUDIT_ARCH_XXX constant from linux/audit.h
+        int limit,    // syscall limit (necessary for blacklisting on amd64, to ban 32-bit syscalls)
+        int fork,     // __NR_fork
+        int vfork,    // __NR_vfork
+        int execve,   // __NR_execve
+        int execveat, // __NR_execveat
+        int seccomp   // __NR_seccomp
+    ) {}
 
     /** supported architectures map keyed by os.arch */
     private static final Map<String, Arch> ARCHITECTURES;

@@ -207,15 +207,9 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
     void assertFieldValues(ClassificationInferenceResults createdInstance, IngestDocument document, String resultsField) {
         String path = resultsField + "." + createdInstance.getResultsField();
         switch (createdInstance.getPredictionFieldType()) {
-            case NUMBER:
-                assertThat(document.getFieldValue(path, Double.class), equalTo(createdInstance.predictedValue()));
-                break;
-            case STRING:
-                assertThat(document.getFieldValue(path, String.class), equalTo(createdInstance.predictedValue()));
-                break;
-            case BOOLEAN:
-                assertThat(document.getFieldValue(path, Boolean.class), equalTo(createdInstance.predictedValue()));
-                break;
+            case NUMBER -> assertThat(document.getFieldValue(path, Double.class), equalTo(createdInstance.predictedValue()));
+            case STRING -> assertThat(document.getFieldValue(path, String.class), equalTo(createdInstance.predictedValue()));
+            case BOOLEAN -> assertThat(document.getFieldValue(path, Boolean.class), equalTo(createdInstance.predictedValue()));
         }
     }
 }

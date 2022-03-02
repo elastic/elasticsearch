@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -48,14 +49,9 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new WaitForActiveShardsStep(key, nextKey);
@@ -192,7 +188,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             .metadata(
                 Metadata.builder()
                     .put(
-                        new DataStream(
+                        DataStreamTestHelper.newInstance(
                             dataStreamName,
                             createTimestampField("@timestamp"),
                             List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex())

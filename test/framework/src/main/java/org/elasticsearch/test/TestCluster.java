@@ -13,7 +13,12 @@ import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -61,6 +66,11 @@ public abstract class TestCluster implements Closeable {
      * Wipes any data that a test can leave behind: indices, templates (except exclude templates) and repositories
      */
     public void wipe(Set<String> excludeTemplates) {
+        // First delete data streams, because composable index templates can't be deleted if these templates are still used by data streams.
+        wipeAllDataStreams();
+        wipeAllComposableIndexTemplates(excludeTemplates);
+        wipeAllComponentTemplates(excludeTemplates);
+
         wipeIndices("_all");
         wipeAllTemplates(excludeTemplates);
         wipeRepositories();
@@ -203,6 +213,56 @@ public abstract class TestCluster implements Closeable {
                 } catch (RepositoryMissingException ex) {
                     // ignore
                 }
+            }
+        }
+    }
+
+    public void wipeAllDataStreams() {
+        if (size() > 0) {
+            var request = new DeleteDataStreamAction.Request("*");
+            request.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+            try {
+                assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, request).actionGet());
+            } catch (IllegalStateException e) {
+                // Ignore if action isn't registered, because data streams is a module and
+                // if the delete action isn't registered then there no data streams to delete.
+                if (e.getMessage().startsWith("failed to find action") == false) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    public void wipeAllComposableIndexTemplates(Set<String> excludeTemplates) {
+        if (size() > 0) {
+            var templates = client().execute(GetComposableIndexTemplateAction.INSTANCE, new GetComposableIndexTemplateAction.Request("*"))
+                .actionGet()
+                .indexTemplates()
+                .keySet()
+                .stream()
+                .filter(template -> excludeTemplates.contains(template) == false)
+                .toArray(String[]::new);
+
+            if (templates.length != 0) {
+                var request = new DeleteComposableIndexTemplateAction.Request(templates);
+                assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, request).actionGet());
+            }
+        }
+    }
+
+    public void wipeAllComponentTemplates(Set<String> excludeTemplates) {
+        if (size() > 0) {
+            var templates = client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request("*"))
+                .actionGet()
+                .getComponentTemplates()
+                .keySet()
+                .stream()
+                .filter(template -> excludeTemplates.contains(template) == false)
+                .toArray(String[]::new);
+
+            if (templates.length != 0) {
+                var request = new DeleteComponentTemplateAction.Request(templates);
+                assertAcked(client().execute(DeleteComponentTemplateAction.INSTANCE, request).actionGet());
             }
         }
     }

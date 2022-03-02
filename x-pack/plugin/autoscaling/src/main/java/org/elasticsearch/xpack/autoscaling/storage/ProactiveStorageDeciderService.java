@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,11 +32,9 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
 
     private final DiskThresholdSettings diskThresholdSettings;
     private final AllocationDeciders allocationDeciders;
-    private final DataTierAllocationDecider dataTierAllocationDecider;
 
     public ProactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings, AllocationDeciders allocationDeciders) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        this.dataTierAllocationDecider = new DataTierAllocationDecider();
         this.allocationDeciders = allocationDeciders;
     }
 
@@ -64,8 +61,7 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             context,
             diskThresholdSettings,
-            allocationDeciders,
-            dataTierAllocationDecider
+            allocationDeciders
         );
         long unassignedBytesBeforeForecast = allocationState.storagePreventsAllocation();
         assert unassignedBytesBeforeForecast >= 0;

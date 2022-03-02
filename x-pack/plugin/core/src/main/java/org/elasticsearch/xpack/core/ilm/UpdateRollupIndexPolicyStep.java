@@ -13,13 +13,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Updates the lifecycle policy for the rollup index for the original/currently managed index
@@ -50,10 +49,10 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
-        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String policyName = indexMetadata.getLifecyclePolicyName();
         final String indexName = indexMetadata.getIndex().getName();
-        final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
-        final String rollupIndexName = lifecycleState.getRollupIndexName();
+        final LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
+        final String rollupIndexName = lifecycleState.rollupIndexName();
         if (Strings.hasText(rollupIndexName) == false) {
             listener.onFailure(
                 new IllegalStateException(

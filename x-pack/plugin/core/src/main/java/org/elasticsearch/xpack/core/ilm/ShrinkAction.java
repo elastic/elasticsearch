@@ -171,7 +171,7 @@ public class ShrinkAction implements LifecycleAction {
                             + "Skipping this action",
                         ShrinkAction.NAME,
                         indexMetadata.getIndex().getName(),
-                        LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())
+                        indexMetadata.getLifecyclePolicyName()
                     );
                     return true;
                 }

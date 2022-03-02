@@ -4,6 +4,13 @@
 <titleabbrev>cat fielddata</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<cluster-nodes-stats,nodes stats API>>.
+====
+
 Returns the amount of heap memory currently used by the
 <<modules-fielddata, field data cache>> on every data node in the cluster.
 

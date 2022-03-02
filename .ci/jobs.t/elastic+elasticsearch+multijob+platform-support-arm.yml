@@ -14,7 +14,7 @@
           type: label-expression
           name: os
           values:
-            - "centos-8-aarch64&&immutable"
+            - "almalinux-8-aarch64&&immutable"
             - "ubuntu-1804-aarch64&&immutable"
     builders:
       - inject:

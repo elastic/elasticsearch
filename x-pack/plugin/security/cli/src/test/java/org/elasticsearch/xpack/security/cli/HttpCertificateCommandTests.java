@@ -243,17 +243,15 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         // randomise between cert+key, key+cert, PKCS12 : the tool is smart enough to handle any of those.
         switch (randomFrom(FileType.PEM_CERT, FileType.PEM_KEY, FileType.PKCS12)) {
-            case PEM_CERT:
+            case PEM_CERT -> {
                 terminal.addTextInput(caCertPath.toAbsolutePath().toString());
                 terminal.addTextInput(caKeyPath.toAbsolutePath().toString());
-                break;
-            case PEM_KEY:
+            }
+            case PEM_KEY -> {
                 terminal.addTextInput(caKeyPath.toAbsolutePath().toString());
                 terminal.addTextInput(caCertPath.toAbsolutePath().toString());
-                break;
-            case PKCS12:
-                terminal.addTextInput(getDataPath("ca.p12").toAbsolutePath().toString());
-                break;
+            }
+            case PKCS12 -> terminal.addTextInput(getDataPath("ca.p12").toAbsolutePath().toString());
         }
         terminal.addSecretInput(caPassword);
 

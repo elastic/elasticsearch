@@ -1,0 +1,5 @@
+pr: 83222
+summary: Make `PeerFinder` log messages happier
+area: Cluster Coordination
+type: enhancement
+issues: []

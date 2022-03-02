@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
@@ -416,7 +417,7 @@ public class XContentBuilderTests extends ESTestCase {
 
         TestWritableValue(InputStream in) throws IOException {
             final int size = in.read();
-            this.values = new HashMap<>(size);
+            this.values = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 final int keySize = in.read();
                 final String key = new String(in.readNBytes(keySize), StandardCharsets.ISO_8859_1);
@@ -458,8 +459,7 @@ public class XContentBuilderTests extends ESTestCase {
         final Map<String, Object> actualValues = XContentHelper.convertToMap(bytes, true).v2();
         assertThat(actualValues, aMapWithSize(fields));
         for (Map.Entry<String, Object> e : expectedValues.entrySet()) {
-            if (e.getValue() instanceof TestWritableValue) {
-                final TestWritableValue expectedValue = (TestWritableValue) e.getValue();
+            if (e.getValue()instanceof final TestWritableValue expectedValue) {
                 assertThat(actualValues.get(e.getKey()), instanceOf(String.class));
                 final byte[] decoded = Base64.getDecoder().decode((String) actualValues.get(e.getKey()));
                 final TestWritableValue actualValue = new TestWritableValue(new InputStream() {

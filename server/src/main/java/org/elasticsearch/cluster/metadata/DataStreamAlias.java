@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implements ToXContentFragment {
+public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXContentFragment {
 
     public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
     public static final ParseField WRITE_DATA_STREAM_FIELD = new ParseField("write_data_stream");
@@ -278,7 +278,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
     }
 
     public static Diff<DataStreamAlias> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(DataStreamAlias::new, in);
+        return SimpleDiffable.readDiffFrom(DataStreamAlias::new, in);
     }
 
     public static DataStreamAlias fromXContent(XContentParser parser) throws IOException {

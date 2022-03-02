@@ -25,6 +25,7 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -178,12 +179,10 @@ public final class SearchPhaseController {
         SortField[] sortFields = null;
         String groupField = null;
         Object[] groupValues = null;
-        if (mergedTopDocs instanceof TopFieldDocs) {
-            TopFieldDocs fieldDocs = (TopFieldDocs) mergedTopDocs;
+        if (mergedTopDocs instanceof TopFieldDocs fieldDocs) {
             sortFields = fieldDocs.fields;
-            if (fieldDocs instanceof TopFieldGroups) {
+            if (fieldDocs instanceof TopFieldGroups topFieldGroups) {
                 isSortedByField = (fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
-                TopFieldGroups topFieldGroups = (TopFieldGroups) fieldDocs;
                 groupField = topFieldGroups.field;
                 groupValues = topFieldGroups.groupValues;
             } else {
@@ -202,13 +201,11 @@ public final class SearchPhaseController {
         final int numShards = results.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
-        } else if (topDocs instanceof TopFieldGroups) {
-            TopFieldGroups firstTopDocs = (TopFieldGroups) topDocs;
+        } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
-        } else if (topDocs instanceof TopFieldDocs) {
-            TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
+        } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
@@ -271,7 +268,7 @@ public final class SearchPhaseController {
         IntFunction<SearchPhaseResult> resultsLookup
     ) {
         if (reducedQueryPhase.isEmptyResult) {
-            return InternalSearchResponse.empty();
+            return InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         }
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResults, resultsLookup);
@@ -460,7 +457,7 @@ public final class SearchPhaseController {
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
         final Map<String, SearchProfileQueryPhaseResult> profileShardResults = hasProfileResults
-            ? new HashMap<>(queryResults.size())
+            ? Maps.newMapWithExpectedSize(queryResults.size())
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
@@ -479,8 +476,7 @@ public final class SearchPhaseController {
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
                     List<Suggestion<?>> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
                     suggestionList.add(suggestion);
-                    if (suggestion instanceof CompletionSuggestion) {
-                        CompletionSuggestion completionSuggestion = (CompletionSuggestion) suggestion;
+                    if (suggestion instanceof CompletionSuggestion completionSuggestion) {
                         completionSuggestion.setShardIndex(result.getShardIndex());
                     }
                 }
@@ -584,69 +580,41 @@ public final class SearchPhaseController {
             : source.from());
     }
 
-    public static final class ReducedQueryPhase {
+    public record ReducedQueryPhase(
         // the sum of all hits across all reduces shards
-        final TotalHits totalHits;
+        TotalHits totalHits,
         // the number of returned hits (doc IDs) across all reduces shards
-        final long fetchHits;
+        long fetchHits,
         // the max score across all reduces hits or {@link Float#NaN} if no hits returned
-        final float maxScore;
+        float maxScore,
         // <code>true</code> if at least one reduced result timed out
-        final boolean timedOut;
+        boolean timedOut,
         // non null and true if at least one reduced result was terminated early
-        final Boolean terminatedEarly;
+        Boolean terminatedEarly,
         // the reduced suggest results
-        final Suggest suggest;
+        Suggest suggest,
         // the reduced internal aggregations
-        final InternalAggregations aggregations;
+        InternalAggregations aggregations,
         // the reduced profile results
-        final SearchProfileResultsBuilder profileBuilder;
-        // the number of reduces phases
-        final int numReducePhases;
+        SearchProfileResultsBuilder profileBuilder,
         // encloses info about the merged top docs, the sort fields used to sort the score docs etc.
-        final SortedTopDocs sortedTopDocs;
-        // the size of the top hits to return
-        final int size;
-        // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
-        final boolean isEmptyResult;
-        // the offset into the merged top hits
-        final int from;
+        SortedTopDocs sortedTopDocs,
         // sort value formats used to sort / format the result
-        final DocValueFormat[] sortValueFormats;
+        DocValueFormat[] sortValueFormats,
+        // the number of reduces phases
+        int numReducePhases,
+        // the size of the top hits to return
+        int size,
+        // the offset into the merged top hits
+        int from,
+        // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
+        boolean isEmptyResult
+    ) {
 
-        ReducedQueryPhase(
-            TotalHits totalHits,
-            long fetchHits,
-            float maxScore,
-            boolean timedOut,
-            Boolean terminatedEarly,
-            Suggest suggest,
-            InternalAggregations aggregations,
-            SearchProfileResultsBuilder profileBuilder,
-            SortedTopDocs sortedTopDocs,
-            DocValueFormat[] sortValueFormats,
-            int numReducePhases,
-            int size,
-            int from,
-            boolean isEmptyResult
-        ) {
+        public ReducedQueryPhase {
             if (numReducePhases <= 0) {
                 throw new IllegalArgumentException("at least one reduce phase must have been applied but was: " + numReducePhases);
             }
-            this.totalHits = totalHits;
-            this.fetchHits = fetchHits;
-            this.maxScore = maxScore;
-            this.timedOut = timedOut;
-            this.terminatedEarly = terminatedEarly;
-            this.suggest = suggest;
-            this.aggregations = aggregations;
-            this.profileBuilder = profileBuilder;
-            this.numReducePhases = numReducePhases;
-            this.sortedTopDocs = sortedTopDocs;
-            this.size = size;
-            this.from = from;
-            this.isEmptyResult = isEmptyResult;
-            this.sortValueFormats = sortValueFormats;
         }
 
         /**
@@ -770,32 +738,17 @@ public final class SearchPhaseController {
         }
     }
 
-    static final class SortedTopDocs {
-        static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null, 0);
+    record SortedTopDocs(
         // the searches merged top docs
-        final ScoreDoc[] scoreDocs;
+        ScoreDoc[] scoreDocs,
         // <code>true</code> iff the result score docs is sorted by a field (not score), this implies that <code>sortField</code> is set.
-        final boolean isSortedByField;
+        boolean isSortedByField,
         // the top docs sort fields used to sort the score docs, <code>null</code> if the results are not sorted
-        final SortField[] sortFields;
-        final String collapseField;
-        final Object[] collapseValues;
-        final int numberOfCompletionsSuggestions;
-
-        SortedTopDocs(
-            ScoreDoc[] scoreDocs,
-            boolean isSortedByField,
-            SortField[] sortFields,
-            String collapseField,
-            Object[] collapseValues,
-            int numberOfCompletionsSuggestions
-        ) {
-            this.scoreDocs = scoreDocs;
-            this.isSortedByField = isSortedByField;
-            this.sortFields = sortFields;
-            this.collapseField = collapseField;
-            this.collapseValues = collapseValues;
-            this.numberOfCompletionsSuggestions = numberOfCompletionsSuggestions;
-        }
+        SortField[] sortFields,
+        String collapseField,
+        Object[] collapseValues,
+        int numberOfCompletionsSuggestions
+    ) {
+        static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null, 0);
     }
 }

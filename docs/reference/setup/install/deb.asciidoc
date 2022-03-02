@@ -130,7 +130,9 @@ sudo dpkg -i elasticsearch-{version}-amd64.deb
 
 endif::[]
 
-[[deb-security-configuration]]
+// Set a `distro` attribute so we can reuse files containing anchors
+:distro: deb
+[id="deb-security-configuration"]
 include::package-security.asciidoc[]
 
 ifdef::include-xpack[]
@@ -142,7 +144,7 @@ include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
-[[deb-running-systemd]]
+[id="{distro}-running-systemd"]
 include::systemd.asciidoc[]
 
 [[deb-check-running]]
@@ -201,7 +203,7 @@ locations for a Debian-based system:
 
 | conf
 | Generated TLS keys and certificates for the transport and http layer.
-| /etc/elasticsearch/auto_config_tls_<timestamp>
+| /etc/elasticsearch/certs
 d|
 
 | data

@@ -166,4 +166,12 @@ public class DelegatedAuthorizationSupport {
         throw new IllegalArgumentException("configured authorization realm [" + name + "] does not exist (or is not enabled)");
     }
 
+    @Override
+    public String toString() {
+        return "security-delegated-authorization: available ["
+            + Security.DELEGATED_AUTHORIZATION_FEATURE.checkWithoutTracking(licenseState)
+            + "], lookup-realms ["
+            + collectionToDelimitedString(this.lookup.getRealms(), ",")
+            + "]";
+    }
 }

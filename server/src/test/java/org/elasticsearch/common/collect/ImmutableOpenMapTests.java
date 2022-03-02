@@ -11,6 +11,7 @@ package org.elasticsearch.common.collect;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
@@ -30,6 +31,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ImmutableOpenMapTests extends ESTestCase {
 
@@ -102,6 +104,18 @@ public class ImmutableOpenMapTests extends ESTestCase {
         );
     }
 
+    public void testIntMapKeySet() {
+        ImmutableOpenIntMap<String> map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").fPut(2, "bar").build();
+        Set<Integer> expectedKeys = Set.of(1, 2);
+        Set<Integer> actualKeys = map.keySet();
+        assertThat(actualKeys.contains(1), is(true));
+        assertThat(actualKeys.contains(2), is(true));
+        assertThat(actualKeys, equalTo(expectedKeys));
+        assertThat(expectedKeys, equalTo(actualKeys));
+        assertThat(expectedKeys.stream().filter(actualKeys::contains).count(), equalTo(2L));
+        assertThat(actualKeys.stream().filter(expectedKeys::contains).count(), equalTo(2L));
+    }
+
     public void testSortedKeysSet() {
         assertThat(regionCurrencySymbols.keySet(), equalTo(Set.of("EU", "Japan", "Korea", "UK", "USA")));
     }
@@ -138,7 +152,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
         ImmutableOpenMap.Builder<Long, String> builder2 = ImmutableOpenMap.builder(map.size());
         map.entrySet().stream().forEach(entry -> builder2.put(entry.getKey(), entry.getValue()));
 
-        Map<Long, String> hMap = new HashMap<>(map.size());
+        Map<Long, String> hMap = Maps.newMapWithExpectedSize(map.size());
         map.entrySet().forEach(entry -> hMap.put(entry.getKey(), entry.getValue()));
 
         ImmutableOpenMap.Builder<Long, String> builder3 = ImmutableOpenMap.builder(map.size());
@@ -239,8 +253,13 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertFalse(map.entrySet().contains(entry(2, null)));
     }
 
+    public void testIntMapContainsValue() {
+        ImmutableOpenIntMap<String> map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").fPut(2, "bar").build();
+        assertTrue(map.containsValue("bar"));
+    }
+
     private static <KType, VType> Map.Entry<KType, VType> entry(KType key, VType value) {
-        Map<KType, VType> map = new HashMap<>(1);
+        Map<KType, VType> map = Maps.newMapWithExpectedSize(1);
         map.put(key, value);
         return map.entrySet().iterator().next();
     }

@@ -36,34 +36,34 @@ public class ClientYamlSuiteRestApiTests extends ESTestCase {
         {
             List<ClientYamlSuiteRestApi.Path> paths = restApi.getBestMatchingPaths(Collections.emptySet());
             assertEquals(1, paths.size());
-            assertEquals("/_doc", paths.get(0).getPath());
+            assertEquals("/_doc", paths.get(0).path());
         }
         {
             List<ClientYamlSuiteRestApi.Path> paths = restApi.getBestMatchingPaths(Collections.singleton("wait_for_active_shards"));
             assertEquals(1, paths.size());
-            assertEquals("/_doc", paths.get(0).getPath());
+            assertEquals("/_doc", paths.get(0).path());
         }
         {
             List<ClientYamlSuiteRestApi.Path> paths = restApi.getBestMatchingPaths(Collections.singleton("index"));
             assertEquals(1, paths.size());
-            assertEquals("/{index}/_doc", paths.get(0).getPath());
+            assertEquals("/{index}/_doc", paths.get(0).path());
         }
         {
             List<ClientYamlSuiteRestApi.Path> paths = restApi.getBestMatchingPaths(Set.of("index", "id"));
             assertEquals(1, paths.size());
-            assertEquals("/{index}/_doc/{id}", paths.get(0).getPath());
+            assertEquals("/{index}/_doc/{id}", paths.get(0).path());
         }
         {
             List<ClientYamlSuiteRestApi.Path> paths = restApi.getBestMatchingPaths(Set.of("index", "type"));
             assertEquals(3, paths.size());
-            assertEquals("/{index}/_mapping/{type}", paths.get(0).getPath());
-            assertEquals("/{index}/{type}", paths.get(1).getPath());
-            assertEquals("/{index}/_mappings/{type}", paths.get(2).getPath());
+            assertEquals("/{index}/_mapping/{type}", paths.get(0).path());
+            assertEquals("/{index}/{type}", paths.get(1).path());
+            assertEquals("/{index}/_mappings/{type}", paths.get(2).path());
         }
         {
             List<ClientYamlSuiteRestApi.Path> paths = restApi.getBestMatchingPaths(Set.of("index", "type", "id"));
             assertEquals(1, paths.size());
-            assertEquals("/{index}/{type}/{id}", paths.get(0).getPath());
+            assertEquals("/{index}/{type}/{id}", paths.get(0).path());
         }
     }
 

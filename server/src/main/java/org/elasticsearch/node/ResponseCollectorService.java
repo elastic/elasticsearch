@@ -16,10 +16,10 @@ import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -74,7 +74,7 @@ public final class ResponseCollectorService implements ClusterStateListener {
     public Map<String, ComputedNodeStats> getAllNodeStatistics() {
         final int clientNum = nodeIdToStats.size();
         // Transform the mutable object internally used for accounting into the computed version
-        Map<String, ComputedNodeStats> nodeStats = new HashMap<>(nodeIdToStats.size());
+        Map<String, ComputedNodeStats> nodeStats = Maps.newMapWithExpectedSize(nodeIdToStats.size());
         nodeIdToStats.forEach((k, v) -> { nodeStats.put(k, new ComputedNodeStats(clientNum, v)); });
         return nodeStats;
     }

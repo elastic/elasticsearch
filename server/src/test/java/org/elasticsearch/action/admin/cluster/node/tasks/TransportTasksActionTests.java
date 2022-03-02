@@ -364,7 +364,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // There should be a single main task when grouped by tasks
         assertEquals(1, response.getTaskGroups().size());
         // And as many child tasks as we have nodes
-        assertEquals(testNodes.length, response.getTaskGroups().get(0).getChildTasks().size());
+        assertEquals(testNodes.length, response.getTaskGroups().get(0).childTasks().size());
 
         // Check task counts using transport with filtering
         testNode = testNodes[randomIntBetween(0, testNodes.length - 1)];
@@ -374,12 +374,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<String, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
             assertEquals(1, entry.getValue().size());
-            assertNull(entry.getValue().get(0).getDescription());
+            assertNull(entry.getValue().get(0).description());
         }
         // Since the main task is not in the list - all tasks should be by themselves
         assertEquals(testNodes.length, response.getTaskGroups().size());
         for (TaskGroup taskGroup : response.getTaskGroups()) {
-            assertEquals(0, taskGroup.getChildTasks().size());
+            assertEquals(0, taskGroup.childTasks().size());
         }
 
         // Check task counts using transport with detailed description
@@ -388,14 +388,14 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<String, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
             assertEquals(1, entry.getValue().size());
-            assertEquals("CancellableNodeRequest[Test Request]", entry.getValue().get(0).getDescription());
+            assertEquals("CancellableNodeRequest[Test Request]", entry.getValue().get(0).description());
         }
 
         // Make sure that the main task on coordinating node is the task that was returned to us by execute()
         listTasksRequest.setActions("internal:testAction"); // only pick the main task
         response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
         assertEquals(1, response.getTasks().size());
-        assertEquals(mainTask.getId(), response.getTasks().get(0).getId());
+        assertEquals(mainTask.getId(), response.getTasks().get(0).id());
 
         // Release all tasks and wait for response
         checkLatch.countDown();
@@ -423,8 +423,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         listTasksRequest.setActions("internal:testAction");
         ListTasksResponse response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
         assertEquals(1, response.getTasks().size());
-        String parentNode = response.getTasks().get(0).getTaskId().getNodeId();
-        long parentTaskId = response.getTasks().get(0).getId();
+        String parentNode = response.getTasks().get(0).taskId().getNodeId();
+        long parentTaskId = response.getTasks().get(0).id();
 
         // Find tasks with common parent
         listTasksRequest = new ListTasksRequest();
@@ -432,9 +432,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
         assertEquals(testNodes.length, response.getTasks().size());
         for (TaskInfo task : response.getTasks()) {
-            assertEquals("internal:testAction[n]", task.getAction());
-            assertEquals(parentNode, task.getParentTaskId().getNodeId());
-            assertEquals(parentTaskId, task.getParentTaskId().getId());
+            assertEquals("internal:testAction[n]", task.action());
+            assertEquals(parentNode, task.parentTaskId().getNodeId());
+            assertEquals(parentTaskId, task.parentTaskId().getId());
         }
 
         // Release all tasks and wait for response
@@ -459,7 +459,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<String, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
             assertEquals(1, entry.getValue().size());
-            assertNull(entry.getValue().get(0).getDescription());
+            assertNull(entry.getValue().get(0).description());
         }
 
         // Check task counts using transport with detailed description
@@ -469,9 +469,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(testNodes.length, response.getPerNodeTasks().size());
         for (Map.Entry<String, List<TaskInfo>> entry : response.getPerNodeTasks().entrySet()) {
             assertEquals(1, entry.getValue().size());
-            assertEquals("CancellableNodeRequest[Test Request]", entry.getValue().get(0).getDescription());
-            assertThat(entry.getValue().get(0).getStartTime(), greaterThanOrEqualTo(minimalStartTime));
-            assertThat(entry.getValue().get(0).getRunningTimeNanos(), greaterThanOrEqualTo(minimalDurationNanos));
+            assertEquals("CancellableNodeRequest[Test Request]", entry.getValue().get(0).description());
+            assertThat(entry.getValue().get(0).startTime(), greaterThanOrEqualTo(minimalStartTime));
+            assertThat(entry.getValue().get(0).runningTimeNanos(), greaterThanOrEqualTo(minimalDurationNanos));
         }
 
         // Release all tasks and wait for response
@@ -528,7 +528,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(1, listResponse.getPerNodeTasks().size());
         // Verify that tasks are marked as non-cancellable
         for (TaskInfo taskInfo : listResponse.getTasks()) {
-            assertFalse(taskInfo.isCancellable());
+            assertFalse(taskInfo.cancellable());
         }
 
         // Release all tasks and wait for response

@@ -255,7 +255,16 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             null,
             null
         );
-        SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId2", 1, 1, 0, 1, null, null);
+        SearchResponse searchResponse3 = new SearchResponse(
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+            "_scrollId2",
+            1,
+            1,
+            0,
+            1,
+            null,
+            null
+        );
 
         doAnswer(invocation -> {
             SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];

@@ -193,18 +193,18 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             ListTasksResponse tasksList = client.admin().cluster().prepareListTasks()
                 .setActions(UpdateByQueryAction.NAME).setDetailed(true).get();
             for (TaskInfo info: tasksList.getTasks()) {
-                TaskId taskId = info.getTaskId();
+                TaskId taskId = info.taskId();
                 BulkByScrollTask.Status status =
-                    (BulkByScrollTask.Status) info.getStatus();
+                    (BulkByScrollTask.Status) info.status();
                 // do stuff
             }
             // end::update-by-query-list-tasks
         }
 
         TaskInfo mainTask = CancelTests.findTaskToCancel(ReindexAction.NAME, builder.request().getSlices());
-        BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.getStatus();
+        BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.status();
         assertNull(status.getReasonCancelled());
-        TaskId taskId = mainTask.getTaskId();
+        TaskId taskId = mainTask.taskId();
         {
             // tag::update-by-query-get-task
             GetTaskResponse get = client.admin().cluster().prepareGetTask(taskId).get();

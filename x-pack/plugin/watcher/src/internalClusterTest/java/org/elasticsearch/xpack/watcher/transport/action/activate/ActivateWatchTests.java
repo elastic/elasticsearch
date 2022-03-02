@@ -50,7 +50,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66495")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82797")
     public void testDeactivateAndActivate() throws Exception {
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("_id")
             .setSource(
@@ -107,7 +107,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66495")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82797")
     public void testLoadWatchWithoutAState() throws Exception {
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("_id")
             .setSource(

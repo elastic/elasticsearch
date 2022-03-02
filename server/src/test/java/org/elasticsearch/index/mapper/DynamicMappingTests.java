@@ -330,8 +330,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     public void testObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        ParsedDocument doc = mapper.parse(source(b -> {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
             {
                 b.startObject("bar").field("baz", "foo").endObject();
@@ -340,6 +340,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
 
         assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
         assertThat(Strings.toString(doc.dynamicMappingsUpdate()), containsString("""
             {"foo":{"properties":{"bar":{"properties":{"baz":{"type":"text\""""));
     }

@@ -413,21 +413,21 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
 
         switch (token) {
-            case START_ARRAY:
+            case START_ARRAY -> {
                 destination.writeStartArray();
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                     copyCurrentStructure(destination, parser);
                 }
                 destination.writeEndArray();
-                break;
-            case START_OBJECT:
+            }
+            case START_OBJECT -> {
                 destination.writeStartObject();
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     copyCurrentStructure(destination, parser);
                 }
                 destination.writeEndObject();
-                break;
-            default: // others are simple:
+            }
+            default -> // others are simple:
                 destination.copyCurrentEvent(parser);
         }
     }

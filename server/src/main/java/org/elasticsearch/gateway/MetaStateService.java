@@ -67,17 +67,17 @@ public class MetaStateService {
             final Metadata globalMetadata = Metadata.FORMAT.loadGeneration(
                 logger,
                 namedXContentRegistry,
-                manifest.getGlobalGeneration(),
+                manifest.globalGeneration(),
                 nodeEnv.nodeDataPaths()
             );
             if (globalMetadata != null) {
                 metadataBuilder = Metadata.builder(globalMetadata);
             } else {
-                throw new IOException("failed to find global metadata [generation: " + manifest.getGlobalGeneration() + "]");
+                throw new IOException("failed to find global metadata [generation: " + manifest.globalGeneration() + "]");
             }
         }
 
-        for (Map.Entry<Index, Long> entry : manifest.getIndexGenerations().entrySet()) {
+        for (Map.Entry<Index, Long> entry : manifest.indexGenerations().entrySet()) {
             final Index index = entry.getKey();
             final long generation = entry.getValue();
             final String indexFolderName = index.getUUID();

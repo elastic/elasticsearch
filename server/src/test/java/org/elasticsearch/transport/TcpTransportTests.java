@@ -606,7 +606,8 @@ public class TcpTransportTests extends ESTestCase {
                     new StatsTracker(),
                     testThreadPool,
                     new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),
-                    new HandlingTimeTracker()
+                    new HandlingTimeTracker(),
+                    false
                 )
             );
 

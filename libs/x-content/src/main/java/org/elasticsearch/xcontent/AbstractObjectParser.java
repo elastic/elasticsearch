@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.ObjectParser.ValueType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -298,7 +299,7 @@ public abstract class AbstractObjectParser<Value, Context> {
     ) {
         declareField(
             (value, list) -> { if (list != null) consumer.accept(value, list); },
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : parseArray(p, () -> objectParser.parse(p, c)),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : parseArray(p, c, objectParser),
             field,
             ValueType.OBJECT_ARRAY_OR_NULL
         );
@@ -333,7 +334,7 @@ public abstract class AbstractObjectParser<Value, Context> {
         ParseField field,
         ValueType type
     ) {
-        declareField(consumer, (p, c) -> parseArray(p, () -> itemParser.parse(p, c)), field, type);
+        declareField(consumer, (p, c) -> parseArray(p, c, itemParser), field, type);
     }
 
     /**
@@ -400,25 +401,21 @@ public abstract class AbstractObjectParser<Value, Context> {
      */
     public abstract void declareExclusiveFieldSet(String... exclusiveSet);
 
-    private interface IOSupplier<T> {
-        T get() throws IOException;
-    }
-
-    private static <T> List<T> parseArray(XContentParser parser, IOSupplier<T> supplier) throws IOException {
-        List<T> list = new ArrayList<>();
-        if (parser.currentToken().isValue()
-            || parser.currentToken() == XContentParser.Token.VALUE_NULL
-            || parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            list.add(supplier.get()); // single value
-        } else {
-            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                if (parser.currentToken().isValue()
-                    || parser.currentToken() == XContentParser.Token.VALUE_NULL
-                    || parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                    list.add(supplier.get());
-                } else {
-                    throw new IllegalStateException("expected value but got [" + parser.currentToken() + "]");
-                }
+    private static <T, Context> List<T> parseArray(XContentParser parser, Context context, ContextParser<Context, T> itemParser)
+        throws IOException {
+        final XContentParser.Token currentToken = parser.currentToken();
+        if (currentToken.isValue()
+            || currentToken == XContentParser.Token.VALUE_NULL
+            || currentToken == XContentParser.Token.START_OBJECT) {
+            return Collections.singletonList(itemParser.parse(parser, context)); // single value
+        }
+        final List<T> list = new ArrayList<>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            if (token.isValue() || token == XContentParser.Token.VALUE_NULL || token == XContentParser.Token.START_OBJECT) {
+                list.add(itemParser.parse(parser, context));
+            } else {
+                throw new IllegalStateException("expected value but got [" + token + "]");
             }
         }
         return list;

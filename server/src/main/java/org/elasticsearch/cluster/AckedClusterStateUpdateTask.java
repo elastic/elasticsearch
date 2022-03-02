@@ -19,7 +19,7 @@ import org.elasticsearch.core.TimeValue;
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
  * all the nodes have acknowledged a cluster state update request
  */
-public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask implements AckedClusterStateTaskListener {
+public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask implements ClusterStateAckListener {
 
     private final ActionListener<AcknowledgedResponse> listener;
     private final AckedRequest request;
@@ -72,7 +72,7 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
+    public void onFailure(Exception e) {
         listener.onFailure(e);
     }
 

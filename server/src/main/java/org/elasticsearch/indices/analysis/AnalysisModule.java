@@ -226,14 +226,10 @@ public final class AnalysisModule {
         // Temporary shim to register old style pre-configured tokenizers
         for (PreBuiltTokenizers tokenizer : PreBuiltTokenizers.values()) {
             String name = tokenizer.name().toLowerCase(Locale.ROOT);
-            PreConfiguredTokenizer preConfigured;
-            switch (tokenizer.getCachingStrategy()) {
-                case ONE:
-                    preConfigured = PreConfiguredTokenizer.singleton(name, () -> tokenizer.create(Version.CURRENT));
-                    break;
-                default:
-                    throw new UnsupportedOperationException("Caching strategy unsupported by temporary shim [" + tokenizer + "]");
-            }
+            PreConfiguredTokenizer preConfigured = switch (tokenizer.getCachingStrategy()) {
+                case ONE -> PreConfiguredTokenizer.singleton(name, () -> tokenizer.create(Version.CURRENT));
+                default -> throw new UnsupportedOperationException("Caching strategy unsupported by temporary shim [" + tokenizer + "]");
+            };
             preConfiguredTokenizers.register(name, preConfigured);
         }
         for (AnalysisPlugin plugin : plugins) {

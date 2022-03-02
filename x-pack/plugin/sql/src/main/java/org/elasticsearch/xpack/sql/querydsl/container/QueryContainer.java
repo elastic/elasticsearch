@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContent;
@@ -394,7 +395,7 @@ public class QueryContainer {
      * is folded from bottom up. So the most significant sort order will be added last.
      */
     public QueryContainer prependSort(String expressionId, Sort sortable) {
-        Map<String, Sort> newSort = new LinkedHashMap<>(this.sort.size() + 1);
+        Map<String, Sort> newSort = Maps.newLinkedHashMapWithExpectedSize(this.sort.size() + 1);
         newSort.put(expressionId, sortable);
         for (Map.Entry<String, Sort> entry : this.sort.entrySet()) {
             newSort.putIfAbsent(entry.getKey(), entry.getValue());

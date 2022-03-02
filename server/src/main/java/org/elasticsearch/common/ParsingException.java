@@ -38,8 +38,8 @@ public class ParsingException extends ElasticsearchException {
         int lineNumber = UNKNOWN_POSITION;
         int columnNumber = UNKNOWN_POSITION;
         if (contentLocation != null) {
-            lineNumber = contentLocation.lineNumber;
-            columnNumber = contentLocation.columnNumber;
+            lineNumber = contentLocation.lineNumber();
+            columnNumber = contentLocation.columnNumber();
         }
         this.columnNumber = columnNumber;
         this.lineNumber = lineNumber;

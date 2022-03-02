@@ -85,11 +85,11 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             final String indexName = "index-" + i;
             int nbDocs = 0;
             switch (i) {
-                case 0:
+                case 0 -> {
                     logger.debug("creating empty index {}", indexName);
                     createIndex(indexName);
-                    break;
-                case 1:
+                }
+                case 1 -> {
                     nbDocs = scaledRandomIntBetween(1, 100);
                     logger.debug("creating index {} with {} documents", indexName, nbDocs);
                     createIndex(indexName);
@@ -99,13 +99,14 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                             .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                             .collect(Collectors.toList())
                     );
-                    break;
-                default:
+                }
+                default -> {
                     logger.debug("creating index {} with background indexing", indexName);
                     final BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), -1, 1);
                     indexers.put(indexName, indexer);
                     indexer.setFailureAssertion(t -> assertException(t, indexName));
                     waitForDocs(1, indexer);
+                }
             }
             docsPerIndex.put(indexName, (long) nbDocs);
             indices[i] = indexName;

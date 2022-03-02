@@ -102,17 +102,17 @@ public class PemKeyConfigTests extends ESTestCase {
         StoredCertificate c1 = iterator.next();
         StoredCertificate c2 = iterator.next();
 
-        assertThat(c1.getCertificate().getSubjectDN().toString(), equalTo("CN=cert1"));
+        assertThat(c1.certificate().getSubjectDN().toString(), equalTo("CN=cert1"));
         assertThat(c1.hasPrivateKey(), equalTo(true));
-        assertThat(c1.getAlias(), nullValue());
-        assertThat(c1.getFormat(), equalTo("PEM"));
-        assertThat(c1.getPath(), equalTo(chain.toString()));
+        assertThat(c1.alias(), nullValue());
+        assertThat(c1.format(), equalTo("PEM"));
+        assertThat(c1.path(), equalTo(chain.toString()));
 
-        assertThat(c2.getCertificate().getSubjectDN().toString(), equalTo("CN=Test CA 1"));
+        assertThat(c2.certificate().getSubjectDN().toString(), equalTo("CN=Test CA 1"));
         assertThat(c2.hasPrivateKey(), equalTo(false));
-        assertThat(c2.getAlias(), nullValue());
-        assertThat(c2.getFormat(), equalTo("PEM"));
-        assertThat(c2.getPath(), equalTo(chain.toString()));
+        assertThat(c2.alias(), nullValue());
+        assertThat(c2.format(), equalTo("PEM"));
+        assertThat(c2.path(), equalTo(chain.toString()));
 
         final List<Tuple<PrivateKey, X509Certificate>> keys = keyConfig.getKeys();
         assertThat(keys, iterableWithSize(1));

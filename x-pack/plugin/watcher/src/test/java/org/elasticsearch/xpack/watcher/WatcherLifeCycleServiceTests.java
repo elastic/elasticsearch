@@ -75,7 +75,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             updateTask.onAllNodesAcked(null);
             return null;
         };
-        doAnswer(answer).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        doAnswer(answer).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
         watcherService = mock(WatcherService.class);
         lifeCycleService = new WatcherLifeCycleService(clusterService, watcherService);
     }
@@ -104,7 +104,15 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     public void testStartWithStateNotRecoveredBlock() {
-        DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
+        DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().add(
+            new DiscoveryNode(
+                "id1",
+                ESTestCase.buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                new HashSet<>(DiscoveryNodeRole.roles()),
+                Version.CURRENT
+            )
+        ).masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
             .nodes(nodes)

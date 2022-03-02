@@ -301,4 +301,14 @@ public abstract class StringUtils {
         return buf.toString();
     }
 
+    public static String repeatString(String in, int count) {
+        if (count < 0) {
+            throw new IllegalArgumentException("negative count: " + count);
+        }
+        StringBuffer sb = new StringBuffer(in.length() * count);
+        for (int i = 0; i < count; i++) {
+            sb.append(in);
+        }
+        return sb.toString();
+    }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException;
+import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -824,6 +825,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(161, VersionMismatchException.class);
         ids.put(162, ElasticsearchAuthenticationProcessingError.class);
         ids.put(163, RepositoryConflictException.class);
+        ids.put(164, VersionConflictException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

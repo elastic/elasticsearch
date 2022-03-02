@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.ClusterName;
@@ -21,9 +21,11 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -46,6 +48,7 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -65,7 +68,6 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomMap;
-import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -76,6 +78,31 @@ public final class DataStreamTestHelper {
     private static final Settings.Builder SETTINGS = ESTestCase.settings(Version.CURRENT).put("index.hidden", true);
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
+
+    public static DataStream newInstance(String name, DataStream.TimestampField timeStampField, List<Index> indices) {
+        return newInstance(name, timeStampField, indices, indices.size(), null);
+    }
+
+    public static DataStream newInstance(
+        String name,
+        DataStream.TimestampField timeStampField,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata
+    ) {
+        return newInstance(name, timeStampField, indices, generation, metadata, false);
+    }
+
+    public static DataStream newInstance(
+        String name,
+        DataStream.TimestampField timeStampField,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated
+    ) {
+        return new DataStream(name, timeStampField, indices, generation, metadata, false, replicated, false, false, null);
+    }
 
     public static String getLegacyDefaultBackingIndexName(
         String dataStreamName,
@@ -192,6 +219,7 @@ public final class DataStreamTestHelper {
         if (randomBoolean()) {
             metadata = Map.of("key", "value");
         }
+
         return new DataStream(
             dataStreamName,
             createTimestampField("@timestamp"),
@@ -200,9 +228,10 @@ public final class DataStreamTestHelper {
             metadata,
             randomBoolean(),
             randomBoolean(),
-            false,
+            false, // Some tests don't work well with system data streams, since these data streams require special handling
             timeProvider,
-            false
+            randomBoolean(),
+            randomBoolean() ? IndexMode.STANDARD : null // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
         );
     }
 
@@ -248,7 +277,22 @@ public final class DataStreamTestHelper {
         Settings settings,
         int replicas
     ) {
+        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, false);
+    }
+
+    public static ClusterState getClusterStateWithDataStreams(
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        long currentTime,
+        Settings settings,
+        int replicas,
+        boolean replicated
+    ) {
         Metadata.Builder builder = Metadata.builder();
+        builder.put(
+            "template_1",
+            new ComposableIndexTemplate(List.of("*"), null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate())
+        );
 
         List<IndexMetadata> allIndices = new ArrayList<>();
         for (Tuple<String, Integer> dsTuple : dataStreams) {
@@ -260,12 +304,13 @@ public final class DataStreamTestHelper {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(
+            DataStream ds = DataStreamTestHelper.newInstance(
                 dsTuple.v1(),
                 createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
                 dsTuple.v2(),
-                null
+                null,
+                replicated
             );
             builder.put(ds);
         }
@@ -279,6 +324,48 @@ public final class DataStreamTestHelper {
         }
 
         return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
+    }
+
+    public static ClusterState getClusterStateWithDataStream(String dataStream, List<Tuple<Instant, Instant>> timeSlices) {
+        Metadata.Builder builder = Metadata.builder();
+        getClusterStateWithDataStream(builder, dataStream, timeSlices);
+        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
+    }
+
+    public static void getClusterStateWithDataStream(
+        Metadata.Builder builder,
+        String dataStream,
+        List<Tuple<Instant, Instant>> timeSlices
+    ) {
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        int generation = 1;
+        for (Tuple<Instant, Instant> tuple : timeSlices) {
+            Instant start = tuple.v1();
+            Instant end = tuple.v2();
+            Settings settings = Settings.builder()
+                .put("index.mode", "time_series")
+                .put("index.routing_path", "uid")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
+                .build();
+            var im = createIndexMetadata(getDefaultBackingIndexName(dataStream, generation, start.toEpochMilli()), true, settings, 0);
+            builder.put(im, true);
+            backingIndices.add(im);
+            generation++;
+        }
+        DataStream ds = new DataStream(
+            dataStream,
+            createTimestampField("@timestamp"),
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
+            backingIndices.size(),
+            null,
+            false,
+            false,
+            false,
+            false,
+            IndexMode.TIME_SERIES
+        );
+        builder.put(ds);
     }
 
     private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
@@ -379,8 +466,6 @@ public final class DataStreamTestHelper {
             mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), List.of());
         }
         IndicesService indicesService = mockIndicesServices(mappingLookup);
-        IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
 
         ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
@@ -388,7 +473,6 @@ public final class DataStreamTestHelper {
             clusterService,
             indicesService,
             allocationService,
-            null,
             shardLimitValidator,
             env,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
@@ -398,20 +482,8 @@ public final class DataStreamTestHelper {
             false,
             new IndexSettingProviders(providers)
         );
-        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
-            clusterService,
-            indicesService,
-            new AliasValidator(),
-            null,
-            registry
-        );
-        return new MetadataRolloverService(
-            testThreadPool,
-            createIndexService,
-            indexAliasesService,
-            mockIndexNameExpressionResolver,
-            EmptySystemIndices.INSTANCE
-        );
+        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService, null, registry);
+        return new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService, EmptySystemIndices.INSTANCE);
     }
 
     private static MetadataFieldMapper getDataStreamTimestampFieldMapper() {

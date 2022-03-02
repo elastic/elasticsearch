@@ -37,17 +37,10 @@ public class TermsLookupTests extends ESTestCase {
         String path = randomAlphaOfLength(5);
         String index = randomAlphaOfLength(5);
         switch (randomIntBetween(0, 2)) {
-            case 0:
-                id = null;
-                break;
-            case 1:
-                path = null;
-                break;
-            case 2:
-                index = null;
-                break;
-            default:
-                fail("unknown case");
+            case 0 -> id = null;
+            case 1 -> path = null;
+            case 2 -> index = null;
+            default -> fail("unknown case");
         }
         try {
             new TermsLookup(index, id, path);

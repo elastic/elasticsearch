@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -258,33 +259,26 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     @Override
     public String getExplanation() {
         checkDecisionState();
-        AllocationDecision allocationDecision = getAllocationDecision();
-        if (allocationDecision == AllocationDecision.YES) {
-            return "can allocate the shard";
-        } else if (allocationDecision == AllocationDecision.THROTTLED) {
-            return "allocation temporarily throttled";
-        } else if (allocationDecision == AllocationDecision.AWAITING_INFO) {
-            return "cannot allocate because information about existing shard data is still being retrieved from some of the nodes";
-        } else if (allocationDecision == AllocationDecision.NO_VALID_SHARD_COPY) {
-            if (hasNodeWithStaleOrCorruptShard()) {
-                return "cannot allocate because all found copies of the shard are either stale or corrupt";
-            } else {
-                return "cannot allocate because a previous copy of the primary shard existed but can no longer be found on "
-                    + "the nodes in the cluster";
+        return switch (getAllocationDecision()) {
+            case YES -> Explanations.Allocation.YES;
+            case THROTTLED -> Explanations.Allocation.THROTTLED;
+            case AWAITING_INFO -> Explanations.Allocation.AWAITING_INFO;
+            case NO_VALID_SHARD_COPY -> hasNodeWithStaleOrCorruptShard()
+                ? Explanations.Allocation.ALL_COPIES_INVALID
+                : Explanations.Allocation.NO_COPIES;
+            case ALLOCATION_DELAYED -> String.format(
+                Locale.ROOT,
+                atLeastOneNodeWithYesDecision()
+                    ? Explanations.Allocation.DELAYED_WITH_ALTERNATIVE
+                    : Explanations.Allocation.DELAYED_WITHOUT_ALTERNATIVE,
+                TimeValue.timeValueMillis(remainingDelayInMillis)
+            );
+            case NO -> reuseStore ? Explanations.Allocation.EXISTING_STORES_FORBIDDEN : Explanations.Allocation.ALL_NODES_FORBIDDEN;
+            case WORSE_BALANCE, NO_ATTEMPT -> {
+                assert false : getAllocationDecision();
+                yield getAllocationDecision().toString();
             }
-        } else if (allocationDecision == AllocationDecision.ALLOCATION_DELAYED) {
-            return "cannot allocate because the cluster is still waiting "
-                + TimeValue.timeValueMillis(remainingDelayInMillis)
-                + " for the departed node holding a replica to rejoin"
-                + (atLeastOneNodeWithYesDecision() ? ", despite being allowed to allocate the shard to at least one other node" : "");
-        } else {
-            assert allocationDecision == AllocationDecision.NO;
-            if (reuseStore) {
-                return "cannot allocate because allocation is not permitted to any of the nodes that hold an in-sync shard copy";
-            } else {
-                return "cannot allocate because allocation is not permitted to any of the nodes";
-            }
-        }
+        };
     }
 
     private boolean hasNodeWithStaleOrCorruptShard() {

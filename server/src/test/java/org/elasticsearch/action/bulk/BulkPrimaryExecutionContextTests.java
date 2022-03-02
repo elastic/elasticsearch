@@ -58,23 +58,12 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
     private BulkShardRequest generateRandomRequest() {
         BulkItemRequest[] items = new BulkItemRequest[randomInt(20)];
         for (int i = 0; i < items.length; i++) {
-            final DocWriteRequest<?> request;
-            switch (randomFrom(DocWriteRequest.OpType.values())) {
-                case INDEX:
-                    request = new IndexRequest("index").id("id_" + i);
-                    break;
-                case CREATE:
-                    request = new IndexRequest("index").id("id_" + i).create(true);
-                    break;
-                case UPDATE:
-                    request = new UpdateRequest("index", "id_" + i);
-                    break;
-                case DELETE:
-                    request = new DeleteRequest("index", "id_" + i);
-                    break;
-                default:
-                    throw new AssertionError("unknown type");
-            }
+            final DocWriteRequest<?> request = switch (randomFrom(DocWriteRequest.OpType.values())) {
+                case INDEX -> new IndexRequest("index").id("id_" + i);
+                case CREATE -> new IndexRequest("index").id("id_" + i).create(true);
+                case UPDATE -> new UpdateRequest("index", "id_" + i);
+                case DELETE -> new DeleteRequest("index", "id_" + i);
+            };
             items[i] = new BulkItemRequest(i, request);
         }
         return new BulkShardRequest(new ShardId("index", "_na_", 0), randomFrom(WriteRequest.RefreshPolicy.values()), items);
@@ -105,33 +94,31 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
 
             Translog.Location location = new Translog.Location(translogGen, translogOffset, randomInt(200));
             switch (current.opType()) {
-                case INDEX:
-                case CREATE:
+                case INDEX, CREATE -> {
                     context.setRequestToExecute(current);
                     if (failure) {
                         result = new Engine.IndexResult(new ElasticsearchException("bla"), 1);
                     } else {
                         result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
                     }
-                    break;
-                case UPDATE:
+                }
+                case UPDATE -> {
                     context.setRequestToExecute(new IndexRequest(current.index()).id(current.id()));
                     if (failure) {
                         result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1);
                     } else {
                         result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
                     }
-                    break;
-                case DELETE:
+                }
+                case DELETE -> {
                     context.setRequestToExecute(current);
                     if (failure) {
                         result = new Engine.DeleteResult(new ElasticsearchException("bla"), 1, 1);
                     } else {
                         result = new FakeDeleteResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
                     }
-                    break;
-                default:
-                    throw new AssertionError("unknown type:" + current.opType());
+                }
+                default -> throw new AssertionError("unknown type:" + current.opType());
             }
             if (failure == false) {
                 expectedLocation = location;

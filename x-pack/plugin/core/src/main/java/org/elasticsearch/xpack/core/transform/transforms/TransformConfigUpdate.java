@@ -63,11 +63,15 @@ public class TransformConfigUpdate implements Writeable {
         PARSER.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, false), TransformField.SETTINGS);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), TransformField.METADATA);
-        PARSER.declareNamedObject(
-            optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
-            TransformField.RETENTION_POLICY
-        );
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> {
+            XContentParser.Token token = p.nextToken();
+            assert token == XContentParser.Token.FIELD_NAME;
+            String currentName = p.currentName();
+            RetentionPolicyConfig namedObject = p.namedObject(RetentionPolicyConfig.class, currentName, c);
+            token = p.nextToken();
+            assert token == XContentParser.Token.END_OBJECT;
+            return namedObject;
+        }, NullRetentionPolicyConfig.INSTANCE, TransformField.RETENTION_POLICY);
     }
 
     private final SourceConfig source;
@@ -299,7 +303,11 @@ public class TransformConfigUpdate implements Writeable {
             builder.setMetadata(metadata);
         }
         if (retentionPolicyConfig != null) {
-            builder.setRetentionPolicyConfig(retentionPolicyConfig);
+            if (NullRetentionPolicyConfig.INSTANCE.equals(retentionPolicyConfig)) {
+                builder.setRetentionPolicyConfig(null);
+            } else {
+                builder.setRetentionPolicyConfig(retentionPolicyConfig);
+            }
         }
 
         builder.setVersion(Version.CURRENT);

@@ -40,20 +40,11 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
         String pattern = orig.pattern();
         boolean caseInsensitive = orig.caseInsensitive();
         switch (randomInt(3)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                pattern += "modified";
-                break;
-            case 3:
-                caseInsensitive = caseInsensitive == false;
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> pattern += "modified";
+            case 3 -> caseInsensitive = caseInsensitive == false;
+            default -> fail();
         }
         return new StringScriptFieldWildcardQuery(script, leafFactory, fieldName, pattern, caseInsensitive);
     }

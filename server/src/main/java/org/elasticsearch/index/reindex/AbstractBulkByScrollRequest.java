@@ -205,14 +205,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     public void setConflicts(String conflicts) {
         switch (conflicts) {
-            case "proceed":
+            case "proceed" -> {
                 setAbortOnVersionConflict(false);
-                return;
-            case "abort":
+            }
+            case "abort" -> {
                 setAbortOnVersionConflict(true);
-                return;
-            default:
-                throw new IllegalArgumentException("conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
+            }
+            default -> throw new IllegalArgumentException("conflicts may only be \"proceed\" or \"abort\" but was [" + conflicts + "]");
         }
     }
 

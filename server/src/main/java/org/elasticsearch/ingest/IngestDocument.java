@@ -10,6 +10,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -54,7 +55,8 @@ public final class IngestDocument {
     private final Set<String> executedPipelines = new LinkedHashSet<>();
 
     public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
-        this.sourceAndMetadata = new HashMap<>();
+        // source + at max 5 extra fields
+        this.sourceAndMetadata = Maps.newMapWithExpectedSize(source.size() + 5);
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
         this.sourceAndMetadata.put(Metadata.ID.getFieldName(), id);
@@ -740,9 +742,8 @@ public final class IngestDocument {
     }
 
     public static Object deepCopy(Object value) {
-        if (value instanceof Map) {
-            Map<?, ?> mapValue = (Map<?, ?>) value;
-            Map<Object, Object> copy = new HashMap<>(mapValue.size());
+        if (value instanceof Map<?, ?> mapValue) {
+            Map<Object, Object> copy = Maps.newMapWithExpectedSize(mapValue.size());
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopy(entry.getValue()));
             }

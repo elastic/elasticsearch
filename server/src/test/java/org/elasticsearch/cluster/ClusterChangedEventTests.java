@@ -399,7 +399,14 @@ public class ClusterChangedEventTests extends ESTestCase {
             final int discoveryNodesSize = previousState.getNodes().getSize();
             final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(previousState.getNodes());
             for (int i = 0; i < numNodesToRemove && i < discoveryNodesSize; i++) {
+                final String nodeId = NODE_ID_PREFIX + i;
                 nodesBuilder.remove(NODE_ID_PREFIX + i);
+                if (previousState.nodes().getMasterNodeId().equals(nodeId)) {
+                    nodesBuilder.masterNodeId(null);
+                }
+                if (previousState.nodes().getLocalNodeId().equals(nodeId)) {
+                    nodesBuilder.localNodeId(null);
+                }
             }
             builder.nodes(nodesBuilder);
         }
@@ -530,23 +537,11 @@ public class ClusterChangedEventTests extends ESTestCase {
         for (IndexMetadata indexMetadata : previousState.metadata().indices().values()) {
             stateIndices.add(indexMetadata.getIndex());
         }
-        final int numDel;
-        switch (deletionQuantity) {
-            case DELETE_ALL: {
-                numDel = stateIndices.size();
-                break;
-            }
-            case DELETE_NONE: {
-                numDel = 0;
-                break;
-            }
-            case DELETE_RANDOM: {
-                numDel = randomIntBetween(0, Math.max(stateIndices.size() - 1, 0));
-                break;
-            }
-            default:
-                throw new AssertionError("Unhandled mode [" + deletionQuantity + "]");
-        }
+        final int numDel = switch (deletionQuantity) {
+            case DELETE_ALL -> stateIndices.size();
+            case DELETE_NONE -> 0;
+            case DELETE_RANDOM -> randomIntBetween(0, Math.max(stateIndices.size() - 1, 0));
+        };
         final boolean changeClusterUUID = randomBoolean();
         final List<Index> addedIndices = addIndices(numAdd, randomAlphaOfLengthBetween(5, 10));
         List<Index> delIndices;

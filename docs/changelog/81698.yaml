@@ -1,5 +1,0 @@
-pr: 81698
-summary: Fix subclass functional interface resolution in Painless
-area: Infra/Scripting
-type: regression
-issues: []

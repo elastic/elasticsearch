@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 
 import java.io.InputStream;
 import java.io.Reader;

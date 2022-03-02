@@ -47,8 +47,7 @@ public class TestMatchers extends Matchers {
 
             @Override
             public boolean matches(Object actual) {
-                if (actual instanceof Throwable) {
-                    final Throwable throwable = (Throwable) actual;
+                if (actual instanceof final Throwable throwable) {
                     return messageMatcher.matches(throwable.getMessage());
                 } else {
                     return false;

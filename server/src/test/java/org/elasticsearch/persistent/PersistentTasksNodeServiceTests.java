@@ -405,14 +405,14 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         // Check that races where some other event occurs after local abort are handled as expected
         switch (randomIntBetween(0, 2)) {
-            case 0:
+            case 0 -> {
                 IllegalStateException e0 = expectThrows(IllegalStateException.class, runningTask::markAsCompleted);
                 assertThat(
                     e0.getMessage(),
                     equalTo("attempt to complete task [test] with id [" + persistentId + "] which has been locally aborted")
                 );
-                break;
-            case 1:
+            }
+            case 1 -> {
                 IllegalStateException e1 = expectThrows(
                     IllegalStateException.class,
                     () -> runningTask.markAsFailed(new Exception("failure detected after local abort"))
@@ -421,8 +421,8 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                     e1.getMessage(),
                     equalTo("attempt to fail task [test] with id [" + persistentId + "] which has been locally aborted")
                 );
-                break;
-            case 2:
+            }
+            case 2 -> {
                 IllegalStateException e2 = expectThrows(
                     IllegalStateException.class,
                     () -> runningTask.markAsLocallyAborted("second local abort")
@@ -431,7 +431,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                     e2.getMessage(),
                     equalTo("attempt to locally abort task [test] with id [" + persistentId + "] which has already been locally aborted")
                 );
-                break;
+            }
         }
 
         assertFalse(runningTask.markAsCancelled());

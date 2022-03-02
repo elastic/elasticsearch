@@ -20,11 +20,7 @@ import java.util.stream.Collectors;
 /**
  * Information about a currently running task and all its subtasks.
  */
-public class TaskGroup implements ToXContentObject {
-
-    private final TaskInfo task;
-
-    private final List<TaskGroup> childTasks;
+public record TaskGroup(TaskInfo task, List<TaskGroup> childTasks) implements ToXContentObject {
 
     public TaskGroup(TaskInfo task, List<TaskGroup> childTasks) {
         this.task = task;
@@ -57,12 +53,8 @@ public class TaskGroup implements ToXContentObject {
         }
     }
 
-    public TaskInfo getTaskInfo() {
+    public TaskInfo taskInfo() {
         return task;
-    }
-
-    public List<TaskGroup> getChildTasks() {
-        return childTasks;
     }
 
     @Override

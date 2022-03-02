@@ -61,9 +61,11 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
 
         assertThat(mapperService.fieldType("s"), notNullValue());
+        assertFalse(mapperService.fieldType("s").isIndexed());
         assertFalse(mapperService.fieldType("s").isSearchable());
 
         assertThat(mapperService.fieldType("l"), notNullValue());
+        assertFalse(mapperService.fieldType("s").isIndexed());
         assertTrue(mapperService.fieldType("l").isSearchable());
     }
 

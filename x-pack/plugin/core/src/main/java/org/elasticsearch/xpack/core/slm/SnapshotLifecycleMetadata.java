@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -211,7 +211,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
         }
 
         static Diff<SnapshotLifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(SnapshotLifecyclePolicyMetadata::new, in);
+            return SimpleDiffable.readDiffFrom(SnapshotLifecyclePolicyMetadata::new, in);
         }
 
         @Override

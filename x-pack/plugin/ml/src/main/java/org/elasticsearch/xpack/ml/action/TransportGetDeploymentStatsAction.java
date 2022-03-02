@@ -143,7 +143,6 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             ClusterState latestState = clusterService.state();
             Set<String> nodesShuttingDown = TransportStartTrainedModelDeploymentAction.nodesShuttingDown(latestState);
             List<DiscoveryNode> nodes = latestState.getNodes()
-                .getAllNodes()
                 .stream()
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
                 .filter(StartTrainedModelDeploymentAction.TaskParams::mayAllocateToNode)
@@ -297,9 +296,11 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 AllocationStats.NodeStats.forStartedState(
                     clusterService.localNode(),
                     stats.get().timingStats().getCount(),
-                    // avoid reporting the average time as 0 if count < 1
-                    (stats.get().timingStats().getCount() > 0) ? stats.get().timingStats().getAverage() : null,
+                    stats.get().timingStats().getAverage(),
                     stats.get().pendingCount(),
+                    stats.get().errorCount(),
+                    stats.get().rejectedExecutionCount(),
+                    stats.get().timeoutCount(),
                     stats.get().lastUsed(),
                     stats.get().startTime(),
                     stats.get().inferenceThreads(),

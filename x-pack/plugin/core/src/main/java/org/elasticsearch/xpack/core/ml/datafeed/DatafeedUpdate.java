@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -37,8 +39,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 /**
  * A datafeed update contains partial properties to update a {@link DatafeedConfig}.
@@ -334,7 +334,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
      * Applies the update to the given {@link DatafeedConfig}
      * @return a new {@link DatafeedConfig} that contains the update
      */
-    public DatafeedConfig apply(DatafeedConfig datafeedConfig, Map<String, String> headers) {
+    public DatafeedConfig apply(DatafeedConfig datafeedConfig, Map<String, String> headers, ClusterState clusterState) {
         if (id.equals(datafeedConfig.getId()) == false) {
             throw new IllegalArgumentException("Cannot apply update to datafeedConfig with different id");
         }
@@ -384,7 +384,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setRuntimeMappings(runtimeMappings);
         }
         if (headers.isEmpty() == false) {
-            builder.setHeaders(filterSecurityHeaders(headers));
+            builder.setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterState));
         }
         return builder.build();
     }

@@ -80,17 +80,10 @@ public class RatedDocumentTests extends ESTestCase {
         String docId = original.getDocID();
 
         switch (randomIntBetween(0, 2)) {
-            case 0:
-                rating = randomValueOtherThan(rating, () -> randomInt());
-                break;
-            case 1:
-                index = randomValueOtherThan(index, () -> randomAlphaOfLength(10));
-                break;
-            case 2:
-                docId = randomValueOtherThan(docId, () -> randomAlphaOfLength(10));
-                break;
-            default:
-                throw new IllegalStateException("The test should only allow two parameters mutated");
+            case 0 -> rating = randomValueOtherThan(rating, () -> randomInt());
+            case 1 -> index = randomValueOtherThan(index, () -> randomAlphaOfLength(10));
+            case 2 -> docId = randomValueOtherThan(docId, () -> randomAlphaOfLength(10));
+            default -> throw new IllegalStateException("The test should only allow two parameters mutated");
         }
         return new RatedDocument(index, docId, rating);
     }

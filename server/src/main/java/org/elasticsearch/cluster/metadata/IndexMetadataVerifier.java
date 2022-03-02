@@ -17,6 +17,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -28,13 +29,12 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex;
 
 /**
  * This service is responsible for verifying index metadata when an index is introduced
@@ -51,7 +51,7 @@ public class IndexMetadataVerifier {
     private static final Logger logger = LogManager.getLogger(IndexMetadataVerifier.class);
 
     private final Settings settings;
-    private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfiguration;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptCompiler scriptService;
@@ -64,7 +64,8 @@ public class IndexMetadataVerifier {
         ScriptCompiler scriptCompiler
     ) {
         this.settings = settings;
-        this.xContentRegistry = xContentRegistry;
+        this.parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.scriptService = scriptCompiler;
@@ -98,13 +99,13 @@ public class IndexMetadataVerifier {
      * previous major version.
      */
     private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
-        boolean isSupportedVersion = indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
+        boolean isSupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
         if (isSupportedVersion == false) {
             throw new IllegalStateException(
                 "The index "
                     + indexMetadata.getIndex()
-                    + " was created with version ["
-                    + indexMetadata.getCreationVersion()
+                    + " has current compatibility version ["
+                    + indexMetadata.getCompatibilityVersion()
                     + "] but the minimum compatible version is ["
                     + minimumIndexCompatibilityVersion
                     + "]. It should be re-indexed in Elasticsearch "
@@ -186,7 +187,7 @@ public class IndexMetadataVerifier {
                 MapperService mapperService = new MapperService(
                     indexSettings,
                     fakeIndexAnalzyers,
-                    xContentRegistry,
+                    parserConfiguration,
                     similarityService,
                     mapperRegistry,
                     () -> null,
@@ -237,9 +238,9 @@ public class IndexMetadataVerifier {
      * _tier_preference: data_frozen, removing any pre-existing tier allocation rules.
      */
     IndexMetadata convertSharedCacheTierPreference(IndexMetadata indexMetadata) {
-        final Settings settings = indexMetadata.getSettings();
         // Only remove these settings for a shared_cache searchable snapshot
-        if (isPartialSearchableSnapshotIndex(settings)) {
+        if (indexMetadata.isPartialSearchableSnapshot()) {
+            final Settings settings = indexMetadata.getSettings();
             final Settings.Builder settingsBuilder = Settings.builder().put(settings);
             // Clear any allocation rules other than preference for tier
             settingsBuilder.remove("index.routing.allocation.include._tier");

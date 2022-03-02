@@ -63,16 +63,12 @@ class VectorTileRequest {
         CENTROID;
 
         private static GRID_TYPE fromString(String type) {
-            switch (type.toLowerCase(Locale.ROOT)) {
-                case "grid":
-                    return GRID;
-                case "point":
-                    return POINT;
-                case "centroid":
-                    return CENTROID;
-                default:
-                    throw new IllegalArgumentException("Invalid grid type [" + type + "]");
-            }
+            return switch (type.toLowerCase(Locale.ROOT)) {
+                case "grid" -> GRID;
+                case "point" -> POINT;
+                case "centroid" -> CENTROID;
+                default -> throw new IllegalArgumentException("Invalid grid type [" + type + "]");
+            };
         }
     }
 

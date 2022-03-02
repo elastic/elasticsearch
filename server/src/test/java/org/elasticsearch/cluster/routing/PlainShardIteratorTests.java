@@ -24,28 +24,20 @@ public class PlainShardIteratorTests extends ESTestCase {
             randomPlainShardIterator(),
             i -> new PlainShardIterator(i.shardId(), i.getShardRoutings()),
             i -> {
-                ShardId shardId;
-                switch (randomIntBetween(0, 2)) {
-                    case 0:
-                        shardId = new ShardId(i.shardId().getIndex(), i.shardId().getId() + randomIntBetween(1, 1000));
-                        break;
-                    case 1:
-                        shardId = new ShardId(
-                            i.shardId().getIndexName(),
-                            i.shardId().getIndex().getUUID() + randomAlphaOfLengthBetween(1, 3),
-                            i.shardId().getId()
-                        );
-                        break;
-                    case 2:
-                        shardId = new ShardId(
-                            i.shardId().getIndexName() + randomAlphaOfLengthBetween(1, 3),
-                            i.shardId().getIndex().getUUID(),
-                            i.shardId().getId()
-                        );
-                        break;
-                    default:
-                        throw new UnsupportedOperationException();
-                }
+                ShardId shardId = switch (randomIntBetween(0, 2)) {
+                    case 0 -> new ShardId(i.shardId().getIndex(), i.shardId().getId() + randomIntBetween(1, 1000));
+                    case 1 -> new ShardId(
+                        i.shardId().getIndexName(),
+                        i.shardId().getIndex().getUUID() + randomAlphaOfLengthBetween(1, 3),
+                        i.shardId().getId()
+                    );
+                    case 2 -> new ShardId(
+                        i.shardId().getIndexName() + randomAlphaOfLengthBetween(1, 3),
+                        i.shardId().getIndex().getUUID(),
+                        i.shardId().getId()
+                    );
+                    default -> throw new UnsupportedOperationException();
+                };
                 return new PlainShardIterator(shardId, i.getShardRoutings());
             }
         );

@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -24,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -98,7 +98,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         username = in.readOptionalString();
         password = in.readOptionalString();
         int headersLength = in.readVInt();
-        Map<String, String> headers = new HashMap<>(headersLength);
+        Map<String, String> headers = Maps.newMapWithExpectedSize(headersLength);
         for (int i = 0; i < headersLength; i++) {
             headers.put(in.readString(), in.readString());
         }

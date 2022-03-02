@@ -187,7 +187,7 @@ public class EmailService extends NotificationService<Account> {
     @Nullable
     private SSLSocketFactory getSmtpSslSocketFactory() {
         final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(EMAIL_NOTIFICATION_SSL_PREFIX);
-        if (sslConfiguration == null || sslConfiguration.isExplicitlyConfigured() == false) {
+        if (sslConfiguration == null || sslConfiguration.explicitlyConfigured() == false) {
             return null;
         }
         return sslService.sslSocketFactory(sslConfiguration);

@@ -180,7 +180,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             .get()
             .getTasks()
             .stream()
-            .map(TaskInfo::getAction)
+            .map(TaskInfo::action)
             .collect(Collectors.toList());
         assertThat(tasksNames, is(empty()));
     }
@@ -192,7 +192,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 TrainedModelConfig.builder()
                     .setModelType(TrainedModelType.PYTORCH)
                     .setInferenceConfig(
-                        new PassThroughConfig(null, new BertTokenization(null, false, null, Tokenization.Truncate.NONE), null)
+                        new PassThroughConfig(null, new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1), null)
                     )
                     .setModelId(TRAINED_MODEL_ID)
                     .build(),

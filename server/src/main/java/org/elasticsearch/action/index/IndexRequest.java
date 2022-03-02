@@ -18,6 +18,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -28,6 +30,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -716,6 +719,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public boolean isRequireAlias() {
         return requireAlias;
+    }
+
+    @Override
+    public Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
+        return ia.getWriteIndex(this, metadata);
     }
 
     @Override

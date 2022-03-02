@@ -22,25 +22,17 @@ public enum Operator implements Writeable {
     AND;
 
     public BooleanClause.Occur toBooleanClauseOccur() {
-        switch (this) {
-            case OR:
-                return BooleanClause.Occur.SHOULD;
-            case AND:
-                return BooleanClause.Occur.MUST;
-            default:
-                throw Operator.newOperatorException(this.toString());
-        }
+        return switch (this) {
+            case OR -> BooleanClause.Occur.SHOULD;
+            case AND -> BooleanClause.Occur.MUST;
+        };
     }
 
     public QueryParser.Operator toQueryParserOperator() {
-        switch (this) {
-            case OR:
-                return QueryParser.Operator.OR;
-            case AND:
-                return QueryParser.Operator.AND;
-            default:
-                throw Operator.newOperatorException(this.toString());
-        }
+        return switch (this) {
+            case OR -> QueryParser.Operator.OR;
+            case AND -> QueryParser.Operator.AND;
+        };
     }
 
     public static Operator readFromStream(StreamInput in) throws IOException {

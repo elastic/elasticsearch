@@ -210,44 +210,26 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     public List<LifecycleAction> getOrderedActions(Phase phase) {
         Map<String, LifecycleAction> actions = phase.getActions();
-        switch (phase.getName()) {
-            case HOT_PHASE:
-                return ORDERED_VALID_HOT_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case WARM_PHASE:
-                return ORDERED_VALID_WARM_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case COLD_PHASE:
-                return ORDERED_VALID_COLD_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case FROZEN_PHASE:
-                return ORDERED_VALID_FROZEN_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            case DELETE_PHASE:
-                return ORDERED_VALID_DELETE_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
-            default:
-                throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
-        }
+        return switch (phase.getName()) {
+            case HOT_PHASE -> ORDERED_VALID_HOT_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
+            case WARM_PHASE -> ORDERED_VALID_WARM_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
+            case COLD_PHASE -> ORDERED_VALID_COLD_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
+            case FROZEN_PHASE -> ORDERED_VALID_FROZEN_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
+            case DELETE_PHASE -> ORDERED_VALID_DELETE_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
+            default -> throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
+        };
     }
 
     @Override
     public String getNextActionName(String currentActionName, Phase phase) {
-        List<String> orderedActionNames;
-        switch (phase.getName()) {
-            case HOT_PHASE:
-                orderedActionNames = ORDERED_VALID_HOT_ACTIONS;
-                break;
-            case WARM_PHASE:
-                orderedActionNames = ORDERED_VALID_WARM_ACTIONS;
-                break;
-            case COLD_PHASE:
-                orderedActionNames = ORDERED_VALID_COLD_ACTIONS;
-                break;
-            case FROZEN_PHASE:
-                orderedActionNames = ORDERED_VALID_FROZEN_ACTIONS;
-                break;
-            case DELETE_PHASE:
-                orderedActionNames = ORDERED_VALID_DELETE_ACTIONS;
-                break;
-            default:
-                throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
-        }
+        List<String> orderedActionNames = switch (phase.getName()) {
+            case HOT_PHASE -> ORDERED_VALID_HOT_ACTIONS;
+            case WARM_PHASE -> ORDERED_VALID_WARM_ACTIONS;
+            case COLD_PHASE -> ORDERED_VALID_COLD_ACTIONS;
+            case FROZEN_PHASE -> ORDERED_VALID_FROZEN_ACTIONS;
+            case DELETE_PHASE -> ORDERED_VALID_DELETE_ACTIONS;
+            default -> throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
+        };
 
         int index = orderedActionNames.indexOf(currentActionName);
         if (index < 0) {

@@ -96,8 +96,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            clusterService
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -124,7 +123,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertEquals(user, sendingUser.get());
         assertEquals(user, securityContext.getUser());
-        verify(securityContext, never()).executeAsUser(any(User.class), anyConsumer(), any(Version.class));
+        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(Version.class), anyConsumer());
     }
 
     public void testSendAsyncSwitchToSystem() throws Exception {
@@ -144,8 +143,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            clusterService
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -173,7 +171,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertNotEquals(user, sendingUser.get());
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
         assertEquals(user, securityContext.getUser());
-        verify(securityContext).executeAsUser(any(User.class), anyConsumer(), eq(Version.CURRENT));
+        verify(securityContext).executeAsInternalUser(any(User.class), eq(Version.CURRENT), anyConsumer());
     }
 
     public void testSendWithoutUser() throws Exception {
@@ -187,8 +185,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            clusterService
+            )
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -216,7 +213,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         assertEquals("there should always be a user when sending a message for action [indices:foo]", e.getMessage());
         assertNull(securityContext.getUser());
-        verify(securityContext, never()).executeAsUser(any(User.class), anyConsumer(), any(Version.class));
+        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(Version.class), anyConsumer());
     }
 
     public void testSendToNewerVersionSetsCorrectVersion() throws Exception {
@@ -236,8 +233,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            clusterService
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -291,8 +287,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             new DestructiveOperations(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            clusterService
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -411,7 +406,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                     profileName,
                     new ServerTransportFilter(null, null, threadContext, randomBoolean(), destructiveOperations, securityContext)
                 ),
-                settings,
                 threadPool
             );
         final TransportChannel channel = mock(TransportChannel.class);

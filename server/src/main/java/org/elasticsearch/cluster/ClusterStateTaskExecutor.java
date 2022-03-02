@@ -7,19 +7,26 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 
-public interface ClusterStateTaskExecutor<T> {
+public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
-     * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
-     * should be changed.
+     * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no update should be published.
+     * <p>
+     * If this method throws an exception then the cluster state is unchanged and every task's {@link ClusterStateTaskListener#onFailure}
+     * method is called.
+     * <p>
+     * A common implementation pattern is to iterate through the tasks, constructing a new and updated {@link ClusterState} for each one.
+     * This works ok but beware that constructing a whole new {@link ClusterState} can be somewhat expensive, and there may sometimes be
+     * surprisingly many tasks to process in the batch. If it's possible to accumulate the effects of the tasks at a lower level then you
+     * should do that instead.
+     *
+     * @param taskContexts A {@link TaskContext} for each task in the batch. Implementations must complete every context in the list.
      */
-    ClusterTasksResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception;
+    ClusterState execute(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception;
 
     /**
      * indicates whether this executor should only run if the current node is master
@@ -59,93 +66,133 @@ public interface ClusterStateTaskExecutor<T> {
     }
 
     /**
-     * Represents the result of a batched execution of cluster state update tasks
-     * @param <T> the type of the cluster state update task
+     * Creates a task executor that only executes a single task. Use a new instance of this executor to specifically submit a cluster state
+     * update task that should be executed in isolation and not be batched with other state updates.
+     * <p>
+     * This executor exists for legacy reasons but is forbidden in new production code because unbatched tasks are a source of performance
+     * and stability bugs. You should instead implement your update logic in a dedicated {@link ClusterStateTaskExecutor} which is reused
+     * across multiple task instances. The task itself is typically just a collection of parameters consumed by the executor, together with
+     * any listeners to be notified when execution completes.
      */
-    class ClusterTasksResult<T> {
-        @Nullable
-        public final ClusterState resultingState;
-        public final Map<T, TaskResult> executionResults;
+    static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> unbatched() {
+        return new ClusterStateTaskExecutor<>() {
+            @Override
+            public ClusterState execute(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception {
+                assert taskContexts.size() == 1 : "this only supports a single task but received " + taskContexts;
+                final var taskContext = taskContexts.get(0);
+                final var task = taskContext.getTask();
+                final var newState = task.execute(currentState);
+                final var publishListener = new ActionListener<ClusterState>() {
+                    @Override
+                    public void onResponse(ClusterState publishedState) {
+                        task.clusterStateProcessed(currentState, publishedState);
+                    }
 
-        /**
-         * Construct an execution result instance with a correspondence between the tasks and their execution result
-         * @param resultingState the resulting cluster state
-         * @param executionResults the correspondence between tasks and their outcome
-         */
-        ClusterTasksResult(ClusterState resultingState, Map<T, TaskResult> executionResults) {
-            this.resultingState = resultingState;
-            this.executionResults = executionResults;
+                    @Override
+                    public void onFailure(Exception e) {
+                        task.onFailure(e);
+                    }
+                };
+                if (task instanceof ClusterStateAckListener ackListener) {
+                    taskContext.success(publishListener, ackListener);
+                } else {
+                    taskContext.success(publishListener);
+                }
+                return newState;
+            }
+
+            @Override
+            public String describeTasks(List<T> tasks) {
+                return ""; // one of task, source is enough
+            }
+        };
+    }
+
+    /**
+     * An {@link ActionListener} for passing to {@link ClusterStateTaskExecutor.TaskContext#success} which preserves the
+     * legacy behaviour of calling {@link ClusterStateTaskListener#clusterStateProcessed} or {@link ClusterStateTaskListener#onFailure}.
+     * <p>
+     * New implementations should use a dedicated listener rather than relying on this legacy behaviour.
+     */
+    // TODO remove all remaining usages of this listener
+    record LegacyClusterTaskResultActionListener(ClusterStateTaskListener task, ClusterState originalState)
+        implements
+            ActionListener<ClusterState> {
+
+        @Override
+        public void onResponse(ClusterState publishedState) {
+            task.clusterStateProcessed(originalState, publishedState);
         }
 
-        public static <T> Builder<T> builder() {
-            return new Builder<>();
-        }
-
-        public static class Builder<T> {
-            private final Map<T, TaskResult> executionResults = new IdentityHashMap<>();
-
-            public Builder<T> success(T task) {
-                return result(task, TaskResult.success());
-            }
-
-            public Builder<T> successes(Iterable<T> tasks) {
-                for (T task : tasks) {
-                    success(task);
-                }
-                return this;
-            }
-
-            public Builder<T> failure(T task, Exception e) {
-                return result(task, TaskResult.failure(e));
-            }
-
-            public Builder<T> failures(Iterable<T> tasks, Exception e) {
-                for (T task : tasks) {
-                    failure(task, e);
-                }
-                return this;
-            }
-
-            private Builder<T> result(T task, TaskResult executionResult) {
-                TaskResult existing = executionResults.put(task, executionResult);
-                assert existing == null : task + " already has result " + existing;
-                return this;
-            }
-
-            public ClusterTasksResult<T> build(ClusterState resultingState) {
-                return new ClusterTasksResult<>(resultingState, executionResults);
-            }
-
-            ClusterTasksResult<T> build(ClusterTasksResult<T> result, ClusterState previousState) {
-                return new ClusterTasksResult<>(result.resultingState == null ? previousState : result.resultingState, executionResults);
-            }
+        @Override
+        public void onFailure(Exception e) {
+            task.onFailure(e);
         }
     }
 
-    final class TaskResult {
-        private final Exception failure;
+    /**
+     * A task to be executed, along with callbacks for the executor to record the outcome of this task's execution. The executor must
+     * call exactly one of these methods for every task in its batch.
+     */
+    interface TaskContext<T extends ClusterStateTaskListener> {
 
-        private static final TaskResult SUCCESS = new TaskResult(null);
+        /**
+         * @return the task to be executed.
+         */
+        T getTask();
 
-        public static TaskResult success() {
-            return SUCCESS;
-        }
+        /**
+         * Record that the task succeeded.
+         * <p>
+         * Note that some tasks implement {@link ClusterStateAckListener} and can listen for acks themselves. If so, you may not use this
+         * method and must instead call {@link #success(ActionListener, ClusterStateAckListener)}, passing the task itself as the {@code
+         * clusterStateAckListener} argument.
+         *
+         * @param publishListener A listener for the completion of the resulting cluster state publication. This listener is completed
+         *                        with the cluster state that was published (or the publication exception that occurred) in the thread
+         *                        context in which the task was submitted. The task's {@link
+         *                        ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master service,
+         *                        nor is {@link ClusterStateTaskListener#onFailure} once the task execution has succeeded, but legacy
+         *                        implementations may supply a listener which calls those methods.
+         *                        <p>
+         *                        The listener should prefer not to use the published state for things like determining the result of a
+         *                        task. The task may have been executed as part of a batch, and later tasks in the batch may overwrite
+         *                        the results from earlier tasks. Instead the listener should independently capture the information it
+         *                        needs to properly process the completion of a cluster state update.
+         */
+        // TODO remove all remaining usages of the published state and then make publishListener an ActionListener<Void>
+        // see https://github.com/elastic/elasticsearch/issues/84415
+        void success(ActionListener<ClusterState> publishListener);
 
-        public static TaskResult failure(Exception failure) {
-            return new TaskResult(failure);
-        }
+        /**
+         * Record that the task succeeded.
+         * <p>
+         * Note that some tasks implement {@link ClusterStateAckListener} and can listen for acks themselves. If so, you must pass the task
+         * itself as the {@code clusterStateAckListener} argument.
+         *
+         * @param publishListener A listener for the completion of the resulting cluster state publication. This listener is completed
+         *                        with the cluster state that was published (or the publication exception that occurred) in the thread
+         *                        context in which the task was submitted. The task's {@link
+         *                        ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master service,
+         *                        nor is {@link ClusterStateTaskListener#onFailure} once the task execution has succeeded, but legacy
+         *                        implementations may use this listener to call those methods.
+         *                        <p>
+         *                        The listener should prefer not to use the published state for things like determining the result of a
+         *                        task. The task may have been executed as part of a batch, and later tasks in the batch may overwrite
+         *                        the results from earlier tasks. Instead the listener should independently capture the information it
+         *                        needs to properly process the completion of a cluster state update.
+         *
+         * @param clusterStateAckListener A listener for acknowledgements from nodes. If the publication succeeds then this listener is
+         *                                completed as nodes ack the state update. If the publication fails then the failure
+         *                                notification happens via {@code publishListener.onFailure()}: this listener is not notified.
+         */
+        // TODO remove all remaining usages of the published state and then make publishListener an ActionListener<Void>
+        // see https://github.com/elastic/elasticsearch/issues/84415
+        void success(ActionListener<ClusterState> publishListener, ClusterStateAckListener clusterStateAckListener);
 
-        private TaskResult(Exception failure) {
-            this.failure = failure;
-        }
-
-        public boolean isSuccess() {
-            return this == SUCCESS;
-        }
-
-        public Exception getFailure() {
-            assert isSuccess() == false;
-            return failure;
-        }
+        /**
+         * Record that the cluster state update task failed.
+         */
+        void onFailure(Exception failure);
     }
 }

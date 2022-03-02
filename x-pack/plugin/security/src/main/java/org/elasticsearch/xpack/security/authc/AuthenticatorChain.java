@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -29,14 +28,12 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
-import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
 
 class AuthenticatorChain {
 
@@ -171,9 +168,8 @@ class AuthenticatorChain {
                 // Because (1) unlike security errors which are intentionally obscure, non-security errors are clear
                 // about their nature so that no additional information is needed; (2) Non-security errors may
                 // not inherit ElasticsearchException and thus does not have the addMetadata method.
-                if (e instanceof ElasticsearchSecurityException) {
+                if (e instanceof final ElasticsearchSecurityException ese) {
                     // Attach any other unsuccessful messages to the final error
-                    final ElasticsearchSecurityException ese = (ElasticsearchSecurityException) e;
                     if (false == context.getUnsuccessfulMessages().isEmpty()) {
                         addMetadata(context, ese);
                     }
@@ -194,11 +190,8 @@ class AuthenticatorChain {
         };
     }
 
-    private void maybeLookupRunAsUser(
-        Authenticator.Context context,
-        Authentication authentication,
-        ActionListener<Authentication> listener
-    ) {
+    // Package private for test
+    void maybeLookupRunAsUser(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
         if (false == runAsEnabled) {
             finishAuthentication(context, authentication, listener);
             return;
@@ -210,16 +203,16 @@ class AuthenticatorChain {
             return;
         }
 
-        final User user = authentication.getUser();
-        if (runAsUsername.isEmpty()) {
-            logger.debug("user [{}] attempted to runAs with an empty username", user.principal());
-            listener.onFailure(
-                context.getRequest()
-                    .runAsDenied(
-                        new Authentication(new User(runAsUsername, null, user), authentication.getAuthenticatedBy(), null),
-                        context.getMostRecentAuthenticationToken()
-                    )
+        // Run-as is supported for authentication with realm or api_key. Run-as for other authentication types is ignored.
+        // Both realm user and api_key can create tokens. They can also run-as another user and create tokens.
+        // In both cases, the created token will have a TOKEN authentication type and hence does not support run-as.
+        if (Authentication.AuthenticationType.REALM != authentication.getAuthenticationType()
+            && Authentication.AuthenticationType.API_KEY != authentication.getAuthenticationType()) {
+            logger.info(
+                "ignore run-as header since it is currently not supported for authentication type [{}]",
+                authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)
             );
+            finishAuthentication(context, authentication, listener);
             return;
         }
 
@@ -227,25 +220,15 @@ class AuthenticatorChain {
         realmsAuthenticator.lookupRunAsUser(context, authentication, ActionListener.wrap(tuple -> {
             final Authentication finalAuth;
             if (tuple == null) {
-                logger.debug("Cannot find run-as user [{}] for authenticated user [{}]", runAsUsername, user.principal());
+                logger.debug(
+                    "Cannot find run-as user [{}] for authenticated user [{}]",
+                    runAsUsername,
+                    authentication.getUser().principal()
+                );
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
-                finalAuth = new Authentication(
-                    new User(runAsUsername, null, user),
-                    authentication.getAuthenticatedBy(),
-                    null,
-                    authentication.getVersion(),
-                    authentication.getAuthenticationType(),
-                    authentication.getMetadata()
-                );
+                finalAuth = authentication.runAs(new User(runAsUsername, null, null, null, Map.of(), true), null);
             } else {
-                finalAuth = new Authentication(
-                    new User(tuple.v1(), user),
-                    authentication.getAuthenticatedBy(),
-                    tuple.v2(),
-                    authentication.getVersion(),
-                    authentication.getAuthenticationType(),
-                    authentication.getMetadata()
-                );
+                finalAuth = authentication.runAs(tuple.v1(), tuple.v2().realmRef());
             }
             finishAuthentication(context, finalAuth, listener);
         }, listener::onFailure));
@@ -301,30 +284,14 @@ class AuthenticatorChain {
                 context.getRequest(),
                 context.getFallbackUser().principal()
             );
-            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__fallback", "__fallback", nodeName);
-            authentication = new Authentication(
-                context.getFallbackUser(),
-                authenticatedBy,
-                null,
-                Version.CURRENT,
-                Authentication.AuthenticationType.INTERNAL,
-                Collections.emptyMap()
-            );
+            authentication = Authentication.newInternalFallbackAuthentication(context.getFallbackUser(), nodeName);
         } else if (shouldFallbackToAnonymous(context)) {
             logger.trace(
                 "No valid credentials found in request [{}], using anonymous [{}]",
                 context.getRequest(),
                 anonymousUser.principal()
             );
-            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName);
-            authentication = new Authentication(
-                anonymousUser,
-                authenticatedBy,
-                null,
-                Version.CURRENT,
-                Authentication.AuthenticationType.ANONYMOUS,
-                Collections.emptyMap()
-            );
+            authentication = Authentication.newAnonymousAuthentication(anonymousUser, nodeName);
         } else {
             authentication = null;
         }

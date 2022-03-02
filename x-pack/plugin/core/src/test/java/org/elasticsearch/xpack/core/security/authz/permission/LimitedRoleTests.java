@@ -55,11 +55,11 @@ public class LimitedRoleTests extends ESTestCase {
     public void testRoleConstructorWithLimitedRole() {
         Role fromRole = Role.builder(Automatons.EMPTY, "a-role").build();
         Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role").build();
-        Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+        Role role = fromRole.limitedBy(limitedByRole);
         assertNotNull(role);
         assertThat(role.names(), is(limitedByRole.names()));
 
-        NullPointerException npe = expectThrows(NullPointerException.class, () -> LimitedRole.createLimitedRole(fromRole, null));
+        NullPointerException npe = expectThrows(NullPointerException.class, () -> fromRole.limitedBy(null));
         assertThat(npe.getMessage(), containsString("limited by role is required to create limited role"));
     }
 
@@ -146,7 +146,7 @@ public class LimitedRoleTests extends ESTestCase {
             assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
 
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             iac = role.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(), fieldPermissionsCache);
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
@@ -190,7 +190,7 @@ public class LimitedRoleTests extends ESTestCase {
                 is(true)
             );
             assertThat(limitedByRole.checkClusterAction("cluster:other-action", mock(TransportRequest.class), authentication), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             assertThat(role.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class), authentication), is(true));
             assertThat(role.checkClusterAction("cluster:other-action", mock(TransportRequest.class), authentication), is(false));
         }
@@ -199,7 +199,7 @@ public class LimitedRoleTests extends ESTestCase {
                 .cluster(Collections.singleton("monitor"), Collections.emptyList())
                 .build();
             assertThat(limitedByRole.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class), authentication), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             assertThat(role.checkClusterAction("cluster:monitor/me", mock(TransportRequest.class), authentication), is(false));
             assertThat(role.checkClusterAction("cluster:admin/xpack/security/x", mock(TransportRequest.class), authentication), is(false));
         }
@@ -214,14 +214,14 @@ public class LimitedRoleTests extends ESTestCase {
             Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role").add(IndexPrivilege.ALL, "ind-1").build();
             assertThat(limitedByRole.checkIndicesAction(SearchAction.NAME), is(true));
             assertThat(limitedByRole.checkIndicesAction(CreateIndexAction.NAME), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             assertThat(role.checkIndicesAction(SearchAction.NAME), is(true));
             assertThat(role.checkIndicesAction(CreateIndexAction.NAME), is(false));
         }
         {
             Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role").add(IndexPrivilege.NONE, "ind-1").build();
             assertThat(limitedByRole.checkIndicesAction(SearchAction.NAME), is(false));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             assertThat(role.checkIndicesAction(SearchAction.NAME), is(false));
             assertThat(role.checkIndicesAction(CreateIndexAction.NAME), is(false));
         }
@@ -238,7 +238,7 @@ public class LimitedRoleTests extends ESTestCase {
             assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
             assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-11")), is(false));
             assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-11")), is(false));
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(false));
@@ -247,7 +247,7 @@ public class LimitedRoleTests extends ESTestCase {
             Role limitedByRole = Role.builder(Automatons.EMPTY, "limited-role").add(IndexPrivilege.READ, "ind-*").build();
             assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
             assertThat(limitedByRole.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-1")), is(true));
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("ind-2")), is(false));
         }
@@ -269,7 +269,7 @@ public class LimitedRoleTests extends ESTestCase {
         Predicate<String> limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
         assertThat(limitedByRolePredicated.test(SearchAction.NAME), is(true));
         assertThat(limitedByRolePredicated.test(BulkAction.NAME), is(false));
-        Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+        Role role = fromRole.limitedBy(limitedByRole);
 
         Automaton roleAutomaton = role.allowedActionsMatcher("index1");
         Predicate<String> rolePredicate = Automatons.predicate(roleAutomaton);
@@ -300,7 +300,7 @@ public class LimitedRoleTests extends ESTestCase {
                 .build();
             assertThat(limitedByRole.grants(ClusterPrivilegeResolver.ALL), is(true));
             assertThat(limitedByRole.grants(ClusterPrivilegeResolver.MANAGE_SECURITY), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             assertThat(role.grants(ClusterPrivilegeResolver.ALL), is(false));
             assertThat(role.grants(ClusterPrivilegeResolver.MANAGE_SECURITY), is(true));
         }
@@ -310,7 +310,7 @@ public class LimitedRoleTests extends ESTestCase {
                 .build();
             assertThat(limitedByRole.grants(ClusterPrivilegeResolver.ALL), is(false));
             assertThat(limitedByRole.grants(ClusterPrivilegeResolver.MONITOR), is(true));
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             assertThat(role.grants(ClusterPrivilegeResolver.ALL), is(false));
             assertThat(role.grants(ClusterPrivilegeResolver.MANAGE_SECURITY), is(false));
             assertThat(role.grants(ClusterPrivilegeResolver.MONITOR), is(false));
@@ -370,7 +370,7 @@ public class LimitedRoleTests extends ESTestCase {
             );
             verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
 
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             resourcePrivileges = role.checkIndicesPrivileges(Collections.singleton("ind-1"), true, Collections.singleton("read"));
             expectedAppPrivsByResource = new ResourcePrivilegesMap(
                 true,
@@ -422,7 +422,7 @@ public class LimitedRoleTests extends ESTestCase {
             );
             verifyResourcesPrivileges(resourcePrivileges, expectedAppPrivsByResource);
 
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             resourcePrivileges = role.checkIndicesPrivileges(
                 Sets.newHashSet("ind-1", "ind-2", ".security"),
                 true,
@@ -608,7 +608,7 @@ public class LimitedRoleTests extends ESTestCase {
             );
             verifyResourcesPrivileges(appPrivsByResource, expectedAppPrivsByResource);
 
-            Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+            Role role = fromRole.limitedBy(limitedByRole);
             appPrivsByResource = role.checkApplicationResourcePrivileges(
                 "app2",
                 Collections.singleton("foo/bar/a"),

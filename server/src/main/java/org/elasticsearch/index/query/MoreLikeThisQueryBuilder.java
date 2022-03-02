@@ -1191,4 +1191,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         // TODO this needs heavy cleanups before we can rewrite it
         return this;
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

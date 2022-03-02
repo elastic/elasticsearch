@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
@@ -258,7 +259,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             )
             .put(new IndexMetadata.Builder(backingIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(
-                new DataStream(
+                DataStreamTestHelper.newInstance(
                     "adatastream1",
                     createTimestampField("@timestamp"),
                     List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))
@@ -331,7 +332,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             )
             .put(new IndexMetadata.Builder(backingIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(
-                new DataStream(
+                DataStreamTestHelper.newInstance(
                     "adatastream1",
                     createTimestampField("@timestamp"),
                     List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))

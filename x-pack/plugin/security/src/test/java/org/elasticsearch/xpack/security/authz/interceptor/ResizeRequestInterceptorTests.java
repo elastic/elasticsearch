@@ -62,7 +62,11 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
-        final Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null), null);
+        final Authentication authentication = new Authentication(
+            new User("john", "role"),
+            new RealmRef("realm", "type", "node", null),
+            null
+        );
         final FieldPermissions fieldPermissions;
         final boolean useFls = randomBoolean();
         if (useFls) {
@@ -122,7 +126,11 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
-        final Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null), null);
+        final Authentication authentication = new Authentication(
+            new User("john", "role"),
+            new RealmRef("realm", "type", "node", null),
+            null
+        );
         Role role = Role.builder(Automatons.EMPTY).add(IndexPrivilege.ALL, "target").add(IndexPrivilege.READ, "source").build();
         final String action = randomFrom(ShrinkAction.NAME, ResizeAction.NAME);
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());

@@ -8,8 +8,11 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,7 +36,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetB
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
-import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -100,6 +103,7 @@ public class CompositeRolesStore {
     private final AtomicLong numInvalidation = new AtomicLong();
     private final RoleDescriptorStore roleReferenceResolver;
     private final Role superuserRole;
+    private final Role xpackSecurityRole;
     private final Role xpackUserRole;
     private final Role asyncSearchUserRole;
     private final Automaton restrictedIndicesAutomaton;
@@ -149,6 +153,7 @@ public class CompositeRolesStore {
         this.restrictedIndicesAutomaton = resolver.getSystemNameAutomaton();
         this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton)
             .build();
+        xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
         xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
         asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
 
@@ -190,32 +195,18 @@ public class CompositeRolesStore {
 
         assert false == User.isInternal(subject.getUser()) : "Internal user should not pass here";
 
-        final List<RoleReference> roleReferences = subject.getRoleReferences(anonymousUser);
-        // TODO: Two levels of nesting can be relaxed in future
-        assert roleReferences.size() <= 2 : "only support up to one level of limiting";
-        assert false == roleReferences.isEmpty() : "role references cannot be empty";
-
-        buildRoleFromRoleReference(roleReferences.get(0), ActionListener.wrap(role -> {
-            if (roleReferences.size() == 1) {
-                roleActionListener.onResponse(role);
-            } else {
-                buildRoleFromRoleReference(
-                    roleReferences.get(1),
-                    ActionListener.wrap(
-                        limitedByRole -> roleActionListener.onResponse(LimitedRole.createLimitedRole(role, limitedByRole)),
-                        roleActionListener::onFailure
-                    )
-                );
-            }
-
-        }, roleActionListener::onFailure));
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
+        roleReferenceIntersection.buildRole(this::buildRoleFromRoleReference, roleActionListener);
     }
 
-    private Role tryGetRoleForInternalUser(Subject subject) {
+    // Accessible by tests
+    Role tryGetRoleForInternalUser(Subject subject) {
         // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
         // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
-        // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
-        // passed into this method. The XPackSecurityUser has the Superuser role and we can simply return that
+        // internal user.
+        // The SystemUser is special cased as it has special privileges to execute internal actions and should never be passed into this
+        // method.
+        // The other internal users have directly assigned roles that are handled with special cases here
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
@@ -227,7 +218,7 @@ public class CompositeRolesStore {
             return xpackUserRole;
         }
         if (XPackSecurityUser.is(user)) {
-            return superuserRole;
+            return xpackSecurityRole;
         }
         if (AsyncSearchUser.is(user)) {
             return asyncSearchUserRole;
@@ -264,9 +255,36 @@ public class CompositeRolesStore {
                         roleActionListener
                     );
                 }
-            }, roleActionListener::onFailure));
+            }, e -> {
+                // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
+                // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
+                // situation where they are unable to administer their cluster (in order to resolve the problem that is leading to failures
+                // in role retrieval). So if a role reference includes superuser, but role retrieval failed, we fallback to the static
+                // superuser role.
+                if (includesSuperuserRole(roleReference)) {
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "there was a failure resolving the roles [{}], falling back to the [{}] role instead",
+                            roleReference.id(),
+                            Strings.arrayToCommaDelimitedString(superuserRole.names())
+                        ),
+                        e
+                    );
+                    roleActionListener.onResponse(superuserRole);
+                } else {
+                    roleActionListener.onFailure(e);
+                }
+            }));
         } else {
             roleActionListener.onResponse(existing);
+        }
+    }
+
+    private boolean includesSuperuserRole(RoleReference roleReference) {
+        if (roleReference instanceof RoleReference.NamedRoleReference namedRoles) {
+            return Arrays.asList(namedRoles.getRoleNames()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
+        } else {
+            return false;
         }
     }
 
@@ -328,9 +346,22 @@ public class CompositeRolesStore {
         );
     }
 
-    // TODO: Temporary to fill the gap
-    public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
-        roleReferenceResolver.getRoleDescriptors(roleNames, listener);
+    public void getRoleDescriptorsList(Subject subject, ActionListener<Collection<Set<RoleDescriptor>>> listener) {
+        final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser).getRoleReferences();
+        final GroupedActionListener<Set<RoleDescriptor>> groupedActionListener = new GroupedActionListener<>(
+            listener,
+            roleReferences.size()
+        );
+
+        roleReferences.forEach(roleReference -> {
+            roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
+                if (rolesRetrievalResult.isSuccess()) {
+                    groupedActionListener.onResponse(rolesRetrievalResult.getRoleDescriptors());
+                } else {
+                    groupedActionListener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
+                }
+            }, groupedActionListener::onFailure));
+        });
     }
 
     public static void buildRoleFromDescriptors(

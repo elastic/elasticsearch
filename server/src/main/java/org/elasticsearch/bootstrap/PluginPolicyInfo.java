@@ -13,14 +13,4 @@ import java.nio.file.Path;
 import java.security.Policy;
 import java.util.Set;
 
-public class PluginPolicyInfo {
-    public final Path file;
-    public final Set<URL> jars;
-    public final Policy policy;
-
-    PluginPolicyInfo(Path file, Set<URL> jars, Policy policy) {
-        this.file = file;
-        this.jars = jars;
-        this.policy = policy;
-    }
-}
+public record PluginPolicyInfo(Path file, Set<URL> jars, Policy policy) {}

@@ -40,6 +40,7 @@ final class OutboundHandler {
     private final ThreadPool threadPool;
     private final Recycler<BytesRef> recycler;
     private final HandlingTimeTracker handlingTimeTracker;
+    private final boolean rstOnClose;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
 
@@ -51,7 +52,8 @@ final class OutboundHandler {
         StatsTracker statsTracker,
         ThreadPool threadPool,
         Recycler<BytesRef> recycler,
-        HandlingTimeTracker handlingTimeTracker
+        HandlingTimeTracker handlingTimeTracker,
+        boolean rstOnClose
     ) {
         this.nodeName = nodeName;
         this.version = version;
@@ -59,6 +61,7 @@ final class OutboundHandler {
         this.threadPool = threadPool;
         this.recycler = recycler;
         this.handlingTimeTracker = handlingTimeTracker;
+        this.rstOnClose = rstOnClose;
     }
 
     void setSlowLogThreshold(TimeValue slowLogThreshold) {
@@ -195,7 +198,7 @@ final class OutboundHandler {
 
                 @Override
                 public void onFailure(Exception e) {
-                    final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(e);
+                    final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, rstOnClose);
                     if (closeConnectionExceptionLevel == Level.OFF) {
                         logger.warn(new ParameterizedMessage("send message failed [channel: {}]", channel), e);
                     } else if (closeConnectionExceptionLevel == Level.INFO && logger.isDebugEnabled() == false) {
@@ -244,6 +247,10 @@ final class OutboundHandler {
         } else {
             throw new IllegalStateException("Cannot set message listener twice");
         }
+    }
+
+    public boolean rstOnClose() {
+        return rstOnClose;
     }
 
 }

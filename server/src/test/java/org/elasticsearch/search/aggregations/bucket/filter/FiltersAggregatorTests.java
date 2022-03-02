@@ -29,6 +29,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -97,6 +98,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/84540")
 public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testEmpty() throws Exception {
         Directory directory = newDirectory();

@@ -478,8 +478,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
                 final Object settingValue = config.getSetting(setting);
                 if (settingValue instanceof SecureString) {
                     switch (style) {
-                        case ELASTICSEARCH_YML ->
-                            sb.append(key).append(": ").append(settingValue).append('\n');
+                        case ELASTICSEARCH_YML -> sb.append(key).append(": ").append(settingValue).append('\n');
                         case BUILD_GRADLE -> sb.append("keystore '").append(key).append("', '").append(settingValue).append("'\n");
                     }
                     numSecureSettings++;
@@ -493,7 +492,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
     }
 
     enum OutputStyle {
-        ELASTICSEARCH_YML, BUILD_GRADLE;
+        ELASTICSEARCH_YML,
+        BUILD_GRADLE;
 
         public String fileName() {
             return name().toLowerCase(Locale.ROOT).replace('_', '.');

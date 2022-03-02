@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -32,7 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84156")
 public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
     @Override

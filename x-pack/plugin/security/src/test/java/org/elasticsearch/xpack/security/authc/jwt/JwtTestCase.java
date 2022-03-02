@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyOperation;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
@@ -54,7 +54,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -328,15 +327,21 @@ public abstract class JwtTestCase extends ESTestCase {
      * @return HMAC key with UTF-8 bytes, making the key bytes compatible with OIDC UTF-8 string encoding.
      */
     public static OctetSequenceKey conditionJwkHmacForOidc(final OctetSequenceKey hmacKey) {
-        final String bytesAsBase64 = hmacKey.getKeyValue().toString();
-        final byte[] base64AsUtf8 = bytesAsBase64.getBytes(StandardCharsets.UTF_8);
-        final OctetSequenceKey.Builder utf8HmacKeyBuilder = new OctetSequenceKey.Builder(base64AsUtf8);
-        utf8HmacKeyBuilder.keyID(hmacKey.getKeyID()); // Copy null attribute is OK (no-op)
-        utf8HmacKeyBuilder.algorithm(hmacKey.getAlgorithm());
-        utf8HmacKeyBuilder.keyUse(hmacKey.getKeyUse());
-        utf8HmacKeyBuilder.keyOperations(hmacKey.getKeyOperations());
-        utf8HmacKeyBuilder.keyStore(hmacKey.getKeyStore());
-        return utf8HmacKeyBuilder.build();
+        final String passwordKey;
+        if (randomBoolean()) {
+            final Base64URL hmacKeyBytesBase64 = hmacKey.getKeyValue(); // Random bytes => 8 bits/byte search space
+            passwordKey = hmacKeyBytesBase64.toString(); // Use Base64(randomBytes) as UTF8 bytes for a new password with same search space
+        } else {
+            final int numLetters = hmacKey.toByteArray().length * 8; // Random [A-Za-z] => 5.7 bits/byte
+            passwordKey = randomAlphaOfLength(numLetters); // Use length * ceil(2.3) to avoid reducing search space below 8 bits/byte
+        }
+        final OctetSequenceKey.Builder hmacKeyBuilder = new OctetSequenceKey.Builder(passwordKey.getBytes(StandardCharsets.UTF_8));
+        hmacKeyBuilder.keyID(hmacKey.getKeyID()); // Copy null attribute is OK (no-op)
+        hmacKeyBuilder.algorithm(hmacKey.getAlgorithm());
+        hmacKeyBuilder.keyUse(hmacKey.getKeyUse());
+        hmacKeyBuilder.keyOperations(hmacKey.getKeyOperations());
+        hmacKeyBuilder.keyStore(hmacKey.getKeyStore());
+        return hmacKeyBuilder.build();
     }
 
     public static OctetSequenceKey jwkHmacRemoveAttributes(final OctetSequenceKey hmacKey) {
@@ -363,48 +368,28 @@ public abstract class JwtTestCase extends ESTestCase {
         return jwkGenerator;
     }
 
-    public static SignedJWT randomValidSignedJWT(final JWSSigner jwsSigner, final String signatureAlgorithm) throws Exception {
-        final String issuer = randomFrom("https://www.example.com/", "") + "iss1" + randomIntBetween(0, 99);
-        final List<String> audiences = randomFrom(List.of("rp_client1"), List.of("aud1", "aud2", "aud3"));
-        final String claimPrincipal = randomFrom("sub", "uid", "custom");
-        final String principal = "principal1";
-        final String claimGroups = randomBoolean() ? null : randomFrom("groups", "roles", "other");
-        final List<String> groups = randomFrom(List.of(""), List.of("grp1"), List.of("rol1", "rol2", "rol3"), List.of("per1"));
-        final SignedJWT unsignedJwt = randomValidJwsHeaderAndJwtClaimsSet(
-            signatureAlgorithm,
-            issuer,
-            audiences,
-            claimPrincipal,
-            principal,
-            claimGroups,
-            groups,
-            Map.of("metadata", randomAlphaOfLength(10))
-        );
-        return JwtValidateUtil.signJwt(jwsSigner, unsignedJwt);
-    }
-
-    public SecureString buildJWT(final JWSHeader header, final JWTClaimsSet claims, final Base64URL signature) throws ParseException {
-        final SignedJWT signedJwt = new SignedJWT(header.toBase64URL(), claims.toPayload().toBase64URL(), signature);
-        return new SecureString(signedJwt.serialize().toCharArray());
-    }
-
-    public static SignedJWT randomValidJwsHeaderAndJwtClaimsSet(
+    public static SignedJWT buildUnsignedJwt(
         final String signatureAlgorithm,
+        final String jwtId,
         final String issuer,
         final List<String> audiences,
+        final String subject,
         final String principalClaimName,
         final String principalClaimValue,
         final String groupsClaimName,
         final List<String> groupsClaimValue,
+        final Date authTime,
+        final Date iat,
+        final Date nbf,
+        final Date exp,
+        final Nonce nonce,
         final Map<String, Object> otherClaims
     ) {
-        final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(signatureAlgorithm)).build();
         final JWTClaimsSet.Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder();
-        if (randomBoolean()) {
-            jwtClaimsSetBuilder.jwtID(randomAlphaOfLengthBetween(1, 20));
+        if (jwtId != null) {
+            jwtClaimsSetBuilder.jwtID(jwtId);
         }
-        // iss, aud, sub
         if (issuer != null) {
             jwtClaimsSetBuilder.issuer(issuer);
         }
@@ -414,10 +399,8 @@ public abstract class JwtTestCase extends ESTestCase {
             }
             jwtClaimsSetBuilder.audience(audiences);
         }
-        if (randomBoolean()) {
-            jwtClaimsSetBuilder.subject(principalClaimValue);
-        } else {
-            jwtClaimsSetBuilder.subject(principalClaimValue + "_" + randomAlphaOfLength(8));
+        if (subject != null) {
+            jwtClaimsSetBuilder.subject(subject);
         }
         // principal and groups claims
         if ((Strings.hasText(principalClaimName)) && (principalClaimValue != null)) {
@@ -426,18 +409,20 @@ public abstract class JwtTestCase extends ESTestCase {
         if ((Strings.hasText(groupsClaimName)) && (groupsClaimValue != null)) {
             jwtClaimsSetBuilder.claim(groupsClaimName, groupsClaimValue.toString());
         }
-        // auth_time, nbf, iat, exp
-        if (randomBoolean()) {
-            jwtClaimsSetBuilder.claim("auth_time", Date.from(now.minusSeconds(randomLongBetween(10, 20))));
+        if (authTime != null) {
+            jwtClaimsSetBuilder.claim("auth_time", authTime);
         }
-        if (randomBoolean()) {
-            jwtClaimsSetBuilder.notBeforeTime(Date.from(now.minusSeconds(randomLongBetween(5, 10))));
+        if (nbf != null) {
+            jwtClaimsSetBuilder.notBeforeTime(nbf);
         }
-        jwtClaimsSetBuilder.issueTime(Date.from(now));
-        jwtClaimsSetBuilder.expirationTime(Date.from(now.plusSeconds(randomLongBetween(3600, 7200))));
-        // nonce
-        if (randomBoolean()) {
-            jwtClaimsSetBuilder.claim("nonce", new Nonce());
+        if (iat != null) {
+            jwtClaimsSetBuilder.issueTime(iat);
+        }
+        if (exp != null) {
+            jwtClaimsSetBuilder.expirationTime(exp);
+        }
+        if (nonce != null) {
+            jwtClaimsSetBuilder.claim("nonce", nonce.toString());
         }
         // Custom extra claims. Principal claim name could be "sub" or something else
         if (otherClaims != null) {
@@ -452,9 +437,9 @@ public abstract class JwtTestCase extends ESTestCase {
         }
         final JWTClaimsSet jwtClaimsSet = jwtClaimsSetBuilder.build();
         LOGGER.info(
-            "CLAIMS: , alg=["
+            "CLAIMS: alg=["
                 + jwtHeader.getAlgorithm().getName()
-                + "], jti=["
+                + "], jwtId=["
                 + jwtClaimsSet.getJWTID()
                 + "], iss=["
                 + jwtClaimsSet.getIssuer()
@@ -484,7 +469,29 @@ public abstract class JwtTestCase extends ESTestCase {
                 + otherClaims
                 + "]"
         );
-        return new SignedJWT(jwtHeader, jwtClaimsSet);
+        return JwtValidateUtil.buildUnsignedJwt(jwtHeader, jwtClaimsSet);
+    }
+
+    public static SecureString randomJwt(final JWK jwk, final String signatureAlgorithm) throws Exception {
+        final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
+            signatureAlgorithm, // alg
+            randomAlphaOfLengthBetween(10, 20), // jwtID
+            randomFrom("https://www.example.com/", "") + "iss1" + randomIntBetween(0, 99),
+            randomFrom(List.of("rp_client1"), List.of("aud1", "aud2", "aud3")),
+            randomBoolean() ? "principal1" : "subject1",
+            randomFrom("sub", "uid", "custom"),
+            "principal1",
+            randomBoolean() ? null : randomFrom("groups", "roles", "other"),
+            randomFrom(List.of(""), List.of("grp1"), List.of("rol1", "rol2", "rol3"), List.of("per1")),
+            Date.from(now.minusSeconds(randomLongBetween(10, 20))), // auth_time
+            Date.from(now), // iat
+            Date.from(now.minusSeconds(randomLongBetween(5, 10))), // nbf
+            Date.from(now.plusSeconds(randomLongBetween(3600, 7200))), // exp
+            randomBoolean() ? null : new Nonce(32),
+            randomBoolean() ? null : Map.of("other1", randomAlphaOfLength(10), "other2", randomAlphaOfLength(10))
+        );
+        return JwtValidateUtil.signJwt(jwk, unsignedJwt);
     }
 
     public static Map<String, User> generateTestUsersWithRoles(final int numUsers, final int numRolesPerUser) {
@@ -544,5 +551,32 @@ public abstract class JwtTestCase extends ESTestCase {
         assert (min == 0) || (collection.isEmpty() == false) : "if min!=0, collection must be non-empty";
         final int minToMaxInclusive = randomIntBetween(min, max); // min..max inclusive
         return IntStream.rangeClosed(1, minToMaxInclusive).mapToObj(i -> randomFrom(collection)).toList(); // 1..N inclusive
+    }
+
+    public String saveJwkSetToTempFile(final JWKSet jwksetPkc, final boolean publicKeysOnly) throws IOException {
+        final String serializedJwkSet = JwtUtil.serializeJwkSet(jwksetPkc, publicKeysOnly);
+        if (serializedJwkSet == null) {
+            return null;
+        }
+        final Path path = Files.createTempFile(PathUtils.get(this.pathHome), "jwkset.", ".json");
+        Files.writeString(path, serializedJwkSet);
+        return path.toString();
+    }
+
+    public ThreadContext createThreadContext(final CharSequence jwt, final CharSequence sharedSecret) {
+        final ThreadContext requestThreadContext = new ThreadContext(this.globalSettings);
+        if (jwt != null) {
+            requestThreadContext.putHeader(
+                JwtRealm.HEADER_END_USER_AUTHENTICATION,
+                JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + jwt
+            );
+        }
+        if (sharedSecret != null) {
+            requestThreadContext.putHeader(
+                JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET + " " + sharedSecret
+            );
+        }
+        return requestThreadContext;
     }
 }

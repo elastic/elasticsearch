@@ -57,6 +57,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -456,8 +457,13 @@ public class RestoreService implements ClusterStateApplier {
                 repository.getMetadata(),
                 listener
             ),
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private void setRefreshRepositoryUuidOnRestore(boolean refreshRepositoryUuidOnRestore) {
@@ -1065,7 +1071,7 @@ public class RestoreService implements ClusterStateApplier {
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 cleanupInProgress = false;
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     @Override

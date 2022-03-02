@@ -84,7 +84,6 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             builder.startObject();
             builder.field("status", status.xContentValue());
             builder.field("cluster_name", clusterName.value());
-            builder.array("impacts");
             builder.startObject("components");
             for (HealthComponentResult component : components) {
                 builder.field(component.name(), component, params);

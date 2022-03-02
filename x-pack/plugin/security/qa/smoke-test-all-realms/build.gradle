@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.Version
+
 /*
  * This QA test is intended to smoke test all security realms with minimal dependencies.
  * That is, it makes sure a node that has every realm configured can start, and tests those realms that can be tested without needing external services.
@@ -17,6 +19,8 @@ dependencies {
 testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
+
+  requiresFeature 'es.jwt_realm_feature_flag_enabled', Version.fromString("8.2.0")
 
   extraConfigFile 'http-server.key', file('src/javaRestTest/resources/ssl/http-server.key')
   extraConfigFile 'http-server.crt', file('src/javaRestTest/resources/ssl/http-server.crt')

@@ -274,16 +274,16 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, It
     }
 
     private final class KeyIterator implements Iterator<Integer> {
-        private int index = 0;
+        private final Iterator<IntObjectCursor<VType>> cursor = map.iterator();
 
         @Override
         public boolean hasNext() {
-            return index < map.size();
+            return cursor.hasNext();
         }
 
         @Override
         public Integer next() {
-            return map.keys[index++];
+            return cursor.next().key;
         }
 
         @Override

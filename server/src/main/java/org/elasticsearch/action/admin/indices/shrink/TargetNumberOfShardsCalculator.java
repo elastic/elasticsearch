@@ -159,7 +159,7 @@ public interface TargetNumberOfShardsCalculator {
 
         @Override
         public int calculate(Integer numberOfShards, ByteSizeValue maxPrimaryShardSize, IndexMetadata sourceMetadata) {
-            return sourceMetadata.getNumberOfShards();
+            return numberOfShards != null ? numberOfShards : sourceMetadata.getNumberOfShards();
         }
 
         @Override

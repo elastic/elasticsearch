@@ -60,6 +60,7 @@ public class TargetNumberOfShardsCalculatorTests extends ESTestCase {
 
         TargetNumberOfShardsCalculator.Clone clone = new TargetNumberOfShardsCalculator.Clone();
         assertEquals(indexMetadata.getNumberOfShards(), clone.calculate(null, null, indexMetadata));
+        assertEquals(indexMetadata.getNumberOfShards() + 1, clone.calculate(indexMetadata.getNumberOfShards() + 1, null, indexMetadata));
         expectThrows(IllegalArgumentException.class, () -> clone.verify(indexMetadata.getNumberOfShards() + 1, indexMetadata));
     }
 

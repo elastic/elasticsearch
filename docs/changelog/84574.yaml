@@ -1,0 +1,6 @@
+pr: 84574
+summary: Support SQL folding of GROUP BY Constant
+area: SQL
+type: bug
+issues:
+ - 84490

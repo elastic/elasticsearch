@@ -94,6 +94,7 @@ public class DocumentMapper {
                 );
             }
         }
+        settings.getMode().validateMapping(mappingLookup);
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
@@ -117,6 +118,5 @@ public class DocumentMapper {
         if (checkLimits) {
             this.mappingLookup.checkLimits(settings);
         }
-        settings.getMode().validateMapping(mappingLookup);
     }
 }

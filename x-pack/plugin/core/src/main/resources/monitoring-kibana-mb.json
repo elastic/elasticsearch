@@ -492,6 +492,10 @@
                 "uuid": {
                   "type": "alias",
                   "path": "service.id"
+                },
+                "version": {
+                  "type": "alias",
+                  "path": "service.version"
                 }
               }
             },

@@ -54,6 +54,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -86,7 +87,7 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
  * The details of how this is persisted are covered in {@link org.elasticsearch.gateway.PersistedClusterStateService}.
  * </p>
  */
-public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ToXContentFragment {
+public class Metadata extends AbstractCollection<IndexMetadata> implements Diffable<Metadata>, ToXContentFragment {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
 
@@ -898,6 +899,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return indices.valuesIt();
     }
 
+    @Override
+    public int size() {
+        return indices.size();
+    }
+
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
         if (metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata) == false) {
             return false;
@@ -1080,13 +1086,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
         final Function<String, MappingMetadata> mappingLookup;
         if (in.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            final int mappings = in.readVInt();
-            if (mappings > 0) {
-                final Map<String, MappingMetadata> mappingMetadataMap = new HashMap<>(mappings);
-                for (int i = 0; i < mappings; i++) {
-                    final MappingMetadata m = new MappingMetadata(in);
-                    mappingMetadataMap.put(m.getSha256(), m);
-                }
+            final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
+            if (mappingMetadataMap.size() > 0) {
                 mappingLookup = mappingMetadataMap::get;
             } else {
                 mappingLookup = null;
@@ -1125,7 +1126,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
         // we avoid writing duplicate mappings twice
         if (out.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            out.writeCollection(mappingsByHash.values());
+            out.writeMapValues(mappingsByHash);
         }
         out.writeVInt(indices.size());
         final boolean writeMappingsHash = out.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);

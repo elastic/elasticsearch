@@ -8,6 +8,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
@@ -40,7 +41,7 @@ import static java.util.Collections.unmodifiableList;
  * At any point in time there will be at least three such versions and potentially four in the case of a staged release.
  * <p>
  * <ul>
- * <li>the current version on the `master` branch</li>
+ * <li>the current version on the `main` branch</li>
  * <li>the staged next <b>minor</b> on the `M.N` branch</li>
  * <li>the unreleased <b>bugfix</b>, `M.N-1` branch</li>
  * <li>the unreleased <b>maintenance</b>, M-1.d.e ( d &gt; 0, e &gt; 0) on the `(M-1).d` branch</li>
@@ -54,7 +55,7 @@ import static java.util.Collections.unmodifiableList;
  * We can reliably figure out which the unreleased versions are due to the convention of always adding the next unreleased
  * version number to server in all branches when a version is released.
  * E.x when M.N.c is released M.N.c+1 is added to the Version class mentioned above in all the following branches:
- *  `M.N`, and `master` so we can reliably assume that the leafs of the version tree are unreleased.
+ *  `M.N`, and `main` so we can reliably assume that the leafs of the version tree are unreleased.
  * This convention is enforced by checking the versions we consider to be unreleased against an
  * authoritative source (maven central).
  * We are then able to map the unreleased version to branches in git and Gradle projects that are capable of checking
@@ -133,8 +134,8 @@ public class BwcVersions {
 
     private String getBranchFor(Version version) {
         if (version.equals(currentVersion.elasticsearch)) {
-            // Just assume the current branch is 'master'. It's actually not important, we never check out the current branch.
-            return "master";
+            // Just assume the current branch is 'main'. It's actually not important, we never check out the current branch.
+            return "main";
         } else {
             return version.getMajor() + "." + version.getMinor();
         }
@@ -257,9 +258,17 @@ public class BwcVersions {
     }
 
     private List<Version> filterSupportedVersions(List<Version> wireCompat) {
-        return Architecture.current() == Architecture.AARCH64
-            ? wireCompat.stream().filter(version -> version.onOrAfter("7.12.0")).collect(Collectors.toList())
-            : wireCompat;
+        Predicate<Version> supported = v -> true;
+        if (Architecture.current() == Architecture.AARCH64) {
+            final String version;
+            if (ElasticsearchDistribution.CURRENT_PLATFORM.equals(ElasticsearchDistribution.Platform.DARWIN)) {
+                version = "7.16.0";
+            } else {
+                version = "7.12.0"; // linux shipped earlier for aarch64
+            }
+            supported = v -> v.onOrAfter(version);
+        }
+        return wireCompat.stream().filter(supported).collect(Collectors.toList());
     }
 
     public List<Version> getUnreleasedIndexCompatible() {

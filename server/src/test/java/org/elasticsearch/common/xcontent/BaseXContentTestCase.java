@@ -20,7 +20,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -34,6 +33,7 @@ import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -834,10 +834,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeEndObject();
         }
 
-        try (
-            XContentParser parser = xcontentType().xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray())
-        ) {
+        try (XContentParser parser = xcontentType().xContent().createParser(XContentParserConfiguration.EMPTY, os.toByteArray())) {
             assertEquals(Token.START_OBJECT, parser.nextToken());
             assertEquals(Token.FIELD_NAME, parser.nextToken());
             assertEquals("bar", parser.currentName());
@@ -872,10 +869,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
         }
 
-        try (
-            XContentParser parser = xcontentType().xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray())
-        ) {
+        try (XContentParser parser = xcontentType().xContent().createParser(XContentParserConfiguration.EMPTY, os.toByteArray())) {
             assertEquals(Token.START_OBJECT, parser.nextToken());
             assertEquals(Token.FIELD_NAME, parser.nextToken());
             assertEquals("foo", parser.currentName());
@@ -899,10 +893,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeEndObject();
         }
 
-        try (
-            XContentParser parser = xcontentType().xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray())
-        ) {
+        try (XContentParser parser = xcontentType().xContent().createParser(XContentParserConfiguration.EMPTY, os.toByteArray())) {
             assertEquals(Token.START_OBJECT, parser.nextToken());
             assertEquals(Token.FIELD_NAME, parser.nextToken());
             assertEquals("test", parser.currentName());
@@ -931,10 +922,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         generator.flush();
         byte[] serialized = os.toByteArray();
 
-        try (
-            XContentParser parser = xcontentType().xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, serialized)
-        ) {
+        try (XContentParser parser = xcontentType().xContent().createParser(XContentParserConfiguration.EMPTY, serialized)) {
             Map<String, Object> map = parser.map();
             assertEquals("bar", map.get("foo"));
             assertEquals(bigInteger, map.get("bigint"));
@@ -1136,8 +1124,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             }
         }
         try (
-            XContentParser emptyRegistryParser = xcontentType().xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new byte[] {})
+            XContentParser emptyRegistryParser = xcontentType().xContent().createParser(XContentParserConfiguration.EMPTY, new byte[] {})
         ) {
             Exception e = expectThrows(
                 XContentParseException.class,

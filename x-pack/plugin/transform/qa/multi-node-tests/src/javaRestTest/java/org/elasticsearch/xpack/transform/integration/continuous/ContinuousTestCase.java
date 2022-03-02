@@ -7,14 +7,8 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.transform.transforms.SettingsConfig;
-import org.elasticsearch.client.transform.transforms.SyncConfig;
-import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
-import org.elasticsearch.client.transform.transforms.TransformConfig;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -23,6 +17,10 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -30,8 +28,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -80,7 +78,7 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
      *
      * @return the transform configuration
      */
-    public abstract TransformConfig createConfig();
+    public abstract TransformConfig createConfig() throws IOException;
 
     /**
      * Test results after 1 iteration in the test runner.
@@ -92,7 +90,7 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
 
     protected TransformConfig.Builder addCommonBuilderParameters(TransformConfig.Builder builder) {
         return builder.setSyncConfig(getSyncConfig())
-            .setSettings(addCommonSetings(new SettingsConfig.Builder()).build())
+            .setSettings(addCommonSettings(new SettingsConfig.Builder()).build())
             .setFrequency(SYNC_DELAY);
     }
 
@@ -103,19 +101,30 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
         return builder;
     }
 
-    protected SettingsConfig.Builder addCommonSetings(SettingsConfig.Builder builder) {
+    protected SettingsConfig.Builder addCommonSettings(SettingsConfig.Builder builder) {
         // enforce paging, to see we run through all of the options
         builder.setMaxPageSearchSize(10);
         return builder;
     }
 
-    protected SearchResponse search(SearchRequest searchRequest) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.search(searchRequest, RequestOptions.DEFAULT);
+    protected Response search(String index, String query) throws IOException {
+        return search(index, query, Collections.emptyMap());
+    }
+
+    protected Response search(String index, String query, Map<String, String> queryParameters) throws IOException {
+        try {
+            Request searchRequest = new Request("GET", index + "/_search");
+            searchRequest.setJsonEntity(query);
+            searchRequest.addParameters(queryParameters);
+            return client().performRequest(searchRequest);
         } catch (Exception e) {
             logger.error("Search failed with an exception.", e);
             throw e;
         }
+    }
+
+    private SyncConfig getSyncConfig() {
+        return new TimeSyncConfig("timestamp", SYNC_DELAY);
     }
 
     @Override
@@ -125,16 +134,9 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    private static class TestRestHighLevelClient extends RestHighLevelClient {
-        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES = new SearchModule(Settings.EMPTY, Collections.emptyList())
-            .getNamedXContents();
-
-        TestRestHighLevelClient() {
-            super(client(), restClient -> {}, X_CONTENT_ENTRIES);
-        }
-    }
-
-    private SyncConfig getSyncConfig() {
-        return TimeSyncConfig.builder().setField("timestamp").setDelay(SYNC_DELAY).build();
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

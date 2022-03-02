@@ -118,7 +118,7 @@ Responds:
 --------------------------------------------------
 
 And the `**` wildcard can be used to include fields without knowing the
-exact path of the field. For example, we can return the Lucene version
+exact path of the field. For example, we can return the state
 of every segment with this request:
 
 [source,console]

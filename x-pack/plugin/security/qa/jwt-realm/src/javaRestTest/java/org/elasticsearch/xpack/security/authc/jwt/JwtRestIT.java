@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
@@ -17,7 +18,6 @@ import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
@@ -52,13 +52,10 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.test.TestMatchers.hasStatusCode;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 public class JwtRestIT extends ESRestTestCase {
 
@@ -111,25 +108,62 @@ public class JwtRestIT extends ESRestTestCase {
      * - supports RSA signed keys
      * - has no client authentication
      */
-    public void testAuthenticateWithRsaSignedJWTAndRoleMapping() throws Exception {
+    public void testAuthenticateWithRsaSignedJWTAndRoleMappingByPrincipal() throws Exception {
         final String principal = randomPrincipal();
-        final List<String> roles = randomRoles();
-        final String roleMapping = createRoleMapping(roles, """
+        final String rules = """
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "username": "%s" } }
             ] }
-            """.formatted(principal));
+            """.formatted(principal);
+
+        authenticateToRealm1WithRoleMapping(principal, List.of(), rules);
+    }
+
+    public void testAuthenticateWithRsaSignedJWTAndRoleMappingByGroups() throws Exception {
+        final String principal = randomPrincipal();
+        final List<String> groups = randomList(1, 12, () -> randomAlphaOfLengthBetween(4, 12));
+        final String mappedGroup = randomFrom(groups);
+
+        final String rules = """
+            { "all": [
+                { "field": { "realm.name": "jwt1" } },
+                { "field": { "groups": "%s" } }
+            ] }
+            """.formatted(mappedGroup);
+
+        authenticateToRealm1WithRoleMapping(principal, groups, rules);
+    }
+
+    public void testAuthenticateWithRsaSignedJWTAndRoleMappingByMetadata() throws Exception {
+        final String principal = randomPrincipal();
+        final String rules = """
+            { "all": [
+                { "field": { "realm.name": "jwt1" } },
+                { "field": { "metadata.jwt_claim_sub": "%s" } }
+            ] }
+            """.formatted(principal);
+        authenticateToRealm1WithRoleMapping(principal, List.of(), rules);
+    }
+
+    private void authenticateToRealm1WithRoleMapping(String principal, List<String> groups, String roleMappingRules) throws Exception {
+        final List<String> roles = randomRoles();
+        final String roleMappingName = createRoleMapping(roles, roleMappingRules);
 
         try {
-            final SignedJWT jwt = buildAndSignJwtForRealm1(principal);
+            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, groups, Instant.now());
             final TestSecurityClient client = getSecurityClient(jwt, Optional.empty());
 
             final Map<String, Object> response = client.authenticate();
 
-            assertThat(response, hasEntry(User.Fields.USERNAME.getPreferredName(), principal));
-            assertThat(assertMap(response, User.Fields.AUTHENTICATION_REALM), hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt1"));
-            assertThat(assertList(response, User.Fields.ROLES), Matchers.containsInAnyOrder(roles.toArray(String[]::new)));
+            final String description = "Authentication response [" + response + "]";
+            assertThat(description, response, hasEntry(User.Fields.USERNAME.getPreferredName(), principal));
+            assertThat(
+                description,
+                assertMap(response, User.Fields.AUTHENTICATION_REALM),
+                hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt1")
+            );
+            assertThat(description, assertList(response, User.Fields.ROLES), Matchers.containsInAnyOrder(roles.toArray(String[]::new)));
 
             // The user has no real role (we never define them) so everything they try to do will be FORBIDDEN
             final ResponseException exception = expectThrows(
@@ -138,20 +172,20 @@ public class JwtRestIT extends ESRestTestCase {
             );
             assertThat(exception.getResponse(), hasStatusCode(RestStatus.FORBIDDEN));
         } finally {
-            deleteRoleMapping(roleMapping);
+            deleteRoleMapping(roleMappingName);
         }
     }
 
     public void testFailureOnExpiredJwt() throws Exception {
         final String principal = randomPrincipal();
         { // Test with valid time
-            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, Instant.now());
+            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, List.of(), Instant.now());
             final TestSecurityClient client = getSecurityClient(jwt, Optional.empty());
             assertThat(client.authenticate(), hasEntry(User.Fields.USERNAME.getPreferredName(), principal));
         }
 
         { // Test with expired time
-            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, Instant.now().minus(12, ChronoUnit.HOURS));
+            final SignedJWT jwt = buildAndSignJwtForRealm1(principal, List.of(), Instant.now().minus(12, ChronoUnit.HOURS));
             TestSecurityClient client = getSecurityClient(jwt, Optional.empty());
 
             // This fails because the JWT is expired
@@ -160,43 +194,27 @@ public class JwtRestIT extends ESRestTestCase {
         }
     }
 
-    public void testFailureOnInvalidRsaSignature() throws Exception {
+    public void testFailureOnNonMatchingRsaSignature() throws Exception {
         final String originalPrincipal = randomPrincipal();
-        final SignedJWT originalJwt = buildAndSignJwtForRealm1(originalPrincipal, Instant.now());
+        final SignedJWT originalJwt = buildAndSignJwtForRealm1(originalPrincipal, List.of(), Instant.now());
         {
             // Test with valid signed JWT
             final TestSecurityClient client = getSecurityClient(originalJwt, Optional.empty());
             assertThat(client.authenticate(), hasEntry(User.Fields.USERNAME.getPreferredName(), originalPrincipal));
         }
 
-        final String alternatePrincipal = "not-" + originalPrincipal;
-        final SignedJWT alternateJwt = buildAndSignJwtForRealm1(alternatePrincipal, Instant.now());
         {
-            // Test with an alternate, valid signed JWT
-            final TestSecurityClient client = getSecurityClient(alternateJwt, Optional.empty());
-            assertThat(client.authenticate(), hasEntry(User.Fields.USERNAME.getPreferredName(), alternatePrincipal));
-        }
-
-        // Test that we get a failure if we combine the payload from JWT1 with the signature from JWT2
-        {
-            assertThat(
-                getSecurityClient(alternateJwt, Optional.empty()).authenticate(),
-                hasEntry(User.Fields.USERNAME.getPreferredName(), alternatePrincipal)
+            // Create a new JWT with the header + signature from the original JWT, but a falsified set of claim
+            final JWTClaimsSet falsifiedClaims = new JWTClaimsSet.Builder(originalJwt.getJWTClaimsSet()).claim("roles", "superuser")
+                .build();
+            final SignedJWT falsifiedJwt = new SignedJWT(
+                originalJwt.getHeader().toBase64URL(),
+                falsifiedClaims.toPayload().toBase64URL(),
+                originalJwt.getSignature()
             );
-
-            final Base64URL[] originalParts = SignedJWT.split(originalJwt.serialize());
-            assertThat(originalParts, arrayWithSize(3));
-
-            final Base64URL[] alternateParts = SignedJWT.split(alternateJwt.serialize());
-            assertThat(alternateParts, arrayWithSize(3));
-
-            assertThat("JWT Signatures should be different", originalParts[2], not(equalTo(alternateParts[2])));
-
-            // Create a new JWT with the header + payload from the original JWT, but a signature from the alternate JWT
-            final SignedJWT falsifiedJwt = new SignedJWT(originalParts[0], originalParts[1], alternateParts[2]);
             final TestSecurityClient client = getSecurityClient(falsifiedJwt, Optional.empty());
 
-            // This fails because the JWT is not correctly signed
+            // This fails because the JWT signature does not match the payload
             final ResponseException exception = expectThrows(ResponseException.class, client::authenticate);
             assertThat(exception.getResponse(), hasStatusCode(RestStatus.UNAUTHORIZED));
         }
@@ -241,9 +259,9 @@ public class JwtRestIT extends ESRestTestCase {
     public void testFailureOnInvalidHMACSignature() throws Exception {
         final String principal = randomPrincipal();
         final List<String> roles = randomRoles();
-        try {
-            createUser(principal, roles, Map.of());
+        createUser(principal, roles, Map.of());
 
+        try {
             final JWTClaimsSet claimsSet = buildJwtForRealm2(principal, Instant.now());
 
             {
@@ -313,15 +331,17 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     private SignedJWT buildAndSignJwtForRealm1(String principal) throws JOSEException, ParseException, IOException {
-        return buildAndSignJwtForRealm1(principal, Instant.now());
+        return buildAndSignJwtForRealm1(principal, List.of(), Instant.now());
     }
 
-    private SignedJWT buildAndSignJwtForRealm1(String principal, Instant issueTime) throws JOSEException, ParseException, IOException {
+    private SignedJWT buildAndSignJwtForRealm1(String principal, List<String> groups, Instant issueTime) throws JOSEException,
+        ParseException, IOException {
         final JWTClaimsSet claimsSet = buildJwt(
             Map.ofEntries(
                 Map.entry("iss", "https://issuer.example.com/"),
                 Map.entry("aud", "https://audience.example.com/"),
-                Map.entry("sub", principal)
+                Map.entry("sub", principal),
+                Map.entry("roles", groups) // Realm realm config has `claim.groups: "roles"`
             ),
             issueTime
         );
@@ -386,6 +406,9 @@ public class JwtRestIT extends ESRestTestCase {
 
         issueTime = issueTime.truncatedTo(ChronoUnit.SECONDS);
         builder.issueTime(Date.from(issueTime));
+        if (randomBoolean()) {
+            builder.claim("auth_time", Date.from(issueTime.minusSeconds(randomLongBetween(0, 1800))));
+        }
         builder.expirationTime(Date.from(issueTime.plusSeconds(randomLongBetween(180, 1800))));
         if (randomBoolean()) {
             builder.notBeforeTime(Date.from(issueTime.minusSeconds(randomLongBetween(10, 90))));
@@ -399,7 +422,11 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     private SignedJWT signJWt(JWSSigner signer, String algorithm, JWTClaimsSet claimsSet) throws JOSEException {
-        final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(algorithm)).build();
+        final JWSHeader.Builder builder = new JWSHeader.Builder(JWSAlgorithm.parse(algorithm));
+        if (randomBoolean()) {
+            builder.type(JOSEObjectType.JWT);
+        }
+        final JWSHeader jwtHeader = builder.build();
         final SignedJWT jwt = new SignedJWT(jwtHeader, claimsSet);
         jwt.sign(signer);
         return jwt;

@@ -150,7 +150,9 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             }
         }
 
-        ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder().putAllFromMap(indexToSettings).build();
+        ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder()
+            .putAllFromMap(indexToSettings)
+            .build();
         ImmutableOpenMap<String, Settings> defaultSettingsMap = ImmutableOpenMap.<String, Settings>builder()
             .putAllFromMap(indexToDefaultSettings)
             .build();

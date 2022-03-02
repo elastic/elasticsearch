@@ -91,17 +91,19 @@ Internally, {es} translates a vector tile search API request into a
 * A <<query-dsl-geo-bounding-box-query,`geo_bounding_box`>> query on the
 `<field>`. The query uses the `<zoom>/<x>/<y>` tile as a bounding box.
 
-* A <<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>>
-aggregation on the `<field>`. The aggregation uses the `<zoom>/<x>/<y>` tile as
-a bounding box.
+* A <<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>> or
+<<search-aggregations-bucket-geohexgrid-aggregation,`geohex_grid`>> aggregation
+on the `<field>`. The `grid_agg` parameter determines the aggregation type. The
+aggregation uses the `<zoom>/<x>/<y>` tile as a bounding box.
 
 * Optionally, a
 <<search-aggregations-metrics-geobounds-aggregation,`geo_bounds`>> aggregation
 on the `<field>`. The search only includes this aggregation if the
 `exact_bounds` parameter is `true`.
 
-For example, {es} may translate a vector tile search API request with an
-`exact_bounds` argument of `true` into the following search:
+For example, {es} may translate a vector tile search API request with a
+`grid_agg` argument of `geotile` and an `exact_bounds` argument of `true`
+into the following search:
 
 [source,console]
 ----
@@ -159,14 +161,13 @@ Protobufs (PBF)]. By default, the tile contains three layers:
 * A `hits` layer containing a feature for each `<field>` value matching the
 `geo_bounding_box` query.
 
-*  An `aggs` layer containing a feature for each cell of the `geotile_grid`. You
-can use these cells as tiles for lower zoom levels. The layer only contains
-features for cells with matching data.
+*  An `aggs` layer containing a feature for each cell of the `geotile_grid` or
+`geohex_grid`. The layer only contains features for cells with matching data.
 
 * A `meta` layer containing:
 ** A feature containing a bounding box. By default, this is the bounding box of
 the tile.
-** Value ranges for any sub-aggregations on the `geotile_grid`.
+** Value ranges for any sub-aggregations on the `geotile_grid` or `geohex_grid`.
 ** Metadata for the search.
 
 The API only returns features that can display at its zoom level. For example,
@@ -174,6 +175,7 @@ if a polygon feature has no area at its zoom level, the API omits it.
 
 The API returns errors as UTF-8 encoded JSON.
 
+[role="child_attributes"]
 [[search-vector-tile-api-query-params]]
 ==== {api-query-parms-title}
 
@@ -202,68 +204,87 @@ square with equal sides. Defaults to `4096`.
 
 // tag::grid-agg[]
 `grid_agg`::
-(Optional, string) Determines the GeoGridAggregation used to build the grid.
-Accepts:
+(Optional, string) Aggregation used to create a grid for the `<field>`.
++
+.Valid values for `grid_agg`
+[%collapsible%open]
+====
+`geotile` (Default)::
+<<search-aggregations-bucket-geotilegrid-aggregation,`geotile_grid`>>
+aggregation.
 
-`geotile` (Default):::
-Grid is constructed using a GeoTileGridAggregation.
-
-`geohex`:::
-Grid is constructed using a GeoHexGridAggregation. Note that GeoHexGridAggregation
-only supports running against geo_point field type.
+`geohex`::
+<<search-aggregations-bucket-geohexgrid-aggregation,`geohex_grid`>> aggregation.
+If you specify this value, the `<field>` must be a <<geo-point,`geo_point`>>
+field.
+====
 // end::grid-agg[]
 
 // tag::grid-precision[]
 `grid_precision`::
-(Optional, integer) It defines how many bins will be created on the grid
-layer at each zoom level which depends on the `grid_agg`.
-Accepts `0`-`8`. Defaults to `8`. If `0`, results don't include the
-`aggs` layer.
+(Optional, integer) Precision level for cells in the `grid_agg`. Accepts
+`0`-`8`. Defaults to `8`. If `0`, results don't include the `aggs` layer.
 +
-In case of a geotile aggregation, the grid precision represents the additional zoom levels
-available through the `aggs` layer. For example, if `<zoom>` is `7`
-and `grid_precision` is `8`, then getile aggregation will use precision 15.
-+
-The precision is computed by as follows:
-+
+.Grid precision for `geotile`
+[%collapsible%open]
+====
+For a `grid_agg` of `geotile`, you can use cells in the `aggs` layer as tiles
+for lower zoom levels. `grid_precision` represents the additional zoom levels
+available through these cells. The final precision is computed by as
+follows:
+
 `<zoom> + grid_precision`
-+
-With a maximum value of 29. This value determines the
-number of cells of the `geotile_grid` as follows:
-+
+
+For example, if `<zoom>` is `7` and `grid_precision` is `8`, then the
+`geotile_grid` aggregation will use a precision of `15`. The maximum final
+precision is `29`.
+
+The `grid_precision` also determines the number of cells for the grid as
+follows:
+
 `(2^grid_precision) x (2^grid_precision)`
-+
+
 For example, a value of `8` divides the tile into a grid of 256 x 256 cells. The
 `aggs` layer only contains features for cells with matching data.
+====
 +
-In case of a geohex aggregation, the grid precision translated to the
+.Grid precision for `geohex`
+[%collapsible%open]
+====
+For a `grid_agg` of `geohex`, `grid_precision` is used to calculate the
 https://h3geo.org/docs/core-library/restable[precision of the hexagonal cells].
-+
-The precision for the hex grid is computed as follows:
-+
-`(<zoom> + gridPrecision - 1) / 2`
-+
-where the minimum precision for a hexagonal bin is 2 and the maximum precision is 15.
-Note that hexagonal cells do not align perfectly on the vector tile so some cells might
-intersect more than one vector tile.
+This is computed as follows:
+
+`(<zoom> + grid_precision - 1) / 2`
+
+The minimum final precision is `2`. The maximum final precision is `15`.
+
+Hexagonal cells don't align perfectly on a vector tile. Some cells may intersect
+more than one vector tile.
+====
 // end::grid-precision[]
 
 // tag::grid-type[]
 `grid_type`::
 (Optional, string) Determines the geometry type for features in the `aggs`
-layer. In the `aggs` layer, each feature represents a `geotile_grid` cell.
-Accepts:
+layer. In the `aggs` layer, each feature represents a cell in the grid.
++
+.Valid values for `grid_type`
+[%collapsible%open]
+====
+`grid` (Default)::
+Each feature is a `Polygon` of the cell's geometry. For a `grid_agg` of
+`geotile`, the feature is the cell's bounding box. For a `grid_agg` of
+`geohex`, the feature is the hexagonal cell's boundaries.
 
-`grid` (Default):::
-Each feature is a `Polygon` of the cell's geometry that depends on the selected `grid_agg`.
-
-`point`:::
+`point`::
 Each feature is a `Point` that's the centroid of the cell.
 
-`centroid`:::
+`centroid`::
 Each feature is a `Point` that's the centroid of the data within the cell. For
 complex geometries, the actual centroid may be outside the cell. In these cases,
 the feature is set to the closest point to the centroid inside the cell.
+====
 // end::grid-type[]
 
 // tag::size[]
@@ -288,7 +309,7 @@ If `false`, the response does not include the total number of hits matching the 
 
 `aggs`::
 (Optional, <<search-aggregations,aggregation object>>)
-<<run-sub-aggs,Sub-aggregations>> for the `geotile_grid`. Supports the following
+<<run-sub-aggs,Sub-aggregations>> for the `grid_agg`. Supports the following
 aggregation types:
 +
 * <<search-aggregations-metrics-avg-aggregation,`avg`>>
@@ -325,6 +346,8 @@ You can specify fields in the array as a string or object.
 ====
 include::search.asciidoc[tag=fields-param-props]
 ====
+
+include::search-vector-tile-api.asciidoc[tag=grid-agg]
 
 include::search-vector-tile-api.asciidoc[tag=grid-precision]
 
@@ -430,7 +453,7 @@ Field value. Only returned for fields in the `fields` parameter.
 ====
 
 `aggs`::
-(object) Layer containing results for the `geotile_grid` aggregation and its
+(object) Layer containing results for the `grid_agg` aggregation and its
 sub-aggregations.
 +
 .Properties of `aggs`
@@ -441,8 +464,7 @@ include::search-vector-tile-api.asciidoc[tag=extent]
 include::search-vector-tile-api.asciidoc[tag=version]
 
 `features`::
-(array of objects) Array of features. Contains a feature for each cell of the
-`geotile_grid`.
+(array of objects) Array of features. Contains a feature for each cell of the grid.
 +
 .Properties of `features` objects
 [%collapsible%open]
@@ -615,6 +637,7 @@ the `13/4207/2692` vector tile.
 ----
 GET museums/_mvt/location/13/4207/2692
 {
+  "grid_agg": "geotile",
   "grid_precision": 2,
   "fields": [
     "name",

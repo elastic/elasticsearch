@@ -1,5 +1,5 @@
 pr: 84553
-summary: Integrate `GeoHexGridAggregation` with vector tiles API
+summary: Add `geohex_grid` aggregation to vector tiles API
 area: Geo
 type: enhancement
 issues: []

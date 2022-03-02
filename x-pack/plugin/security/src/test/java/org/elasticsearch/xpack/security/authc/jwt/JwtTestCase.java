@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -369,6 +370,7 @@ public abstract class JwtTestCase extends ESTestCase {
     }
 
     public static SignedJWT buildUnsignedJwt(
+        final String type,
         final String signatureAlgorithm,
         final String jwtId,
         final String issuer,
@@ -382,10 +384,14 @@ public abstract class JwtTestCase extends ESTestCase {
         final Date iat,
         final Date nbf,
         final Date exp,
-        final Nonce nonce,
+        final String nonce,
         final Map<String, Object> otherClaims
     ) {
-        final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(signatureAlgorithm)).build();
+        final JWSHeader.Builder jwsHeaderBuilder = new JWSHeader.Builder(JWSAlgorithm.parse(signatureAlgorithm));
+        if (type != null) {
+            jwsHeaderBuilder.type(new JOSEObjectType(type));
+        }
+        final JWSHeader jwtHeader = jwsHeaderBuilder.build();
         final JWTClaimsSet.Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder();
         if (jwtId != null) {
             jwtClaimsSetBuilder.jwtID(jwtId);
@@ -422,7 +428,7 @@ public abstract class JwtTestCase extends ESTestCase {
             jwtClaimsSetBuilder.expirationTime(exp);
         }
         if (nonce != null) {
-            jwtClaimsSetBuilder.claim("nonce", nonce.toString());
+            jwtClaimsSetBuilder.claim("nonce", nonce);
         }
         // Custom extra claims. Principal claim name could be "sub" or something else
         if (otherClaims != null) {
@@ -475,6 +481,7 @@ public abstract class JwtTestCase extends ESTestCase {
     public static SecureString randomJwt(final JWK jwk, final String signatureAlgorithm) throws Exception {
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
+            randomBoolean() ? null : JOSEObjectType.JWT.toString(),
             signatureAlgorithm, // alg
             randomAlphaOfLengthBetween(10, 20), // jwtID
             randomFrom("https://www.example.com/", "") + "iss1" + randomIntBetween(0, 99),
@@ -488,7 +495,7 @@ public abstract class JwtTestCase extends ESTestCase {
             Date.from(now), // iat
             Date.from(now.minusSeconds(randomLongBetween(5, 10))), // nbf
             Date.from(now.plusSeconds(randomLongBetween(3600, 7200))), // exp
-            randomBoolean() ? null : new Nonce(32),
+            randomBoolean() ? null : new Nonce(32).toString(),
             randomBoolean() ? null : Map.of("other1", randomAlphaOfLength(10), "other2", randomAlphaOfLength(10))
         );
         return JwtValidateUtil.signJwt(jwk, unsignedJwt);

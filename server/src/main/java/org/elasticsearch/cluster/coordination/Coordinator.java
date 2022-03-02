@@ -53,6 +53,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.ConfiguredHostsResolver;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -1168,8 +1169,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     reconfigurationTaskScheduled.set(false);
                     logger.debug("reconfiguration failed", e);
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            }, newExecutor());
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     // exposed for tests

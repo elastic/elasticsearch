@@ -60,6 +60,11 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected InternalHistogram createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final double base = round(randomInt(50) - 30);
         final int numBuckets = randomNumberOfBuckets();

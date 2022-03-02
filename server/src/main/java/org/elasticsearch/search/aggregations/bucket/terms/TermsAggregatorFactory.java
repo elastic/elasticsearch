@@ -12,6 +12,8 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -29,6 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.NumericTermsAggregator
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -289,6 +292,20 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
+        }
+        // If min_doc_count and shard_min_doc_count is provided, we do not support them being larger than 1
+        // This is because we cannot be sure about their relative scale when sampled
+        if (getSamplingContext().map(SamplingContext::isSampled).orElse(false)) {
+            if (bucketCountThresholds.getMinDocCount() > 1 || bucketCountThresholds.getShardMinDocCount() > 1) {
+                throw new ElasticsearchStatusException(
+                    "aggregation [{}] is within a sampling context; "
+                        + "min_doc_count, provided [{}], and min_shard_doc_count, provided [{}], cannot be greater than 1",
+                    RestStatus.BAD_REQUEST,
+                    name(),
+                    bucketCountThresholds.getMinDocCount(),
+                    bucketCountThresholds.getShardMinDocCount()
+                );
+            }
         }
         bucketCountThresholds.ensureValidity();
 

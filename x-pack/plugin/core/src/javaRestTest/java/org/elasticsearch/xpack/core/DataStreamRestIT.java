@@ -13,9 +13,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Map;
@@ -72,8 +71,7 @@ public class DataStreamRestIT extends ESRestTestCase {
             Response executeRepsonse = client().performRequest(new Request("GET", path));
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY,
                     EntityUtils.toByteArray(executeRepsonse.getEntity())
                 )
             ) {

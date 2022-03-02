@@ -95,7 +95,7 @@ public class HistogramGroupByIT extends ContinuousTestCase {
               "sort": ["metric"]
             }
             """;
-        Response searchResponseDest = search(NAME, destQuery, Map.of("allow_partial_search_results", "false", "size", "1000"));
+        Response searchResponseDest = search(NAME, destQuery, Map.of("allow_partial_search_results", "false", "size", "10000"));
 
         var buckets = (List<Map<String, Object>>) XContentMapValues.extractValue(
             "aggregations.metric.buckets",

@@ -352,7 +352,9 @@ public class PolicyStepsRegistry {
 
         // Return the step that matches the given stepKey or else null if we couldn't find it
         final Step s = phaseSteps.stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null);
-        cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
+        if (s != null) {
+            cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
+        }
         return s;
     }
 

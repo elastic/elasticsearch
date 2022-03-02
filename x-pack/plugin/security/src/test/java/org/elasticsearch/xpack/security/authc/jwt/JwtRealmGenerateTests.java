@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
+import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
@@ -34,7 +36,9 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -128,7 +132,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
 
         // Verify authc+authz, then print all artifacts
         super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
-        this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
+        this.printArtifacts(jwtIssuer, config, clientSecret, jwt, OutputStyle.BUILD_GRADLE);
     }
 
     /**
@@ -137,7 +141,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
      */
     public void testCreateJwtIntegrationTestRealm1() throws Exception {
         // Create RSA key for algorithm RS256
-        final JwtIssuer.AlgJwkPair algJwkPairPkc = new JwtIssuer.AlgJwkPair("RS256", JwtTestCase.randomJwk("RS256"));
+        final JWK jwk = new RSAKey.Builder((RSAKey) JwtTestCase.randomJwk("RS256")).keyID("test-rsa-key").build();
+        final JwtIssuer.AlgJwkPair algJwkPairPkc = new JwtIssuer.AlgJwkPair("RS256", jwk);
 
         // Create issuer
         final JwtIssuer jwtIssuer = new JwtIssuer(
@@ -201,7 +206,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
 
         // Verify authc+authz, then print all artifacts
         super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, null, JWT_AUTHC_RANGE_1);
-        this.printArtifacts(jwtIssuer, config, null, jwt);
+        this.printArtifacts(jwtIssuer, config, null, jwt, OutputStyle.BUILD_GRADLE);
     }
 
     /**
@@ -294,19 +299,108 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
 
         // Verify authc+authz, then print all artifacts
         super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
-        this.printArtifacts(jwtIssuer, config, clientSecret, jwt);
+        this.printArtifacts(jwtIssuer, config, clientSecret, jwt, OutputStyle.BUILD_GRADLE);
+    }
+
+    /**
+     * Generate [jwt3] for [x-pack/plugin/security/qa/jwt-realm/build.gradle].
+     * @throws Exception Error if something goes wrong.
+     */
+    public void testCreateJwtIntegrationTestRealm3() throws Exception {
+        // Create HMAC keys
+        final List<JwtIssuer.AlgJwkPair> hmacKeys = List.of(
+            new JwtIssuer.AlgJwkPair("HS384", new OctetSequenceKey.Builder(randomByteArrayOfLength(48)).keyID("test-hmac-384").build()),
+            new JwtIssuer.AlgJwkPair("HS512", new OctetSequenceKey.Builder(randomByteArrayOfLength(64)).keyID("test-hmac-512").build())
+        );
+        var selectedHmac = randomFrom(hmacKeys);
+
+        // Create issuer
+        final JwtIssuer jwtIssuer = new JwtIssuer(
+            "jwt3-issuer", // iss
+            List.of("jwt3-audience"), // aud
+            Collections.emptyList(), // algJwkPairsPkc
+            hmacKeys, // algJwkPairsHmac
+            null, // algJwkPairHmac
+            Collections.singletonMap("user3", new User("user3", "role3")) // users
+        );
+
+        // Create realm settings
+        final String realmName = "jwt3";
+        final Settings.Builder configBuilder = Settings.builder()
+            .put(this.globalSettings)
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_ISSUER), jwtIssuer.issuer)
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES), jwtIssuer.audiencesCsv())
+            .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), "sub")
+            .put(
+                RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
+                hmacKeys.stream().map(p -> p.alg()).collect(Collectors.joining(","))
+            )
+            .put(
+                RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
+                JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE_SHARED_SECRET
+            );
+
+        // Create realm secure settings
+        final SecureString clientSecret = new SecureString("test-secret".toCharArray());
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(
+            RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HMAC_JWKSET),
+            jwtIssuer.getJwkSetHmac().toString(false)
+        );
+        secureSettings.setString(
+            RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET),
+            clientSecret.toString()
+        );
+        configBuilder.setSecureSettings(secureSettings);
+
+        // Create realm
+        final RealmConfig config = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, configBuilder.build(), 4);
+        final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(configBuilder.build()));
+        final UserRoleMapper userRoleMapper = super.buildRoleMapper(jwtIssuer.users);
+        final JwtRealm jwtRealm = new JwtRealm(config, sslService, userRoleMapper);
+        jwtRealm.initialize(List.of(jwtRealm), super.licenseState);
+        final JwtIssuerAndRealm jwtIssuerAndRealm = new JwtIssuerAndRealm(jwtIssuer, jwtRealm);
+        super.jwtIssuerAndRealms = Collections.singletonList(jwtIssuerAndRealm); // super.shutdown() closes issuer+realm if necessary
+
+        // Create JWT
+        final User user = this.randomUser(jwtIssuerAndRealm.issuer());
+        final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(
+            JOSEObjectType.JWT.toString(),
+            selectedHmac.alg(), // alg
+            null, // jwtID
+            jwtIssuerAndRealm.realm().allowedIssuer, // iss
+            jwtIssuerAndRealm.realm().allowedAudiences, // aud
+            user.principal(), // sub
+            jwtIssuerAndRealm.realm().claimParserPrincipal.getClaimName(), // principal claim name
+            randomFrom(jwtIssuer.users.keySet()), // principal claim value
+            jwtIssuerAndRealm.realm().claimParserGroups.getClaimName(), // group claim name
+            null, // group claim value
+            null, // auth_time
+            DATE_2000_1_1, // iat
+            null, // nbf
+            DATE_2099_1_1, // exp
+            null, // nonce
+            Collections.emptyMap() // other claims
+        );
+        final SecureString jwt = JwtValidateUtil.signJwt(selectedHmac.jwk(), unsignedJwt);
+        assertThat(JwtValidateUtil.verifyJwt(selectedHmac.jwk(), SignedJWT.parse(jwt.toString())), is(equalTo(true)));
+
+        // Verify authc+authz, then print all artifacts
+        super.multipleRealmsAuthenticateJwtHelper(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, JWT_AUTHC_RANGE_1);
+        this.printArtifacts(jwtIssuer, config, clientSecret, jwt, OutputStyle.BUILD_GRADLE);
     }
 
     private void printArtifacts(
         final JwtIssuer jwtIssuer,
         final RealmConfig config,
         final SecureString clientSecret,
-        final SecureString jwt
+        final SecureString jwt,
+        final OutputStyle style
     ) throws Exception {
         final SignedJWT signedJwt = SignedJWT.parse(jwt.toString());
         LOGGER.info(
             JwtRealmGenerateTests.printIssuerSettings(jwtIssuer)
-                + JwtRealmGenerateTests.printRealmSettings(config)
+                + JwtRealmGenerateTests.printRealmSettings(config, style)
                 + "\n===\nRequest Headers\n===\n"
                 + (Strings.hasText(clientSecret) ? JwtRealm.HEADER_CLIENT_AUTHENTICATION + ": " + clientSecret + "\n" : "")
                 + JwtRealm.HEADER_END_USER_AUTHENTICATION
@@ -340,15 +434,18 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         return sb.toString();
     }
 
-    private static String printRealmSettings(final RealmConfig config) {
-        final StringBuilder sb = new StringBuilder("\n===\nRealm settings: elasticsearch.yml\n===\n");
+    private static String printRealmSettings(final RealmConfig config, OutputStyle style) {
+        final StringBuilder sb = new StringBuilder().append("\n===\nRealm settings: ").append(style.fileName()).append("\n===\n");
         int numRegularSettings = 0;
         for (final Setting.AffixSetting<?> setting : JwtRealmSettings.getSettings()) {
             final String key = RealmSettings.getFullSettingKey(config, setting);
             if (key.startsWith("xpack.") && config.hasSetting(setting)) {
                 final Object settingValue = config.getSetting(setting);
                 if (settingValue instanceof SecureString == false) {
-                    sb.append(key).append(": ").append(settingValue).append('\n');
+                    switch (style) {
+                        case ELASTICSEARCH_YML -> sb.append(key).append(": ").append(settingValue).append('\n');
+                        case BUILD_GRADLE -> sb.append("setting '").append(key).append("', '").append(settingValue).append("'\n");
+                    }
                     numRegularSettings++;
                 }
             }
@@ -380,7 +477,11 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             if (key.startsWith("xpack.") && config.hasSetting(setting)) {
                 final Object settingValue = config.getSetting(setting);
                 if (settingValue instanceof SecureString) {
-                    sb.append(key).append(": ").append(settingValue).append('\n');
+                    switch (style) {
+                        case ELASTICSEARCH_YML ->
+                            sb.append(key).append(": ").append(settingValue).append('\n');
+                        case BUILD_GRADLE -> sb.append("keystore '").append(key).append("', '").append(settingValue).append("'\n");
+                    }
                     numSecureSettings++;
                 }
             }
@@ -389,5 +490,13 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             sb.append("Not found.\n");
         }
         return sb.toString();
+    }
+
+    enum OutputStyle {
+        ELASTICSEARCH_YML, BUILD_GRADLE;
+
+        public String fileName() {
+            return name().toLowerCase(Locale.ROOT).replace('_', '.');
+        }
     }
 }

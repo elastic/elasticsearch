@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.test.TestMatchers.hasStatusCode;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
@@ -225,7 +226,7 @@ public class JwtRestIT extends ESRestTestCase {
      * This realm
      * - use the "email" claim as the principal (with the domain removed)
      * - performs lookup on the native realm
-     * - supports HMAC signed keys
+     * - supports HMAC signed keys (using a OIDC style passphrase)
      * - uses a shared-secret for client authentication
      */
     public void testAuthenticateWithHmacSignedJWTAndDelegatedAuthorization() throws Exception {
@@ -320,6 +321,29 @@ public class JwtRestIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * Tests against realm "jwt3" in build.gradle
+     * This realm
+     * - use the "sub" claim as the principal
+     * - uses role mapping
+     * - supports HMAC signed keys(using a JWKSet)
+     * - uses a shared-secret for client authentication
+     */
+    public void testAuthenticateWithHmacSignedJWTAndMissingRoleMapping() throws Exception {
+        final String principal = randomPrincipal();
+        final SignedJWT jwt = buildAndSignJwtForRealm3(principal);
+        final TestSecurityClient client = getSecurityClient(jwt, VALID_SHARED_SECRET);
+
+        final Map<String, Object> response = client.authenticate();
+
+        assertThat(response.get(User.Fields.USERNAME.getPreferredName()), is(principal));
+        assertThat(assertMap(response, User.Fields.AUTHENTICATION_REALM), hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt3"));
+        assertThat(assertList(response, User.Fields.ROLES), empty());
+        assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_claim_sub", principal));
+        assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_claim_aud", List.of("jwt3-audience")));
+        assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_claim_iss", "jwt3-issuer"));
+    }
+
     private String randomPrincipal() {
         // We append _test so that it cannot randomly conflict with builtin user
         return randomAlphaOfLengthBetween(4, 12) + "_test";
@@ -328,10 +352,6 @@ public class JwtRestIT extends ESRestTestCase {
     private List<String> randomRoles() {
         // We append _test so that it cannot randomly conflict with builtin roles
         return randomList(1, 3, () -> randomAlphaOfLengthBetween(4, 12) + "_test");
-    }
-
-    private SignedJWT buildAndSignJwtForRealm1(String principal) throws JOSEException, ParseException, IOException {
-        return buildAndSignJwtForRealm1(principal, List.of(), Instant.now());
     }
 
     private SignedJWT buildAndSignJwtForRealm1(String principal, List<String> groups, Instant issueTime) throws JOSEException,
@@ -345,7 +365,7 @@ public class JwtRestIT extends ESRestTestCase {
             ),
             issueTime
         );
-        return signRsaJwt(claimsSet);
+        return signJwtForRealm1(claimsSet);
     }
 
     private SignedJWT buildAndSignJwtForRealm2(String principal) throws JOSEException, ParseException {
@@ -354,7 +374,7 @@ public class JwtRestIT extends ESRestTestCase {
 
     private SignedJWT buildAndSignJwtForRealm2(String principal, Instant issueTime) throws JOSEException, ParseException {
         final JWTClaimsSet claimsSet = buildJwtForRealm2(principal, issueTime);
-        return signHmacJwt(claimsSet);
+        return signJwtForRealm2(claimsSet);
     }
 
     private JWTClaimsSet buildJwtForRealm2(String principal, Instant issueTime) {
@@ -368,9 +388,32 @@ public class JwtRestIT extends ESRestTestCase {
         return claimsSet;
     }
 
-    private SignedJWT signRsaJwt(JWTClaimsSet claimsSet) throws IOException, JOSEException, ParseException {
+    private SignedJWT buildAndSignJwtForRealm3(String principal) throws Exception {
+        return buildAndSignJwtForRealm3(principal, Instant.now());
+    }
+
+    private SignedJWT buildAndSignJwtForRealm3(String principal, Instant issueTime) throws Exception {
+        final JWTClaimsSet claimsSet = buildJwt(
+            Map.ofEntries(Map.entry("iss", "jwt3-issuer"), Map.entry("aud", "jwt3-audience"), Map.entry("sub", principal)),
+            issueTime
+        );
+        return signJwtForRealm3(claimsSet);
+    }
+
+    private SignedJWT signJwtForRealm1(JWTClaimsSet claimsSet) throws IOException, JOSEException, ParseException {
         final RSASSASigner signer = loadRsaSigner();
-        return signJWt(signer, "RS256", claimsSet);
+        return signJWT(signer, "RS256", claimsSet);
+    }
+
+    private SignedJWT signJwtForRealm2(JWTClaimsSet claimsSet) throws JOSEException, ParseException {
+        // Input string is configured in build.gradle
+        return signHmacJwt(claimsSet, "test-HMAC/secret passphrase-value");
+    }
+
+    private SignedJWT signJwtForRealm3(JWTClaimsSet claimsSet) throws JOSEException, ParseException, IOException {
+        final int bitSize = randomFrom(384, 512);
+        final MACSigner signer = loadHmacSigner("test-hmac-" + bitSize);
+        return signJWT(signer, "HS" + bitSize, claimsSet);
     }
 
     private RSASSASigner loadRsaSigner() throws IOException, ParseException, JOSEException {
@@ -383,15 +426,20 @@ public class JwtRestIT extends ESRestTestCase {
         }
     }
 
-    private SignedJWT signHmacJwt(JWTClaimsSet claimsSet) throws JOSEException, ParseException {
-        // Input string is configured in build.gradle
-        return signHmacJwt(claimsSet, "test-HMAC/secret passphrase-value");
+    private MACSigner loadHmacSigner(String keyId) throws IOException, ParseException, JOSEException {
+        // The "jwt3" realm is configured using secret JWKSet (in build.gradle)
+        try (var in = getDataInputStream("/jwk/hmac-jwkset.json")) {
+            final JWKSet jwkSet = JWKSet.load(in);
+            final JWK key = jwkSet.getKeyByKeyId(keyId);
+            assertThat("Key [" + keyId + "] from [" + jwkSet.getKeys() + "]", key, instanceOf(OctetSequenceKey.class));
+            return new MACSigner((OctetSequenceKey) key);
+        }
     }
 
-    private SignedJWT signHmacJwt(JWTClaimsSet claimsSet, String hmacPassphrase) throws JOSEException, ParseException {
+    private SignedJWT signHmacJwt(JWTClaimsSet claimsSet, String hmacPassphrase) throws JOSEException {
         final OctetSequenceKey hmac = JwkValidateUtil.buildHmacKeyFromString(hmacPassphrase);
         final JWSSigner signer = new MACSigner(hmac);
-        return signJWt(signer, "HS256", claimsSet);
+        return signJWT(signer, "HS256", claimsSet);
     }
 
     // JWT construction
@@ -421,7 +469,7 @@ public class JwtRestIT extends ESRestTestCase {
         return builder.build();
     }
 
-    private SignedJWT signJWt(JWSSigner signer, String algorithm, JWTClaimsSet claimsSet) throws JOSEException {
+    private SignedJWT signJWT(JWSSigner signer, String algorithm, JWTClaimsSet claimsSet) throws JOSEException {
         final JWSHeader.Builder builder = new JWSHeader.Builder(JWSAlgorithm.parse(algorithm));
         if (randomBoolean()) {
             builder.type(JOSEObjectType.JWT);

@@ -90,7 +90,7 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
 
     @Override
     public boolean containsValue(Object value) {
-        for (ObjectCursor cursor : map.values()) {
+        for (ObjectCursor<VType> cursor : map.values()) {
             if (Objects.equals(cursor.value, value)) {
                 return true;
             }

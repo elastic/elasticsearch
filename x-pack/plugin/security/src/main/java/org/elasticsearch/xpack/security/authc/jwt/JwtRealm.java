@@ -98,6 +98,20 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.clientAuthenticationSharedSecret
         );
 
+        if (config.hasSetting(JwtRealmSettings.HMAC_KEY) == false
+            && config.hasSetting(JwtRealmSettings.HMAC_JWKSET) == false
+            && config.hasSetting(JwtRealmSettings.PKC_JWKSET_PATH) == false) {
+            throw new SettingsException(
+                "At least one of ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.HMAC_KEY)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.HMAC_JWKSET)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.PKC_JWKSET_PATH)
+                    + "] must be set"
+            );
+        }
+
         // PKC JWKSet can be URL, file, or not set; only initialize HTTP client if PKC JWKSet is a URL.
         this.jwkSetPath = super.config.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
         if (Strings.hasText(this.jwkSetPath)) {

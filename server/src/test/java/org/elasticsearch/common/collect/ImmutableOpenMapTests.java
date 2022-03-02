@@ -252,7 +252,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertFalse(map.containsKey(2));
         assertFalse(map.entrySet().contains(entry(2, null)));
     }
-    
+
     public void testContainsValue() {
         assertTrue(countryPopulations.containsValue(37_846_611));
     }

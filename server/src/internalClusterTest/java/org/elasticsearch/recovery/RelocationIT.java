@@ -9,7 +9,7 @@
 package org.elasticsearch.recovery;
 
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;

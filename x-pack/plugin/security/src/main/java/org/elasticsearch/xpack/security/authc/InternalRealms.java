@@ -15,11 +15,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,6 +67,7 @@ public final class InternalRealms {
     static final String PKI_TYPE = PkiRealmSettings.TYPE;
     static final String SAML_TYPE = SamlRealmSettings.TYPE;
     static final String OIDC_TYPE = OpenIdConnectRealmSettings.TYPE;
+    static final String JWT_TYPE = JwtRealmSettings.TYPE;
     static final String KERBEROS_TYPE = KerberosRealmSettings.TYPE;
 
     private static final Set<String> BUILTIN_TYPES = Set.of(NATIVE_TYPE, FILE_TYPE);
@@ -70,14 +75,20 @@ public final class InternalRealms {
     /**
      * The map of all <em>licensed</em> internal realm types to their licensed feature
      */
-    private static final Map<String, LicensedFeature.Persistent> LICENSED_REALMS = Map.ofEntries(
-        Map.entry(AD_TYPE, Security.AD_REALM_FEATURE),
-        Map.entry(LDAP_TYPE, Security.LDAP_REALM_FEATURE),
-        Map.entry(PKI_TYPE, Security.PKI_REALM_FEATURE),
-        Map.entry(SAML_TYPE, Security.SAML_REALM_FEATURE),
-        Map.entry(KERBEROS_TYPE, Security.KERBEROS_REALM_FEATURE),
-        Map.entry(OIDC_TYPE, Security.OIDC_REALM_FEATURE)
-    );
+    private static final Map<String, LicensedFeature.Persistent> LICENSED_REALMS;
+    static {
+        Map<String, LicensedFeature.Persistent> realms = new HashMap<>();
+        realms.put(AD_TYPE, Security.AD_REALM_FEATURE);
+        realms.put(LDAP_TYPE, Security.LDAP_REALM_FEATURE);
+        realms.put(PKI_TYPE, Security.PKI_REALM_FEATURE);
+        realms.put(SAML_TYPE, Security.SAML_REALM_FEATURE);
+        realms.put(KERBEROS_TYPE, Security.KERBEROS_REALM_FEATURE);
+        realms.put(OIDC_TYPE, Security.OIDC_REALM_FEATURE);
+        if (XPackSettings.JWT_REALM_FEATURE_FLAG_ENABLED) {
+            realms.put(JWT_TYPE, Security.JWT_REALM_FEATURE);
+        }
+        LICENSED_REALMS = Map.copyOf(realms);
+    }
 
     /**
      * The set of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}
@@ -158,7 +169,10 @@ public final class InternalRealms {
             config -> new KerberosRealm(config, nativeRoleMappingStore, threadPool),
             // OpenID Connect realm
             OpenIdConnectRealmSettings.TYPE,
-            config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService)
+            config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService),
+            // JWT realm
+            JwtRealmSettings.TYPE,
+            config -> new JwtRealm(config, sslService, nativeRoleMappingStore)
         );
     }
 

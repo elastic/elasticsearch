@@ -362,14 +362,14 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
         }
 
         /**
-         * Initializes a new empty index, as as a result of opening a closed index.
+         * Initializes a new empty index, as a result of opening a closed index.
          */
         public Builder initializeAsFromCloseToOpen(IndexMetadata indexMetadata) {
             return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null));
         }
 
         /**
-         * Initializes a new empty index, as as a result of closing an opened index.
+         * Initializes a new empty index, as a result of closing an opened index.
          */
         public Builder initializeAsFromOpenToClose(IndexMetadata indexMetadata) {
             return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, null));

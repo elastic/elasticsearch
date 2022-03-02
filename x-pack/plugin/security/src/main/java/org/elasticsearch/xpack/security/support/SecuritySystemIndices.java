@@ -44,7 +44,7 @@ public class SecuritySystemIndices {
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
     private final SystemIndexDescriptor mainDescriptor;
     private final SystemIndexDescriptor tokenDescriptor;
@@ -848,10 +848,6 @@ public class SecuritySystemIndices {
                                     builder.endObject();
 
                                     builder.startObject("full_name");
-                                    builder.field("type", "search_as_you_type");
-                                    builder.endObject();
-
-                                    builder.startObject("display_name");
                                     builder.field("type", "search_as_you_type");
                                     builder.endObject();
 

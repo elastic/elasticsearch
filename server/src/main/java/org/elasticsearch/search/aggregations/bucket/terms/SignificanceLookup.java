@@ -32,6 +32,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 
@@ -60,19 +61,29 @@ class SignificanceLookup {
     private final int supersetNumDocs;
     private TermsEnum termsEnum;
 
-    SignificanceLookup(AggregationContext context, MappedFieldType fieldType, DocValueFormat format, QueryBuilder backgroundFilter)
-        throws IOException {
+    SignificanceLookup(
+        AggregationContext context,
+        SamplingContext samplingContext,
+        MappedFieldType fieldType,
+        DocValueFormat format,
+        QueryBuilder backgroundFilter
+    ) throws IOException {
         this.context = context;
         this.fieldType = fieldType;
         this.format = format;
-        this.backgroundFilter = backgroundFilter == null ? null : context.buildQuery(backgroundFilter);
+        // If there is no provided background filter, but we are within a sampling context, our background docs need to take the sampling
+        // context into account.
+        // If there is a filter, that filter needs to take the sampling into account (if we are within a sampling context)
+        this.backgroundFilter = backgroundFilter == null
+            ? samplingContext.buildSamplingQueryIfNecessary(context).orElse(null)
+            : samplingContext.buildQueryWithSampler(backgroundFilter, context);
         /*
          * We need to use a superset size that includes deleted docs or we
          * could end up blowing up with bad statistics that cause us to blow
          * up later on.
          */
         IndexSearcher searcher = context.searcher();
-        supersetNumDocs = backgroundFilter == null ? searcher.getIndexReader().maxDoc() : searcher.count(this.backgroundFilter);
+        supersetNumDocs = this.backgroundFilter == null ? searcher.getIndexReader().maxDoc() : searcher.count(this.backgroundFilter);
     }
 
     /**
@@ -193,6 +204,7 @@ class SignificanceLookup {
     }
 
     private long getBackgroundFrequency(Query query) throws IOException {
+        // Note that `getTermsEnum` takes into account the backgroundFilter, with already has the sampling query applied
         if (query instanceof TermQuery) {
             // for types that use the inverted index, we prefer using a terms
             // enum that will do a better job at reusing index inputs

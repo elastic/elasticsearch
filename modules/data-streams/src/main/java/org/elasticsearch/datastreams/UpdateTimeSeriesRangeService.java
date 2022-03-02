@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -78,10 +79,15 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                     onComplete.run();
                 }
 
-            }, ClusterStateTaskExecutor.unbatched());
+            }, newExecutor());
         } else {
             LOGGER.debug("not starting tsdb update task, because another execution is still running");
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     void setPollInterval(TimeValue newValue) {

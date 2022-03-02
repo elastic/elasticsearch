@@ -113,6 +113,11 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new SignificantTextAggregationBuilder(this, factoriesBuilder, metadata);
     }

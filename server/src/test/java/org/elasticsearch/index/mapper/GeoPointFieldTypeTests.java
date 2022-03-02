@@ -8,7 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SimpleFeatureFactory;
 import org.elasticsearch.script.ScriptCompiler;
@@ -23,7 +24,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         boolean ignoreMalformed = randomBoolean();
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, ignoreMalformed).build(
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, ignoreMalformed, Version.CURRENT).build(
             MapperBuilderContext.ROOT
         ).fieldType();
 
@@ -73,8 +74,9 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchVectorTile() throws IOException {
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false).build(MapperBuilderContext.ROOT)
-            .fieldType();
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false, Version.CURRENT).build(
+            MapperBuilderContext.ROOT
+        ).fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);

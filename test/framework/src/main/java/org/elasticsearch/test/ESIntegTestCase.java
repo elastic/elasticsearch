@@ -16,7 +16,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -2202,7 +2202,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // need to check that there are no more in-flight search contexts before
         // we remove indices
         if (isInternalCluster()) {
-            internalCluster().setBootstrapMasterNodeIndex(-1);
+            internalCluster().setBootstrapMasterNodeIndex(InternalTestCluster.BOOTSTRAP_MASTER_NODE_INDEX_AUTO);
         }
         super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {

@@ -349,9 +349,9 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testCanAccessAcrossDomain() {
-        RealmRef authRealmRef = randomRealmRef(randomBoolean());
-        User authUser = randomUser();
-        Authentication realmAuthentication = Authentication.newRealmAuthentication(authUser, authRealmRef);
+        RealmRef accessRealmRef = randomRealmRef(true);
+        User accessUser = randomUser();
+        Authentication accessAuthentication = Authentication.newRealmAuthentication(accessUser, accessRealmRef);
 
         RealmDomain otherDomain = randomDomain(randomBoolean());
         RealmConfig.RealmIdentifier otherRealmIdentifier = randomFrom(otherDomain.realms());
@@ -362,26 +362,40 @@ public class AuthenticationTests extends ESTestCase {
             otherDomain
         );
 
-        // same user
-        Authentication otherRealmAuthentication = Authentication.newRealmAuthentication(authUser, otherRealmRef);
-        if ((authRealmRef.getDomain().realms().contains(otherRealmIdentifier))
+        // same user other realm
+        Authentication otherRealmAuthentication = Authentication.newRealmAuthentication(accessUser, otherRealmRef);
+        Authentication otherRealmRunAsAuthentication = Authentication.newRealmAuthentication(randomUser(), randomRealmRef(randomBoolean()))
+            .runAs(accessUser, otherRealmRef);
+        if ((accessRealmRef.getDomain().realms().contains(otherRealmIdentifier))
             || (otherRealmIdentifier.getType().equals(FileRealmSettings.TYPE)
-                && authRealmRef.getDomain().realms().stream().anyMatch(r -> FileRealmSettings.TYPE.equals(r.getType())))
+                && accessRealmRef.getDomain().realms().stream().anyMatch(r -> FileRealmSettings.TYPE.equals(r.getType())))
             || (otherRealmIdentifier.getType().equals(NativeRealmSettings.TYPE)
-                && authRealmRef.getDomain().realms().stream().anyMatch(r -> NativeRealmSettings.TYPE.equals(r.getType())))) {
-            assertThat(realmAuthentication.canAccessResourcesOf(otherRealmAuthentication), is(true));
+                && accessRealmRef.getDomain().realms().stream().anyMatch(r -> NativeRealmSettings.TYPE.equals(r.getType())))) {
+            assertThat(accessAuthentication.canAccessResourcesOf(otherRealmAuthentication), is(true));
+            assertThat(accessAuthentication.canAccessResourcesOf(otherRealmAuthentication.token()), is(true));
+            assertThat(accessAuthentication.canAccessResourcesOf(otherRealmRunAsAuthentication), is(true));
+            assertThat(accessAuthentication.canAccessResourcesOf(otherRealmRunAsAuthentication.token()), is(true));
         } else {
-            assertThat(realmAuthentication.canAccessResourcesOf(otherRealmAuthentication), is(false));
+            assertThat(accessAuthentication.canAccessResourcesOf(otherRealmAuthentication), is(false));
+            assertThat(accessAuthentication.canAccessResourcesOf(otherRealmAuthentication.token()), is(false));
+            assertThat(accessAuthentication.canAccessResourcesOf(otherRealmRunAsAuthentication), is(false));
+            assertThat(accessAuthentication.canAccessResourcesOf(otherRealmRunAsAuthentication.token()), is(false));
         }
         // different user
-        Authentication otherUserAuthentication = Authentication.newRealmAuthentication(
-            new User(
-                randomValueOtherThan(authUser.principal(), () -> randomAlphaOfLengthBetween(3, 8)),
-                randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))
-            ),
-            randomFrom(otherRealmRef, authRealmRef)
+        User differentUsername = new User(
+            randomValueOtherThan(accessUser.principal(), () -> randomAlphaOfLengthBetween(3, 8)),
+            randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))
         );
-        assertThat(realmAuthentication.canAccessResourcesOf(otherUserAuthentication), is(false));
+        Authentication otherUserAuthentication = Authentication.newRealmAuthentication(
+            differentUsername,
+            randomFrom(otherRealmRef, accessRealmRef)
+        );
+        assertThat(accessAuthentication.canAccessResourcesOf(otherUserAuthentication), is(false));
+        assertThat(accessAuthentication.canAccessResourcesOf(otherUserAuthentication.token()), is(false));
+        // different user when run-as
+        Authentication otherRunasAuthentication = accessAuthentication.runAs(differentUsername, randomFrom(otherRealmRef, accessRealmRef));
+        assertThat(accessAuthentication.canAccessResourcesOf(otherRunasAuthentication), is(false));
+        assertThat(accessAuthentication.canAccessResourcesOf(otherRunasAuthentication.token()), is(false));
 
         // authn API Key run-as
         User runAsUser = randomUser();
@@ -397,8 +411,10 @@ public class AuthenticationTests extends ESTestCase {
             || (otherRealmIdentifier.getType().equals(NativeRealmSettings.TYPE)
                 && runAsRealmRef.getDomain().realms().stream().anyMatch(r -> NativeRealmSettings.TYPE.equals(r.getType())))) {
             assertThat(runAsAuthentication.canAccessResourcesOf(otherRealmAuthentication), is(true));
+            assertThat(runAsAuthentication.canAccessResourcesOf(otherRealmAuthentication.token()), is(true));
         } else {
             assertThat(runAsAuthentication.canAccessResourcesOf(otherRealmAuthentication), is(false));
+            assertThat(runAsAuthentication.canAccessResourcesOf(otherRealmAuthentication.token()), is(false));
         }
     }
 

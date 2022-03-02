@@ -241,10 +241,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testIntMapContainsValue() {
-        ImmutableOpenIntMap<String> map = ImmutableOpenIntMap.<String>builder()
-            .fPut(1, "foo")
-            .fPut(2, "bar")
-            .build();
+        ImmutableOpenIntMap<String> map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").fPut(2, "bar").build();
         assertTrue(map.containsValue("bar"));
     }
 

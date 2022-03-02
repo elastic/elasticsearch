@@ -201,7 +201,7 @@ public class ProfileIT extends ESRestTestCase {
     private void doSetEnabled(String uid, boolean enabled) throws IOException {
         final Request setEnabledRequest = new Request(
             randomFrom("PUT", "POST"),
-            "_security/profile/_" + (enabled ? "enable" : "disable") + "/" + uid
+            "_security/profile/" + uid + "/_" + (enabled ? "enable" : "disable")
         );
         adminClient().performRequest(setEnabledRequest);
     }

@@ -31,8 +31,8 @@ public class RestEnableProfileAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(POST, "/_security/profile/_enable/{uid}").build(),
-            Route.builder(PUT, "/_security/profile/_enable/{uid}").build()
+            Route.builder(POST, "/_security/profile/{uid}/_enable").build(),
+            Route.builder(PUT, "/_security/profile/{uid}/_enable").build()
         );
     }
 

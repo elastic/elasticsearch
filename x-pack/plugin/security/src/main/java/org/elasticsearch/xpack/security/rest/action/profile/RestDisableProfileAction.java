@@ -31,8 +31,8 @@ public class RestDisableProfileAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(POST, "/_security/profile/_disable/{uid}").build(),
-            Route.builder(PUT, "/_security/profile/_disable/{uid}").build()
+            Route.builder(POST, "/_security/profile/{uid}/_disable").build(),
+            Route.builder(PUT, "/_security/profile/{uid}/_disable").build()
         );
     }
 

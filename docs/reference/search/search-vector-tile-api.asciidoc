@@ -200,19 +200,52 @@ larger than the vector tile.
 square with equal sides. Defaults to `4096`.
 // end::extent-param[]
 
+// tag::grid-agg[]
+`grid_agg`::
+(Optional, string) Determines the GeoGridAggregation used to build the grid.
+Accepts:
+
+`geotile` (Default):::
+Grid is constructed using a GeoTileGridAggregation.
+
+`geohex`:::
+Grid is constructed using a GeoHexGridAggregation. Note that GeoHexGridAggregation
+only supports running against geo_point field type.
+// end::grid-agg[]
+
 // tag::grid-precision[]
 `grid_precision`::
-(Optional, integer) Additional zoom levels available through the `aggs` layer.
-For example, if `<zoom>` is `7` and `grid_precision` is `8`, you can zoom in up to
-level 15. Accepts `0`-`8`. Defaults to `8`. If `0`, results don't include the
+(Optional, integer) It defines how many bins will be created on the grid
+layer at each zoom level which depends on the `grid_agg`.
+Accepts `0`-`8`. Defaults to `8`. If `0`, results don't include the
 `aggs` layer.
 +
-This value determines the grid size of the `geotile_grid` as follows:
+In case of a geotile aggregation, the grid precision represents the additional zoom levels
+available through the `aggs` layer. For example, if `<zoom>` is `7`
+and `grid_precision` is `8`, then getile aggregation will use precision 15.
++
+The precision is computed by as follows:
++
+`<zoom> + grid_precision`
++
+With a maximum value of 29. This value determines the
+number of cells of the `geotile_grid` as follows:
 +
 `(2^grid_precision) x (2^grid_precision)`
 +
 For example, a value of `8` divides the tile into a grid of 256 x 256 cells. The
 `aggs` layer only contains features for cells with matching data.
++
+In case of a geohex aggregation, the grid precision translated to the
+https://h3geo.org/docs/core-library/restable[precision of the hexagonal cells].
++
+The precision for the hex grid is computed as follows:
++
+`(<zoom> + gridPrecision - 1) / 2`
++
+where the minimum precision for a hexagonal bin is 2 and the maximum precision is 15.
+Note that hexagonal cells do not align perfectly on the vector tile so some cells might
+intersect more than one vector tile.
 // end::grid-precision[]
 
 // tag::grid-type[]
@@ -222,7 +255,7 @@ layer. In the `aggs` layer, each feature represents a `geotile_grid` cell.
 Accepts:
 
 `grid` (Default):::
-Each feature is a `Polygon` of the cell's bounding box.
+Each feature is a `Polygon` of the cell's geometry that depends on the selected `grid_agg`.
 
 `point`:::
 Each feature is a `Point` that's the centroid of the cell.

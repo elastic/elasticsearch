@@ -78,11 +78,13 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         this.ingestNodes = ingestNodes;
         this.masterNodeId = masterNodeId;
         this.masterNode = masterNodeId == null ? null : nodes.get(masterNodeId);
+        assert (masterNodeId == null) == (masterNode == null);
         this.localNodeId = localNodeId;
         this.localNode = localNodeId == null ? null : nodes.get(localNodeId);
         this.minNonClientNodeVersion = minNonClientNodeVersion;
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
+        assert (localNodeId == null) == (localNode == null);
     }
 
     @Override

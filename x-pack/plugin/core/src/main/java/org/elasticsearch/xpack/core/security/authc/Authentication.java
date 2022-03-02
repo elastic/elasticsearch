@@ -353,7 +353,8 @@ public class Authentication implements ToXContentObject {
                     final Authentication.RealmRef myAuthRealm = myAuthContext.getEffectiveSubject().getRealm();
                     final Authentication.RealmRef creatorAuthRealm = creatorAuthContext.getEffectiveSubject().getRealm();
                     if (null == myAuthRealm.getDomain()) {
-                        return canAccess(
+                        // the authentication accessing the resource is for a user from a realm not part of any domain
+                        return equivalentRealms(
                             myAuthRealm.getName(),
                             myAuthRealm.getType(),
                             creatorAuthRealm.getName(),
@@ -361,7 +362,7 @@ public class Authentication implements ToXContentObject {
                         );
                     } else {
                         for (RealmConfig.RealmIdentifier domainRealm : myAuthRealm.getDomain().realms()) {
-                            if (canAccess(
+                            if (equivalentRealms(
                                 domainRealm.getName(),
                                 domainRealm.getType(),
                                 creatorAuthRealm.getName(),
@@ -791,7 +792,7 @@ public class Authentication implements ToXContentObject {
         }
     }
 
-    private static boolean canAccess(String name1, String type1, String name2, String type2) {
+    private static boolean equivalentRealms(String name1, String type1, String name2, String type2) {
         if (false == type1.equals(type2)) {
             return false;
         }

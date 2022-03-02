@@ -43,6 +43,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
@@ -56,6 +58,8 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private volatile boolean ready = false;
     private volatile BoundTransportAddress boundAddress;
+
+    private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
 
     public static final Setting<String> PORT = new Setting<>(
         "readiness.port",
@@ -132,7 +136,16 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     protected void doStart() {
-        this.serverChannel = setupSocket();
+        if (closeLock.writeLock().tryLock() == false) {
+            assert false; // can't be concurrently stopping otherwise we may not close the socket properly
+            throw new IllegalStateException("failed to acquire close-write-lock");
+        }
+
+        try {
+            this.serverChannel = setupSocket();
+        } finally {
+            closeLock.writeLock().unlock();
+        }
 
         new Thread(() -> {
             while (serverChannel.isOpen()) {
@@ -158,6 +171,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     protected void doStop() {
+        closeLock.writeLock().lock();
         try {
             if (this.serverChannel != null) {
                 this.serverChannel.close();
@@ -166,6 +180,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             logger.warn("error closing readiness service channel", e);
         } finally {
             this.ready = false;
+            this.boundAddress = null;
             try {
                 if (workerExecutor != null) {
                     workerExecutor.shutdown();
@@ -174,6 +189,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 logger.info("error shutting down readiness service executor", other);
             }
             logger.info("readiness service stopped");
+            closeLock.writeLock().unlock();
         }
     }
 

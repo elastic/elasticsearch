@@ -122,6 +122,12 @@ shard, then merges them to find the top `k` results. Increasing
 `num_candidates` tends to improve the accuracy of the final `k` results.
 ====
 
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>) Query to filter the documents that
+can match. The kNN search will return the top `k` documents that also match
+this filter. The value can be a single query or a list of queries. If `filter`
+is not provided, all documents are allowed to match.
+
 include::{es-repo-dir}/search/search.asciidoc[tag=docvalue-fields-def]
 include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]
 include::{es-repo-dir}/search/search.asciidoc[tag=source-filtering-def]

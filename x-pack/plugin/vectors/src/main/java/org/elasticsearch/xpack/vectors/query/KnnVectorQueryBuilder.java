@@ -7,19 +7,26 @@
 
 package org.elasticsearch.xpack.vectors.query;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.DenseVectorFieldType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBuilder> {
@@ -28,11 +35,13 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     private final String fieldName;
     private final float[] queryVector;
     private final int numCands;
+    private List<QueryBuilder> filterQueries;
 
     public KnnVectorQueryBuilder(String fieldName, float[] queryVector, int numCands) {
         this.fieldName = fieldName;
         this.queryVector = queryVector;
         this.numCands = numCands;
+        this.filterQueries = List.of();
     }
 
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
@@ -40,6 +49,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this.fieldName = in.readString();
         this.numCands = in.readVInt();
         this.queryVector = in.readFloatArray();
+        if (in.getVersion().before(Version.V_8_2_0)) {
+            this.filterQueries = List.of();
+        } else {
+            this.filterQueries = readQueries(in);
+        }
     }
 
     public String getFieldName() {
@@ -54,11 +68,28 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return numCands;
     }
 
+    public List<QueryBuilder> filterQueries() {
+        return filterQueries;
+    }
+
+    public KnnVectorQueryBuilder filterQuery(QueryBuilder filterQuery) {
+        this.filterQueries = List.of(filterQuery);
+        return this;
+    }
+
+    public KnnVectorQueryBuilder filterQueries(List<QueryBuilder> filterQueries) {
+        this.filterQueries = filterQueries;
+        return this;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeVInt(numCands);
         out.writeFloatArray(queryVector);
+        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+            writeQueries(out, filterQueries);
+        }
     }
 
     @Override
@@ -73,7 +104,27 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        boolean changed = false;
+        List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
+        for (QueryBuilder query : filterQueries) {
+            QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
+            if (rewrittenQuery instanceof MatchNoneQueryBuilder) {
+                return rewrittenQuery;
+            }
+            if (rewrittenQuery != query) {
+                changed = true;
+            }
+            rewrittenQueries.add(rewrittenQuery);
+        }
+        if (changed) {
+            return new KnnVectorQueryBuilder(fieldName, queryVector, numCands).filterQueries(rewrittenQueries);
+        }
+        return this;
+    }
+
+    @Override
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             throw new IllegalArgumentException("field [" + fieldName + "] does not exist in the mapping");
@@ -85,18 +136,28 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             );
         }
 
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (QueryBuilder query : this.filterQueries) {
+            builder.add(query.toQuery(context), BooleanClause.Occur.FILTER);
+        }
+        BooleanQuery booleanQuery = builder.build();
+        Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
+
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
-        return vectorFieldType.createKnnQuery(queryVector, numCands);
+        return vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, Arrays.hashCode(queryVector), numCands);
+        return Objects.hash(fieldName, Arrays.hashCode(queryVector), numCands, filterQueries);
     }
 
     @Override
     protected boolean doEquals(KnnVectorQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) && Arrays.equals(queryVector, other.queryVector) && numCands == other.numCands;
+        return Objects.equals(fieldName, other.fieldName)
+            && Arrays.equals(queryVector, other.queryVector)
+            && numCands == other.numCands
+            && Objects.equals(filterQueries, other.filterQueries);
     }
 
     @Override

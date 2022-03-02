@@ -42,11 +42,11 @@ while [ $# -gt 0 ]; do
      shift
    fi
 done
-
+echo "about to tempdirectory"
 if [ -z "$ES_TMPDIR" ]; then
-  ES_TMPDIR=`"$JAVA" "$XSHARE" --module-path "$ES_MODULEPATH" -m org.elasticsearch.launchers/org.elasticsearch.tools.launchers.TempDirectory`
+  ES_TMPDIR=`"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
 fi
-
+echo "after to tempdirectory"
 if [ -z "$LIBFFI_TMPDIR" ]; then
   LIBFFI_TMPDIR="$ES_TMPDIR"
   export LIBFFI_TMPDIR
@@ -106,7 +106,7 @@ fi
 #   - second, JVM options are read from jvm.options and jvm.options.d/*.options
 #   - third, JVM options from ES_JAVA_OPTS are applied
 #   - fourth, ergonomic JVM options are applied
-ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" --module-path "$ES_MODULEPATH" -m org.elasticsearch.launchers/org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF" "$ES_HOME/plugins"`
+ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF" "$ES_HOME/plugins"`
 
 # Remove enrollment related parameters before passing the arg list to Elasticsearch
 for i in "${!ARG_LIST[@]}"; do
@@ -114,7 +114,8 @@ for i in "${!ARG_LIST[@]}"; do
     unset 'ARG_LIST[i]'
   fi
 done
-
+echo "about to start ES script"
+export ES_JAVA_OPTS=-Djdk.module.showModuleResolution=true
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
   exec \

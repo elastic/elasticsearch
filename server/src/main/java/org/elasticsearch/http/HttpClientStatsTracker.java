@@ -35,7 +35,7 @@ import static org.elasticsearch.http.HttpStats.ClientStats.NOT_CLOSED;
  */
 public class HttpClientStatsTracker {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(HttpClientStatsTracker.class);
 
     private final ThreadPool threadPool;
 

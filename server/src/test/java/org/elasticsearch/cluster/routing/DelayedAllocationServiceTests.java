@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -30,7 +29,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,11 +66,11 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     }
 
     @After
-    public void shutdownThreadPool() throws Exception {
+    public void shutdownThreadPool() {
         terminate(threadPool);
     }
 
-    public void testNoDelayedUnassigned() throws Exception {
+    public void testNoDelayedUnassigned() {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
@@ -132,7 +130,14 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
             .build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(newNode("node0", singleton(DiscoveryNodeRole.MASTER_ROLE)))
+                    .localNodeId("node0")
+                    .masterNodeId("node0")
+                    .add(newNode("node1"))
+                    .add(newNode("node2"))
+            )
             .build();
         final long baseTimestampNanos = System.nanoTime();
         allocationService.setNanoTimeOverride(baseTimestampNanos);
@@ -154,7 +159,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         assertNotNull(nodeId);
 
         // remove node that has replica and reroute
-        clusterState = stateWithoutNodeId(clusterState, nodeId);
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId)).build();
         clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
         ClusterState stateWithDelayedShard = clusterState;
         // make sure the replica is marked as delayed (i.e. not reallocated)
@@ -400,8 +405,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         verifyNoMoreInteractions(clusterService);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84520")
-    public void testDelayedUnassignedScheduleRerouteRescheduledOnShorterDelay() throws Exception {
+    public void testDelayedUnassignedScheduleRerouteRescheduledOnShorterDelay() {
         TimeValue delaySetting = timeValueSeconds(30);
         TimeValue shorterDelaySetting = timeValueMillis(100);
         Metadata metadata = Metadata.builder()
@@ -427,12 +431,13 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
+                    .add(newNode("node0", singleton(DiscoveryNodeRole.MASTER_ROLE)))
+                    .localNodeId("node0")
+                    .masterNodeId("node0")
                     .add(newNode("node1"))
                     .add(newNode("node2"))
                     .add(newNode("node3"))
                     .add(newNode("node4"))
-                    .localNodeId("node1")
-                    .masterNodeId("node1")
             )
             .build();
         final long nodeLeftTimestampNanos = System.nanoTime();
@@ -508,7 +513,9 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             assertNotNull(nodeIdOfBarReplica);
 
             // remove node that has replica and reroute
-            clusterState = stateWithoutNodeId(stateWithDelayedShard, nodeIdOfBarReplica);
+            clusterState = ClusterState.builder(stateWithDelayedShard)
+                .nodes(DiscoveryNodes.builder(stateWithDelayedShard.nodes()).remove(nodeIdOfBarReplica))
+                .build();
             ClusterState stateWithShorterDelay = allocationService.disassociateDeadNodes(clusterState, true, "fake node left");
             delayedAllocationService.setNanoTimeOverride(clusterChangeEventTimestampNanos);
             delayedAllocationService.clusterChanged(
@@ -527,28 +534,6 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             shorterDelayedRerouteTask.nextDelay.nanos(),
             equalTo(shorterDelaySetting.nanos() - (clusterChangeEventTimestampNanos - nodeLeftTimestampNanos))
         );
-    }
-
-    private ClusterState stateWithoutNodeId(ClusterState currentState, String nodeIdToRemove) {
-        final String currentMasterId = currentState.nodes().getMasterNodeId();
-        final String newMasterId;
-        if (currentMasterId.equals(nodeIdToRemove)) {
-            newMasterId = randomFrom(Sets.difference(currentState.nodes().getNodes().keySet(), Set.of(nodeIdToRemove)));
-        } else {
-            newMasterId = currentMasterId;
-        }
-        final String currentLocalNodeId = currentState.nodes().getLocalNodeId();
-        final String newLocalNodeId;
-        if (currentLocalNodeId.equals(nodeIdToRemove)) {
-            newLocalNodeId = randomFrom(Sets.difference(currentState.nodes().getNodes().keySet(), Set.of(nodeIdToRemove)));
-        } else {
-            newLocalNodeId = currentMasterId;
-        }
-        return ClusterState.builder(currentState)
-            .nodes(
-                DiscoveryNodes.builder(currentState.nodes()).remove(nodeIdToRemove).masterNodeId(newMasterId).localNodeId(newLocalNodeId)
-            )
-            .build();
     }
 
     private static class TestDelayAllocationService extends DelayedAllocationService {

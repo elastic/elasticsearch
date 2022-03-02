@@ -423,6 +423,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     else {
                         throw new SqlIllegalArgumentException("Cannot GROUP BY function {}", exp);
                     }
+                } else if (exp instanceof Literal) {
+                    key = new GroupByValue(aggId, QueryTranslator.nameOf(exp));
                 }
                 // catch corner-case
                 else {

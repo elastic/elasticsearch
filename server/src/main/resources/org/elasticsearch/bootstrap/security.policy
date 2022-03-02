@@ -65,8 +65,7 @@ grant {
   permission org.elasticsearch.SpecialPermission;
 
   // Allow host/ip name service lookups
-  permission java.net.SocketPermission "*", "resolve";
-  permission java.net.SocketPermission "localhost:*", "listen";
+  permission java.net.SocketPermission "*", "resolve, listen, accept";
 
   // Allow reading and setting socket keepalive options
   permission jdk.net.NetworkPermission "getOption.TCP_KEEPIDLE";

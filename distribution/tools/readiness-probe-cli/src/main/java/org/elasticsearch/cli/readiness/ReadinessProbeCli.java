@@ -44,7 +44,6 @@ public class ReadinessProbeCli extends EnvironmentAwareCommand {
     void tryConnect(Integer port) throws IOException {
         InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
         try (SocketChannel channel = SocketChannel.open(socketAddress)) {
-            channel.connect(socketAddress);
             Optional<String> message = readSocketMessage(channel);
             if (message.isEmpty()) {
                 throw new NotReadyException();

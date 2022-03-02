@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -20,7 +21,16 @@ import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.channels.Channels;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,7 +51,6 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     public void testRestartCRUD() throws Exception {
         checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue(), null);
-        assertEquals("Nothing", this.getTestReadinessPorts());
     }
 
     public void testRemoveCRUD() throws Exception {
@@ -52,10 +61,19 @@ public class NodeShutdownIT extends ESRestTestCase {
         checkCRUD(randomFrom("replace", "REPLACE"), null, randomAlphaOfLength(10));
     }
 
-    @SuppressWarnings("unchecked")
     public void checkCRUD(String type, @Nullable String allocationDelay, @Nullable String targetNodeName) throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
+        checkCRUD(nodeIdToShutdown, type, allocationDelay, targetNodeName, true);
+    }
 
+    @SuppressWarnings("unchecked")
+    public void checkCRUD(
+        String nodeIdToShutdown,
+        String type,
+        @Nullable String allocationDelay,
+        @Nullable String targetNodeName,
+        boolean delete
+    ) throws Exception {
         // Ensure if we do a GET before the cluster metadata is set up, we don't get an error
         assertNoShuttingDownNodes(nodeIdToShutdown);
 
@@ -74,10 +92,61 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(nodesArray.get(0).get("target_node_name"), equalTo(targetNodeName));
         }
 
-        // Delete it and make sure it's deleted
-        Request deleteRequest = new Request("DELETE", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        if (delete) {
+            // Delete it and make sure it's deleted
+            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            assertOK(client().performRequest(deleteRequest));
+            assertNoShuttingDownNodes(nodeIdToShutdown);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testShutdownReadinessService() throws Exception {
+        // Get a node from the cluster and find its readiness port
+        Request getNodes = new Request("GET", "_nodes");
+        Map<String, Object> nodesResponse = responseAsMap(client().performRequest(getNodes));
+        Map<String, Object> nodesObject = (Map<String, Object>) nodesResponse.get("nodes");
+
+        String nodeId = nodesObject.keySet().iterator().next();
+        Map<String, Object> nodeObject = (Map<String, Object>) nodesObject.get(nodeId);
+        Map<String, Object> httpObject = (Map<String, Object>) nodeObject.get("http");
+        String publishAddress = (String) httpObject.get("publish_address");
+
+        String readinessPorts = this.getTestReadinessPorts();
+        String restPorts = this.getTestRestCluster();
+
+        String[] restAddresses = restPorts.split(",");
+        int nodeIndex = 0;
+        for (String restAddress : restAddresses) {
+            // skip ipv6 if any
+            if (restAddress.startsWith("[")) {
+                continue;
+            }
+            if (restAddress.equals(publishAddress)) {
+                break;
+            }
+            nodeIndex++;
+        }
+
+        String[] readinessAddresses = readinessPorts.split(",");
+        String readinessAddress = readinessAddresses[nodeIndex];
+
+        String portStr = readinessAddress.split(":")[1];
+        Integer port = Integer.parseInt(portStr);
+
+        // Once we have the right port, check to see if it's ready, has to be for a properly started cluster
+        assertTrue(getReadinessStatus(port));
+
+        // Mark the node for shutdown and check that it's not ready
+        checkCRUD(nodeId, randomFrom("restart", "RESTART"), "1ms", null, false);
+        assertFalse(getReadinessStatus(port));
+
+        // Delete the shutdown request and verify that the node is ready again
+        Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
         assertOK(client().performRequest(deleteRequest));
-        assertNoShuttingDownNodes(nodeIdToShutdown);
+        assertNoShuttingDownNodes(nodeId);
+
+        assertTrue(getReadinessStatus(port));
     }
 
     public void testPutShutdownIsIdempotentForRestart() throws Exception {
@@ -446,6 +515,11 @@ public class NodeShutdownIT extends ESRestTestCase {
         Map<String, Object> nodesResponse = responseAsMap(client().performRequest(nodesRequest));
         Map<String, Object> nodesObject = (Map<String, Object>) nodesResponse.get("nodes");
 
+        for (Map.Entry<String, Object> node : nodesObject.entrySet()) {
+            System.out.println("Node -> " + node.getKey());
+            System.out.println("\tValue -> " + node.getValue());
+        }
+
         return randomFrom(nodesObject.keySet());
     }
 
@@ -456,5 +530,25 @@ public class NodeShutdownIT extends ESRestTestCase {
             new SecureString(System.getProperty("tests.rest.cluster.password").toCharArray())
         );
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    @SuppressForbidden(reason = "Intentional socket open")
+    private boolean getReadinessStatus(Integer port) throws Exception {
+        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
+
+        try (SocketChannel channel = SocketChannel.open(socketAddress)) {
+            return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
+                try {
+                    BufferedReader reader = new BufferedReader(Channels.newReader(channel, StandardCharsets.UTF_8));
+                    String message = reader.readLine();
+                    assertNotNull(message);
+                    return message.startsWith("true,");
+                } catch (IOException ignored) {}
+
+                return false;
+            });
+        } catch (ConnectException expectedSometimes) {
+            return false;
+        }
     }
 }

@@ -16,9 +16,9 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.StandardProtocolFamily;
 import java.nio.channels.Channels;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
@@ -82,6 +82,11 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, dataNode)));
         assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, masterNode)));
 
+        Integer masterPort = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName())
+            .boundAddress()
+            .publishAddress()
+            .getPort();
+
         assertThat(
             internalCluster().masterClient()
                 .admin()
@@ -100,7 +105,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
         internalCluster().stopCurrentMasterNode();
 
-        assertFalse(getStatus(internalCluster().getInstance(ReadinessService.class, dataNode)));
+        assertFalse(getStatus(masterPort));
 
         try {
             assertThat(
@@ -242,10 +247,9 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     private boolean getStatus(Integer port) throws Exception {
         InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
 
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
+        try (SocketChannel channel = SocketChannel.open(socketAddress)) {
             return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
                 try {
-                    channel.connect(socketAddress);
                     BufferedReader reader = new BufferedReader(Channels.newReader(channel, StandardCharsets.UTF_8));
                     String message = reader.readLine();
                     assertNotNull(message);
@@ -254,6 +258,8 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
                 return false;
             });
+        } catch (ConnectException expectedSometimes) {
+            return false;
         }
     }
 }

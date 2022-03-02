@@ -228,7 +228,7 @@ public abstract class AggregationContext implements Releasable {
      * @param field Name of the field to check
      * @return true if the field contians multiple indexed values
      */
-    public boolean isMultiValued(String field) throws IOException{
+    public boolean isMultiValued(String field) throws IOException {
         return PointValues.size(searcher().getIndexReader(), field) > PointValues.getDocCount(searcher().getIndexReader(), field);
     }
 

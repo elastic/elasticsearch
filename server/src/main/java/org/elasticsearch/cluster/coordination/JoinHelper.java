@@ -103,7 +103,7 @@ public class JoinHelper {
             private final long term = currentTermSupplier.getAsLong();
 
             @Override
-            public ClusterTasksResult<JoinTask> execute(ClusterState currentState, List<JoinTask> joinTasks) {
+            public ClusterState execute(ClusterState currentState, List<TaskContext<JoinTask>> joinTaskContexts) throws Exception {
                 // The current state that MasterService uses might have been updated by a (different) master in a higher term already
                 // Stop processing the current cluster state update, as there's no point in continuing to compute it as
                 // it will later be rejected by Coordinator.publish(...) anyhow
@@ -112,19 +112,21 @@ public class JoinHelper {
                     throw new NotMasterException(
                         "Higher term encountered (current: " + currentState.term() + " > used: " + term + "), there is a newer master"
                     );
-                } else if (currentState.nodes().getMasterNodeId() == null && joinTasks.stream().anyMatch(JoinTask::isBecomingMaster)) {
-                    assert currentState.term() < term : "there should be at most one become master task per election (= by term)";
-                    final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
-                        .term(term)
-                        .build();
-                    final Metadata metadata = Metadata.builder(currentState.metadata()).coordinationMetadata(coordinationMetadata).build();
-                    currentState = ClusterState.builder(currentState).metadata(metadata).build();
-                } else if (currentState.nodes().isLocalNodeElectedMaster()) {
-                    assert currentState.term() == term : "term should be stable for the same master";
-                }
-                return super.execute(currentState, joinTasks);
+                } else if (currentState.nodes().getMasterNodeId() == null
+                    && joinTaskContexts.stream().anyMatch(t -> t.getTask().isBecomingMaster())) {
+                        assert currentState.term() < term : "there should be at most one become master task per election (= by term)";
+                        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
+                            .term(term)
+                            .build();
+                        final Metadata metadata = Metadata.builder(currentState.metadata())
+                            .coordinationMetadata(coordinationMetadata)
+                            .build();
+                        currentState = ClusterState.builder(currentState).metadata(metadata).build();
+                    } else if (currentState.nodes().isLocalNodeElectedMaster()) {
+                        assert currentState.term() == term : "term should be stable for the same master";
+                    }
+                return super.execute(currentState, joinTaskContexts);
             }
-
         };
 
         transportService.registerRequestHandler(

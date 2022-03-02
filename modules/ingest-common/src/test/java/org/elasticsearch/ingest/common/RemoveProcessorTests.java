@@ -33,6 +33,7 @@ public class RemoveProcessorTests extends ESTestCase {
             randomAlphaOfLength(10),
             null,
             Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)),
+            Collections.emptyList(),
             false
         );
         processor.execute(ingestDocument);

@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+
 /**
  * Processor that removes existing fields. Nothing happens if the field is not present.
  */
@@ -44,29 +46,31 @@ public final class RemoveProcessor extends AbstractProcessor {
         this.ignoreMissing = ignoreMissing;
     }
 
-    RemoveProcessor(String tag, String description, List<TemplateScript.Factory> fieldsToRemove, boolean ignoreMissing) {
-        super(tag, description);
-        this.fieldsToRemove = new ArrayList<>(fieldsToRemove);
-        this.fieldsToKeep = new ArrayList<>();
-        this.ignoreMissing = ignoreMissing;
-    }
-
     @Override
     public IngestDocument execute(IngestDocument document) {
         if (fieldsToKeep.isEmpty() == false) {
-            IngestDocument.getAllFields(document.getSourceAndMetadata())
-                .stream()
-                .filter(documentField -> IngestDocument.Metadata.isMetadata(documentField) == false)
-                .filter(documentField -> shouldKeep(documentField, fieldsToKeep, document) == false)
-                .forEach(documentField -> removeWhenPresent(document, documentField));
+            fieldsToKeepProcessor(document);
+        } else {
+            fieldsToRemoveProcessor(document);
         }
 
+        return document;
+    }
+
+    private void fieldsToRemoveProcessor(IngestDocument document) {
         if (ignoreMissing) {
             fieldsToRemove.forEach(field -> removeWhenPresent(document, document.renderTemplate(field)));
         } else {
             fieldsToRemove.forEach(document::removeField);
         }
-        return document;
+    }
+
+    private void fieldsToKeepProcessor(IngestDocument document) {
+        IngestDocument.getAllFields(document.getSourceAndMetadata())
+            .stream()
+            .filter(documentField -> IngestDocument.Metadata.isMetadata(documentField) == false)
+            .filter(documentField -> shouldKeep(documentField, fieldsToKeep, document) == false)
+            .forEach(documentField -> removeWhenPresent(document, documentField));
     }
 
     private void removeWhenPresent(IngestDocument document, String documentField) {
@@ -106,14 +110,20 @@ public final class RemoveProcessor extends AbstractProcessor {
             final List<TemplateScript.Factory> compiledTemplatesToKeep = getTemplates(processorTag, config, "keep");
 
             if (compiledTemplatesToRemove.isEmpty() && compiledTemplatesToKeep.isEmpty()) {
-                throw new IllegalArgumentException(
-                    "missing field [processors.remove.keep] or [processors.remove.field]. Please specify one of them."
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "processors.remove.keep",
+                    "or [processors.remove.field] must be specified"
                 );
             }
 
             if (compiledTemplatesToRemove.isEmpty() == false && compiledTemplatesToKeep.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    "Too many fields specified. Please specify either [processors.remove.keep] or [processors.remove.field]."
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "processors.remove.keep",
+                    "and [processors.remove.field] cannot both be used in the same processor"
                 );
             }
 

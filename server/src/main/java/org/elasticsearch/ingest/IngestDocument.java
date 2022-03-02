@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -798,8 +799,8 @@ public final class IngestDocument {
         input.forEach((k, v) -> {
             allFields.add(prefix + k);
 
-            if (v instanceof Map) {
-                allFields.addAll(getAllFields((Map) v, prefix + k + "."));
+            if (v instanceof Map<?, ?> mapValue) {
+                allFields.addAll(getAllFields((Map<String, Object>) mapValue, prefix + k + "."));
             }
         });
 
@@ -873,6 +874,10 @@ public final class IngestDocument {
         IF_PRIMARY_TERM("_if_primary_term"),
         DYNAMIC_TEMPLATES("_dynamic_templates");
 
+        private static final Set<String> METADATA_NAMES = Arrays.stream(Metadata.values())
+            .map(metadata -> metadata.fieldName)
+            .collect(Collectors.toSet());
+
         private final String fieldName;
 
         Metadata(String fieldName) {
@@ -880,7 +885,7 @@ public final class IngestDocument {
         }
 
         public static boolean isMetadata(String field) {
-            return Arrays.stream(Metadata.values()).anyMatch(e -> e.fieldName.equals(field));
+            return METADATA_NAMES.contains(field);
         }
 
         public String getFieldName() {

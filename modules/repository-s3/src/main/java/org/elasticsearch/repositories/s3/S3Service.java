@@ -18,6 +18,7 @@ import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 import com.amazonaws.auth.STSAssumeRoleWithWebIdentitySessionCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.http.IdleConnectionReaper;
+import com.amazonaws.regions.DefaultAwsRegionProviderChain;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
@@ -282,6 +283,8 @@ class S3Service implements Closeable {
      */
     static class CustomWebIdentityTokenCredentialsProvider implements AWSCredentialsProvider {
 
+        private static final String STS_HOSTNAME = "https://sts.amazonaws.com";
+
         private STSAssumeRoleWithWebIdentitySessionCredentialsProvider credentialsProvider;
         private AWSSecurityTokenService stsClient;
 
@@ -310,11 +313,9 @@ class S3Service implements Closeable {
             }
             AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
 
-            // Just for testing
-            String customStsEndpoint = System.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride");
-            if (customStsEndpoint != null) {
-                stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, null));
-            }
+            String region = SocketAccess.doPrivileged(() -> new DefaultAwsRegionProviderChain().getRegion());
+            String customStsEndpoint = System.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
+            stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, region));
             stsClientBuilder.withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()));
             stsClient = SocketAccess.doPrivileged(stsClientBuilder::build);
             try {

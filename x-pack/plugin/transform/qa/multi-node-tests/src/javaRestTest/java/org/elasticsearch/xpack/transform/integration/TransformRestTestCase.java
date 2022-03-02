@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
@@ -66,7 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
 
-public abstract class TransformIntegTestCase extends ESRestTestCase {
+public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected static String TRANSFORM_ENDPOINT = "/_transform/";
 
@@ -212,6 +213,14 @@ public abstract class TransformIntegTestCase extends ESRestTestCase {
         assertOK(adminClient().performRequest(request));
     }
 
+    protected void deleteTransform(String id, boolean force) throws IOException {
+        Request request = new Request("DELETE", TRANSFORM_ENDPOINT + id);
+        if (force) {
+            request.addParameter("force", "true");
+        }
+        assertOK(adminClient().performRequest(request));
+    }
+
     protected void putTransform(String id, String config, RequestOptions options) throws IOException {
         if (createdTransformIds.contains(id)) {
             throw new IllegalArgumentException("transform [" + id + "] is already registered");
@@ -292,7 +301,20 @@ public abstract class TransformIntegTestCase extends ESRestTestCase {
         return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.CalendarInterval(interval), zone);
     }
 
-    protected GroupConfig createGroupConfig(Map<String, SingleGroupSource> groups) throws IOException {
+    /**
+     * GroupConfig has 2 internal representations - source and a map
+     * of SingleGroupSource, both need to be present.
+     * The fromXContent parser populates both so the trick here is
+     * to JSON serialise {@code groups} and build the
+     * GroupConfig from JSON.
+     *
+     * @param groups Agg factory
+     * @param xContentRegistry registry
+     * @return GroupConfig
+     * @throws IOException on parsing
+     */
+    public static GroupConfig createGroupConfig(Map<String, SingleGroupSource> groups, NamedXContentRegistry xContentRegistry)
+        throws IOException {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             for (Map.Entry<String, SingleGroupSource> entry : groups.entrySet()) {
@@ -304,28 +326,53 @@ public abstract class TransformIntegTestCase extends ESRestTestCase {
 
             try (
                 XContentParser sourceParser = XContentType.JSON.xContent()
-                    .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput())
+                    .createParser(
+                        XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+                            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                        BytesReference.bytes(builder).streamInput()
+                    )
             ) {
                 return GroupConfig.fromXContent(sourceParser, false);
             }
         }
     }
 
-    protected AggregationConfig createAggConfig(AggregatorFactories.Builder aggregations) throws IOException {
+    protected GroupConfig createGroupConfig(Map<String, SingleGroupSource> groups) throws IOException {
+        return createGroupConfig(groups, xContentRegistry());
+    }
+
+    /**
+     * AggregationConfig has 2 internal representations - source and an
+     * Aggregation Factory, both need to be present.
+     * The fromXContent parser populates both so the trick here is
+     * to JSON serialise {@code aggregations} and build the
+     * AggregationConfig from JSON.
+     *
+     * @param aggregations Agg factory
+     * @param xContentRegistry registry
+     * @return AggregationConfig
+     * @throws IOException on parsing
+     */
+    public static AggregationConfig createAggConfig(AggregatorFactories.Builder aggregations, NamedXContentRegistry xContentRegistry)
+        throws IOException {
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             aggregations.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             try (
                 XContentParser sourceParser = XContentType.JSON.xContent()
                     .createParser(
-                        xContentRegistry(),
-                        LoggingDeprecationHandler.INSTANCE,
+                        XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+                            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
                         BytesReference.bytes(xContentBuilder).streamInput()
                     )
             ) {
                 return AggregationConfig.fromXContent(sourceParser, false);
             }
         }
+    }
+
+    protected AggregationConfig createAggConfig(AggregatorFactories.Builder aggregations) throws IOException {
+        return createAggConfig(aggregations, xContentRegistry());
     }
 
     protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups, AggregatorFactories.Builder aggregations)

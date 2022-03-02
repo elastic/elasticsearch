@@ -10,7 +10,6 @@ package org.elasticsearch.readiness;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -39,8 +38,6 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-
-        settings.put(ReadinessService.PORT.getKey(), Integer.toString(9400 + nodeOrdinal));
         return settings.build();
     }
 
@@ -65,7 +62,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
         }
-        assertFalse(getStatus(internalCluster().getInstance(Environment.class, dataNode)));
+        assertFalse(getStatus(internalCluster().getInstance(ReadinessService.class, dataNode)));
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
@@ -82,8 +79,8 @@ public class ReadinessClusterIT extends ESIntegTestCase {
                 .getName(),
             equalTo(masterNode)
         );
-        assertTrue(getStatus(internalCluster().getInstance(Environment.class, dataNode)));
-        assertTrue(getStatus(internalCluster().getInstance(Environment.class, masterNode)));
+        assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, dataNode)));
+        assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, masterNode)));
 
         assertThat(
             internalCluster().masterClient()
@@ -103,7 +100,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
         internalCluster().stopCurrentMasterNode();
 
-        assertFalse(getStatus(internalCluster().getInstance(Environment.class, dataNode)));
+        assertFalse(getStatus(internalCluster().getInstance(ReadinessService.class, dataNode)));
 
         try {
             assertThat(
@@ -179,19 +176,19 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         internalCluster().validateClusterFormed();
 
-        assertTrue(getStatus(internalCluster().getInstance(Environment.class, masterNode)));
+        assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, masterNode)));
 
         for (String dataNode : dataNodes) {
-            Environment env = internalCluster().getInstance(Environment.class, dataNode);
-            assertTrue(getStatus(env));
+            ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
+            assertTrue(getStatus(s));
         }
 
         logger.info("--> restart data node 1");
         internalCluster().restartNode(dataNodes.get(0), new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                assertTrue(getStatus(internalCluster().getInstance(Environment.class, masterNode)));
-                assertTrue(getStatus(internalCluster().getInstance(Environment.class, dataNodes.get(1))));
+                assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, masterNode)));
+                assertTrue(getStatus(internalCluster().getInstance(ReadinessService.class, dataNodes.get(1))));
 
                 return super.onNodeStopped(nodeName);
             }
@@ -222,8 +219,8 @@ public class ReadinessClusterIT extends ESIntegTestCase {
                 }
 
                 for (String dataNode : dataNodes) {
-                    Environment env = internalCluster().getInstance(Environment.class, dataNode);
-                    assertFalse(getStatus(env));
+                    ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
+                    assertFalse(getStatus(s));
                 }
 
                 return super.onNodeStopped(nodeName);
@@ -232,18 +229,18 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
         ensureGreen();
         for (String dataNode : dataNodes) {
-            Environment env = internalCluster().getInstance(Environment.class, dataNode);
-            assertTrue(getStatus(env));
+            ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
+            assertTrue(getStatus(s));
         }
     }
 
-    private boolean getStatus(Environment env) throws Exception {
-        return getStatus(ReadinessService.PORT.get(env.settings()));
+    private boolean getStatus(ReadinessService readinessService) throws Exception {
+        return getStatus(readinessService.boundAddress().publishAddress().getPort());
     }
 
     @SuppressForbidden(reason = "Intentional socket open")
-    private boolean getStatus(String port) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), Integer.parseInt(port));
+    private boolean getStatus(Integer port) throws Exception {
+        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
 
         try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
             return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {

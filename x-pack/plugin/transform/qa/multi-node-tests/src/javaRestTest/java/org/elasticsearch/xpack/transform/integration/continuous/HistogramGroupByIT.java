@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -28,7 +27,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84566")
 public class HistogramGroupByIT extends ContinuousTestCase {
     private static final String NAME = "continuous-histogram-pivot-test";
 
@@ -97,7 +95,7 @@ public class HistogramGroupByIT extends ContinuousTestCase {
               "sort": ["metric"]
             }
             """;
-        Response searchResponseDest = search(NAME, destQuery, Map.of("allow_partial_search_results", "false", "size", "1000"));
+        Response searchResponseDest = search(NAME, destQuery, Map.of("allow_partial_search_results", "false", "size", "10000"));
 
         var buckets = (List<Map<String, Object>>) XContentMapValues.extractValue(
             "aggregations.metric.buckets",

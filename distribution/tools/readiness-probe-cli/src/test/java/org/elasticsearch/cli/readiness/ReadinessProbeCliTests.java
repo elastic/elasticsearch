@@ -10,24 +10,18 @@ package org.elasticsearch.cli.readiness;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.env.Environment;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
-@LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
 public class ReadinessProbeCliTests extends LuceneTestCase {
 
     @BeforeClass
@@ -39,24 +33,40 @@ public class ReadinessProbeCliTests extends LuceneTestCase {
     }
 
     public void testNoArguments() throws Exception {
-        String readinessPath = PathUtils.get("tmp").resolve("socket.file").toString();
+        String readinessPort = "9400";
 
         MockTerminal terminal = new MockTerminal();
-        ReadinessProbeCli cli = new ReadinessProbeCli() {
-            @Override
-            protected Environment createEnv(final Map<String, String> settings) throws UserException {
-                settings.put(Environment.READINESS_SOCKET_FILE.getKey(), readinessPath);
-                return createEnv(Settings.EMPTY, settings);
-            }
-        };
+        ReadinessProbeCli cli = new ReadinessProbeCli();
         cli = spy(cli);
         doAnswer(i -> {
             Object arg0 = i.getArgument(0);
-            assertThat(arg0.toString(), endsWith(readinessPath));
+            assertEquals(arg0.toString(), readinessPort);
             return null;
         }).when(cli).tryConnect(any());
 
         cli.main(new String[] {}, terminal);
         assertThat(terminal.getErrorOutput(), emptyString());
+    }
+
+    public void testCustomPort() throws Exception {
+        String readinessPort = "9401";
+
+        MockTerminal terminal = new MockTerminal();
+        ReadinessProbeCli cli = new ReadinessProbeCli();
+        cli = spy(cli);
+        doAnswer(i -> {
+            Object arg0 = i.getArgument(0);
+            assertEquals(arg0.toString(), readinessPort);
+            return null;
+        }).when(cli).tryConnect(any());
+
+        cli.main(new String[] { "-p", readinessPort }, new MockTerminal());
+        assertThat(terminal.getErrorOutput(), emptyString());
+    }
+
+    public void testNoPort() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        new ReadinessProbeCli().main(new String[] { "-p" }, terminal);
+        assertThat(terminal.getErrorOutput(), containsString("Option p/port requires an argument"));
     }
 }

@@ -1251,6 +1251,8 @@ public class Node implements Closeable {
             writePortsFile("transport", transport.boundAddress());
             HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
             writePortsFile("http", http.boundAddress());
+            ReadinessService readinessService = injector.getInstance(ReadinessService.class);
+            writePortsFile("readiness", readinessService.boundAddress());
         }
 
         logger.info("started");

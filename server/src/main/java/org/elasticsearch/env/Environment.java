@@ -56,7 +56,6 @@ public class Environment {
     );
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
     public static final Setting<String> NODE_PIDFILE_SETTING = Setting.simpleString("node.pidfile", Property.NodeScope);
-    public static final Setting<String> READINESS_SOCKET_FILE = Setting.simpleString("readiness.socket_file", Property.NodeScope);
 
     private final Settings settings;
 
@@ -82,12 +81,6 @@ public class Environment {
 
     /** Path to the PID file (can be null if no PID file is configured) **/
     private final Path pidFile;
-
-    /**
-     * Path to the socket file (can be null if no readiness socket path file is configured).
-     * The readiness socket file path cannot be longer than the max system Unix Domain Socket path (i.e. most cases 108 characters)
-     **/
-    private final Path readinessSocketFile;
 
     /** Path to the temporary file directory used by the JDK */
     private final Path tmpFile;
@@ -152,12 +145,6 @@ public class Environment {
             pidFile = null;
         }
 
-        if (READINESS_SOCKET_FILE.exists(settings)) {
-            readinessSocketFile = PathUtils.get(READINESS_SOCKET_FILE.get(settings)).toAbsolutePath().normalize();
-        } else {
-            readinessSocketFile = null;
-        }
-
         binFile = homeFile.resolve("bin");
         libFile = homeFile.resolve("lib");
         modulesFile = homeFile.resolve("modules");
@@ -189,10 +176,6 @@ public class Environment {
         if (NODE_PIDFILE_SETTING.exists(settings)) {
             assert pidFile != null;
             finalSettings.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile.toString());
-        }
-        if (READINESS_SOCKET_FILE.exists(settings)) {
-            assert readinessSocketFile != null;
-            finalSettings.put(Environment.READINESS_SOCKET_FILE.getKey(), readinessSocketFile.toString());
         }
         this.settings = finalSettings.build();
     }
@@ -315,14 +298,6 @@ public class Environment {
         return pidFile;
     }
 
-    /**
-     * The readiness service socket file location (can be null if the readiness service is not enabled)
-     * The readiness socket file path cannot be longer than the max system Unix Domain Socket path (i.e. most cases 108 characters)
-     */
-    public Path readinessSocketFile() {
-        return readinessSocketFile;
-    }
-
     /** Path to the default temp directory used by the JDK */
     public Path tmpFile() {
         return tmpFile;
@@ -412,7 +387,6 @@ public class Environment {
         assertEquals(actual.logsFile(), expected.logsFile(), "logsFile");
         assertEquals(actual.pidFile(), expected.pidFile(), "pidFile");
         assertEquals(actual.tmpFile(), expected.tmpFile(), "tmpFile");
-        assertEquals(actual.readinessSocketFile(), expected.readinessSocketFile(), "readinessSocketFile");
     }
 
     private static void assertEquals(Object actual, Object expected, String name) {

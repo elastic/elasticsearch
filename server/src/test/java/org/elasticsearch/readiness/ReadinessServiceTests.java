@@ -8,7 +8,6 @@
 
 package org.elasticsearch.readiness;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -26,7 +25,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
@@ -36,27 +34,23 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.StandardProtocolFamily;
-import java.net.UnixDomainSocketAddress;
 import java.nio.channels.Channels;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
-import static org.mockito.Mockito.spy;
 
-@LuceneTestCase.SuppressFileSystems("*")
 public class ReadinessServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private ReadinessService readinessService;
@@ -112,10 +106,7 @@ public class ReadinessServiceTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadpool
         );
-        Path socketFilePath = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("readiness.socket");
-        Settings settings = Settings.builder()
-            .put(Environment.READINESS_SOCKET_FILE.getKey(), socketFilePath.normalize().toAbsolutePath())
-            .build();
+        Settings settings = Settings.builder().put(ReadinessService.PORT.getKey(), "9401").build();
         env = newEnvironment(settings);
 
         httpTransport = new FakeHttpTransport();
@@ -128,16 +119,9 @@ public class ReadinessServiceTests extends ESTestCase {
         threadpool.shutdownNow();
     }
 
-    public void testBasicSetup() {
-        assertTrue(readinessService.enabled());
-        assertEquals(env.readinessSocketFile(), readinessService.getSocketPath());
-    }
-
     public void testSocketChannelCreation() throws Exception {
-        // Unix domain sockets need real file system, we can't use the Lucene Filter FS
-        try (ServerSocketChannel channel = readinessService.setupUnixDomainSocket(readinessService.getSocketPath())) {
+        try (ServerSocketChannel channel = readinessService.setupSocket()) {
             assertTrue(channel.isOpen());
-            assertTrue(Files.exists(readinessService.getSocketPath()));
         }
     }
 
@@ -145,26 +129,20 @@ public class ReadinessServiceTests extends ESTestCase {
         readinessService.start();
         assertNotNull(readinessService.serverChannel());
         readinessService.stop();
-        assertTrue(Files.exists(readinessService.getSocketPath()));
         assertFalse(readinessService.ready());
         readinessService.close();
-        assertFalse(Files.exists(readinessService.getSocketPath()));
-    }
-
-    public void testLongSocketPathName() {
-        ReadinessService spied = spy(readinessService);
-        Path tempPath = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve(randomAlphaOfLength(108));
-        Mockito.doReturn(tempPath).when(spied).getSocketPath();
-        assertEquals("Unix domain path too long", expectThrows(IllegalStateException.class, () -> spied.start()).getCause().getMessage());
     }
 
     @SuppressForbidden(reason = "Intentional socket open")
     public void testSendStatus() throws Exception {
         readinessService.start();
 
-        UnixDomainSocketAddress socketAddress = UnixDomainSocketAddress.of(readinessService.getSocketPath());
+        InetSocketAddress socketAddress = new InetSocketAddress(
+            InetAddress.getLoopbackAddress(),
+            readinessService.boundAddress().publishAddress().getPort()
+        );
 
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.UNIX)) {
+        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {
                     channel.connect(socketAddress);
@@ -235,9 +213,12 @@ public class ReadinessServiceTests extends ESTestCase {
 
         previousState = newState;
 
-        UnixDomainSocketAddress socketAddress = UnixDomainSocketAddress.of(readinessService.getSocketPath());
+        InetSocketAddress socketAddress = new InetSocketAddress(
+            InetAddress.getLoopbackAddress(),
+            readinessService.boundAddress().publishAddress().getPort()
+        );
 
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.UNIX)) {
+        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
 
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {

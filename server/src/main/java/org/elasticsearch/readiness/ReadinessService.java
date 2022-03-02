@@ -16,21 +16,25 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.PortsRange;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shutdown.PluginShutdownService;
+import org.elasticsearch.transport.BindTransportException;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.StandardProtocolFamily;
-import java.net.UnixDomainSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
@@ -38,6 +42,8 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
@@ -46,10 +52,17 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private final Environment environment;
     private final ExecutorService workerExecutor;
 
-    private ServerSocketChannel serverChannel;
+    private volatile ServerSocketChannel serverChannel;
 
     private volatile boolean ready = false;
-    private final boolean enabled;
+    private volatile BoundTransportAddress boundAddress;
+
+    public static final Setting<String> PORT = new Setting<>(
+        "readiness.port",
+        "9400-9500",
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
 
     private final HttpServerTransport httpTransport;
 
@@ -57,29 +70,18 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         this.httpTransport = httpTransport;
         this.serverChannel = null;
         this.environment = environment;
-        this.enabled = environment.readinessSocketFile() != null;
+        clusterService.addListener(this);
 
-        if (enabled) {
-            clusterService.addListener(this);
-
-            this.workerExecutor = EsExecutors.newScaling(
-                "readiness-worker",
-                0,
-                EsExecutors.allocatedProcessors(environment.settings()) * 2,
-                60,
-                TimeUnit.SECONDS,
-                false,
-                EsExecutors.daemonThreadFactory("elasticsearch[readiness-worker]"),
-                new ThreadContext(environment.settings())
-            );
-        } else {
-            logger.info("readiness service disabled");
-            this.workerExecutor = null;
-        }
-    }
-
-    boolean enabled() {
-        return enabled;
+        this.workerExecutor = EsExecutors.newScaling(
+            "readiness-worker",
+            0,
+            EsExecutors.allocatedProcessors(environment.settings()) * 2,
+            60,
+            TimeUnit.SECONDS,
+            false,
+            EsExecutors.daemonThreadFactory("elasticsearch[readiness-worker]"),
+            new ThreadContext(environment.settings())
+        );
     }
 
     boolean ready() {
@@ -90,37 +92,47 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         return serverChannel;
     }
 
-    Path getSocketPath() {
-        return environment.readinessSocketFile();
+    public BoundTransportAddress boundAddress() {
+        return boundAddress;
     }
 
-    ServerSocketChannel setupUnixDomainSocket(Path socketPath) {
-        try {
-            Files.deleteIfExists(socketPath);
-            UnixDomainSocketAddress socketAddress = UnixDomainSocketAddress.of(socketPath);
-            ServerSocketChannel serverChannel = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                try {
-                    serverChannel.bind(socketAddress);
-                } catch (IOException e) {
-                    throw new IllegalStateException("I/O exception while trying to bind the unix domain socket (" + socketPath + ")", e);
-                }
-                return null;
-            });
+    ServerSocketChannel setupSocket() {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            final AtomicReference<Exception> lastException = new AtomicReference<>();
+            final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
 
-            return serverChannel;
-        } catch (IOException e) {
-            throw new IllegalStateException("I/O exception while trying to create unix domain socket (" + socketPath + ")", e);
-        }
+            PortsRange portsRange = new PortsRange(PORT.get(environment.settings()));
+            InetAddress localhost = InetAddress.getLoopbackAddress();
+
+            boolean success = portsRange.iterate(portNumber -> {
+                try {
+                    InetSocketAddress socketAddress = new InetSocketAddress(localhost, portNumber);
+                    serverChannel = ServerSocketChannel.open(StandardProtocolFamily.INET);
+                    serverChannel.bind(socketAddress);
+
+                    boundSocket.set(socketAddress);
+                } catch (Exception e) {
+                    lastException.set(e);
+                    return false;
+                }
+                return true;
+            });
+            if (success == false) {
+                throw new BindTransportException("Failed to bind to " + NetworkAddress.format(localhost, portsRange), lastException.get());
+            }
+
+            TransportAddress publishAddress = new TransportAddress(boundSocket.get());
+            boundAddress = new BoundTransportAddress(new TransportAddress[] { publishAddress }, publishAddress);
+
+            return null;
+        });
+
+        return serverChannel;
     }
 
     @Override
     protected void doStart() {
-        if (enabled == false) {
-            return;
-        }
-
-        this.serverChannel = setupUnixDomainSocket(getSocketPath());
+        this.serverChannel = setupSocket();
 
         new Thread(() -> {
             while (serverChannel.isOpen()) {
@@ -141,14 +153,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             }
         }, "elasticsearch[readiness-service]").start();
 
-        logger.info("readiness service up and running on unix domain socket {}", getSocketPath());
+        logger.info("readiness service up and running on localhost:{}", boundAddress.publishAddress().getPort());
     }
 
     @Override
     protected void doStop() {
-        if (enabled == false) {
-            return;
-        }
         try {
             if (this.serverChannel != null) {
                 this.serverChannel.close();
@@ -169,16 +178,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     }
 
     @Override
-    protected void doClose() throws IOException {
-        if (enabled == false) {
-            return;
-        }
-        try {
-            Files.deleteIfExists(getSocketPath());
-        } catch (IOException e) {
-            logger.warn("error cleaning up readiness service socket file", e);
-        }
-    }
+    protected void doClose() {}
 
     void sendStatus(SocketChannel channel) {
         try {
@@ -197,10 +197,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (enabled == false) {
-            return;
-        }
-
         ClusterState clusterState = event.state();
 
         Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);

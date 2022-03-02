@@ -444,6 +444,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     @Internal
+    public String getReadinessPortURI() {
+        waitForAllConditions();
+        return getFirstNode().getReadinessPortURI();
+    }
+
+    @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllHttpSocketURI().stream()).collect(Collectors.toList());
@@ -454,6 +461,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllTransportPortURI().stream()).collect(Collectors.toList());
+    }
+
+    @Override
+    @Internal
+    public List<String> getAllReadinessPortURI() {
+        waitForAllConditions();
+        return nodes.stream().flatMap(each -> each.getAllReadinessPortURI().stream()).collect(Collectors.toList());
     }
 
     public void waitForAllConditions() {

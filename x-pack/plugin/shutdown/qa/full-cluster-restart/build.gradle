@@ -62,10 +62,6 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
 
         setting 'xpack.security.authc.api_key.enabled', 'true'
 
-        if (bwcVersion.onOrAfter('8.2.0')) {
-          setting 'readiness.socket_file', "${buildDir}/cluster/shared/repo/${baseName}/s0"
-        }
-
         requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
     }
 
@@ -98,6 +94,7 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
         it.systemProperty 'tests.old_cluster_version', oldVersion
         it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
         it.nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
+        it.nonInputProperties.systemProperty('tests.rest.cluster.readiness', baseCluster.map(c -> c.allReadinessPortURI.join(",")))
         it.nonInputProperties.systemProperty('tests.clustername', baseName)
     }
 

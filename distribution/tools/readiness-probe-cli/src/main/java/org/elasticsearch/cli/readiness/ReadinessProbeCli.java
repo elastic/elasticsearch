@@ -9,6 +9,7 @@
 package org.elasticsearch.cli.readiness;
 
 import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
@@ -17,34 +18,32 @@ import org.elasticsearch.env.Environment;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.net.StandardProtocolFamily;
-import java.net.UnixDomainSocketAddress;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.channels.Channels;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Optional;
 
 public class ReadinessProbeCli extends EnvironmentAwareCommand {
 
+    private final OptionSpec<Integer> portOption;
+
     public ReadinessProbeCli() {
         super("A CLI tool to check if Elasticsearch is ready. Exits with return code of 0 if ready.", () -> {});
+        portOption = parser.acceptsAll(Arrays.asList("p", "port"), "Target port").withRequiredArg().ofType(Integer.class).defaultsTo(9400);
     }
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        tryConnect(getSocketPath(env));
-    }
-
-    Path getSocketPath(Environment environment) {
-        return environment.readinessSocketFile();
+        tryConnect(options.valueOf(portOption));
     }
 
     @SuppressForbidden(reason = "Intentional socket open")
-    void tryConnect(Path socketPath) throws IOException {
-        UnixDomainSocketAddress socketAddress = UnixDomainSocketAddress.of(socketPath);
-
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.UNIX)) {
+    void tryConnect(Integer port) throws IOException {
+        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
+        try (SocketChannel channel = SocketChannel.open(socketAddress)) {
             channel.connect(socketAddress);
             Optional<String> message = readSocketMessage(channel);
             if (message.isEmpty()) {

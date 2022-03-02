@@ -66,6 +66,7 @@ grant {
 
   // Allow host/ip name service lookups
   permission java.net.SocketPermission "*", "resolve";
+  permission java.net.SocketPermission "localhost:*", "listen";
 
   // Allow reading and setting socket keepalive options
   permission jdk.net.NetworkPermission "getOption.TCP_KEEPIDLE";

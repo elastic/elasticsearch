@@ -93,6 +93,54 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testNodeReadinessShutdown() throws Exception {
+        assumeTrue("no shutdown in versions before " + Version.V_7_15_0, getOldClusterVersion().onOrAfter(Version.V_7_15_0));
+
+        if (isRunningAgainstOldCluster() == false) {
+            assertNotNull(getTestReadinessPorts());
+            assertEquals("9400", getTestReadinessPorts());
+            final Request getNodesReq = new Request("GET", "_nodes");
+            final Response getNodesResp = adminClient().performRequest(getNodesReq);
+            final Map<String, Object> nodes = (Map<String, Object>) entityAsMap(getNodesResp).get("nodes");
+            final String nodeIdToShutdown = randomFrom(nodes.keySet());
+
+            final Request putShutdownRequest = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
+                putBody.startObject();
+                {
+                    // Use the types available from as early as possible
+                    final String type = randomFrom("restart", "remove");
+                    putBody.field("type", type);
+                    putBody.field("reason", this.getTestName());
+                }
+                putBody.endObject();
+                putShutdownRequest.setJsonEntity(Strings.toString(putBody));
+            }
+            assertOK(client().performRequest(putShutdownRequest));
+        }
+
+        assertBusy(() -> {
+            final Request getShutdownsReq = new Request("GET", "_nodes/shutdown");
+            final Response getShutdownsResp = client().performRequest(getShutdownsReq);
+            final Map<String, Object> stringObjectMap = entityAsMap(getShutdownsResp);
+
+            final List<Map<String, Object>> shutdowns = (List<Map<String, Object>>) stringObjectMap.get("nodes");
+            assertThat("there should be exactly one shutdown registered", shutdowns, hasSize(1));
+            final Map<String, Object> shutdown = shutdowns.get(0);
+            assertThat(shutdown.get("node_id"), notNullValue()); // Since we randomly determine the node ID, we can't check it
+            assertThat(shutdown.get("reason"), equalTo(this.getTestName()));
+            assertThat(
+                (String) shutdown.get("status"),
+                anyOf(
+                    Arrays.stream(SingleNodeShutdownMetadata.Status.values())
+                        .map(value -> equalToIgnoringCase(value.toString()))
+                        .collect(Collectors.toList())
+                )
+            );
+        }, 30, TimeUnit.SECONDS);
+    }
+
     @Override
     protected void deleteAllNodeShutdownMetadata() throws IOException {
         // do not delete node shutdown

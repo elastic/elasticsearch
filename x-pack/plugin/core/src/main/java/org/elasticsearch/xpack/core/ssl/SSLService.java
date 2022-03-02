@@ -629,7 +629,11 @@ public class SSLService {
             deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "invalid_ssl_configuration",
-                "invalid configuration for " + prefix + " - the truststore [" + path + "] does not contain any trusted certificate entries"
+                "invalid configuration for ["
+                    + prefix
+                    + "] - the truststore ["
+                    + path
+                    + "] does not contain any trusted certificate entries"
             );
         }
     }

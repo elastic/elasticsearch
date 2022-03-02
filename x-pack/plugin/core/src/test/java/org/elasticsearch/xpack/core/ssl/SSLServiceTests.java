@@ -879,19 +879,32 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testDeprecationOfTruststoreWithNoTrustedEntries() throws IllegalAccessException {
-        Path pathToEmptyKeystore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/empty.p12");
+        final String keystoreName;
+        final String password;
+        if (randomBoolean()) {
+            // This keystore is completely empty
+            keystoreName = "empty.p12";
+            password = "_empty";
+        } else {
+            // This keystore contains a PrivateKeyEntry but not trust anchors
+            keystoreName = "testnode_updated" + randomFrom(".p12", ".jks");
+            password = "testnode";
+        }
+        final Path pathToKeystore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/" + keystoreName);
+
         final Settings.Builder builder = Settings.builder();
-        builder.put("keystore.path", pathToEmptyKeystore);
-        builder.put("truststore.path", pathToEmptyKeystore);
+        builder.put("keystore.path", pathToKeystore);
+        builder.put("truststore.path", pathToKeystore);
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("keystore.secure_password", "_empty");
-        secureSettings.setString("truststore.secure_password", "_empty");
+        secureSettings.setString("keystore.secure_password", password);
+        secureSettings.setString("truststore.secure_password", password);
         builder.setSecureSettings(secureSettings);
+
         final SSLConfiguration configuration = new SSLConfiguration(builder.build());
         final SSLService sslService = new SSLService(Settings.EMPTY, env);
 
-        final String warningMessage = "invalid configuration for xpack.security.transport.ssl - the truststore ["
-            + pathToEmptyKeystore
+        final String warningMessage = "invalid configuration for [xpack.security.transport.ssl] - the truststore ["
+            + pathToKeystore
             + "] does not contain any trusted certificate entries";
 
         final Logger deprecationLogger = LogManager.getLogger(

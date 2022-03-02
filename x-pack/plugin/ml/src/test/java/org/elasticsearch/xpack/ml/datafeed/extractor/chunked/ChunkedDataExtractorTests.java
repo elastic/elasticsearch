@@ -565,7 +565,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         when(min.getName()).thenReturn("earliest_time");
         aggs.add(min);
         Max max = mock(Max.class);
-        when(max.getValue()).thenReturn((double) latestTime);
+        when(max.value()).thenReturn((double) latestTime);
         when(max.getName()).thenReturn("latest_time");
         aggs.add(max);
         Aggregations aggregations = new Aggregations(aggs) {
@@ -587,7 +587,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         when(min.getName()).thenReturn("earliest_time");
         aggs.add(min);
         Max max = mock(Max.class);
-        when(max.getValue()).thenReturn(Double.POSITIVE_INFINITY);
+        when(max.value()).thenReturn(Double.POSITIVE_INFINITY);
         when(max.getName()).thenReturn("latest_time");
         aggs.add(max);
         Aggregations aggregations = new Aggregations(aggs) {

@@ -253,6 +253,11 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertFalse(map.entrySet().contains(entry(2, null)));
     }
 
+    public void testIntMapContainsValue() {
+        ImmutableOpenIntMap<String> map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").fPut(2, "bar").build();
+        assertTrue(map.containsValue("bar"));
+    }
+
     private static <KType, VType> Map.Entry<KType, VType> entry(KType key, VType value) {
         Map<KType, VType> map = Maps.newMapWithExpectedSize(1);
         map.put(key, value);

@@ -629,7 +629,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
      * rather than a yaml integration test because it requires creating many many
      * documents and that is hard to express in yaml.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/84540")
     public void testFilterByFilter() throws InterruptedException, IOException {
         assertAcked(
             client().admin()
@@ -698,9 +697,9 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                                     .entry(
                                         "filters",
                                         matchesList().item(
-                                            matchesMap().entry("query", "DocValuesFieldExistsQuery [field=date]")
-                                                .entry("specialized_for", "docvalues_field_exists")
+                                            matchesMap().entry("query", "*:*")
                                                 .entry("results_from_metadata", 0)
+                                                .entry("specialized_for", "match_all")
                                         )
                                     )
                             )

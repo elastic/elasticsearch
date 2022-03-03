@@ -194,7 +194,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "restarting_primaries",
                     primaries.unassigned_restarting,
                     "started_primaries",
-                    primaries.started,
+                    primaries.started + primaries.reallocating,
                     "unassigned_replicas",
                     replicas.unassigned,
                     "initializing_replicas",
@@ -202,7 +202,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "restarting_replicas",
                     replicas.unassigned_restarting,
                     "started_replicas",
-                    replicas.started
+                    replicas.started + replicas.reallocating
                 )
             );
         }

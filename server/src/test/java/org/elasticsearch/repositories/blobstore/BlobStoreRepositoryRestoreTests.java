@@ -92,13 +92,13 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
 
             // capture current store files
             final Store.MetadataSnapshot storeFiles = shard.snapshotStoreMetadata();
-            assertFalse(storeFiles.asMap().isEmpty());
+            assertFalse(storeFiles.fileMetadataMap().isEmpty());
 
             // close the shard
             closeShards(shard);
 
             // delete some random files in the store
-            List<String> deletedFiles = randomSubsetOf(randomIntBetween(1, storeFiles.size() - 1), storeFiles.asMap().keySet());
+            List<String> deletedFiles = randomSubsetOf(randomIntBetween(1, storeFiles.size() - 1), storeFiles.fileMetadataMap().keySet());
             for (String deletedFile : deletedFiles) {
                 Files.delete(shard.shardPath().resolveIndex().resolve(deletedFile));
             }

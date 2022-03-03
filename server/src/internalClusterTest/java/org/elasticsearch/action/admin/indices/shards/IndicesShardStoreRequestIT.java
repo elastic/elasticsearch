@@ -77,7 +77,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index).shardStatuses("all")).get();
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
         ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> shardStores = response.getStoreStatuses().get(index);
-        assertThat(shardStores.values().size(), equalTo(2));
+        assertThat(shardStores.size(), equalTo(2));
         for (Map.Entry<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : shardStores.entrySet()) {
             for (IndicesShardStoresResponse.StoreStatus storeStatus : shardStoreStatuses.getValue()) {
                 assertThat(storeStatus.getAllocationId(), notNullValue());

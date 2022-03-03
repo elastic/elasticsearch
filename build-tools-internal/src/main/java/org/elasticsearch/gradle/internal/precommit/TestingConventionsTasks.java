@@ -11,18 +11,16 @@ import groovy.lang.Closure;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.NamedDomainObjectContainer;
-import org.gradle.api.Task;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.api.tasks.TaskCollection;
-import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -59,7 +57,12 @@ public class TestingConventionsTasks extends DefaultTask {
     private ProjectLayout projectLayout;
 
     private SourceSetContainer sourceSets;
-    private TaskCollection<Test> testTasks;
+    private Provider<Map<String, Set<File>>> candidateClassFilesProvider;
+    private Map<String, Set<File>> candidateClassFiles;
+
+    public void setCandidateClassFilesProvider(Provider<Map<String, Set<File>>> candidateClassFilesProvider) {
+        this.candidateClassFilesProvider = candidateClassFilesProvider;
+    }
 
     @Inject
     public TestingConventionsTasks(ProjectLayout projectLayout) {
@@ -69,7 +72,8 @@ public class TestingConventionsTasks extends DefaultTask {
 
     @Input
     public Map<String, Set<File>> getClassFilesPerEnabledTask() {
-        return testTasks.stream().collect(Collectors.toMap(Task::getPath, task -> task.getCandidateClassFiles().getFiles()));
+        candidateClassFiles = candidateClassFilesProvider.get();
+        return candidateClassFiles;
     }
 
     @Input
@@ -147,7 +151,7 @@ public class TestingConventionsTasks extends DefaultTask {
                     .collect(Collectors.toList())
             ).getAsFileTree();
 
-            final Map<String, Set<File>> classFilesPerTask = getClassFilesPerEnabledTask();
+            final Map<String, Set<File>> classFilesPerTask = candidateClassFiles;
 
             final Set<File> testSourceSetFiles = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath().getFiles();
             final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet()
@@ -408,10 +412,6 @@ public class TestingConventionsTasks extends DefaultTask {
         } catch (MalformedURLException e) {
             throw new IllegalStateException(e);
         }
-    }
-
-    public void setTestTasks(TaskCollection<Test> testTasks) {
-        this.testTasks = testTasks;
     }
 
     public void setSourceSets(SourceSetContainer sourceSets) {

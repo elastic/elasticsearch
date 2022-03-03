@@ -22,11 +22,10 @@ import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -186,11 +185,7 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
-                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(
-                                    NamedXContentRegistry.EMPTY,
-                                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                                    body
-                                );
+                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, body);
                                 // multiple bodies are supported e.g. in case of bulk provided as a whole string
                                 while (bodyParser.nextToken() != null) {
                                     apiCallSection.addBody(bodyParser.mapOrdered());

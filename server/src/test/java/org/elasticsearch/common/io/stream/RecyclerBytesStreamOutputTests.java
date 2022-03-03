@@ -526,7 +526,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         final ImmutableOpenMap<String, String> expected = expectedBuilder.build();
         final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeImmutableMap(expected, StreamOutput::writeString, StreamOutput::writeString);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
 
@@ -542,7 +542,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         final ImmutableOpenMap<TestWriteable, TestWriteable> expected = expectedBuilder.build();
         final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        out.writeMap(expected);
+        out.writeImmutableMap(expected);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
 

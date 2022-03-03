@@ -384,7 +384,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
-        builder.remove(masterNode.getId());
+        builder.remove(masterNode.getId()).masterNodeId(null);
 
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
 

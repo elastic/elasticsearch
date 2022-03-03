@@ -235,7 +235,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         }
 
         // Get read to re-sign JWTs for time claim failure tests
-        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer().getAllAlgJwkPairs());
+        final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer().algAndJwksAll);
         final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(algJwkPair.alg())).build();
         final Instant now = Instant.now();
         final Date past = Date.from(now.minusSeconds(86400));

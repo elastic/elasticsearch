@@ -13,7 +13,6 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyOperation;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
@@ -54,6 +53,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -77,6 +77,7 @@ import static org.mockito.Mockito.mock;
 public abstract class JwtTestCase extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtTestCase.class);
+    protected static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     protected String pathHome;
     protected Settings globalSettings;
@@ -553,13 +554,9 @@ public abstract class JwtTestCase extends ESTestCase {
         return IntStream.rangeClosed(1, minToMaxInclusive).mapToObj(i -> randomFrom(collection)).toList(); // 1..N inclusive
     }
 
-    public String saveJwkSetToTempFile(final JWKSet jwksetPkc, final boolean publicKeysOnly) throws IOException {
-        final String serializedJwkSet = JwtUtil.serializeJwkSet(jwksetPkc, publicKeysOnly);
-        if (serializedJwkSet == null) {
-            return null;
-        }
-        final Path path = Files.createTempFile(PathUtils.get(this.pathHome), "jwkset.", ".json");
-        Files.writeString(path, serializedJwkSet);
+    public String saveToTempFile(final String prefix, final String suffix, final byte[] content) throws IOException {
+        final Path path = Files.createTempFile(PathUtils.get(this.pathHome), prefix, suffix);
+        Files.write(path, content);
         return path.toString();
     }
 

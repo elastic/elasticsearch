@@ -125,9 +125,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.httpClient = null; // no setting means no HTTP client
         }
 
-        this.jwksAlgsHmac = this.parseJwksAlgsHmac();
-        this.jwksAlgsPkc = this.parseJwksAlgsPkc();
-        this.verifyAnyAvailableJwkAndAlgPair();
+        // If HTTPS client was created in JWT realm, any exception after that point requires closing it to avoid a thread pool leak
+        try {
+            this.jwksAlgsHmac = this.parseJwksAlgsHmac();
+            this.jwksAlgsPkc = this.parseJwksAlgsPkc();
+            this.verifyAnyAvailableJwkAndAlgPair();
+        } catch (Throwable t) {
+            this.close();
+            throw t;
+        }
     }
 
     // must call parseAlgsAndJwksHmac() before parseAlgsAndJwksPkc()

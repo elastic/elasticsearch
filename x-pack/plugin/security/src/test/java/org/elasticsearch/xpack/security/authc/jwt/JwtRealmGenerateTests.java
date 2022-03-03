@@ -58,7 +58,8 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             JwtTestCase.randomJwks(Collections.emptyList()),
             JwtTestCase.randomJwks(Collections.emptyList()),
             new JwtIssuer.AlgJwkPair("HS256", hmacJwkOidc),
-            Collections.singletonMap("security_test_user", new User("security_test_user", "security_test_role"))
+            Collections.singletonMap("security_test_user", new User("security_test_user", "security_test_role")),
+            null
         );
 
         // Create JWT realm settings with hard-coded name, order, issuer, audiences, algorithms, principal claim, secret, HMAC verify key
@@ -70,7 +71,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_AUDIENCES), String.join(",", jwtIssuer.audiences))
             .put(
                 RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
-                String.join(",", jwtIssuer.getAllAlgorithms())
+                String.join(",", jwtIssuer.algorithmsAll)
             )
             .put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.CLAIMS_PRINCIPAL.getClaim()), "sub")
             .put(
@@ -106,7 +107,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
         // Sign a JWT for the one user, using the one HMAC key from the issuer, and claim settings from the realm
         final SecureString jwt;
         {   // Copied from randomJwt() and modified to hard-code exp far in the future
-            final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer().getAllAlgJwkPairs());
+            final JwtIssuer.AlgJwkPair algJwkPair = randomFrom(jwtIssuerAndRealm.issuer().algAndJwksAll);
             LOGGER.info("JWK=[" + algJwkPair.jwk().getKeyType() + "/" + algJwkPair.jwk().size() + "], alg=[" + algJwkPair.alg() + "].");
 
             final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(

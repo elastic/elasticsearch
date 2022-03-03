@@ -15,6 +15,7 @@
         {
           "path":"/_security/profile/{uid}/_data",
           "methods":[
+            "PUT",
             "POST"
           ],
           "parts":{

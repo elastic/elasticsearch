@@ -12,9 +12,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -115,8 +114,8 @@ public class SecurityRestFilter implements RestHandler {
                     try {
                         // Populate x-opaque-id if not already exists to chain all related actions together
                         if (authentication != null && false == SystemUser.is(authentication.getUser())) {
-                            if (threadContext.getHeader(Task.X_OPAQUE_ID) == null) {
-                                threadContext.putHeader(Task.X_OPAQUE_ID, UUIDs.base64UUID());
+                            if (threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER) == null) {
+                                threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, UUIDs.base64UUID());
                             }
                         }
                         restHandler.handleRequest(request, channel, client);

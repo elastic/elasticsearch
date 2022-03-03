@@ -5,7 +5,7 @@
 beta::[]
 
 ++++
-<titleabbrev>Update user profile data</titleabbrev>
+<titleabbrev>Search user profile</titleabbrev>
 ++++
 
 Search for user profiles that match the specified search criteria.

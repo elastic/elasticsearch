@@ -14,7 +14,7 @@ The user profile is **not** visible to search once disabled.
 [[security-api-disable-user-profile-request]]
 ==== {api-request-title}
 
-`POST /_security/profile/<uid>/_enable`
+`POST /_security/profile/<uid>/_disable`
 
 [[security-api-disable-user-profile-prereqs]]
 ==== {api-prereq-title}

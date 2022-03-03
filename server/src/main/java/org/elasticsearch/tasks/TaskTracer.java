@@ -18,7 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class TaskTracer {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(TaskTracer.class);
 
     private final List<Tracer> tracers = new CopyOnWriteArrayList<>();
 

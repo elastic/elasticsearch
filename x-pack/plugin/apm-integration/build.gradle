@@ -105,8 +105,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
     'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'
   )
@@ -149,7 +147,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder',
     'io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder',
     'io.grpc.okhttp.OkHttpChannelBuilder',
-    'io.netty.handler.proxy.HttpProxyHandler',
     'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
     'io.netty.internal.tcnative.AsyncTask',
     'io.netty.internal.tcnative.Buffer',
@@ -166,11 +163,8 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.SniHostNameMatcher',
     'io.opentelemetry.sdk.logs.data.Severity',
     'lzma.sdk.lzma.Encoder',
-    'org.bouncycastle.asn1.x500.X500Name',
     'org.bouncycastle.cert.X509v3CertificateBuilder',
     'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
-    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
-    'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
     'org.conscrypt.AllocatedBuffer',
     'org.conscrypt.BufferAllocator',

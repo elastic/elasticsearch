@@ -212,7 +212,7 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         out.writeString(snapshotName);
         out.writeString(operation);
         out.writeBoolean(success);
-        out.writeMap(snapshotConfiguration);
+        out.writeGenericValue(snapshotConfiguration);
         out.writeOptionalString(errorDetails);
     }
 

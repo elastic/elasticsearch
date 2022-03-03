@@ -156,7 +156,7 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(metadata);
+            out.writeGenericValue(metadata);
         }
         refreshPolicy.writeTo(out);
         out.writeBoolean(enabled);

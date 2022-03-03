@@ -72,7 +72,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(source);
+        out.writeGenericValue(source);
         out.writeOptionalWriteable(aggregations);
     }
 

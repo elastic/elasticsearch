@@ -52,7 +52,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeStringArray(bucketsPaths);
-        out.writeMap(metadata);
+        out.writeGenericValue(metadata);
         doWriteTo(out);
     }
 

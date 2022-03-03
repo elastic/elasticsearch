@@ -55,7 +55,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         factoriesBuilder.writeTo(out);
-        out.writeMap(metadata);
+        out.writeGenericValue(metadata);
         doWriteTo(out);
     }
 

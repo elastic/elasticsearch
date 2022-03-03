@@ -68,8 +68,8 @@ public class TransformIndexerPosition implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(indexerPosition);
-        out.writeMap(bucketPosition);
+        out.writeGenericValue(indexerPosition);
+        out.writeGenericValue(bucketPosition);
     }
 
     @Override

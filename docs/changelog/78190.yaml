@@ -1,0 +1,5 @@
+pr: 78190
+summary: Fix conjunction with comparison of datetime field to date string
+area: SQL
+type: bug
+issues: [77179]

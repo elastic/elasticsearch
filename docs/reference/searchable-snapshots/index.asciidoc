@@ -1,6 +1,11 @@
 [[searchable-snapshots]]
 == {search-snaps-cap}
 
+TIP: To complete these steps, you must obtain a license that includes 
+{search-snap}. For more information about Elastic license levels, see 
+https://www.elastic.co/subscriptions and
+{kibana-ref}/managing-licenses.html[License management].
+
 {search-snaps-cap} let you use <<snapshot-restore,snapshots>> to search
 infrequently accessed and read-only data in a very cost-effective fashion. The
 <<cold-tier,cold>> and <<frozen-tier,frozen>> data tiers use {search-snaps} to

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;

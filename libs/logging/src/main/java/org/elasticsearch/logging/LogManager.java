@@ -8,20 +8,25 @@
 
 package org.elasticsearch.logging;
 
+import org.elasticsearch.logging.internal.LoggerImpl;
+
 public class LogManager {
 
     public static Logger getLogger(final String name) {
-        return null;
+        org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(name);
+        return new LoggerImpl(logger);
     }
 
     public static Logger getLogger(final Class<?> clazz) {
-        return null;
+        org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(clazz);
+        return new LoggerImpl(logger);
     }
 
     private LogManager() {}
 
     public static Logger getLogger() {
-        return null;
+        org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger();
+        return new LoggerImpl(logger);
     }
 
     public static Logger getRootLogger() {

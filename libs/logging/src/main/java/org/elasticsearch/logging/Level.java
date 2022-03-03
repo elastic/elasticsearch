@@ -27,21 +27,26 @@ public final class Level {
     public static final Level ALL   = new Level("ALL"  , StandardLevels.ALL);
 
     private static final ConcurrentMap<String, Level> LEVELS = new ConcurrentHashMap<>();
-static{
-    LEVELS.put(OFF  .name, OFF   );
-    LEVELS.put(FATAL.name, FATAL );
-    LEVELS.put(ERROR.name, ERROR );
-    LEVELS.put(WARN .name, WARN  );
-    LEVELS.put(INFO .name, INFO  );
-}
+
+    static {
+        LEVELS.put(OFF.name, OFF);
+        LEVELS.put(FATAL.name, FATAL);
+        LEVELS.put(ERROR.name, ERROR);
+        LEVELS.put(WARN.name, WARN);
+        LEVELS.put(INFO.name, INFO);
+        LEVELS.put(DEBUG.name, DEBUG);
+        LEVELS.put(TRACE.name, TRACE);
+        LEVELS.put(ALL.name, ALL);
+    }
     private final String name;
 
     private final int severity;
 
-    /*package*/ static Level of(String name, int severity) {
+    //TODO PG  make sure we don't create too many levels..
+    /*package*/ public static Level of(String name, int severity) {
         var level = new Level(name, severity);
         if (LEVELS.putIfAbsent(name, level) != null) {
-            throw new IllegalStateException("Level " + name + " is already been defined.");
+//            throw new IllegalStateException("Level " + name + " is already been defined.");
         }
         return level;
     }
@@ -62,7 +67,6 @@ static{
         return severity;
     }
 
-    /** Return the Level associated with the name. */
     public static Level valueOf(final String name) {
         Objects.requireNonNull(name);
         final String levelName = name.trim().toUpperCase(Locale.ROOT);
@@ -77,4 +81,11 @@ static{
         return this.severity <= level.severity;
     }
 
+    @Override
+    public String toString() {
+        return "Level{" +
+            "name='" + name + '\'' +
+            ", severity=" + severity +
+            '}';
+    }
 }

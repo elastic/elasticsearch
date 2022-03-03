@@ -32,7 +32,7 @@ public class Loggers {
     public static org.elasticsearch.logging.Logger getLogger(Class<?> clazz, int shardId, String... prefixes) {
         return getLogger(
             clazz,
-            shardId,
+
             Stream.concat(Stream.of(Integer.toString(shardId)), Arrays.stream(prefixes)).toArray(String[]::new)
         );
     }
@@ -55,7 +55,11 @@ public class Loggers {
     }
 
     public static org.elasticsearch.logging.Logger getLogger(org.elasticsearch.logging.Logger parentLogger, String s) {
-        return getLoggerImpl(Util.log4jLogger(parentLogger), s);
+        org.elasticsearch.logging.Logger inner =  org.elasticsearch.logging.LogManager.getLogger(parentLogger.getName() + s);
+        if (parentLogger instanceof PrefixLogger) {
+            return new LoggerImpl(new PrefixLogger(Util.log4jLogger(inner), ((PrefixLogger) parentLogger).prefix()));
+        }
+        return  inner;
     }
 
     public static org.elasticsearch.logging.Logger getLoggerImpl(Logger parentLogger, String s) {

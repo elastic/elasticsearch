@@ -32,15 +32,18 @@ public final class ESLogMessage implements Message {
     }
 
     public ESLogMessage argAndField(String key, Object value) {
-        return this.argAndField(key, value);
+        impl.argAndField(key, value);
+        return this;
     }
 
     public ESLogMessage withFields(Map<String, Object> jsonFields) {
-        return this.withFields(jsonFields);
+        impl.withFields(jsonFields);
+        return this;
     }
 
     public ESLogMessage field(String key, Object value) {
-        return this.field(key, value);
+        impl.field(key, value);
+        return this;
     }
 
     public String get(String key) {

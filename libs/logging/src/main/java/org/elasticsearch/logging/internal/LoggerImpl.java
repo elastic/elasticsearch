@@ -14,7 +14,7 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
 
     private final org.apache.logging.log4j.Logger log4jLogger;
 
-    LoggerImpl(org.apache.logging.log4j.Logger log4jLogger) {
+    public LoggerImpl(org.apache.logging.log4j.Logger log4jLogger) {
         this.log4jLogger = log4jLogger;
     }
 

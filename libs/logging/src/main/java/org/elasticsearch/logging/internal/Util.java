@@ -12,6 +12,8 @@ public final class Util {
 
     private Util() {}
 
+    //TODO PG  make sure we don't create too many levels..
+
     static org.apache.logging.log4j.Level log4jLevel(final org.elasticsearch.logging.Level level) {
         return switch (level.getSeverity()) {
             case StandardLevels.OFF -> org.apache.logging.log4j.Level.OFF;
@@ -22,10 +24,11 @@ public final class Util {
             case StandardLevels.DEBUG -> org.apache.logging.log4j.Level.DEBUG;
             case StandardLevels.TRACE -> org.apache.logging.log4j.Level.TRACE;
             case StandardLevels.ALL -> org.apache.logging.log4j.Level.ALL;
-            default -> throw new IllegalStateException("unexpected level:" + level);
+            default -> org.apache.logging.log4j.Level.forName(level.name(), level.getSeverity());
         };
     }
 
+    //TODO PG  make sure we don't create too many levels..
     static  org.elasticsearch.logging.Level elasticsearchLevel(final org.apache.logging.log4j.Level level) {
         return switch (level.getStandardLevel().intLevel()) {
             case StandardLevels.OFF ->   org.elasticsearch.logging.Level.OFF;
@@ -36,13 +39,16 @@ public final class Util {
             case StandardLevels.DEBUG -> org.elasticsearch.logging.Level.DEBUG;
             case StandardLevels.TRACE -> org.elasticsearch.logging.Level.TRACE;
             case StandardLevels.ALL ->   org.elasticsearch.logging.Level.ALL;
-            default -> throw new IllegalStateException("unexpected level:" + level);
+            default -> org.elasticsearch.logging.Level.of(level.name(), level.getStandardLevel().intLevel());
         };
     }
 
     static org.apache.logging.log4j.Logger log4jLogger(final org.elasticsearch.logging.Logger logger) {
         if (logger instanceof org.apache.logging.log4j.Logger log4jLogger) {
             return log4jLogger;
+        }
+        if (logger instanceof org.elasticsearch.logging.internal.LoggerImpl) {
+            return ((org.elasticsearch.logging.internal.LoggerImpl)logger).log4jLogger();
         }
         throw new IllegalArgumentException("unknown logger: " + logger);
     }

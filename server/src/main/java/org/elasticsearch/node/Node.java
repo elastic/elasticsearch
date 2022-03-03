@@ -307,7 +307,7 @@ public class Node implements Closeable {
         boolean success = false;
         try {
             // Pass the node settings to the DeprecationLogger class so that it can have the deprecation.skip_deprecated_settings setting:
-            DeprecationLogger.initialize(initialEnvironment.settings());
+            DeprecationLogger.initialize(initialEnvironment.settings().getAsList("deprecation.skip_deprecated_settings"));
             Settings tmpSettings = Settings.builder()
                 .put(initialEnvironment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE)

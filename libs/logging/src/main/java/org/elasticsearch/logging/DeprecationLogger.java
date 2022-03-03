@@ -8,11 +8,9 @@
 
 package org.elasticsearch.logging;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.internal.HeaderWarningAppender; // TODO: remove from the API docs.
+import org.elasticsearch.logging.internal.RateLimitingFilter; // TODO: remove from the API docs.
+import org.elasticsearch.logging.internal.ServerSupportImpl;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -68,12 +66,12 @@ public final class DeprecationLogger {
      * This is a node setting. This method initializes the DeprecationLogger class with the node settings for the node in order to read the
      * "deprecation.skip_deprecated_settings" setting. This only needs to be called once per JVM. If it is not called, the default behavior
      * is to assume that the "deprecation.skip_deprecated_settings" setting is not set.
-     * @param nodeSettings The settings for this node
+     * @param nodeSkipDeprecatedSetting The settings for this node  // TODO: typy this up
      */
-    public static void initialize(Settings nodeSettings) {
-        skipTheseDeprecations = nodeSettings == null
+    public static void initialize(List<String> nodeSkipDeprecatedSetting) {
+        skipTheseDeprecations = nodeSkipDeprecatedSetting == null
             ? Collections.emptyList()
-            : nodeSettings.getAsList("deprecation.skip_deprecated_settings");
+            : nodeSkipDeprecatedSetting; //nodeSettings.getAsList("deprecation.skip_deprecated_settings");
     }
 
     private DeprecationLogger(String parentLoggerName) {

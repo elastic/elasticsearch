@@ -9,13 +9,13 @@
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  moduleCompileOnly  project(':libs:elasticsearch-x-content')  // TODO: for JsonStringEncoder
-  moduleCompileOnly  project(':libs:elasticsearch-cli')  // TODO: prob remove this, if just for exception types
-  moduleApi "org.apache.logging.log4j:log4j-api:${versions.log4j}" //TODO PG should we change moduleCompileOnly to something else?
-  moduleApi "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  compileOnly  project(':libs:elasticsearch-x-content')  // TODO: for JsonStringEncoder
+  compileOnly  project(':libs:elasticsearch-cli')  // TODO: prob remove this, if just for exception types
+  api "org.apache.logging.log4j:log4j-api:${versions.log4j}" //TODO PG should we change compileOnly to something else?
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
-  moduleApi "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
-  moduleApi "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
+  api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
+  api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"

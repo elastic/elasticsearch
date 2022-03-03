@@ -17,6 +17,9 @@ dependencies {
   api(project(':libs:elasticsearch-x-content')) {
     transitive = false
   }
+  api(project(':libs:elasticsearch-logging')) {
+    transitive = false
+  }
   api xpackProject('plugin:core')
   api xpackProject('plugin:ql')
   api xpackProject('plugin:sql:sql-proto')

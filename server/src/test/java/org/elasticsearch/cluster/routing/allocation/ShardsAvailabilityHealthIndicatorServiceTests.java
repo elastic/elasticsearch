@@ -125,7 +125,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 index(
                     "restarting-index",
                     new ShardAllocation(randomNodeId(), AVAILABLE),
-                    new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis() - 1_000)
+                    new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis())
                 )
             ),
             List.of(new NodeShutdown("node-0", RESTART, 60))
@@ -144,9 +144,34 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    public void testShouldBeYellowWhenRestartingReplicasReachedAllocationDelay() {
+        var clusterState = createClusterStateWith(
+            List.of(
+                index(
+                    "restarting-index",
+                    new ShardAllocation(randomNodeId(), AVAILABLE),
+                    new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis() - between(60_001, 120_000))
+                )
+            ),
+            List.of(new NodeShutdown("node-0", RESTART, 60))
+        );
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(),
+            equalTo(
+                createExpectedResult(
+                    YELLOW,
+                    "This cluster has 1 unavailable replica.",
+                    Map.of("started_primaries", 1, "unassigned_replicas", 1)
+                )
+            )
+        );
+    }
+
     public void testShouldBeGreenWhenThereAreRestartingPrimaries() {
         var clusterState = createClusterStateWith(
-            List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis() - 1_000))),
+            List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis()))),
             List.of(new NodeShutdown("node-0", RESTART, 60))
         );
         var service = createAllocationHealthIndicatorService(clusterState);
@@ -159,7 +184,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testShouldBeRedWhenRestartingPrimariesReachedAllocationDelay() {
         var clusterState = createClusterStateWith(
-            List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis() - 61_000))),
+            List.of(
+                index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis() - between(60_001, 120_000)))
+            ),
             List.of(new NodeShutdown("node-0", RESTART, 60))
         );
         var service = createAllocationHealthIndicatorService(clusterState);
@@ -228,7 +255,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     private static IndexRoutingTable index(String name, ShardAllocation primaryState, ShardAllocation... replicaStates) {
         var index = new Index(name, UUID.randomUUID().toString());
-        var shardId = new ShardId(index, 1);
+        var shardId = new ShardId(index, 0);
 
         var builder = IndexRoutingTable.builder(index);
         builder.addShard(createShardRouting(shardId, true, primaryState));

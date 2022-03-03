@@ -127,7 +127,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalGeoCentroid(name, centroid, samplingContext.inverseScale(count), getMetadata());
+        return new InternalGeoCentroid(name, centroid, samplingContext.scaleUp(count), getMetadata());
     }
 
     @Override

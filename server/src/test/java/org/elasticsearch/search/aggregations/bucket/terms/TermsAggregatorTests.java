@@ -21,7 +21,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -32,6 +31,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -96,8 +96,8 @@ import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
@@ -1439,8 +1439,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("pig"));
                     assertThat(result.getBuckets().get(0).docCount, equalTo(1L));
                     assertThat(
-                        ((InternalMax) (((InternalNested) result.getBuckets().get(0).getAggregations().get("nested")).getAggregations()
-                            .get("max_number"))).getValue(),
+                        ((Max) (((InternalNested) result.getBuckets().get(0).getAggregations().get("nested")).getAggregations()
+                            .get("max_number"))).value(),
                         closeTo(100.0, 0.00001)
                     );
                 }
@@ -1480,8 +1480,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     );
                     assertThat(result.getBuckets().get(0).term, equalTo(3L));
                     assertThat(
-                        ((InternalMax) (((InternalNested) result.getBuckets().get(0).getAggregations().get("nested")).getAggregations()
-                            .get("max_val"))).getValue(),
+                        ((Max) (((InternalNested) result.getBuckets().get(0).getAggregations().get("nested")).getAggregations()
+                            .get("max_val"))).value(),
                         closeTo(10.0, 0.00001)
                     );
                 }

@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.Streams;
@@ -1798,15 +1799,20 @@ public final class TokenService {
                     .startObject("client")
                     .field("type", "unassociated_client")
                     .field("user", originatingClientAuth.getUser().principal())
-                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName())
-                    .endObject()
-                    .endObject();
+                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName());
+                if (originatingClientAuth.getSourceRealm().getDomain() != null) {
+                    builder.field("realm_domain", originatingClientAuth.getSourceRealm().getDomain());
+                }
+                builder.endObject().endObject();
             }
             builder.startObject("access_token")
                 .field("invalidated", false)
                 .field("user_token", userToken)
-                .field("realm", userToken.getAuthentication().getAuthenticatedBy().getName())
-                .endObject();
+                .field("realm", userToken.getAuthentication().getAuthenticatedBy().getName());
+            if (userToken.getAuthentication().getSourceRealm().getDomain() != null) {
+                builder.field("realm_domain", userToken.getAuthentication().getSourceRealm().getDomain());
+            }
+            builder.endObject();
             builder.endObject();
             return BytesReference.bytes(builder);
         } catch (IOException e) {
@@ -2416,6 +2422,11 @@ public final class TokenService {
         return new BytesRef(Base64.getUrlEncoder().withoutPadding().encode(this.keyCache.currentTokenKeyHash.bytes)).utf8ToString();
     }
 
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
+    }
+
     void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
         logger.info("rotate keys on master");
         TokenMetadata tokenMetadata = generateSpareKey();
@@ -2427,13 +2438,13 @@ public final class TokenService {
                     clusterService.submitStateUpdateTask(
                         "publish next key to prepare key rotation",
                         new TokenMetadataPublishAction(metadata, listener),
-                        ClusterStateTaskExecutor.unbatched()
+                        newExecutor()
                     );
                 } else {
                     listener.onFailure(new IllegalStateException("not acked"));
                 }
             }, listener::onFailure)),
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -2526,7 +2537,7 @@ public final class TokenService {
                     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         installTokenMetadataInProgress.set(false);
                     }
-                }, ClusterStateTaskExecutor.unbatched());
+                }, newExecutor());
             }
         }
     }

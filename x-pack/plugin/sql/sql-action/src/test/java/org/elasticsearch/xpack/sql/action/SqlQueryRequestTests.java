@@ -76,7 +76,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQue
             randomAlphaOfLength(10),
             requestInfo,
             randomBoolean(),
-            randomBoolean(),
+            false, // deprecated
             randomTV(),
             randomBoolean(),
             randomTVGreaterThan(MIN_KEEP_ALIVE)

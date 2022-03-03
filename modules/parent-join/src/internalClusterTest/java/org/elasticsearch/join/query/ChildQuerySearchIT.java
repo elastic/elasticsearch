@@ -1719,7 +1719,6 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertSearchHits(searchResponse, "child-id");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/84540")
     public void testHighlightersIgnoreParentChild() throws IOException {
         assertAcked(
             prepareCreate("test").setMapping(

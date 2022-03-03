@@ -185,7 +185,6 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/84540")
     public void testMultiPhrasePrefixQuery() throws Exception {
         final String[] inputs = { "The quick brown fox." };
         final String[] outputs = { "The <b>quick</b> <b>brown</b> <b>fox</b>." };

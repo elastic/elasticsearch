@@ -1463,6 +1463,8 @@ public class IngestServiceTests extends ESTestCase {
         final Processor processorFailure = mock(Processor.class);
         when(processor.getType()).thenReturn("mock");
         when(processor.getTag()).thenReturn("mockTag");
+        when(processor.isAsync()).thenReturn(true);
+        when(processorFailure.isAsync()).thenReturn(true);
         when(processorFailure.getType()).thenReturn("failure-mock");
         // avoid returning null and dropping the document
         doAnswer(args -> {
@@ -1577,9 +1579,9 @@ public class IngestServiceTests extends ESTestCase {
         assertPipelineStats(afterThirdRequestStats.getPipelineStats(), "_id1", 2, 0, 0);
         assertPipelineStats(afterThirdRequestStats.getPipelineStats(), "_id2", 1, 0, 0);
         // The number of processors for the "id1" pipeline changed, so the per-processor metrics are not carried forward. This is
-        // due to the parallel array's used to identify which metrics to carry forward. With out unique ids or semantic equals for each
+        // due to the parallel array's used to identify which metrics to carry forward. Without unique ids or semantic equals for each
         // processor, parallel arrays are the best option for of carrying forward metrics between pipeline changes. However, in some cases,
-        // like this one it may not readily obvious why the metrics were not carried forward.
+        // like this one it may not be readily obvious why the metrics were not carried forward.
         assertProcessorStats(0, afterThirdRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(1, afterThirdRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(0, afterThirdRequestStats, "_id2", 1, 0, 0);

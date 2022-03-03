@@ -172,11 +172,11 @@ public class CompoundProcessor implements Processor {
         } else {
             final int finalProcessorNumber = currentProcessor + 1;
             final long finalStartTimeInNanos = startTimeInNanos;
-            final IngestMetric finalMetric = metric;
-            final Processor finalProcessor = processor;
+            final IngestMetric finalMetric = processorsWithMetrics.get(currentProcessor).v2();
+            final Processor finalProcessor = processorsWithMetrics.get(currentProcessor).v1();
             final IngestDocument finalIngestDocument = ingestDocument;
             finalMetric.preIngest();
-            processor.execute(ingestDocument, (result, e) -> {
+            finalProcessor.execute(ingestDocument, (result, e) -> {
                 long ingestTimeInNanos = relativeTimeProvider.getAsLong() - finalStartTimeInNanos;
                 finalMetric.postIngest(ingestTimeInNanos);
 

@@ -181,11 +181,6 @@ public final class TrackingResultProcessor implements Processor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public String getType() {
         return actualProcessor.getType();
     }
@@ -198,6 +193,11 @@ public final class TrackingResultProcessor implements Processor {
     @Override
     public String getDescription() {
         return actualProcessor.getDescription();
+    }
+
+    @Override
+    public boolean isAsync() {
+        return true;
     }
 
     public static CompoundProcessor decorate(

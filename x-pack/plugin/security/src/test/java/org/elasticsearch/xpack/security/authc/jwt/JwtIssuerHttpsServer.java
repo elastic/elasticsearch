@@ -90,7 +90,7 @@ public class JwtIssuerHttpsServer extends JwtRealmTestCase implements Closeable 
             try {
                 final String configuredPath = new URL(this.jwkSetPkcUrl).getPath();
                 final String requestedPath = httpExchange.getRequestURI().getPath();
-                LOGGER.info("Checking if Requested [" + requestedPath + "] matches Configured [" + configuredPath + "].");
+                LOGGER.trace("Checking if Requested [" + requestedPath + "] matches Configured [" + configuredPath + "].");
                 try (OutputStream os = httpExchange.getResponseBody()) {
                     if (configuredPath.equals(requestedPath)) {
                         LOGGER.trace("Requested [" + requestedPath + "] matched.");

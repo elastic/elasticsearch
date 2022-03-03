@@ -200,23 +200,10 @@ public class JwtUtil {
             final Path path = JwtUtil.resolvePath(environment, jwkSetPathPkc);
             return Files.readAllBytes(path);
         } catch (Exception e) {
-            printStackTrace(e);
             throw new SettingsException(
                 "Failed to read contents for setting [" + jwkSetConfigKeyPkc + "] value [" + jwkSetPathPkc + "].",
                 e
             );
-        }
-    }
-
-    public static void printStackTrace(Throwable t) {
-        System.out.println(t);
-        for (final StackTraceElement ste : t.getStackTrace()) {
-            System.out.println("\tat " + ste);
-        }
-        final Throwable throwable = t.getCause();
-        if (throwable != null) {
-            System.out.print("Caused by: ");
-            printStackTrace(throwable); // RECURSION
         }
     }
 
@@ -287,20 +274,17 @@ public class JwtUtil {
                     try (InputStream inputStream = entity.getContent()) {
                         plainActionFuture.onResponse(inputStream.readAllBytes());
                     } catch (Exception e) {
-                        LOGGER.error("Completed threw exception: ", e);
                         plainActionFuture.onFailure(e);
                     }
                 }
 
                 @Override
                 public void failed(Exception e) {
-                    LOGGER.error("Failed threw exception: ", e);
                     plainActionFuture.onFailure(new ElasticsearchSecurityException("Get [" + uri + "] failed.", e));
                 }
 
                 @Override
                 public void cancelled() {
-                    LOGGER.error("Cancelled was called");
                     plainActionFuture.onFailure(new ElasticsearchSecurityException("Get [" + uri + "] was cancelled."));
                 }
             });

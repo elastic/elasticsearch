@@ -14,6 +14,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -24,7 +25,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -62,7 +62,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
-        this.shards = Collections.unmodifiableList(shards);
+        this.shards = List.copyOf(shards);
 
         ShardRouting primary = null;
         List<ShardRouting> replicas = new ArrayList<>();
@@ -73,6 +73,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         boolean allShardsStarted = true;
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
+                assert primary == null : "duplicate primary: " + primary + " vs " + shard;
                 primary = shard;
             } else {
                 replicas.add(shard);
@@ -272,7 +273,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         final ResponseCollectorService collector
     ) {
 
-        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = new HashMap<>(nodeIds.size());
+        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = Maps.newMapWithExpectedSize(nodeIds.size());
         for (String nodeId : nodeIds) {
             nodeStats.put(nodeId, collector.getNodeStatistics(nodeId));
         }
@@ -283,7 +284,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
         final Map<String, Long> nodeSearchCounts
     ) {
-        final Map<String, Double> nodeRanks = new HashMap<>(nodeStats.size());
+        final Map<String, Double> nodeRanks = Maps.newMapWithExpectedSize(nodeStats.size());
         for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
             Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
             maybeStats.ifPresent(stats -> {
@@ -529,24 +530,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return allAllocationIds;
     }
 
-    static class AttributesKey {
-
-        final List<String> attributes;
-
-        AttributesKey(List<String> attributes) {
-            this.attributes = attributes;
-        }
-
-        @Override
-        public int hashCode() {
-            return attributes.hashCode();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return obj instanceof AttributesKey && attributes.equals(((AttributesKey) obj).attributes);
-        }
-    }
+    record AttributesKey(List<String> attributes) {}
 
     public ShardRouting primaryShard() {
         return primary;
@@ -583,7 +567,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     public static class Builder {
 
-        private ShardId shardId;
+        private final ShardId shardId;
         private final List<ShardRouting> shards;
 
         public Builder(IndexShardRoutingTable indexShard) {
@@ -597,6 +581,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
 
         public Builder addShard(ShardRouting shardEntry) {
+            assert shardEntry.shardId().equals(shardId) : "cannot add [" + shardEntry + "] to routing table for " + shardId;
             shards.add(shardEntry);
             return this;
         }
@@ -609,7 +594,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         public IndexShardRoutingTable build() {
             // don't allow more than one shard copy with same id to be allocated to same node
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
-            return new IndexShardRoutingTable(shardId, List.copyOf(shards));
+            assert noDuplicatePrimary(shards) : "expected but did not find unique primary in shard routing table: " + shards;
+            return new IndexShardRoutingTable(shardId, shards);
         }
 
         static boolean distinctNodes(List<ShardRouting> shards) {
@@ -626,6 +612,21 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                     }
                 }
             }
+            return true;
+        }
+
+        static boolean noDuplicatePrimary(List<ShardRouting> shards) {
+            boolean seenPrimary = false;
+            for (final var shard : shards) {
+                if (shard.primary()) {
+                    if (seenPrimary) {
+                        return false;
+                    }
+                    seenPrimary = true;
+                }
+            }
+            // We should be able to return seenPrimary here, but in tests there are many routing tables with no primary (e.g. empty) so for
+            // now we leniently allow there to be no primary as well. TODO fix those tests and stop being lenient here.
             return true;
         }
 

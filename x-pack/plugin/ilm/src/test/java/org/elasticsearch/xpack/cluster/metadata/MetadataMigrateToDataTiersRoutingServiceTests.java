@@ -372,8 +372,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(actions.size(), is(2));
             Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
             assertThat(allocateDef, nullValue());
-            assertThat(newLifecycleState.getAction(), is(MigrateAction.NAME));
-            assertThat(newLifecycleState.getStep(), is(MigrateAction.CONDITIONAL_SKIP_MIGRATE_STEP));
+            assertThat(newLifecycleState.action(), is(MigrateAction.NAME));
+            assertThat(newLifecycleState.step(), is(MigrateAction.CONDITIONAL_SKIP_MIGRATE_STEP));
 
             // the shrink and set_priority actions are unchanged
             Map<String, Object> shrinkDef = (Map<String, Object>) actions.get(ShrinkAction.NAME);
@@ -428,8 +428,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(shrinkDef.get("number_of_shards"), is(2));
             Map<String, Object> setPriorityDef = (Map<String, Object>) actions.get(SetPriorityAction.NAME);
             assertThat(setPriorityDef.get("priority"), is(100));
-            assertThat(newLifecycleState.getAction(), is(SetPriorityAction.NAME));
-            assertThat(newLifecycleState.getStep(), is(SetPriorityAction.NAME));
+            assertThat(newLifecycleState.action(), is(SetPriorityAction.NAME));
+            assertThat(newLifecycleState.step(), is(SetPriorityAction.NAME));
         }
 
         {
@@ -475,8 +475,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(actions.size(), is(2));
             Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
             assertThat(allocateDef, nullValue());
-            assertThat(newLifecycleState.getAction(), is(ShrinkAction.NAME));
-            assertThat(newLifecycleState.getStep(), is(ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP));
+            assertThat(newLifecycleState.action(), is(ShrinkAction.NAME));
+            assertThat(newLifecycleState.step(), is(ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP));
 
             Map<String, Object> shrinkDef = (Map<String, Object>) actions.get(ShrinkAction.NAME);
             assertThat(shrinkDef.get("number_of_shards"), is(2));
@@ -1622,7 +1622,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         XContentType entityContentType = XContentType.fromMediaType("application/json");
         return (Map<String, Object>) XContentHelper.convertToMap(
             entityContentType.xContent(),
-            new ByteArrayInputStream(newLifecycleState.getPhaseDefinition().getBytes(StandardCharsets.UTF_8)),
+            new ByteArrayInputStream(newLifecycleState.phaseDefinition().getBytes(StandardCharsets.UTF_8)),
             false
         ).get("phase_definition");
     }

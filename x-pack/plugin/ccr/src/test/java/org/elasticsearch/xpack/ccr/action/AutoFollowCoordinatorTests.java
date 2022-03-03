@@ -28,12 +28,14 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -339,7 +341,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     public void testAutoFollowerWithNoActivePatternsDoesNotStart() {
         final String remoteCluster = randomAlphaOfLength(5);
 
-        final Map<String, AutoFollowPattern> autoFollowPatterns = new HashMap<>(2);
+        final Map<String, AutoFollowPattern> autoFollowPatterns = Maps.newMapWithExpectedSize(2);
         autoFollowPatterns.put(
             "pattern_1",
             new AutoFollowPattern(
@@ -383,11 +385,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             )
         );
 
-        final Map<String, List<String>> followedLeaderIndexUUIDs = new HashMap<>(2);
+        final Map<String, List<String>> followedLeaderIndexUUIDs = Maps.newMapWithExpectedSize(2);
         followedLeaderIndexUUIDs.put("pattern_1", List.of("uuid1", "uuid2"));
         followedLeaderIndexUUIDs.put("pattern_2", Collections.emptyList());
 
-        final Map<String, Map<String, String>> headers = new HashMap<>(2);
+        final Map<String, Map<String, String>> headers = Maps.newMapWithExpectedSize(2);
         headers.put("pattern_1", singletonMap("header", "value"));
         headers.put("pattern_2", emptyMap());
 
@@ -714,10 +716,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             Settings.Builder builder = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_INDEX_UUID, indexName);
-            imdBuilder.put(IndexMetadata.builder("metrics-" + i).settings(builder).numberOfShards(1).numberOfReplicas(0));
+            imdBuilder.put(IndexMetadata.builder(indexName).settings(builder).numberOfShards(1).numberOfReplicas(0));
 
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING)
-                .moveToStarted();
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                new ShardId(imdBuilder.get(indexName).getIndex(), 0),
+                "1",
+                true,
+                ShardRoutingState.INITIALIZING
+            ).moveToStarted();
             IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(imdBuilder.get(indexName).getIndex())
                 .addShard(shardRouting)
                 .build();
@@ -2190,8 +2196,12 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().put(indexMetadata, true).version(metadataVersion));
 
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING)
-            .moveToStarted();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            "1",
+            true,
+            ShardRoutingState.INITIALIZING
+        ).moveToStarted();
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
         return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }
@@ -2216,7 +2226,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             metadataBuilder.put(indexMetadata, true);
             routingTableBuilder.add(
                 IndexRoutingTable.builder(indexMetadata.getIndex())
-                    .addShard(TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted())
+                    .addShard(
+                        TestShardRouting.newShardRouting(
+                            new ShardId(indexMetadata.getIndex(), 0),
+                            "1",
+                            true,
+                            ShardRoutingState.INITIALIZING
+                        ).moveToStarted()
+                    )
                     .build()
             );
         }
@@ -2280,13 +2297,18 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             false,
             false,
             system,
-            false
+            false,
+            null
         );
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().put(indexMetadata, true).put(dataStream).version(0L));
 
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(dataStreamName, 0, "1", true, ShardRoutingState.INITIALIZING)
-            .moveToStarted();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            "1",
+            true,
+            ShardRoutingState.INITIALIZING
+        ).moveToStarted();
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
         return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }

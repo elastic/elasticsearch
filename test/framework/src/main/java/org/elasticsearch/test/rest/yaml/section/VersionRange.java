@@ -9,22 +9,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
 
-public class VersionRange {
-    private final Version lower;
-    private final Version upper;
-
-    public VersionRange(Version lower, Version upper) {
-        this.lower = lower;
-        this.upper = upper;
-    }
-
-    public Version getLower() {
-        return lower;
-    }
-
-    public Version getUpper() {
-        return upper;
-    }
+public record VersionRange(Version lower, Version upper) {
 
     public boolean contains(Version currentVersion) {
         return lower != null && upper != null && currentVersion.onOrAfter(lower) && currentVersion.onOrBefore(upper);

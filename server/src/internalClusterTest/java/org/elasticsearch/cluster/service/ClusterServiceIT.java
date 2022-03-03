@@ -68,7 +68,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     processedLatch.countDown();
                 }
 
@@ -125,7 +125,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     processedLatch.countDown();
                 }
 
@@ -187,7 +187,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {}
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -245,7 +245,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     processedLatch.countDown();
                 }
 
@@ -316,7 +316,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     invoked2.countDown();
                 }
             }, ClusterStateTaskExecutor.unbatched());

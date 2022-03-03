@@ -6,22 +6,25 @@
  */
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.nlp.BertRequestBuilder;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 /**
  * Performs basic tokenization and normalization of input text
@@ -39,28 +42,20 @@ public class BertTokenizer implements NlpTokenizer {
     public static final String CLASS_TOKEN = "[CLS]";
     public static final String MASK_TOKEN = "[MASK]";
 
-    public static final int SPECIAL_TOKEN_POSITION = -1;
-
-    public static final int DEFAULT_MAX_INPUT_CHARS_PER_WORD = 100;
-
     private static final Set<String> NEVER_SPLIT = Set.of(MASK_TOKEN);
 
-    private final WordPieceTokenizer wordPieceTokenizer;
-    private final List<String> originalVocab;
+    private final WordPieceAnalyzer wordPieceAnalyzer;
+    protected final List<String> originalVocab;
     // TODO Not sure this needs to be a sorted map
     private final SortedMap<String, Integer> vocab;
-    private final boolean doLowerCase;
-    private final boolean doTokenizeCjKChars;
-    private final boolean doStripAccents;
     protected final boolean withSpecialTokens;
-    private final Set<String> neverSplit;
     private final int maxSequenceLength;
-    private final NlpTask.RequestBuilder requestBuilder;
     private final String sepToken;
     protected final int sepTokenId;
     private final String clsToken;
     private final int clsTokenId;
     private final String padToken;
+    protected final int padTokenId;
     private final String maskToken;
     private final String unknownToken;
 
@@ -72,7 +67,6 @@ public class BertTokenizer implements NlpTokenizer {
         boolean doStripAccents,
         boolean withSpecialTokens,
         int maxSequenceLength,
-        Function<NlpTokenizer, NlpTask.RequestBuilder> requestBuilderFactory,
         Set<String> neverSplit
     ) {
         this(
@@ -83,7 +77,6 @@ public class BertTokenizer implements NlpTokenizer {
             doStripAccents,
             withSpecialTokens,
             maxSequenceLength,
-            requestBuilderFactory,
             Sets.union(neverSplit, NEVER_SPLIT),
             SEPARATOR_TOKEN,
             CLASS_TOKEN,
@@ -101,7 +94,6 @@ public class BertTokenizer implements NlpTokenizer {
         boolean doStripAccents,
         boolean withSpecialTokens,
         int maxSequenceLength,
-        Function<NlpTokenizer, NlpTask.RequestBuilder> requestBuilderFactory,
         Set<String> neverSplit,
         String sepToken,
         String clsToken,
@@ -109,22 +101,25 @@ public class BertTokenizer implements NlpTokenizer {
         String maskToken,
         String unknownToken
     ) {
-        wordPieceTokenizer = new WordPieceTokenizer(vocab, unknownToken, DEFAULT_MAX_INPUT_CHARS_PER_WORD);
+        wordPieceAnalyzer = new WordPieceAnalyzer(
+            originalVocab,
+            new ArrayList<>(neverSplit),
+            doLowerCase,
+            doTokenizeCjKChars,
+            doStripAccents,
+            unknownToken
+        );
         this.originalVocab = originalVocab;
         this.vocab = vocab;
-        this.doLowerCase = doLowerCase;
-        this.doTokenizeCjKChars = doTokenizeCjKChars;
-        this.doStripAccents = doStripAccents;
         this.withSpecialTokens = withSpecialTokens;
-        this.neverSplit = neverSplit;
         this.maxSequenceLength = maxSequenceLength;
-        this.requestBuilder = requestBuilderFactory.apply(this);
         if (vocab.containsKey(unknownToken) == false) {
             throw ExceptionsHelper.conflictStatusException("stored vocabulary is missing required [{}] token", unknownToken);
         }
         if (vocab.containsKey(padToken) == false) {
             throw ExceptionsHelper.conflictStatusException("stored vocabulary is missing required [{}] token", padToken);
         }
+        this.padTokenId = vocab.get(padToken);
 
         if (withSpecialTokens) {
             Set<String> missingSpecialTokens = Sets.difference(Set.of(sepToken, clsToken), vocab.keySet());
@@ -186,12 +181,12 @@ public class BertTokenizer implements NlpTokenizer {
     }
 
     @Override
-    public TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokenization> tokenizations) {
-        TokenizationResult tokenizationResult = new TokenizationResult(originalVocab);
-        for (TokenizationResult.Tokenization tokenization : tokenizations) {
-            tokenizationResult.addTokenization(tokenization);
-        }
-        return tokenizationResult;
+    public TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations) {
+        return new BertTokenizationResult(originalVocab, tokenizations, vocab.get(this.padToken));
+    }
+
+    TokenizationResult.TokensBuilder createTokensBuilder(int clsTokenId, int sepTokenId, boolean withSpecialTokens) {
+        return new BertTokenizationResult.BertTokensBuilder(withSpecialTokens, clsTokenId, sepTokenId);
     }
 
     /**
@@ -203,12 +198,12 @@ public class BertTokenizer implements NlpTokenizer {
      * each input string grouped into a {@link Tokenization}.
      *
      * @param seq Text to tokenize
-     * @return A {@link Tokenization}
+     * @return A list of {@link Tokenization}
      */
     @Override
-    public TokenizationResult.Tokenization tokenize(String seq, Tokenization.Truncate truncate) {
+    public List<TokenizationResult.Tokens> tokenize(String seq, Tokenization.Truncate truncate, int span, int sequenceId) {
         var innerResult = innerTokenize(seq);
-        List<Integer> wordPieceTokenIds = innerResult.wordPieceTokenIds;
+        List<WordPieceTokenFilter.WordPieceToken> wordPieceTokenIds = innerResult.tokens;
         List<Integer> tokenPositionMap = innerResult.tokenPositionMap;
         int numTokens = withSpecialTokens ? wordPieceTokenIds.size() + 2 : wordPieceTokenIds.size();
         boolean isTruncated = false;
@@ -220,31 +215,74 @@ public class BertTokenizer implements NlpTokenizer {
                     wordPieceTokenIds = wordPieceTokenIds.subList(0, withSpecialTokens ? maxSequenceLength - 2 : maxSequenceLength);
                     tokenPositionMap = tokenPositionMap.subList(0, withSpecialTokens ? maxSequenceLength - 2 : maxSequenceLength);
                 }
-                case NONE -> throw ExceptionsHelper.badRequestException(
-                    "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
-                    numTokens,
-                    maxSequenceLength
-                );
+                case NONE -> {
+                    if (span == -1) {
+                        throw ExceptionsHelper.badRequestException(
+                            "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
+                            numTokens,
+                            maxSequenceLength
+                        );
+                    }
+                }
             }
         }
-        BertTokenizationBuilder bertTokenizationBuilder = bertTokenizationBuilder().addTokens(wordPieceTokenIds, tokenPositionMap)
-            .addEndTokensIfNecessary();
-        return new TokenizationResult.Tokenization(
-            seq,
-            innerResult.tokens,
-            isTruncated,
-            bertTokenizationBuilder.buildIds(),
-            bertTokenizationBuilder.buildMap()
-        );
+
+        if (numTokens <= maxSequenceLength || span == -1) {
+            return List.of(
+                createTokensBuilder(clsTokenId, sepTokenId, withSpecialTokens).addSequence(
+                    wordPieceTokenIds.stream().map(WordPieceTokenFilter.WordPieceToken::getEncoding).collect(Collectors.toList()),
+                    tokenPositionMap
+                ).build(seq, isTruncated, innerResult.tokens, -1, sequenceId)
+            );
+        }
+
+        List<TokenizationResult.Tokens> toReturn = new ArrayList<>();
+        int splitEndPos = 0;
+        int splitStartPos = 0;
+        int spanPrev = -1;
+        while (splitEndPos < wordPieceTokenIds.size()) {
+            splitEndPos = Math.min(
+                splitStartPos + (withSpecialTokens ? maxSequenceLength - 2 : maxSequenceLength),
+                wordPieceTokenIds.size()
+            );
+            // Make sure we do not end on a word
+            if (splitEndPos != wordPieceTokenIds.size()) {
+                while (Objects.equals(tokenPositionMap.get(splitEndPos), tokenPositionMap.get(splitEndPos - 1))) {
+                    splitEndPos--;
+                }
+            }
+
+            toReturn.add(
+                createTokensBuilder(clsTokenId, sepTokenId, withSpecialTokens).addSequence(
+                    wordPieceTokenIds.subList(splitStartPos, splitEndPos)
+                        .stream()
+                        .map(WordPieceTokenFilter.WordPieceToken::getEncoding)
+                        .collect(Collectors.toList()),
+                    tokenPositionMap.subList(splitStartPos, splitEndPos)
+                ).build(seq, false, innerResult.tokens, spanPrev, sequenceId)
+            );
+            spanPrev = span;
+            int prevSplitStart = splitStartPos;
+            splitStartPos = splitEndPos - span;
+            // try to back up our split so that it starts at the first whole word
+            if (splitStartPos < wordPieceTokenIds.size()) {
+                while (splitStartPos > (prevSplitStart + 1)
+                    && Objects.equals(tokenPositionMap.get(splitStartPos), tokenPositionMap.get(splitStartPos - 1))) {
+                    splitStartPos--;
+                    spanPrev++;
+                }
+            }
+        }
+        return toReturn;
     }
 
     @Override
-    public TokenizationResult.Tokenization tokenize(String seq1, String seq2, Tokenization.Truncate truncate) {
+    public TokenizationResult.Tokens tokenize(String seq1, String seq2, Tokenization.Truncate truncate, int sequenceId) {
         var innerResultSeq1 = innerTokenize(seq1);
-        List<Integer> wordPieceTokenIdsSeq1 = innerResultSeq1.wordPieceTokenIds;
+        List<WordPieceTokenFilter.WordPieceToken> wordPieceTokenIdsSeq1 = innerResultSeq1.tokens;
         List<Integer> tokenPositionMapSeq1 = innerResultSeq1.tokenPositionMap;
         var innerResultSeq2 = innerTokenize(seq2);
-        List<Integer> wordPieceTokenIdsSeq2 = innerResultSeq2.wordPieceTokenIds;
+        List<WordPieceTokenFilter.WordPieceToken> wordPieceTokenIdsSeq2 = innerResultSeq2.tokens;
         List<Integer> tokenPositionMapSeq2 = innerResultSeq2.tokenPositionMap;
         if (withSpecialTokens == false) {
             throw new IllegalArgumentException("Unable to do sequence pair tokenization without special tokens");
@@ -298,22 +336,24 @@ public class BertTokenizer implements NlpTokenizer {
                 );
             }
         }
-        BertTokenizationBuilder bertTokenizationBuilder = bertTokenizationBuilder().addTokens(wordPieceTokenIdsSeq1, tokenPositionMapSeq1)
-            .addTokens(wordPieceTokenIdsSeq2, tokenPositionMapSeq2)
-            .addEndTokensIfNecessary();
-        List<DelimitedToken> tokens = new ArrayList<>(innerResultSeq1.tokens);
+        List<WordPieceTokenFilter.WordPieceToken> tokens = new ArrayList<>(innerResultSeq1.tokens);
         tokens.addAll(innerResultSeq2.tokens);
-        return new TokenizationResult.Tokenization(
-            seq1 + seq2,
-            tokens,
-            isTruncated,
-            bertTokenizationBuilder.buildIds(),
-            bertTokenizationBuilder.buildMap()
-        );
+        return createTokensBuilder(clsTokenId, sepTokenId, withSpecialTokens).addSequencePair(
+            wordPieceTokenIdsSeq1.stream().map(WordPieceTokenFilter.WordPieceToken::getEncoding).collect(Collectors.toList()),
+            tokenPositionMapSeq1,
+            wordPieceTokenIdsSeq2.stream().map(WordPieceTokenFilter.WordPieceToken::getEncoding).collect(Collectors.toList()),
+            tokenPositionMapSeq2
+        ).build(seq1 + seq2, isTruncated, tokens, -1, sequenceId);
     }
 
-    protected BertTokenizationBuilder bertTokenizationBuilder() {
-        return new BertTokenizationBuilder();
+    @Override
+    public NlpTask.RequestBuilder requestBuilder() {
+        return (inputs, requestId, truncate, span) -> buildTokenizationResult(
+            IntStream.range(0, inputs.size())
+                .boxed()
+                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId).stream())
+                .collect(Collectors.toList())
+        ).buildRequest(requestId, truncate);
     }
 
     protected int getNumExtraTokensForSeqPair() {
@@ -321,43 +361,34 @@ public class BertTokenizer implements NlpTokenizer {
     }
 
     private InnerTokenization innerTokenize(String seq) {
-        BasicTokenizer basicTokenizer = new BasicTokenizer(doLowerCase, doTokenizeCjKChars, doStripAccents, neverSplit);
-        var tokenSequences = basicTokenizer.tokenize(seq);
-        List<Integer> wordPieceTokens = new ArrayList<>();
         List<Integer> tokenPositionMap = new ArrayList<>();
-
-        for (int sourceIndex = 0; sourceIndex < tokenSequences.size(); sourceIndex++) {
-            String token = tokenSequences.get(sourceIndex).getToken();
-            if (neverSplit.contains(token)) {
-                wordPieceTokens.add(vocab.getOrDefault(token, vocab.get(unknownToken)));
-                tokenPositionMap.add(sourceIndex);
-            } else {
-                List<Integer> tokens = wordPieceTokenizer.tokenize(tokenSequences.get(sourceIndex));
-                for (int tokenCount = 0; tokenCount < tokens.size(); tokenCount++) {
-                    tokenPositionMap.add(sourceIndex);
-                }
-                wordPieceTokens.addAll(tokens);
+        try (TokenStream ts = wordPieceAnalyzer.tokenStream("input", seq)) {
+            ts.reset();
+            PositionIncrementAttribute tokenPos = ts.addAttribute(PositionIncrementAttribute.class);
+            int currPos = -1;
+            while (ts.incrementToken()) {
+                currPos += tokenPos.getPositionIncrement();
+                tokenPositionMap.add(currPos);
             }
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
         }
-
-        return new InnerTokenization(tokenSequences, wordPieceTokens, tokenPositionMap);
-    }
-
-    private static class InnerTokenization {
-        List<DelimitedToken> tokens;
-        List<Integer> wordPieceTokenIds;
-        List<Integer> tokenPositionMap;
-
-        InnerTokenization(List<DelimitedToken> tokens, List<Integer> wordPieceTokenIds, List<Integer> tokenPositionMap) {
-            this.tokens = tokens;
-            this.wordPieceTokenIds = wordPieceTokenIds;
-            this.tokenPositionMap = tokenPositionMap;
-        }
+        return new InnerTokenization(new ArrayList<>(wordPieceAnalyzer.getTokens()), tokenPositionMap);
     }
 
     @Override
-    public NlpTask.RequestBuilder requestBuilder() {
-        return requestBuilder;
+    public void close() {
+        wordPieceAnalyzer.close();
+    }
+
+    private static class InnerTokenization {
+        List<WordPieceTokenFilter.WordPieceToken> tokens;
+        List<Integer> tokenPositionMap;
+
+        InnerTokenization(List<WordPieceTokenFilter.WordPieceToken> tokens, List<Integer> tokenPositionMap) {
+            this.tokens = tokens;
+            this.tokenPositionMap = tokenPositionMap;
+        }
     }
 
     public int getMaxSequenceLength() {
@@ -368,59 +399,17 @@ public class BertTokenizer implements NlpTokenizer {
         return new Builder(vocab, tokenization);
     }
 
-    protected class BertTokenizationBuilder {
-        Stream.Builder<IntStream> tokenIds;
-        Stream.Builder<IntStream> tokenMap;
-        int numSeq;
-
-        BertTokenizationBuilder() {
-            tokenIds = Stream.builder();
-            tokenMap = Stream.builder();
-            if (withSpecialTokens) {
-                tokenIds.add(IntStream.of(clsTokenId));
-                tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION));
-            }
-        }
-
-        BertTokenizationBuilder addTokens(List<Integer> wordPieceTokenIds, List<Integer> tokenPositionMap) {
-            if (numSeq > 0 && withSpecialTokens) {
-                tokenIds.add(IntStream.of(sepTokenId));
-                tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION));
-            }
-            tokenIds.add(wordPieceTokenIds.stream().mapToInt(Integer::valueOf));
-            tokenMap.add(tokenPositionMap.stream().mapToInt(Integer::valueOf));
-            numSeq++;
-            return this;
-        }
-
-        BertTokenizationBuilder addEndTokensIfNecessary() {
-            if (withSpecialTokens) {
-                tokenIds.add(IntStream.of(sepTokenId));
-                tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION));
-            }
-            return this;
-        }
-
-        int[] buildIds() {
-            return tokenIds.build().flatMapToInt(Function.identity()).toArray();
-        }
-
-        int[] buildMap() {
-            return tokenMap.build().flatMapToInt(Function.identity()).toArray();
-        }
-    }
-
     public static class Builder {
 
         protected final List<String> originalVocab;
         protected final SortedMap<String, Integer> vocab;
-        protected boolean doLowerCase = false;
+        protected boolean doLowerCase;
         protected boolean doTokenizeCjKChars = true;
-        protected boolean withSpecialTokens = true;
+        protected boolean withSpecialTokens;
+        protected int span = -1;
         protected int maxSequenceLength;
         protected Boolean doStripAccents = null;
         protected Set<String> neverSplit;
-        protected Function<NlpTokenizer, NlpTask.RequestBuilder> requestBuilderFactory = BertRequestBuilder::new;
 
         protected Builder(List<String> vocab, Tokenization tokenization) {
             this.originalVocab = vocab;
@@ -428,6 +417,7 @@ public class BertTokenizer implements NlpTokenizer {
             this.doLowerCase = tokenization.doLowerCase();
             this.withSpecialTokens = tokenization.withSpecialTokens();
             this.maxSequenceLength = tokenization.maxSequenceLength();
+            this.span = tokenization.getSpan();
         }
 
         private static SortedMap<String, Integer> buildSortedVocab(List<String> vocab) {
@@ -473,11 +463,6 @@ public class BertTokenizer implements NlpTokenizer {
             return this;
         }
 
-        public Builder setRequestBuilderFactory(Function<NlpTokenizer, NlpTask.RequestBuilder> requestBuilderFactory) {
-            this.requestBuilderFactory = requestBuilderFactory;
-            return this;
-        }
-
         public BertTokenizer build() {
             // if not set strip accents defaults to the value of doLowerCase
             if (doStripAccents == null) {
@@ -496,7 +481,6 @@ public class BertTokenizer implements NlpTokenizer {
                 doStripAccents,
                 withSpecialTokens,
                 maxSequenceLength,
-                requestBuilderFactory,
                 neverSplit
             );
         }

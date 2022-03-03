@@ -37,9 +37,9 @@ public abstract class Step {
     @Nullable
     public static Step.StepKey getCurrentStepKey(LifecycleExecutionState lifecycleState) {
         Objects.requireNonNull(lifecycleState, "cannot determine current step key as lifecycle state is null");
-        String currentPhase = lifecycleState.getPhase();
-        String currentAction = lifecycleState.getAction();
-        String currentStep = lifecycleState.getStep();
+        String currentPhase = lifecycleState.phase();
+        String currentAction = lifecycleState.action();
+        String currentStep = lifecycleState.step();
         if (Strings.isNullOrEmpty(currentStep)) {
             assert Strings.isNullOrEmpty(currentPhase) : "Current phase is not empty: " + currentPhase;
             assert Strings.isNullOrEmpty(currentAction) : "Current action is not empty: " + currentAction;

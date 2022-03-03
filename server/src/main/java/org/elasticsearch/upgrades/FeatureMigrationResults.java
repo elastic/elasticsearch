@@ -9,10 +9,10 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -187,7 +187,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
         }
 
         static Diff<SingleFeatureMigrationResult> readDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(SingleFeatureMigrationResult::new, in);
+            return SimpleDiffable.readDiffFrom(SingleFeatureMigrationResult::new, in);
         }
 
         @Override

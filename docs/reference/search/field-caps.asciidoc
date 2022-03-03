@@ -77,6 +77,15 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
   (Optional, Boolean) If `true`, unmapped fields are included in the response.
   Defaults to `false`.
 
+`filters`::
+(Optional, string) Comma-separated list of filters to apply to the response.  The
+following filters are supported: +metadata,-metadata,-parent,-nested,-multifield
+
+`types`::
+(Optional, string) Comma-separated list of field types to include. Any fields that
+do not match one of these types will be excluded from the results.  Defaults to empty,
+meaning that all field types are returned.
+
 [[search-field-caps-api-request-body]]
 ==== {api-request-body-title}
 

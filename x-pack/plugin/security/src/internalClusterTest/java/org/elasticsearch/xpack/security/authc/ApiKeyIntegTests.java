@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -24,10 +23,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -37,25 +35,32 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.TestSecurityClient;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.action.ApiKey;
-import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.After;
 import org.junit.Before;
@@ -70,6 +75,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -89,6 +95,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,6 +115,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(ApiKeyService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(DELETE_INTERVAL_MILLIS))
             .put(ApiKeyService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
             .put("xpack.security.crypto.thread_pool.queue_size", CRYPTO_THREAD_POOL_QUEUE_SIZE)
@@ -205,20 +213,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(simple.getId(), not(containsString(new String(simple.getKey().getChars()))));
         assertNull(simple.getExpiration());
 
-        // use the first ApiKey for authorized action
-        final String base64ApiKeyKeyValue = Base64.getEncoder()
-            .encodeToString((response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
         // Assert that we can authenticate with the API KEY
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        AuthenticateResponse authResponse = restClient.security()
-            .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue).build());
-        assertThat(authResponse.getUser().getUsername(), equalTo(ES_TEST_ROOT_USER));
-        assertThat(authResponse.getAuthenticationType(), equalTo("api_key"));
+        final Map<String, Object> authResponse = authenticateWithApiKey(response.getId(), response.getKey());
+        assertThat(authResponse.get(User.Fields.USERNAME.getPreferredName()), equalTo(ES_TEST_ROOT_USER));
 
         // use the first ApiKey for an unauthorized action
+        final Map<String, String> authorizationHeaders = Collections.singletonMap(
+            "Authorization",
+            "ApiKey " + getBase64EncodedApiKeyValue(response.getId(), response.getKey())
+        );
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue))
+            () -> client().filterWithHeader(authorizationHeaders)
                 .admin()
                 .cluster()
                 .prepareUpdateSettings()
@@ -372,15 +378,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
 
         // Authentication with the first key should fail
-        final String base64ApiKeyKeyValue = Base64.getEncoder()
-            .encodeToString((apiKey1.v1() + ":" + apiKey1.v2()).getBytes(StandardCharsets.UTF_8));
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> new TestRestHighLevelClient().security()
-                .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue).build())
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> authenticateWithApiKey(apiKey1.v1(), new SecureString(apiKey1.v2().toCharArray()))
         );
         assertThat(e.getMessage(), containsString("security_exception"));
-        assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(RestStatus.UNAUTHORIZED.getStatus()));
     }
 
     private void verifyInvalidateResponse(
@@ -1110,7 +1113,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
         final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName("key-1")
-            .setRoleDescriptors(Collections.singletonList(new RoleDescriptor("role", new String[] { "manage_api_key" }, null, null)))
+            .setRoleDescriptors(
+                Collections.singletonList(new RoleDescriptor("role", new String[] { "manage_api_key", "manage_token" }, null, null))
+            )
             .setMetadata(ApiKeyTests.randomMetadata())
             .get();
 
@@ -1121,7 +1126,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // use the first ApiKey for authorized action
         final String base64ApiKeyKeyValue = Base64.getEncoder()
             .encodeToString((response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
-        final Client clientKey1 = client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue));
+
+        final Client clientKey1;
+        if (randomBoolean()) {
+            clientKey1 = client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue));
+        } else {
+            final CreateTokenResponse createTokenResponse = new CreateTokenRequestBuilder(
+                client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue)),
+                CreateTokenAction.INSTANCE
+            ).setGrantType("client_credentials").get();
+            clientKey1 = client().filterWithHeader(Map.of("Authorization", "Bearer " + createTokenResponse.getTokenString()));
+        }
 
         final String expectedMessage = "creating derived api keys requires an explicit role descriptor that is empty";
 
@@ -1177,6 +1192,36 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertApiKeyNotCreated(client, "key-3");
         assertApiKeyNotCreated(client, "key-4");
         assertApiKeyNotCreated(client, "key-5");
+    }
+
+    public void testApiKeyRunAsAnotherUserCanCreateApiKey() {
+        final RoleDescriptor descriptor = new RoleDescriptor("role", Strings.EMPTY_ARRAY, null, new String[] { ES_TEST_ROOT_USER });
+        Client client = client().filterWithHeader(
+            Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
+        );
+        final CreateApiKeyResponse response1 = new CreateApiKeyRequestBuilder(client).setName("run-as-key")
+            .setRoleDescriptors(List.of(descriptor))
+            .setMetadata(ApiKeyTests.randomMetadata())
+            .get();
+
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+            .encodeToString((response1.getId() + ":" + response1.getKey()).getBytes(StandardCharsets.UTF_8));
+
+        final CreateApiKeyResponse response2 = new CreateApiKeyRequestBuilder(
+            client().filterWithHeader(
+                Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue, "es-security-runas-user", ES_TEST_ROOT_USER)
+            )
+        ).setName("create-by run-as user").setRoleDescriptors(List.of(new RoleDescriptor("a", new String[] { "all" }, null, null))).get();
+
+        final GetApiKeyResponse getApiKeyResponse = client.execute(
+            GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.usingApiKeyId(response2.getId(), true)
+        ).actionGet();
+        assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
+        final ApiKey apiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(apiKeyInfo.getId(), equalTo(response2.getId()));
+        assertThat(apiKeyInfo.getUsername(), equalTo(ES_TEST_ROOT_USER));
+        assertThat(apiKeyInfo.getRealm(), equalTo("file"));
     }
 
     public void testCreationAndAuthenticationReturns429WhenThreadPoolIsSaturated() throws Exception {
@@ -1369,12 +1414,31 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .setMetadata(ApiKeyTests.randomMetadata())
             .get();
         final String docId = createApiKeyResponse.getId();
-        final String base64ApiKeyKeyValue = Base64.getEncoder()
-            .encodeToString((docId + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
-        AuthenticateResponse authResponse = new TestRestHighLevelClient().security()
-            .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue).build());
-        assertEquals("api_key", authResponse.getAuthenticationType());
+        authenticateWithApiKey(docId, createApiKeyResponse.getKey());
         return Tuple.tuple(docId, createApiKeyResponse.getKey().toString());
+    }
+
+    private Map<String, Object> authenticateWithApiKey(String id, SecureString key) throws IOException {
+        final RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", "ApiKey " + getBase64EncodedApiKeyValue(id, key))
+            .build();
+        final TestSecurityClient securityClient = getSecurityClient(requestOptions);
+        final Map<String, Object> response = securityClient.authenticate();
+
+        final String authenticationTypeString = String.valueOf(response.get(User.Fields.AUTHENTICATION_TYPE.getPreferredName()));
+        final Authentication.AuthenticationType authenticationType = Authentication.AuthenticationType.valueOf(
+            authenticationTypeString.toUpperCase(Locale.ROOT)
+        );
+        assertThat(authenticationType, is(Authentication.AuthenticationType.API_KEY));
+
+        assertThat(ObjectPath.evaluate(response, "api_key.id"), is(id));
+
+        return response;
+    }
+
+    private String getBase64EncodedApiKeyValue(String id, SecureString key) {
+        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
+        return base64ApiKeyKeyValue;
     }
 
     private void assertApiKeyNotCreated(Client client, String keyName) throws ExecutionException, InterruptedException {

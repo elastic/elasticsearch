@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -74,7 +75,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -289,8 +289,12 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void indexDocs(Logger logger, String index, long numDocs, long start, long end) {
+        indexDocs(client(), logger, index, numDocs, start, end);
+    }
+
+    public static void indexDocs(Client client, Logger logger, String index, long numDocs, long start, long end) {
         int maxDelta = (int) (end - start - 1);
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             IndexRequest indexRequest = new IndexRequest(index);
             long timestamp = start + randomIntBetween(0, maxDelta);
@@ -446,7 +450,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             ListTasksResponse response = client.execute(ListTasksAction.INSTANCE, request).get();
             List<String> activeTasks = response.getTasks()
                 .stream()
-                .filter(t -> t.getAction().startsWith(ListTasksAction.NAME) == false)
+                .filter(t -> t.action().startsWith(ListTasksAction.NAME) == false)
                 .map(TaskInfo::toString)
                 .collect(Collectors.toList());
             assertThat(activeTasks, empty());

@@ -109,8 +109,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             false,
             false
         );
-        assertThat(commandsResult.getClusterState(), not(equalTo(clusterState)));
-        clusterState = commandsResult.getClusterState();
+        assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
+        clusterState = commandsResult.clusterState();
         assertThat(clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next().state(), equalTo(RELOCATING));
         assertThat(clusterState.getRoutingNodes().node("node3").iterator().next().state(), equalTo(INITIALIZING));
 
@@ -138,8 +138,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             false,
             false
         );
-        assertThat(commandsResult.getClusterState(), not(equalTo(clusterState)));
-        clusterState = commandsResult.getClusterState();
+        assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
+        clusterState = commandsResult.clusterState();
         assertThat(clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next().state(), equalTo(RELOCATING));
         assertThat(clusterState.getRoutingNodes().node("node3").iterator().next().state(), equalTo(INITIALIZING));
 
@@ -356,8 +356,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
         for (FailedShard failedShard : failedShards) {
             if (routingNodes.getByAllocationId(
-                failedShard.getRoutingEntry().shardId(),
-                failedShard.getRoutingEntry().allocationId().getId()
+                failedShard.routingEntry().shardId(),
+                failedShard.routingEntry().allocationId().getId()
             ) != null) {
                 fail("shard " + failedShard + " was not failed");
             }

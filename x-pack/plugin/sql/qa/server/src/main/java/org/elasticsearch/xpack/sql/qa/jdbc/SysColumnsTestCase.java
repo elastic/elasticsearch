@@ -50,22 +50,22 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
 
     public void testAliasWithIncompatibleSearchableProperty() throws Exception {
         createIndexWithMapping("test1", builder -> {
-            builder.startObject("id").field("type", "keyword").endObject();
+            builder.startObject("id").field("type", "text").endObject();
             builder.startObject("value").field("type", "boolean").endObject();
         });
 
         createIndexWithMapping("test2", builder -> {
-            builder.startObject("id").field("type", "keyword").field("index", false).endObject();
+            builder.startObject("id").field("type", "text").field("index", false).endObject();
             builder.startObject("value").field("type", "boolean").endObject();
         });
 
         createIndexWithMapping("test3", builder -> {
-            builder.startObject("id").field("type", "keyword").field("index", false).endObject();
+            builder.startObject("id").field("type", "text").field("index", false).endObject();
             builder.startObject("value").field("type", "boolean").endObject();
         });
 
         createIndexWithMapping("test4", builder -> {
-            builder.startObject("id").field("type", "keyword").field("index", false).endObject();
+            builder.startObject("id").field("type", "text").field("index", false).endObject();
             builder.startObject("value").field("type", "boolean").endObject();
         });
 
@@ -79,16 +79,16 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
         assertResultsForQuery(
             "SYS COLUMNS",
             new String[][] {
-                { "test1", "id", "KEYWORD" },
+                { "test1", "id", "TEXT" },
                 { "test1", "value", "BOOLEAN" },
-                { "test2", "id", "KEYWORD" },
+                { "test2", "id", "TEXT" },
                 { "test2", "value", "BOOLEAN" },
-                { "test3", "id", "KEYWORD" },
+                { "test3", "id", "TEXT" },
                 { "test3", "value", "BOOLEAN" },
-                { "test4", "id", "KEYWORD" },
+                { "test4", "id", "TEXT" },
                 { "test4", "value", "BOOLEAN" },
                 { "test_alias", "value", "BOOLEAN" },
-                { "test_alias2", "id", "KEYWORD" },
+                { "test_alias2", "id", "TEXT" },
                 { "test_alias2", "value", "BOOLEAN" } }
         );
     }

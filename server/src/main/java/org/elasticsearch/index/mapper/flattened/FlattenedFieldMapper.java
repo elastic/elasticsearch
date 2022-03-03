@@ -41,7 +41,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -58,7 +57,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -199,11 +198,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 hasDocValues.get(),
                 meta.get(),
                 splitQueriesOnWhitespace.get(),
-                eagerGlobalOrdinals.get(),
-                (dv, n) -> new DelegateDocValuesField(
-                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                    n
-                )
+                eagerGlobalOrdinals.get()
             );
             return new FlattenedFieldMapper(name, ft, this);
         }
@@ -367,14 +362,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(
-                name(),
-                key,
-                (dv, n) -> new DelegateDocValuesField(
-                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                    n
-                )
-            );
+            return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
         }
 
         @Override
@@ -603,7 +591,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static final class RootFlattenedFieldType extends StringFieldType implements DynamicFieldType {
         private final boolean splitQueriesOnWhitespace;
         private final boolean eagerGlobalOrdinals;
-        private final ToScriptField<SortedSetDocValues> toScriptField;
 
         public RootFlattenedFieldType(
             String name,
@@ -611,8 +598,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean hasDocValues,
             Map<String, String> meta,
             boolean splitQueriesOnWhitespace,
-            boolean eagerGlobalOrdinals,
-            ToScriptField<SortedSetDocValues> toScriptField
+            boolean eagerGlobalOrdinals
         ) {
             super(
                 name,
@@ -624,7 +610,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
             );
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            this.toScriptField = toScriptField;
         }
 
         @Override
@@ -635,6 +620,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public boolean eagerGlobalOrdinals() {
             return eagerGlobalOrdinals;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
         }
 
         @Override
@@ -652,10 +642,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new DelegateDocValuesField(
-                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                    n
-                )
+                (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n)
             );
         }
 

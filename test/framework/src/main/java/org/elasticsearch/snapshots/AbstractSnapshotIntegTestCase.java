@@ -55,10 +55,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
@@ -228,6 +227,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockAndFailOnWriteSnapFiles();
     }
 
+    public static void blockMasterOnAnyDataFile(final String repositoryName) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).blockOnDataFiles();
+    }
+
     public static void blockMasterOnShardLevelSnapshotFile(final String repositoryName, String indexId) {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockOnShardLevelSnapFiles(indexId);
     }
@@ -330,6 +333,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         createRepository(logger, repoName, type, randomRepositorySettings(), true);
     }
 
+    protected void deleteRepository(String repoName) {
+        assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+    }
+
     public static Settings.Builder randomRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
@@ -375,8 +382,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         repositoryData.snapshotsToXContent(jsonBuilder, version);
         final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
             JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                XContentParserConfiguration.EMPTY,
                 Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), version.toString())
             ),
             repositoryData.getGenId(),
@@ -390,8 +396,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final SnapshotInfo downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(
             repoName,
             JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                XContentParserConfiguration.EMPTY,
                 Strings.toString(snapshotInfo, ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS)
                     .replace(String.valueOf(Version.CURRENT.id), String.valueOf(version.id))
             )
@@ -636,6 +641,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }
 
+    protected ActionFuture<AcknowledgedResponse> startDeleteSnapshots(String repoName, List<String> snapshotNames, String viaNode) {
+        logger.info("--> deleting snapshots {} from repo [{}]", snapshotNames, repoName);
+        return client(viaNode).admin().cluster().prepareDeleteSnapshot(repoName, snapshotNames.toArray(Strings.EMPTY_ARRAY)).execute();
+    }
+
     protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -651,7 +661,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 future.onResponse(null);
             }
         }, ClusterStateTaskExecutor.unbatched());

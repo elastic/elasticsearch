@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -171,6 +172,11 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             kahanSummation.add(stats.getSum());
         }
         return new InternalStats(name, count, kahanSummation.value(), min, max, format, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalStats(name, samplingContext.scaleUp(count), samplingContext.scaleUp(sum), min, max, format, getMetadata());
     }
 
     static class Fields {

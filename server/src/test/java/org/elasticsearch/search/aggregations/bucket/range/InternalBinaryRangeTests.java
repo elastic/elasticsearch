@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -133,7 +134,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
             }
             case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

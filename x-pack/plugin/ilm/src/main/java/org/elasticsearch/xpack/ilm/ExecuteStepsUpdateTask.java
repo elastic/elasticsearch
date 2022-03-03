@@ -206,12 +206,12 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
     }
 
     @Override
-    public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void onClusterStateProcessed(ClusterState oldState, ClusterState newState) {
         IndexMetadata indexMetadata = newState.metadata().index(index);
         if (indexMetadata != null) {
 
             LifecycleExecutionState exState = indexMetadata.getLifecycleExecutionState();
-            if (ErrorStep.NAME.equals(exState.getStep()) && this.failure != null) {
+            if (ErrorStep.NAME.equals(exState.step()) && this.failure != null) {
                 lifecycleRunner.registerFailedOperation(indexMetadata, failure);
             } else {
                 lifecycleRunner.registerSuccessfulOperation(indexMetadata);

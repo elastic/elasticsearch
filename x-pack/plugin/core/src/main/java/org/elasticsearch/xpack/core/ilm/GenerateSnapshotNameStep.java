@@ -39,9 +39,6 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
 
     private static final Logger logger = LogManager.getLogger(GenerateSnapshotNameStep.class);
 
-    private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
-        new IndexNameExpressionResolver.DateMathExpressionResolver();
-
     private final String snapshotRepository;
 
     public GenerateSnapshotNameStep(StepKey key, StepKey nextStepKey, String snapshotRepository) {
@@ -62,7 +59,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             return clusterState;
         }
 
-        String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = indexMetadata.getLifecyclePolicyName();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         // validate that the snapshot repository exists -- because policies are refreshed on later retries, and because
@@ -73,7 +70,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
                 "repository ["
                     + snapshotRepository
                     + "] is missing. ["
-                    + policy
+                    + policyName
                     + "] policy for "
                     + "index ["
                     + index.getName()
@@ -84,15 +81,15 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
         newCustomData.setSnapshotIndexName(index.getName());
         newCustomData.setSnapshotRepository(snapshotRepository);
-        if (lifecycleState.getSnapshotName() == null) {
+        if (lifecycleState.snapshotName() == null) {
             // generate and validate the snapshotName
-            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policy + ">").toLowerCase(Locale.ROOT);
+            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policyName + ">").toLowerCase(Locale.ROOT);
             String snapshotName = generateSnapshotName(snapshotNamePrefix);
             ActionRequestValidationException validationException = validateGeneratedSnapshotName(snapshotNamePrefix, snapshotName);
             if (validationException != null) {
                 logger.warn(
                     "unable to generate a snapshot name as part of policy [{}] for index [{}] due to [{}]",
-                    policy,
+                    policyName,
                     index.getName(),
                     validationException.getMessage()
                 );
@@ -106,7 +103,6 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             .metadata(
                 Metadata.builder(clusterState.getMetadata())
                     .put(IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap()))
-                    .build(false)
             )
             .build();
     }
@@ -143,7 +139,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
     }
 
     public static String generateSnapshotName(String name, IndexNameExpressionResolver.Context context) {
-        List<String> candidates = DATE_MATH_RESOLVER.resolve(context, Collections.singletonList(name));
+        List<String> candidates = IndexNameExpressionResolver.DateMathExpressionResolver.resolve(context, Collections.singletonList(name));
         if (candidates.size() != 1) {
             throw new IllegalStateException("resolving snapshot name " + name + " generated more than one candidate: " + candidates);
         }

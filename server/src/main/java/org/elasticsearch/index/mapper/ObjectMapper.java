@@ -9,8 +9,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -85,6 +85,63 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public Builder add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
             return this;
+        }
+
+        Builder addMappers(Map<String, Mapper> mappers) {
+            mappers.forEach((name, mapper) -> mappersBuilders.add(new Mapper.Builder(name) {
+                @Override
+                public Mapper build(MapperBuilderContext context) {
+                    return mapper;
+                }
+            }));
+            return this;
+        }
+
+        /**
+         * Adds a dynamically created Mapper to this builder.
+         *
+         * @param name      the name of the Mapper, including object prefixes
+         * @param prefix    the object prefix of this mapper
+         * @param mapper    the mapper to add
+         * @param context   the DocumentParserContext in which the mapper has been built
+         */
+        public void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
+            // If the mapper to add has no dots and is therefore
+            // a leaf mapper, we just add it here
+            if (name.contains(".") == false) {
+                mappersBuilders.add(new Mapper.Builder(name) {
+                    @Override
+                    public Mapper build(MapperBuilderContext context) {
+                        return mapper;
+                    }
+                });
+            }
+            // otherwise we strip off the first object path of the mapper name, load or create
+            // the relevant object mapper, and then recurse down into it, passing the remainder
+            // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
+            // call addDynamic on it with the name 'bar.baz'.
+            else {
+                int firstDotIndex = name.indexOf(".");
+                String childName = name.substring(0, firstDotIndex);
+                String fullChildName = prefix == null ? childName : prefix + "." + childName;
+                ObjectMapper.Builder childBuilder = findChild(childName, fullChildName, context);
+                childBuilder.addDynamic(name.substring(firstDotIndex + 1), fullChildName, mapper, context);
+                mappersBuilders.add(childBuilder);
+            }
+        }
+
+        private ObjectMapper.Builder findChild(String childName, String fullChildName, DocumentParserContext context) {
+            // does the child mapper already exist? if so, use that
+            ObjectMapper child = context.mappingLookup().objectMappers().get(fullChildName);
+            if (child != null) {
+                return child.newBuilder(context.indexSettings().getIndexVersionCreated());
+            }
+            // has the child mapper been added as a dynamic update already?
+            child = context.getDynamicObjectMapper(fullChildName);
+            if (child != null) {
+                return child.newBuilder(context.indexSettings().getIndexVersionCreated());
+            }
+            throw new IllegalArgumentException("Missing intermediate object " + fullChildName);
         }
 
         public Optional<Mapper.Builder> getBuilder(String name) {
@@ -237,10 +294,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
     private final String fullPath;
 
     protected Explicit<Boolean> enabled;
-
     protected volatile Dynamic dynamic;
 
-    protected volatile CopyOnWriteHashMap<String, Mapper> mappers;
+    protected Map<String, Mapper> mappers;
 
     ObjectMapper(String name, String fullPath, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers) {
         super(name);
@@ -251,9 +307,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
         this.enabled = enabled;
         this.dynamic = dynamic;
         if (mappers == null) {
-            this.mappers = new CopyOnWriteHashMap<>();
+            this.mappers = new HashMap<>();
         } else {
-            this.mappers = CopyOnWriteHashMap.copyOf(mappers);
+            this.mappers = new HashMap<>(mappers);
         }
     }
 
@@ -265,23 +321,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
         }
+        clone.mappers = new HashMap<>(clone.mappers);
         return clone;
     }
 
-    ObjectMapper copyAndReset() {
-        ObjectMapper copy = clone();
-        // reset the sub mappers
-        copy.mappers = new CopyOnWriteHashMap<>();
-        return copy;
-    }
-
     /**
-     * Build a mapping update with the provided sub mapping update.
+     * @return a Builder that will produce an empty ObjectMapper with the same configuration as this one
      */
-    final ObjectMapper mappingUpdate(Mapper mapper) {
-        ObjectMapper mappingUpdate = copyAndReset();
-        mappingUpdate.putMapper(mapper);
-        return mappingUpdate;
+    public ObjectMapper.Builder newBuilder(Version indexVersionCreated) {
+        ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName());
+        builder.enabled = this.enabled;
+        builder.dynamic = this.dynamic;
+        return builder;
     }
 
     @Override
@@ -304,10 +355,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public Mapper getMapper(String field) {
         return mappers.get(field);
-    }
-
-    protected void putMapper(Mapper mapper) {
-        mappers = mappers.copyAndPut(mapper.simpleName(), mapper);
     }
 
     @Override
@@ -387,7 +434,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     merged = mergeIntoMapper.merge(mergeWithMapper);
                 }
             }
-            putMapper(merged);
+            mappers.put(merged.simpleName(), merged);
         }
     }
 
@@ -409,7 +456,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-
         if (custom != null) {
             custom.toXContent(builder, params);
         }

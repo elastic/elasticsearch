@@ -33,6 +33,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -284,7 +286,7 @@ public class IndexRequestTests extends ESTestCase {
     }
 
     public void testGetConcreteWriteIndex() {
-        Instant currentTime = Instant.now();
+        Instant currentTime = ZonedDateTime.of(2022, 12, 12, 6, 0, 0, 0, ZoneOffset.UTC).toInstant();
         Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
         Instant end1 = currentTime.minus(2, ChronoUnit.HOURS);
         Instant start2 = currentTime.minus(2, ChronoUnit.HOURS);
@@ -356,6 +358,17 @@ public class IndexRequestTests extends ESTestCase {
             IndexRequest request = new IndexRequest(tsdbDataStream);
             request.opType(DocWriteRequest.OpType.CREATE);
             request.source(source.replace("$time", "" + start1.toEpochMilli()), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+        }
+        {
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(
+                source.replace("$time", "\"" + DateFormatter.forPattern(FormatNames.STRICT_DATE.getName()).format(start1) + "\""),
+                XContentType.JSON
+            );
 
             var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
             assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));

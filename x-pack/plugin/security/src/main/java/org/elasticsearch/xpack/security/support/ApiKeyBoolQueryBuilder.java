@@ -73,8 +73,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     }
 
     private static QueryBuilder doProcess(QueryBuilder qb) {
-        if (qb instanceof BoolQueryBuilder) {
-            final BoolQueryBuilder query = (BoolQueryBuilder) qb;
+        if (qb instanceof final BoolQueryBuilder query) {
             final BoolQueryBuilder newQuery = QueryBuilders.boolQuery()
                 .minimumShouldMatch(query.minimumShouldMatch())
                 .adjustPureNegative(query.adjustPureNegative());
@@ -87,29 +86,24 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             return qb;
         } else if (qb instanceof IdsQueryBuilder) {
             return qb;
-        } else if (qb instanceof TermQueryBuilder) {
-            final TermQueryBuilder query = (TermQueryBuilder) qb;
+        } else if (qb instanceof final TermQueryBuilder query) {
             final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
             return QueryBuilders.termQuery(translatedFieldName, query.value()).caseInsensitive(query.caseInsensitive());
-        } else if (qb instanceof TermsQueryBuilder) {
-            final TermsQueryBuilder query = (TermsQueryBuilder) qb;
+        } else if (qb instanceof final TermsQueryBuilder query) {
             if (query.termsLookup() != null) {
                 throw new IllegalArgumentException("terms query with terms lookup is not supported for API Key query");
             }
             final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
             return QueryBuilders.termsQuery(translatedFieldName, query.getValues());
-        } else if (qb instanceof PrefixQueryBuilder) {
-            final PrefixQueryBuilder query = (PrefixQueryBuilder) qb;
+        } else if (qb instanceof final PrefixQueryBuilder query) {
             final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
             return QueryBuilders.prefixQuery(translatedFieldName, query.value()).caseInsensitive(query.caseInsensitive());
-        } else if (qb instanceof WildcardQueryBuilder) {
-            final WildcardQueryBuilder query = (WildcardQueryBuilder) qb;
+        } else if (qb instanceof final WildcardQueryBuilder query) {
             final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
             return QueryBuilders.wildcardQuery(translatedFieldName, query.value())
                 .caseInsensitive(query.caseInsensitive())
                 .rewrite(query.rewrite());
-        } else if (qb instanceof RangeQueryBuilder) {
-            final RangeQueryBuilder query = (RangeQueryBuilder) qb;
+        } else if (qb instanceof final RangeQueryBuilder query) {
             final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
             if (query.relation() != null) {
                 throw new IllegalArgumentException("range query with relation is not supported for API Key query");

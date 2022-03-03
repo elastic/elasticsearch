@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +32,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
+public class AutoscalingMetadata implements Metadata.Custom {
 
     public static final String NAME = "autoscaling";
 
@@ -93,6 +93,13 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
     @Override
     public EnumSet<Metadata.XContentContext> context() {
         return Metadata.ALL_CONTEXTS;
+    }
+
+    @Override
+    public boolean isRestorable() {
+        // currently, this is written to the snapshots, in future we might restore it
+        // if request.skipOperatorOnly for Autoscaling policies is enabled
+        return false;
     }
 
     @Override
@@ -162,7 +169,7 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
         }
 
         static Diff<AutoscalingPolicyMetadata> readFrom(final StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
+            return SimpleDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
         }
 
         @Override
@@ -170,5 +177,4 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
             return Version.V_7_8_0;
         }
     }
-
 }

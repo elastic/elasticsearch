@@ -463,7 +463,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             if (randomBoolean()) {
                 // add node
                 if (state.nodes().getSize() < 10) {
-                    state = cluster.addNodes(state, Collections.singletonList(createNode()));
+                    state = cluster.addNode(state, createNode());
                     updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                 }
             } else {
@@ -476,7 +476,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     }
                     if (randomBoolean()) {
                         // and add it back
-                        state = cluster.addNodes(state, Collections.singletonList(discoveryNode));
+                        state = cluster.addNode(state, discoveryNode);
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }
                 }
@@ -498,7 +498,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     }
 
     private static ClusterState adaptClusterStateToLocalNode(ClusterState state, DiscoveryNode node) {
-        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(node.getId())).build();
+        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).add(node).localNodeId(node.getId())).build();
     }
 
     private IndicesClusterStateService createIndicesClusterStateService(
@@ -525,7 +525,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             transportService,
             Collections.emptyMap(),
             Collections.emptyMap(),
-            threadPool
+            threadPool,
+            List.of()
         );
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
             threadPool,

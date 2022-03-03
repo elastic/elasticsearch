@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -589,7 +590,7 @@ public final class RepositoryData {
      * Resolve the given index names to index ids.
      */
     public Map<String, IndexId> resolveIndices(final List<String> indices) {
-        Map<String, IndexId> resolvedIndices = new HashMap<>(indices.size());
+        Map<String, IndexId> resolvedIndices = Maps.newMapWithExpectedSize(indices.size());
         for (final String indexName : indices) {
             final IndexId indexId = resolveIndexId(indexName);
             resolvedIndices.put(indexId.getName(), indexId);
@@ -612,7 +613,7 @@ public final class RepositoryData {
      * @param inFlightIds      name to index mapping for currently in-flight snapshots not yet in the repository data to fall back to
      */
     public Map<String, IndexId> resolveNewIndices(List<String> indicesToResolve, Map<String, IndexId> inFlightIds) {
-        Map<String, IndexId> snapshotIndices = new HashMap<>(indicesToResolve.size());
+        Map<String, IndexId> snapshotIndices = Maps.newMapWithExpectedSize(indicesToResolve.size());
         for (String index : indicesToResolve) {
             IndexId indexId = indices.get(index);
             if (indexId == null) {
@@ -853,10 +854,10 @@ public final class RepositoryData {
             return IndexMetaDataGenerations.EMPTY;
         }
         // Build a new map that instead of indexing the per-snapshot index generations by index id string, is indexed by IndexId
-        final Map<SnapshotId, Map<IndexId, String>> indexGenerations = new HashMap<>(indexMetaLookup.size());
+        final Map<SnapshotId, Map<IndexId, String>> indexGenerations = Maps.newMapWithExpectedSize(indexMetaLookup.size());
         for (Map.Entry<SnapshotId, Map<String, String>> snapshotIdMapEntry : indexMetaLookup.entrySet()) {
             final Map<String, String> val = snapshotIdMapEntry.getValue();
-            final Map<IndexId, String> forSnapshot = new HashMap<>(val.size());
+            final Map<IndexId, String> forSnapshot = Maps.newMapWithExpectedSize(val.size());
             for (Map.Entry<String, String> generationEntry : val.entrySet()) {
                 forSnapshot.put(indexLookup.get(generationEntry.getKey()), generationEntry.getValue());
             }

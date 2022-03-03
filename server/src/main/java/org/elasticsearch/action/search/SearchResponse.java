@@ -145,8 +145,19 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return internalResponse.hits();
     }
 
-    public Aggregations getAggregations() {
+    /**
+     * Aggregations in this response. "empty" aggregations could be
+     * either {@code null} or {@link InternalAggregations#EMPTY}.
+     */
+    public @Nullable Aggregations getAggregations() {
         return internalResponse.aggregations();
+    }
+
+    /**
+     * Will {@link #getAggregations()} return non-empty aggregation results?
+     */
+    public boolean hasAggregations() {
+        return getAggregations() != null && getAggregations() != InternalAggregations.EMPTY;
     }
 
     public Suggest getSuggest() {

@@ -14,10 +14,10 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
@@ -93,6 +93,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
+@TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     /**
@@ -172,10 +173,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode leader = cluster.getAnyLeader();
             logger.info("--> adding two new healthy nodes");
             ClusterNode newNode1 = cluster.new ClusterNode(
-                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, () -> healthStatusInfo.get()
+                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, healthStatusInfo::get
             );
             ClusterNode newNode2 = cluster.new ClusterNode(
-                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, () -> healthStatusInfo.get()
+                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, healthStatusInfo::get
             );
             cluster.clusterNodes.add(newNode1);
             cluster.clusterNodes.add(newNode2);
@@ -1132,7 +1133,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return cs;
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
                 }
 
@@ -1219,7 +1220,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return ClusterState.builder(cs).putCustom(customName, new DelayedCustom(contextAdvancer)).build();
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
                 }
 
@@ -1280,7 +1281,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return ClusterState.builder(cs).build();
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     fail("shouldn't have processed cluster state");
                 }
 
@@ -1478,6 +1479,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "test includes assertions about Coordinator and JoinHelper logging",
+        value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
+    )
     public void testNodeCannotJoinIfJoinPingValidationFailsOnMaster() throws IllegalAccessException {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
             cluster.runRandomly();
@@ -1578,6 +1583,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "test includes assertions about JoinHelper logging",
+        value = "org.elasticsearch.cluster.coordination.JoinHelper:INFO"
+    )
     public void testCannotJoinClusterWithDifferentUUID() throws IllegalAccessException {
         try (Cluster cluster1 = new Cluster(randomIntBetween(1, 3))) {
             cluster1.runRandomly();
@@ -1793,7 +1802,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    private static class BrokenCustom extends AbstractDiffable<ClusterState.Custom> implements ClusterState.Custom {
+    private static class BrokenCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
 
         static final String EXCEPTION_MESSAGE = "simulated";
 
@@ -1854,6 +1863,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "testing ClusterFormationFailureHelper logging",
+        value = "org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper:WARN"
+    )
     public void testLogsWarningPeriodicallyIfClusterNotFormed() throws IllegalAccessException {
         final long warningDelayMillis;
         final Settings settings;
@@ -1948,7 +1961,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    @TestLogging(reason = "testing debug logging of LagDetector", value = "org.elasticsearch.cluster.coordination.LagDetector:DEBUG")
+    @TestLogging(
+        reason = "testing LagDetector and CoordinatorPublication logging",
+        value = "org.elasticsearch.cluster.coordination.LagDetector:DEBUG,"
+            + "org.elasticsearch.cluster.coordination.Coordinator.CoordinatorPublication:INFO"
+    )
     public void testLogsMessagesIfPublicationDelayed() throws IllegalAccessException {
         try (Cluster cluster = new Cluster(between(3, 5))) {
             cluster.runRandomly();

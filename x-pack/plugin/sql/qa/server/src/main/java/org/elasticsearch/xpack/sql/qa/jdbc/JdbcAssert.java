@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.relique.jdbc.csv.CsvResultSet;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -160,6 +162,7 @@ public class JdbcAssert {
             // use the type not the name (timestamp with timezone returns spaces for example)
             int expectedType = typeOf(expectedMeta.getColumnType(column), lenientDataType);
             int actualType = typeOf(actualMeta.getColumnType(column), lenientDataType);
+            String actualTypeName = actualMeta.getColumnTypeName(column);
 
             // since H2 cannot use a fixed timezone, the data is stored in UTC (and thus with timezone)
             if (expectedType == Types.TIMESTAMP_WITH_TIMEZONE) {
@@ -183,6 +186,11 @@ public class JdbcAssert {
             // csv doesn't support NULL type so skip type checking
             if (actualType == Types.NULL && expected instanceof CsvResultSet) {
                 expectedType = Types.NULL;
+            }
+
+            // csv and h2 both map values larger than Long.MAX_VALUE to Decimal types
+            if (expectedType == Types.DECIMAL && actualTypeName.compareTo(EsType.UNSIGNED_LONG.getName()) == 0) {
+                expectedType = EsType.UNSIGNED_LONG.getVendorTypeNumber();
             }
 
             // when lenient is used, an int is equivalent to a short, etc...
@@ -252,6 +260,7 @@ public class JdbcAssert {
                                 case "Time" -> "java.sql.Time";
                                 case "Timestamp" -> "java.sql.Timestamp";
                                 case "Int" -> "java.lang.Integer";
+                                case "BigDecimal" -> "java.math.BigDecimal";
                                 default -> "java.lang." + columnClassName;
                             };
                         }
@@ -318,6 +327,10 @@ public class JdbcAssert {
                     // intervals
                     else if (type == Types.VARCHAR && actualObject instanceof TemporalAmount) {
                         assertEquals(msg, expectedObject, StringUtils.toString(actualObject));
+                    }
+                    // unsigned_long
+                    else if (expectedObject instanceof BigDecimal && actualObject instanceof BigInteger) {
+                        assertEquals(expectedObject, new BigDecimal((BigInteger) actualObject));
                     }
                     // finally the actual comparison
                     else {

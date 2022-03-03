@@ -170,15 +170,15 @@ public class ShardStateActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertEquals(1, capturedRequests.length);
         // the request is a shard failed request
-        assertThat(capturedRequests[0].request, is(instanceOf(ShardStateAction.FailedShardEntry.class)));
-        ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) capturedRequests[0].request;
+        assertThat(capturedRequests[0].request(), is(instanceOf(ShardStateAction.FailedShardEntry.class)));
+        ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) capturedRequests[0].request();
         // for the right shard
-        assertEquals(shardEntry.shardId, shardRouting.shardId());
-        assertEquals(shardEntry.allocationId, shardRouting.allocationId().getId());
+        assertEquals(shardEntry.getShardId(), shardRouting.shardId());
+        assertEquals(shardEntry.getAllocationId(), shardRouting.allocationId().getId());
         // sent to the master
-        assertEquals(clusterService.state().nodes().getMasterNode().getId(), capturedRequests[0].node.getId());
+        assertEquals(clusterService.state().nodes().getMasterNode().getId(), capturedRequests[0].node().getId());
 
-        transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
 
         listener.await();
         assertNull(listener.failure.get());
@@ -270,7 +270,7 @@ public class ShardStateActionTests extends ESTestCase {
         assertThat(capturedRequests.length, equalTo(1));
         assertFalse(success.get());
         assertThat(retries.get(), equalTo(0));
-        retryLoop.accept(capturedRequests[0].requestId);
+        retryLoop.accept(capturedRequests[0].requestId());
 
         latch.await();
         assertNull(throwable.get());
@@ -289,7 +289,7 @@ public class ShardStateActionTests extends ESTestCase {
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
-        transport.handleRemoteError(capturedRequests[0].requestId, new TransportException("simulated"));
+        transport.handleRemoteError(capturedRequests[0].requestId(), new TransportException("simulated"));
         assertNotNull(listener.failure.get());
     }
 
@@ -305,7 +305,7 @@ public class ShardStateActionTests extends ESTestCase {
         shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), listener);
 
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-        transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
 
         listener.await();
         assertNull(listener.failure.get());
@@ -336,7 +336,7 @@ public class ShardStateActionTests extends ESTestCase {
             "dummy failure"
         );
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-        transport.handleRemoteError(capturedRequests[0].requestId, catastrophicError);
+        transport.handleRemoteError(capturedRequests[0].requestId(), catastrophicError);
 
         listener.await();
 
@@ -377,7 +377,7 @@ public class ShardStateActionTests extends ESTestCase {
         }
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests, arrayWithSize(1));
-        transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
         latch.await();
         assertThat(transport.capturedRequests(), arrayWithSize(0));
     }
@@ -410,7 +410,7 @@ public class ShardStateActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests, arrayWithSize(expectedRequests));
         for (int i = 0; i < expectedRequests; i++) {
-            transport.handleResponse(capturedRequests[i].requestId, TransportResponse.Empty.INSTANCE);
+            transport.handleResponse(capturedRequests[i].requestId(), TransportResponse.Empty.INSTANCE);
         }
         latch.await();
         assertThat(transport.capturedRequests(), arrayWithSize(0));
@@ -432,9 +432,9 @@ public class ShardStateActionTests extends ESTestCase {
             while (shutdown.get() == false) {
                 for (CapturingTransport.CapturedRequest request : transport.getCapturedRequestsAndClear()) {
                     if (randomBoolean()) {
-                        transport.handleResponse(request.requestId, TransportResponse.Empty.INSTANCE);
+                        transport.handleResponse(request.requestId(), TransportResponse.Empty.INSTANCE);
                     } else {
-                        transport.handleRemoteError(request.requestId, randomFrom(getSimulatedFailure()));
+                        transport.handleRemoteError(request.requestId(), randomFrom(getSimulatedFailure()));
                     }
                 }
             }
@@ -489,15 +489,15 @@ public class ShardStateActionTests extends ESTestCase {
         shardStateAction.shardStarted(shardRouting, primaryTerm, "testShardStarted", ShardLongFieldRange.UNKNOWN, listener);
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
-        assertThat(capturedRequests[0].request, instanceOf(ShardStateAction.StartedShardEntry.class));
+        assertThat(capturedRequests[0].request(), instanceOf(ShardStateAction.StartedShardEntry.class));
 
-        ShardStateAction.StartedShardEntry entry = (ShardStateAction.StartedShardEntry) capturedRequests[0].request;
+        ShardStateAction.StartedShardEntry entry = (ShardStateAction.StartedShardEntry) capturedRequests[0].request();
         assertThat(entry.shardId, equalTo(shardRouting.shardId()));
         assertThat(entry.allocationId, equalTo(shardRouting.allocationId().getId()));
         assertThat(entry.primaryTerm, equalTo(primaryTerm));
         assertThat(entry.timestampRange, sameInstance(ShardLongFieldRange.UNKNOWN));
 
-        transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+        transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
         listener.await();
         assertNull(listener.failure.get());
     }
@@ -527,9 +527,9 @@ public class ShardStateActionTests extends ESTestCase {
             retries.incrementAndGet();
             if (retries.get() == numberOfRetries) {
                 // finish the request
-                transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
+                transport.handleResponse(capturedRequests[0].requestId(), TransportResponse.Empty.INSTANCE);
             } else {
-                retryLoop.accept(capturedRequests[0].requestId);
+                retryLoop.accept(capturedRequests[0].requestId());
             }
         } else {
             // there failed to be a retry request
@@ -555,8 +555,8 @@ public class ShardStateActionTests extends ESTestCase {
         try (StreamInput in = serialize(failedShardEntry, version).streamInput()) {
             in.setVersion(version);
             final FailedShardEntry deserialized = new FailedShardEntry(in);
-            assertThat(deserialized.shardId, equalTo(shardId));
-            assertThat(deserialized.allocationId, equalTo(allocationId));
+            assertThat(deserialized.getShardId(), equalTo(shardId));
+            assertThat(deserialized.getAllocationId(), equalTo(allocationId));
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
             if (failure != null) {

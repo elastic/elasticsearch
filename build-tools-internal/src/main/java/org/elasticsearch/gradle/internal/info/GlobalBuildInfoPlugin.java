@@ -269,7 +269,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private String findJavaHome(String version) {
-        Provider<String> javaHomeNames = providers.gradleProperty("org.gradle.java.installations.fromEnv").forUseAtConfigurationTime();
+        Provider<String> javaHomeNames = providers.gradleProperty("org.gradle.java.installations.fromEnv");
         String javaHomeEnvVar = getJavaHomeEnvVarName(version);
 
         // Provide a useful error if we're looking for a Java home version that we haven't told Gradle about yet

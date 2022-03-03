@@ -729,7 +729,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.refresh("test");
             List<DocIdSeqNoAndSource> docsBelowGlobalCheckpoint = EngineTestCase.getDocIds(getEngine(newPrimary), randomBoolean())
                 .stream()
-                .filter(doc -> doc.getSeqNo() <= newPrimary.getLastKnownGlobalCheckpoint())
+                .filter(doc -> doc.seqNo() <= newPrimary.getLastKnownGlobalCheckpoint())
                 .collect(Collectors.toList());
             CountDownLatch latch = new CountDownLatch(1);
             final AtomicBoolean done = new AtomicBoolean();

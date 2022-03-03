@@ -55,7 +55,7 @@ PUT _cluster/settings
   }
 }
 ----------------------------------
-// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
+// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.]
 
 Alternatively, you can enable this setting in {kib}. In the side navigation,
 click *Monitoring*. If data collection is disabled, you are prompted to turn it

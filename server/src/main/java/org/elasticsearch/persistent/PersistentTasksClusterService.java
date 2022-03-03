@@ -28,6 +28,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -131,7 +132,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 PersistentTasksCustomMetadata tasks = newState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                 if (tasks != null) {
                     PersistentTask<?> task = tasks.getTask(taskId);
@@ -143,7 +144,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     listener.onResponse(null);
                 }
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     /**
@@ -190,11 +196,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // Using old state since in the new state the task is already gone
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     /**
@@ -221,11 +227,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // Using old state since in the new state the task is already gone
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     /**
@@ -264,10 +270,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     /**
@@ -305,10 +311,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     /**
@@ -336,7 +342,6 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         // want to assign a persistent task to a node that will shortly be
         // leaving the cluster
         final List<DiscoveryNode> candidateNodes = currentState.nodes()
-            .getAllNodes()
             .stream()
             .filter(dn -> isNodeShuttingDown(currentState, dn.getId()) == false)
             .collect(Collectors.toList());
@@ -406,13 +411,13 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 reassigningTasks.set(false);
                 if (isAnyTaskUnassigned(newState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {
                     periodicRechecker.rescheduleIfNecessary();
                 }
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     /**

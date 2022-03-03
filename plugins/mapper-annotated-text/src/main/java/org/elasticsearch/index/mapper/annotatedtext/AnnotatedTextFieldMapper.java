@@ -42,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -152,10 +151,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
      * Parses markdown-like syntax into plain text and AnnotationTokens with offsets for
      * annotations found in texts
      */
-    public static final class AnnotatedText {
-        public final String textPlusMarkup;
-        public final String textMinusMarkup;
-        List<AnnotationToken> annotations;
+    public record AnnotatedText(String textMinusMarkup, String textPlusMarkup, List<AnnotationToken> annotations) {
 
         // Format is markdown-like syntax for URLs eg:
         // "New mayor is [John Smith](type=person&value=John%20Smith) "
@@ -201,23 +197,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             return new AnnotatedText(sb.toString(), textPlusMarkup, annotations);
         }
 
-        protected AnnotatedText(String textMinusMarkup, String textPlusMarkup, List<AnnotationToken> annotations) {
-            this.textMinusMarkup = textMinusMarkup;
-            this.textPlusMarkup = textPlusMarkup;
-            this.annotations = annotations;
-        }
-
-        public static final class AnnotationToken {
-            public final int offset;
-            public final int endOffset;
-
-            public final String value;
-
-            public AnnotationToken(int offset, int endOffset, String value) {
-                this.offset = offset;
-                this.endOffset = endOffset;
-                this.value = value;
-            }
+        public record AnnotationToken(int offset, int endOffset, String value) {
 
             @Override
             public String toString() {
@@ -229,28 +209,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                     || (start <= endOffset && end >= endOffset)
                     || (start >= offset && end <= endOffset);
             }
-
-            @Override
-            public int hashCode() {
-                final int prime = 31;
-                int result = 1;
-                result = prime * result + endOffset;
-                result = prime * result + offset;
-                result = prime * result + Objects.hashCode(value);
-                return result;
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                if (this == obj) return true;
-                if (obj == null) return false;
-                if (getClass() != obj.getClass()) return false;
-                AnnotationToken other = (AnnotationToken) obj;
-                return Objects.equals(endOffset, other.endOffset)
-                    && Objects.equals(offset, other.offset)
-                    && Objects.equals(value, other.value);
-            }
-
         }
 
         @Override

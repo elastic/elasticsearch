@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -71,7 +72,7 @@ public class AllocationService {
     private Map<String, ExistingShardsAllocator> existingShardsAllocators;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
-    private SnapshotsInfoService snapshotsInfoService;
+    private final SnapshotsInfoService snapshotsInfoService;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -207,7 +208,7 @@ public class AllocationService {
         );
 
         for (FailedShard failedShardEntry : failedShards) {
-            ShardRouting shardToFail = failedShardEntry.getRoutingEntry();
+            ShardRouting shardToFail = failedShardEntry.routingEntry();
             IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardToFail.shardId().getIndex());
             allocation.addIgnoreShardForNode(shardToFail.shardId(), shardToFail.currentNodeId());
             // failing a primary also fails initializing replica shards, re-resolve ShardRouting
@@ -230,11 +231,11 @@ public class AllocationService {
                 } else {
                     failedNodeIds = Collections.emptySet();
                 }
-                String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.getMessage();
+                String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.message();
                 UnassignedInfo unassignedInfo = new UnassignedInfo(
                     UnassignedInfo.Reason.ALLOCATION_FAILED,
                     message,
-                    failedShardEntry.getFailure(),
+                    failedShardEntry.failure(),
                     failedAllocations + 1,
                     currentNanoTime,
                     System.currentTimeMillis(),
@@ -246,7 +247,7 @@ public class AllocationService {
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);
                 }
-                logger.warn(new ParameterizedMessage("failing shard [{}]", failedShardEntry), failedShardEntry.getFailure());
+                logger.warn(new ParameterizedMessage("failing shard [{}]", failedShardEntry), failedShardEntry.failure());
                 routingNodes.failShard(logger, failedShard, unassignedInfo, indexMetadata, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
@@ -259,7 +260,7 @@ public class AllocationService {
         reroute(allocation);
         String failedShardsAsString = firstListElementsToCommaDelimitedString(
             failedShards,
-            s -> s.getRoutingEntry().shardId().toString(),
+            s -> s.routingEntry().shardId().toString(),
             logger.isDebugEnabled()
         );
         return buildResultAndLogHealthChange(clusterState, allocation, "shards failed [" + failedShardsAsString + "]");
@@ -298,9 +299,8 @@ public class AllocationService {
      * Returns an updated cluster state if changes were necessary, or the identical cluster if no changes were required.
      */
     public ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
-        RoutingAllocation allocation = new RoutingAllocation(
+        final Supplier<RoutingAllocation> allocationSupplier = () -> new RoutingAllocation(
             allocationDeciders,
-            clusterState.getRoutingNodes(),
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
@@ -308,7 +308,7 @@ public class AllocationService {
         );
         final Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(
             clusterState.metadata(),
-            allocation
+            allocationSupplier
         );
         if (autoExpandReplicaChanges.isEmpty()) {
             return clusterState;
@@ -336,7 +336,7 @@ public class AllocationService {
                 .routingTable(routingTableBuilder.build())
                 .metadata(metadataBuilder)
                 .build();
-            assert AutoExpandReplicas.getAutoExpandReplicaChanges(fixedState.metadata(), allocation).isEmpty();
+            assert AutoExpandReplicas.getAutoExpandReplicaChanges(fixedState.metadata(), allocationSupplier).isEmpty();
             return fixedState;
         }
     }
@@ -514,7 +514,7 @@ public class AllocationService {
 
     private void reroute(RoutingAllocation allocation) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
-        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), allocation).isEmpty()
+        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
         assert assertInitialized();
 
@@ -738,34 +738,8 @@ public class AllocationService {
      * this class is used to describe results of applying a set of
      * {@link org.elasticsearch.cluster.routing.allocation.command.AllocationCommand}
      */
-    public static class CommandsResult {
-
-        private final RoutingExplanations explanations;
-
-        private final ClusterState clusterState;
-
-        /**
-         * Creates a new {@link CommandsResult}
-         * @param explanations Explanation for the reroute actions
-         * @param clusterState Resulting cluster state
-         */
-        private CommandsResult(RoutingExplanations explanations, ClusterState clusterState) {
-            this.clusterState = clusterState;
-            this.explanations = explanations;
-        }
-
-        /**
-         * Get the explanation of this result
-         */
-        public RoutingExplanations explanations() {
-            return explanations;
-        }
-
-        /**
-         * the resulting cluster state, after the commands were applied
-         */
-        public ClusterState getClusterState() {
-            return clusterState;
-        }
-    }
+    public record CommandsResult(
+        RoutingExplanations explanations, // Explanation for the reroute actions
+        ClusterState clusterState         // Resulting cluster state
+    ) {}
 }

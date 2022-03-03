@@ -697,20 +697,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
     }
 
-    static class DiskUsageWithRelocations {
-
-        private final DiskUsage diskUsage;
-        private final long relocatingShardSize;
-
-        DiskUsageWithRelocations(DiskUsage diskUsage, long relocatingShardSize) {
-            this.diskUsage = diskUsage;
-            this.relocatingShardSize = relocatingShardSize;
-        }
-
-        @Override
-        public String toString() {
-            return "DiskUsageWithRelocations{" + "diskUsage=" + diskUsage + ", relocatingShardSize=" + relocatingShardSize + '}';
-        }
+    record DiskUsageWithRelocations(DiskUsage diskUsage, long relocatingShardSize) {
 
         double getFreeDiskAsPercentage() {
             if (getTotalBytes() == 0L) {

@@ -62,10 +62,12 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.Streams;
@@ -89,7 +91,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -367,14 +368,7 @@ public final class TokenService {
                 traceLog("create token", new IllegalArgumentException("originating client authentication must be provided"))
             );
         } else {
-            final Authentication tokenAuth = new Authentication(
-                authentication.getUser(),
-                authentication.getAuthenticatedBy(),
-                authentication.getLookedUpBy(),
-                tokenVersion,
-                AuthenticationType.TOKEN,
-                authentication.getMetadata()
-            );
+            final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
             final String storedAccessToken;
             final String storedRefreshToken;
             if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
@@ -1805,15 +1799,20 @@ public final class TokenService {
                     .startObject("client")
                     .field("type", "unassociated_client")
                     .field("user", originatingClientAuth.getUser().principal())
-                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName())
-                    .endObject()
-                    .endObject();
+                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName());
+                if (originatingClientAuth.getSourceRealm().getDomain() != null) {
+                    builder.field("realm_domain", originatingClientAuth.getSourceRealm().getDomain());
+                }
+                builder.endObject().endObject();
             }
             builder.startObject("access_token")
                 .field("invalidated", false)
                 .field("user_token", userToken)
-                .field("realm", userToken.getAuthentication().getAuthenticatedBy().getName())
-                .endObject();
+                .field("realm", userToken.getAuthentication().getAuthenticatedBy().getName());
+            if (userToken.getAuthentication().getSourceRealm().getDomain() != null) {
+                builder.field("realm_domain", userToken.getAuthentication().getSourceRealm().getDomain());
+            }
+            builder.endObject();
             builder.endObject();
             return BytesReference.bytes(builder);
         } catch (IOException e) {
@@ -2192,8 +2191,7 @@ public final class TokenService {
      */
     private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
-            if (exception instanceof ElasticsearchException) {
-                final ElasticsearchException esEx = (ElasticsearchException) exception;
+            if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail), esEx);
@@ -2212,8 +2210,7 @@ public final class TokenService {
      */
     private <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
-            if (exception instanceof ElasticsearchException) {
-                final ElasticsearchException esEx = (ElasticsearchException) exception;
+            if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
@@ -2345,7 +2342,7 @@ public final class TokenService {
         if (keyCache.cache.size() <= numKeysToKeep) {
             return getTokenMetadata(); // nothing to do
         }
-        Map<BytesKey, KeyAndCache> map = new HashMap<>(keyCache.cache.size() + 1);
+        Map<BytesKey, KeyAndCache> map = Maps.newMapWithExpectedSize(keyCache.cache.size() + 1);
         KeyAndCache currentKey = keyCache.get(keyCache.currentTokenKeyHash);
         ArrayList<KeyAndCache> entries = new ArrayList<>(keyCache.cache.values());
         Collections.sort(entries, (left, right) -> Long.compare(right.keyAndTimestamp.getTimestamp(), left.keyAndTimestamp.getTimestamp()));
@@ -2383,7 +2380,7 @@ public final class TokenService {
     synchronized void refreshMetadata(TokenMetadata metadata) {
         BytesKey currentUsedKeyHash = new BytesKey(metadata.getCurrentKeyHash());
         byte[] saltArr = new byte[SALT_BYTES];
-        Map<BytesKey, KeyAndCache> map = new HashMap<>(metadata.getKeys().size());
+        Map<BytesKey, KeyAndCache> map = Maps.newMapWithExpectedSize(metadata.getKeys().size());
         long maxTimestamp = createdTimeStamps.get();
         for (KeyAndTimestamp key : metadata.getKeys()) {
             secureRandom.nextBytes(saltArr);
@@ -2425,6 +2422,11 @@ public final class TokenService {
         return new BytesRef(Base64.getUrlEncoder().withoutPadding().encode(this.keyCache.currentTokenKeyHash.bytes)).utf8ToString();
     }
 
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
+    }
+
     void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
         logger.info("rotate keys on master");
         TokenMetadata tokenMetadata = generateSpareKey();
@@ -2436,13 +2438,13 @@ public final class TokenService {
                     clusterService.submitStateUpdateTask(
                         "publish next key to prepare key rotation",
                         new TokenMetadataPublishAction(metadata, listener),
-                        ClusterStateTaskExecutor.unbatched()
+                        newExecutor()
                     );
                 } else {
                     listener.onFailure(new IllegalStateException("not acked"));
                 }
             }, listener::onFailure)),
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -2532,10 +2534,10 @@ public final class TokenService {
                     }
 
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         installTokenMetadataInProgress.set(false);
                     }
-                }, ClusterStateTaskExecutor.unbatched());
+                }, newExecutor());
             }
         }
     }

@@ -493,35 +493,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
     }
 
-    private static final class State {
-        private final Version safeVersion;
-        private final boolean lastFailed;
-
-        private State(Version safeVersion, boolean lastFailed) {
-            this.safeVersion = safeVersion;
-            this.lastFailed = lastFailed;
-        }
+    private record State(Version safeVersion, boolean lastFailed) {
 
         public State failed() {
             return lastFailed ? this : casFail(safeVersion);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            State that = (State) o;
-            return lastFailed == that.lastFailed && safeVersion.equals(that.safeVersion);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(safeVersion, lastFailed);
-        }
-
-        @Override
-        public String toString() {
-            return "State{" + "safeVersion=" + safeVersion + ", lastFailed=" + lastFailed + '}';
         }
     }
 
@@ -688,9 +663,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     }
 
     private static void writeEvent(LinearizabilityChecker.Event event, BytesStreamOutput output) throws IOException {
-        output.writeEnum(event.type);
-        output.writeNamedWriteable((NamedWriteable) event.value);
-        output.writeInt(event.id);
+        output.writeEnum(event.type());
+        output.writeNamedWriteable((NamedWriteable) event.value());
+        output.writeInt(event.id());
     }
 
     private static LinearizabilityChecker.Event readEvent(StreamInput input) throws IOException {

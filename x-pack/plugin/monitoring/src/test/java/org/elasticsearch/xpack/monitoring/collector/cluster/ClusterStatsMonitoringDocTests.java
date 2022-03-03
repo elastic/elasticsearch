@@ -230,7 +230,10 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final int nodeCount = randomIntBetween(0, 5);
         final Map<String, String> emptyMap = emptyMap();
         final DiscoveryNode masterNode = masterNode();
-        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder().masterNodeId(masterNode.getId()).localNodeId(masterNode.getId());
+        final DiscoveryNodes.Builder builder = DiscoveryNodes.builder()
+            .add(masterNode)
+            .masterNodeId(masterNode.getId())
+            .localNodeId(masterNode.getId());
 
         for (int i = 0; i < nodeCount; ++i) {
             builder.add(
@@ -284,7 +287,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             )
             .stateUUID("_state_uuid")
             .version(12L)
-            .nodes(DiscoveryNodes.builder().masterNodeId("_node").localNodeId("_node").add(discoveryNode).build())
+            .nodes(
+                DiscoveryNodes.builder().masterNodeId(discoveryNode.getId()).localNodeId(discoveryNode.getId()).add(discoveryNode).build()
+            )
             .build();
 
         final License testLicense = License.builder()
@@ -351,9 +356,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getBundledJdk()).thenReturn(true);
         when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
 
-        final Build mockBuild = mock(Build.class);
-        when(mockBuild.flavor()).thenReturn(Build.Flavor.DEFAULT);
-        when(mockBuild.type()).thenReturn(Build.Type.DOCKER);
+        final Build mockBuild = new Build(Build.Flavor.DEFAULT, Build.Type.DOCKER, "", "", false, "");
         when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
 
         final NodeStats mockNodeStats = mock(NodeStats.class);
@@ -700,7 +703,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 "cluster_uuid": "_cluster",
                 "version": 12,
                 "state_uuid": "_state_uuid",
-                "master_node": "_node",
+                "master_node": "_node_id",
                 "nodes": {
                   "_node_id": {
                     "name": "_node_name",

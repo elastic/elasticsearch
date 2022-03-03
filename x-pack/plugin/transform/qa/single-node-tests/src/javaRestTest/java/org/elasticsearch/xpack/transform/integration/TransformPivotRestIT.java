@@ -98,7 +98,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     public void testSimpleDataStreamPivot() throws Exception {
         String indexName = "reviews_data_stream";
-        createReviewsIndex(indexName, 1000, "date", true, -1, null);
+        createReviewsIndex(indexName, 1000, 27, "date", true, -1, null);
         String transformId = "simple_data_stream_pivot";
         String transformIndex = "pivot_reviews_data_stream";
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
@@ -363,7 +363,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     public void testContinuousPivot() throws Exception {
         String indexName = "continuous_reviews";
-        createReviewsIndex(indexName, 1000, "date", false, 5, "user_id");
+        createReviewsIndex(indexName, 1000, 27, "date", false, 5, "user_id");
         String transformId = "simple_continuous_pivot";
         String transformIndex = "pivot_reviews_continuous";
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
@@ -1283,7 +1283,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String indexName = "reviews_geo_bounds";
 
         // gh#71874 regression test: create some sparse data
-        createReviewsIndex(indexName, 1000, "date", false, 5, "location");
+        createReviewsIndex(indexName, 1000, 27, "date", false, 5, "location");
 
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
 
@@ -1347,8 +1347,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         )).get(0);
         assertThat(actualObj.get("type"), equalTo("point"));
         List<Double> coordinates = (List<Double>) actualObj.get("coordinates");
-        assertEquals((4 + 10), coordinates.get(1), 0.000001);
-        assertEquals((4 + 15), coordinates.get(0), 0.000001);
+        assertEquals(-76.0, coordinates.get(1), 0.000001);
+        assertEquals(-161.0, coordinates.get(0), 0.000001);
     }
 
     public void testPivotWithGeoCentroidAgg() throws Exception {
@@ -1411,8 +1411,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(3.878048780, actual.doubleValue(), 0.000001);
         String actualString = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.location", searchResult)).get(0);
         String[] latlon = actualString.split(",");
-        assertEquals((4 + 10), Double.valueOf(latlon[0]), 0.000001);
-        assertEquals((4 + 15), Double.valueOf(latlon[1]), 0.000001);
+        assertEquals(-76.0, Double.valueOf(latlon[0]), 0.000001);
+        assertEquals(-161.0, Double.valueOf(latlon[1]), 0.000001);
     }
 
     @SuppressWarnings("unchecked")

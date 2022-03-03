@@ -67,7 +67,7 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
-        new LifecyclePolicyConfig("watch-history-ilm-policy", "/watch-history-ilm-policy.json").load(
+        new LifecyclePolicyConfig("watch-history-ilm-policy-16", "/watch-history-ilm-policy.json").load(
             LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
         )
     );

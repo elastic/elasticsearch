@@ -60,7 +60,7 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
             return new Result(false, new Info(errorMessage));
         }
 
-        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = indexMetadata.getLifecyclePolicyName();
         IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "invalid cluster metadata. index [" + indexName + "] was not found";
         IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();

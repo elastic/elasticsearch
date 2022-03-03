@@ -74,6 +74,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -150,7 +151,6 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -404,6 +404,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.namedXContentRegistry = namedXContentRegistry;
         this.basePath = basePath;
         this.maxSnapshotCount = MAX_SNAPSHOTS_SETTING.get(metadata.settings());
+        this.repoDataDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
     }
 
     @Override
@@ -497,15 +498,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     if (executedTask) {
-                        updateTask.clusterStateProcessed(source, oldState, newState);
+                        updateTask.clusterStateProcessed(oldState, newState);
                     } else {
                         executeConsistentStateUpdate(createUpdateTask, source, onFailure);
                     }
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            }, newExecutor());
         }, onFailure));
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     @Override
@@ -1704,7 +1710,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
         // the latest known repository generation
         if (bestEffortConsistency == false && cached.getGenId() == latestKnownRepoGen.get()) {
-            repoDataDeduplicator.executeOnce(metadata, listener, (metadata, l) -> l.onResponse(cached));
+            listener.onResponse(cached);
             return;
         }
         if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN && isReadOnly() == false) {
@@ -1823,7 +1829,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         }
 
                                         @Override
-                                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                                             logger.trace(
                                                 "[{}] initialized repository generation in cluster state to [{}]",
                                                 metadata.name(),
@@ -1845,7 +1851,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                             });
                                         }
                                     },
-                                    ClusterStateTaskExecutor.unbatched()
+                                    newExecutor()
                                 ),
                                 onFailure
                             ),
@@ -1867,7 +1873,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * {@link #bestEffortConsistency} must be {@code false}, in which case we can assume that the {@link RepositoryData} loaded is
      * unique for a given value of {@link #metadata} at any point in time.
      */
-    private final ResultDeduplicator<RepositoryMetadata, RepositoryData> repoDataDeduplicator = new ResultDeduplicator<>();
+    private final ResultDeduplicator<RepositoryMetadata, RepositoryData> repoDataDeduplicator;
 
     private void doGetRepositoryData(ActionListener<RepositoryData> listener) {
         // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
@@ -2080,11 +2086,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(null);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -2232,11 +2238,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 logger.trace("[{}] successfully set pending repository generation to [{}]", metadata.name(), newGen);
                 setPendingStep.onResponse(newGen);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
 
         final StepListener<RepositoryData> filterRepositoryDataStep = new StepListener<>();
 
@@ -2354,7 +2360,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
                     cacheRepositoryData(newRepositoryData, version);
                     threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
@@ -2375,7 +2381,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         return newRepositoryData;
                     }));
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            }, newExecutor());
         }, listener::onFailure);
     }
 
@@ -2679,7 +2685,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             long indexTotalFileSize = 0;
             final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new LinkedBlockingQueue<>();
 
-            if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
+            if (store.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
                 indexCommitPointFiles = Collections.emptyList();
             } else if (filesFromSegmentInfos == null) {
                 // If we did not find a set of files that is equal to the current commit we determine the files to upload by comparing files
@@ -3475,8 +3481,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 };
                 final String partName = fileInfo.partName(i);
-                logger.trace(() -> new ParameterizedMessage("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path()));
+                logger.trace("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path());
+                final long startMS = threadPool.relativeTimeInMillis();
                 shardContainer.writeBlob(partName, inputStream, partBytes, false);
+                logger.trace(
+                    "[{}] Writing [{}] of size [{}b] to [{}] took [{}ms]",
+                    metadata.name(),
+                    partName,
+                    partBytes,
+                    shardContainer.path(),
+                    threadPool.relativeTimeInMillis() - startMS
+                );
             }
             Store.verify(indexInput);
             snapshotStatus.addProcessedFile(fileInfo.length());

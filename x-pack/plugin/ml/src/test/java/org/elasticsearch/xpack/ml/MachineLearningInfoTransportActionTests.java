@@ -378,6 +378,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         5,
                                         42.0,
                                         0,
+                                        1,
+                                        2,
+                                        3,
                                         Instant.now(),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
@@ -388,6 +391,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         4,
                                         50.0,
                                         0,
+                                        1,
+                                        2,
+                                        3,
                                         Instant.now(),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
@@ -485,6 +491,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("jobs.opened.forecasts.total"), equalTo(11));
             assertThat(source.getValue("jobs.opened.forecasts.forecasted_jobs"), equalTo(2));
 
+            // TODO error_count here???
             assertThat(source.getValue("inference.trained_models._all.count"), equalTo(4));
             assertThat(source.getValue("inference.trained_models.model_size_bytes.min"), equalTo(100.0));
             assertThat(source.getValue("inference.trained_models.model_size_bytes.max"), equalTo(300.0));

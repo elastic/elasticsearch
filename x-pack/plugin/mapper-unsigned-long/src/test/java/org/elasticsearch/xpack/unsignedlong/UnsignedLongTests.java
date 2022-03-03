@@ -284,14 +284,14 @@ public class UnsignedLongTests extends ESIntegTestCase {
             assertSearchResponse(response);
             Sum sum = response.getAggregations().get("ul_sum");
             double expectedSum = Arrays.stream(values).mapToDouble(Number::doubleValue).sum();
-            assertEquals(expectedSum, sum.getValue(), 0.001);
+            assertEquals(expectedSum, sum.value(), 0.001);
         }
         // max agg
         {
             SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(max("ul_max").field("ul_field")).get();
             assertSearchResponse(response);
             Max max = response.getAggregations().get("ul_max");
-            assertEquals(1.8446744073709551615E19, max.getValue(), 0.001);
+            assertEquals(1.8446744073709551615E19, max.value(), 0.001);
         }
         // min agg
         {

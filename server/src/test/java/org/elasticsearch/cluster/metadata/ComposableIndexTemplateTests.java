@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -23,7 +23,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ComposableIndexTemplateTests extends AbstractDiffableSerializationTestCase<ComposableIndexTemplate> {
+public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTestCase<ComposableIndexTemplate> {
     @Override
     protected ComposableIndexTemplate makeTestChanges(ComposableIndexTemplate testInstance) {
         try {

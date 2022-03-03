@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -110,9 +111,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     ) {
         this.name = name;
         this.clusterPrivileges = clusterPrivileges != null ? clusterPrivileges : Strings.EMPTY_ARRAY;
-        this.configurableClusterPrivileges = configurableClusterPrivileges != null
-            ? configurableClusterPrivileges
-            : ConfigurableClusterPrivileges.EMPTY_ARRAY;
+        this.configurableClusterPrivileges = sortConfigurableClusterPrivileges(configurableClusterPrivileges);
         this.indicesPrivileges = indicesPrivileges != null ? indicesPrivileges : IndicesPrivileges.NONE;
         this.applicationPrivileges = applicationPrivileges != null ? applicationPrivileges : ApplicationResourcePrivileges.NONE;
         this.runAs = runAs != null ? runAs : Strings.EMPTY_ARRAY;
@@ -667,6 +666,23 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             .query(query)
             .allowRestrictedIndices(allowRestrictedIndices)
             .build();
+    }
+
+    private static ConfigurableClusterPrivilege[] sortConfigurableClusterPrivileges(
+        ConfigurableClusterPrivilege[] configurableClusterPrivileges
+    ) {
+        if (null == configurableClusterPrivileges) {
+            return ConfigurableClusterPrivileges.EMPTY_ARRAY;
+        } else if (configurableClusterPrivileges.length < 2) {
+            return configurableClusterPrivileges;
+        } else {
+            ConfigurableClusterPrivilege[] configurableClusterPrivilegesCopy = Arrays.copyOf(
+                configurableClusterPrivileges,
+                configurableClusterPrivileges.length
+            );
+            Arrays.sort(configurableClusterPrivilegesCopy, Comparator.comparingInt(o -> o.getCategory().ordinal()));
+            return configurableClusterPrivilegesCopy;
+        }
     }
 
     private static void checkIfExceptFieldsIsSubsetOfGrantedFields(String roleName, String[] grantedFields, String[] deniedFields) {

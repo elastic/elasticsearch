@@ -1415,65 +1415,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(IndexNameExpressionResolver.isExplicitAllPattern(Arrays.asList("*")), equalTo(false));
     }
 
-    public void testIsPatternMatchingAllIndicesExplicitList() throws Exception {
-        // even though it does identify all indices, it's not a pattern but just an explicit list of them
-        String[] concreteIndices = new String[] { "index1", "index2", "index3" };
-        Metadata metadata = metadataBuilder(concreteIndices);
-        assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metadata, concreteIndices, concreteIndices), equalTo(false));
-    }
-
-    public void testIsPatternMatchingAllIndicesOnlyWildcard() throws Exception {
-        String[] indicesOrAliases = new String[] { "*" };
-        String[] concreteIndices = new String[] { "index1", "index2", "index3" };
-        Metadata metadata = metadataBuilder(concreteIndices);
-        assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metadata, indicesOrAliases, concreteIndices), equalTo(true));
-    }
-
-    public void testIsPatternMatchingAllIndicesMatchingTrailingWildcard() throws Exception {
-        String[] indicesOrAliases = new String[] { "index*" };
-        String[] concreteIndices = new String[] { "index1", "index2", "index3" };
-        Metadata metadata = metadataBuilder(concreteIndices);
-        assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metadata, indicesOrAliases, concreteIndices), equalTo(true));
-    }
-
-    public void testIsPatternMatchingAllIndicesNonMatchingTrailingWildcard() throws Exception {
-        String[] indicesOrAliases = new String[] { "index*" };
-        String[] concreteIndices = new String[] { "index1", "index2", "index3" };
-        String[] allConcreteIndices = new String[] { "index1", "index2", "index3", "a", "b" };
-        Metadata metadata = metadataBuilder(allConcreteIndices);
-        assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metadata, indicesOrAliases, concreteIndices), equalTo(false));
-    }
-
-    public void testIsPatternMatchingAllIndicesMatchingSingleExclusion() throws Exception {
-        String[] indicesOrAliases = new String[] { "-index1", "index1" };
-        String[] concreteIndices = new String[] { "index1", "index2", "index3" };
-        Metadata metadata = metadataBuilder(concreteIndices);
-        assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metadata, indicesOrAliases, concreteIndices), equalTo(true));
-    }
-
-    public void testIsPatternMatchingAllIndicesNonMatchingSingleExclusion() throws Exception {
-        String[] indicesOrAliases = new String[] { "-index1" };
-        String[] concreteIndices = new String[] { "index2", "index3" };
-        String[] allConcreteIndices = new String[] { "index1", "index2", "index3" };
-        Metadata metadata = metadataBuilder(allConcreteIndices);
-        assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metadata, indicesOrAliases, concreteIndices), equalTo(false));
-    }
-
-    public void testIsPatternMatchingAllIndicesMatchingTrailingWildcardAndExclusion() throws Exception {
-        String[] indicesOrAliases = new String[] { "index*", "-index1", "index1" };
-        String[] concreteIndices = new String[] { "index1", "index2", "index3" };
-        Metadata metadata = metadataBuilder(concreteIndices);
-        assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metadata, indicesOrAliases, concreteIndices), equalTo(true));
-    }
-
-    public void testIsPatternMatchingAllIndicesNonMatchingTrailingWildcardAndExclusion() throws Exception {
-        String[] indicesOrAliases = new String[] { "index*", "-index1" };
-        String[] concreteIndices = new String[] { "index2", "index3" };
-        String[] allConcreteIndices = new String[] { "index1", "index2", "index3" };
-        Metadata metadata = metadataBuilder(allConcreteIndices);
-        assertThat(indexNameExpressionResolver.isPatternMatchingAllIndices(metadata, indicesOrAliases, concreteIndices), equalTo(false));
-    }
-
     public void testIndexOptionsFailClosedIndicesAndAliases() {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(
@@ -2844,7 +2785,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                             true,
                             false,
                             false,
-                            false
+                            false,
+                            null
                         )
                     )
             )
@@ -2912,7 +2854,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
     public void testMathExpressionSupport() {
         Instant instant = LocalDate.of(2021, 01, 11).atStartOfDay().toInstant(ZoneOffset.UTC);
-        String resolved = this.indexNameExpressionResolver.resolveDateMathExpression("<a-name-{now/M{yyyy-MM}}>", instant.toEpochMilli());
+        String resolved = IndexNameExpressionResolver.resolveDateMathExpression("<a-name-{now/M{yyyy-MM}}>", instant.toEpochMilli());
 
         assertEquals(resolved, "a-name-2021-01");
     }
@@ -2921,7 +2863,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         Instant instant = LocalDate.of(2020, 12, 2).atStartOfDay().toInstant(ZoneOffset.UTC);
         final String indexName = "<older-date-{now/M{yyyy-MM}}>";
-        String resolved = this.indexNameExpressionResolver.resolveDateMathExpression(indexName, instant.toEpochMilli());
+        String resolved = IndexNameExpressionResolver.resolveDateMathExpression(indexName, instant.toEpochMilli());
 
         assertEquals(resolved, "older-date-2020-12");
     }

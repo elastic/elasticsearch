@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
@@ -113,7 +114,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         }
 
                         @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             logger.debug("Removed repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
                         }
 
@@ -122,7 +123,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                             logger.warn("Failed to remove repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
                         }
                     },
-                    ClusterStateTaskExecutor.unbatched()
+                    newExecutor()
                 );
             }
         });
@@ -224,7 +225,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     }
 
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         startedCleanup = true;
                         logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
                         threadPool.executor(ThreadPool.Names.SNAPSHOT)
@@ -280,7 +281,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                 }
 
                                 @Override
-                                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                                     if (failure == null) {
                                         logger.info(
                                             "Done with repository cleanup on [{}][{}] with result [{}]",
@@ -302,12 +303,17 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                     }
                                 }
                             },
-                            ClusterStateTaskExecutor.unbatched()
+                            newExecutor()
                         );
                     }
                 },
-                ClusterStateTaskExecutor.unbatched()
+                newExecutor()
             );
         }, listener::onFailure);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

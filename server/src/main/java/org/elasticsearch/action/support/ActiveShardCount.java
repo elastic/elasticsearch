@@ -25,7 +25,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_
  * A class whose instances represent a value for counting the number
  * of active shard copies for a given shard in an index.
  */
-public final class ActiveShardCount implements Writeable {
+public record ActiveShardCount(int value) implements Writeable {
 
     private static final int ACTIVE_SHARD_COUNT_DEFAULT = -2;
     private static final int ALL_ACTIVE_SHARDS = -1;
@@ -34,12 +34,6 @@ public final class ActiveShardCount implements Writeable {
     public static final ActiveShardCount ALL = new ActiveShardCount(ALL_ACTIVE_SHARDS);
     public static final ActiveShardCount NONE = new ActiveShardCount(0);
     public static final ActiveShardCount ONE = new ActiveShardCount(1);
-
-    private final int value;
-
-    private ActiveShardCount(final int value) {
-        this.value = value;
-    }
 
     /**
      * Get an ActiveShardCount instance for the given value.  The value is first validated to ensure
@@ -185,23 +179,6 @@ public final class ActiveShardCount implements Writeable {
         } else {
             return activeShardCount >= value;
         }
-    }
-
-    @Override
-    public int hashCode() {
-        return Integer.hashCode(value);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        ActiveShardCount that = (ActiveShardCount) o;
-        return value == that.value;
     }
 
     @Override

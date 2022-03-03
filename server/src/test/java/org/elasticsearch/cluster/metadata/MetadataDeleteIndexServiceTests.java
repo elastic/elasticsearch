@@ -45,9 +45,10 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -155,6 +156,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertNull(after.routingTable().index(index));
         assertNull(after.blocks().indices().get(index));
         assertNull(after.metadata().getIndicesLookup().get(alias));
+        assertThat(after.metadata().aliasedIndices(alias), empty());
     }
 
     public void testDeleteBackingIndexForDataStream() {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.analysis.index;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -331,7 +332,7 @@ public class IndexResolverTests extends ESTestCase {
 
         // each index will have one field with different name than all others
         for (int i = 0; i < indicesCount; i++) {
-            Map<String, EsField> mapping = new HashMap<>(1);
+            Map<String, EsField> mapping = Maps.newMapWithExpectedSize(1);
             String fieldName = "field" + (i + 1);
             mapping.put(fieldName, new KeywordEsField(fieldName));
             expectedIndices[i] = new EsIndex("index" + (i + 1), mapping);

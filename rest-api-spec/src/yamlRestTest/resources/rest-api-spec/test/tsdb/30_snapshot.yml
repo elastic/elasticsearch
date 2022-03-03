@@ -101,6 +101,8 @@ teardown:
         repository: test_repo
         snapshot: test_restore_tsdb
         wait_for_completion: true
+        body:
+          indices: test_index
 
   - match: { snapshot.snapshot: test_restore_tsdb }
   - match: { snapshot.state : SUCCESS }

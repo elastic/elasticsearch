@@ -117,7 +117,12 @@ public final class TextParams {
     }
 
     public static Parameter<SimilarityProvider> similarity(Function<FieldMapper, SimilarityProvider> init) {
-        return new Parameter<>("similarity", false, () -> null, (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o), init).setSerializer(
+        return new Parameter<>(
+            "similarity",
+            false,
+            () -> null,
+            (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o),
+            init,
             (b, f, v) -> b.field(f, v == null ? null : v.name()),
             v -> v == null ? null : v.name()
         ).acceptsNull();

@@ -727,7 +727,7 @@ public class FollowersCheckerTests extends ESTestCase {
         );
         followersChecker.setCurrentNodes(discoveryNodes);
         List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
-            .map(cr -> cr.node)
+            .map(cr -> cr.node())
             .collect(Collectors.toList());
         List<DiscoveryNode> sortedFollowerTargets = new ArrayList<>(followerTargets);
         Collections.sort(sortedFollowerTargets, Comparator.comparing(n -> n.isMasterNode() == false));

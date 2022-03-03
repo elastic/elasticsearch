@@ -68,17 +68,28 @@ ext.testArtifact = { p, String name = "test" ->
 }
 
 tasks.register("updateCIBwcVersions") {
-  doLast {
-    File yml = file(".ci/bwcVersions")
-    yml.text = ""
-    yml << "BWC_VERSION:\n"
-    BuildParams.bwcVersions.indexCompatible.each {
-      yml << "  - \"$it\"\n"
+  def writeVersions = { File file, List<Version> versions ->
+    file.text = ""
+    file << "BWC_VERSION:\n"
+    versions.each {
+      file << "  - \"$it\"\n"
     }
+  }
+  doLast {
+    writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.indexCompatible)
+    writeVersions(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
   }
 }
 
 tasks.register("verifyVersions") {
+  def verifyCiYaml = { File file, List<Version> versions ->
+    String ciYml = file.text
+    versions.each {
+      if (ciYml.contains("\"$it\"\n") == false) {
+        throw new Exception("${file} is outdated, run `./gradlew updateCIBwcVersions` and check in the results")
+      }
+    }
+  }
   doLast {
     if (gradle.startParameter.isOffline()) {
       throw new GradleException("Must run in online mode to verify versions")
@@ -94,12 +105,8 @@ tasks.register("verifyVersions") {
           .collect { Version.fromString(it) }
       )
     }
-    String ciYml = file(".ci/bwcVersions").text
-    BuildParams.bwcVersions.indexCompatible.each {
-      if (ciYml.contains("\"$it\"\n") == false) {
-        throw new Exception(".ci/bwcVersions is outdated, run `./gradlew updateCIBwcVersions` and check in the results");
-      }
-    }
+    verifyCiYaml(file(".ci/bwcVersions"), BuildParams.bwcVersions.indexCompatible)
+    verifyCiYaml(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
 
     // Make sure backport bot config file is up to date
     JsonNode backportConfig = new ObjectMapper().readTree(file(".backportrc.json"))
@@ -177,8 +184,8 @@ allprojects {
   // injecting groovy property variables into all projects
   project.ext {
     // for ide hacks...
-    isEclipse = providers.systemProperty("eclipse.launcher").forUseAtConfigurationTime().isPresent() ||   // Detects gradle launched from Eclipse's IDE
-            providers.systemProperty("eclipse.application").forUseAtConfigurationTime().isPresent() ||    // Detects gradle launched from the Eclipse compiler server
+    isEclipse = providers.systemProperty("eclipse.launcher").isPresent() ||   // Detects gradle launched from Eclipse's IDE
+            providers.systemProperty("eclipse.application").isPresent() ||    // Detects gradle launched from the Eclipse compiler server
             gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
             gradle.startParameter.taskNames.contains('cleanEclipse')
   }

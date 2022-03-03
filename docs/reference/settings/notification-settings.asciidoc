@@ -264,6 +264,13 @@ HTML feature groups>>.
 Set to `false` to completely disable HTML sanitation. Not recommended.
 Defaults to `true`.
 
+`xpack.notification.reporting.warning.kbn-csv-contains-formulas.text`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Specifies a custom message, which is sent if the formula verification criteria
+for CSV files from {kib}'s {kibana-ref}/reporting-settings-kb.html#reporting-csv-settings[`xpack.reporting.csv.checkForFormulas`] is `true`.
+Use `%s` in the message as a placeholder for the filename.
+Defaults to `Warning: The attachment [%s] contains characters which spreadsheet applications may interpret as formulas. Please ensure that the attachment is safe prior to opening.`
+
 [[ssl-notification-smtp-settings]]
 :ssl-prefix:             xpack.notification.email
 :component:              {watcher} Email
@@ -272,12 +279,6 @@ Defaults to `true`.
 :ssl-context:            watcher-email
 
 include::ssl-settings.asciidoc[]
-
-`xpack.notification.reporting.warning.kbn-csv-contains-formulas.text`::
-(<<dynamic-cluster-setting,Dynamic>>) 
-Specifies a custom message to be sent if the formula verification criteria
-for CSV files, from kibana `xpack.reporting.csv.checkForFormulas`, is true.
-Use %s in the message as a placeholder for the filename.  
 
 [[slack-notification-settings]]
 ==== Slack Notification Settings

@@ -21,26 +21,21 @@ import java.util.regex.Pattern;
  * with how {@link Version} is used in the build. It also retains any qualifier (prerelease) information, and uses
  * that information when comparing instances.
  */
-public final class QualifiedVersion implements Comparable<QualifiedVersion> {
-    private final int major;
-    private final int minor;
-    private final int revision;
-    private final Qualifier qualifier;
+public record QualifiedVersion(
+    int major,
+    int minor,
+    int revision,
+    org.elasticsearch.gradle.internal.release.QualifiedVersion.Qualifier qualifier
+) implements Comparable<QualifiedVersion> {
 
     private static final Pattern pattern = Pattern.compile(
         "^v? (\\d+) \\. (\\d+) \\. (\\d+) (?: - (alpha\\d+ | beta\\d+ | rc\\d+ | SNAPSHOT ) )? $",
         Pattern.COMMENTS
     );
 
-    private QualifiedVersion(int major, int minor, int revision, String qualifier) {
-        this.major = major;
-        this.minor = minor;
-        this.revision = revision;
-        this.qualifier = qualifier == null ? null : Qualifier.of(qualifier);
-    }
-
     /**
      * Parses the supplied string into an object.
+     *
      * @param s a version string in strict semver
      * @return a new instance
      */
@@ -55,7 +50,7 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
             Integer.parseInt(matcher.group(1)),
             Integer.parseInt(matcher.group(2)),
             Integer.parseInt(matcher.group(3)),
-            matcher.group(4)
+            matcher.group(4) == null ? null : Qualifier.of(matcher.group(4))
         );
     }
 
@@ -64,40 +59,8 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
         return "%d.%d.%d%s".formatted(major, minor, revision, qualifier == null ? "" : "-" + qualifier);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        QualifiedVersion version = (QualifiedVersion) o;
-        return major == version.major
-            && minor == version.minor
-            && revision == version.revision
-            && Objects.equals(qualifier, version.qualifier);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(major, minor, revision, qualifier);
-    }
-
-    public int getMajor() {
-        return major;
-    }
-
-    public int getMinor() {
-        return minor;
-    }
-
-    public int getRevision() {
-        return revision;
-    }
-
     public boolean hasQualifier() {
         return qualifier != null;
-    }
-
-    public Qualifier getQualifier() {
-        return qualifier;
     }
 
     public boolean isSnapshot() {
@@ -129,21 +92,9 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
         SNAPSHOT
     }
 
-    private static class Qualifier implements Comparable<Qualifier> {
-        private final QualifierLevel level;
-        private final int number;
-
-        private Qualifier(QualifierLevel level, int number) {
-            this.level = level;
-            this.number = number;
-        }
+    private record Qualifier(QualifierLevel level, int number) implements Comparable<Qualifier> {
 
         private static final Comparator<Qualifier> COMPARATOR = Comparator.comparing((Qualifier p) -> p.level).thenComparing(p -> p.number);
-
-        @Override
-        public int compareTo(Qualifier other) {
-            return COMPARATOR.compare(this, other);
-        }
 
         private static Qualifier of(String qualifier) {
             if ("SNAPSHOT".equals(qualifier)) {
@@ -162,21 +113,14 @@ public final class QualifiedVersion implements Comparable<QualifiedVersion> {
             }
         }
 
+        @Override
+        public int compareTo(Qualifier other) {
+            return COMPARATOR.compare(this, other);
+        }
+
+        @Override
         public String toString() {
             return level == QualifierLevel.SNAPSHOT ? level.name() : level.name() + number;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Qualifier that = (Qualifier) o;
-            return number == that.number && level == that.level;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(level, number);
         }
     }
 }

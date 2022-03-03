@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 
 import java.io.IOException;
@@ -43,7 +44,7 @@ public class SecuritySystemIndices {
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
     private final SystemIndexDescriptor mainDescriptor;
     private final SystemIndexDescriptor tokenDescriptor;
@@ -64,7 +65,11 @@ public class SecuritySystemIndices {
     }
 
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
+        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
+            return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
+        } else {
+            return List.of(mainDescriptor, tokenDescriptor);
+        }
     }
 
     public void init(Client client, ClusterService clusterService) {
@@ -290,6 +295,27 @@ public class SecuritySystemIndices {
                                 builder.endObject();
                             }
                             builder.endObject();
+                            builder.startObject("profile");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("write");
+                                    {
+                                        builder.field("type", "object");
+                                        builder.startObject("properties");
+                                        {
+                                            builder.startObject("applications");
+                                            builder.field("type", "keyword");
+                                            builder.endObject();
+                                        }
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
                         }
                         builder.endObject();
                     }
@@ -379,6 +405,8 @@ public class SecuritySystemIndices {
                             builder.startObject("realm_type");
                             builder.field("type", "keyword");
                             builder.endObject();
+
+                            defineRealmDomain(builder, "realm_domain");
                         }
                         builder.endObject();
                     }
@@ -626,6 +654,8 @@ public class SecuritySystemIndices {
                                     builder.startObject("realm");
                                     builder.field("type", "keyword");
                                     builder.endObject();
+
+                                    defineRealmDomain(builder, "realm_domain");
                                 }
                                 builder.endObject();
                             }
@@ -678,6 +708,8 @@ public class SecuritySystemIndices {
                             builder.startObject("realm");
                             builder.field("type", "keyword");
                             builder.endObject();
+
+                            defineRealmDomain(builder, "realm_domain");
                         }
                         builder.endObject();
                     }
@@ -761,6 +793,10 @@ public class SecuritySystemIndices {
                                     builder.field("type", "search_as_you_type");
                                     builder.endObject();
 
+                                    builder.startObject("roles");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
                                     builder.startObject("realm");
                                     {
                                         builder.field("type", "object");
@@ -773,6 +809,8 @@ public class SecuritySystemIndices {
                                             builder.startObject("type");
                                             builder.field("type", "keyword");
                                             builder.endObject();
+
+                                            defineRealmDomain(builder, "domain");
 
                                             builder.startObject("node_name");
                                             builder.field("type", "keyword");
@@ -791,8 +829,8 @@ public class SecuritySystemIndices {
                                     builder.field("type", "search_as_you_type");
                                     builder.endObject();
 
-                                    builder.startObject("display_name");
-                                    builder.field("type", "search_as_you_type");
+                                    builder.startObject("active");
+                                    builder.field("type", "boolean");
                                     builder.endObject();
                                 }
                                 builder.endObject();
@@ -804,25 +842,12 @@ public class SecuritySystemIndices {
                             builder.field("format", "epoch_millis");
                             builder.endObject();
 
+                            // Searchable application specific data
                             builder.startObject("access");
-                            {
-                                builder.field("type", "object");
-                                builder.startObject("properties");
-                                {
-                                    builder.startObject("roles");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-
-                                    // Application specific access data, e.g. kibana spaces
-                                    builder.startObject("applications");
-                                    builder.field("type", "flattened");
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
+                            builder.field("type", "flattened");
                             builder.endObject();
 
-                            // Application data, retrievable but not searchable
+                            // Non-searchable application specific data, retrievable but not searchable
                             builder.startObject("application_data");
                             {
                                 builder.field("type", "object");
@@ -843,4 +868,37 @@ public class SecuritySystemIndices {
             throw new UncheckedIOException("Failed to build profile index mappings", e);
         }
     }
+
+    private void defineRealmDomain(XContentBuilder builder, String realm_domain) throws IOException {
+        builder.startObject(realm_domain);
+        {
+            builder.field("type", "object");
+            builder.startObject("properties");
+            {
+                builder.startObject("name");
+                builder.field("type", "keyword");
+                builder.endObject();
+
+                builder.startObject("realms");
+                {
+                    builder.field("type", "nested");
+                    builder.startObject("properties");
+                    {
+                        builder.startObject("name");
+                        builder.field("type", "keyword");
+                        builder.endObject();
+
+                        builder.startObject("type");
+                        builder.field("type", "keyword");
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+    }
+
 }

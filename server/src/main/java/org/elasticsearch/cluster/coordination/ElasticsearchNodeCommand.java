@@ -197,15 +197,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         return parser;
     }
 
-    public static class UnknownMetadataCustom implements Metadata.Custom {
-
-        private final String name;
-        private final Map<String, Object> contents;
-
-        public UnknownMetadataCustom(String name, Map<String, Object> contents) {
-            this.name = name;
-            this.contents = contents;
-        }
+    public record UnknownMetadataCustom(String name, Map<String, Object> contents) implements Metadata.Custom {
 
         @Override
         public EnumSet<Metadata.XContentContext> context() {

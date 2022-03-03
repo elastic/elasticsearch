@@ -2025,6 +2025,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
             return ShardLongFieldRange.UNKNOWN; // field missing or not a date
         }
+        if (mappedFieldType.isIndexed() == false) {
+            return ShardLongFieldRange.UNKNOWN; // range information missing
+        }
 
         final ShardLongFieldRange rawTimestampFieldRange;
         try {
@@ -2910,7 +2913,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 throw e;
             }
             final List<String> checkedFiles = new ArrayList<>(metadata.size());
-            for (Map.Entry<String, StoreFileMetadata> entry : metadata.asMap().entrySet()) {
+            for (Map.Entry<String, StoreFileMetadata> entry : metadata.fileMetadataMap().entrySet()) {
                 try {
                     Store.checkIntegrity(entry.getValue(), store.directory());
                     if (corrupt == null) {

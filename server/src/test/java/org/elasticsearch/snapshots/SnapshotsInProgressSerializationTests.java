@@ -27,8 +27,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
-import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,7 +47,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireSerializationTestCase<Custom> {
+public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSerializationTestCase<Custom> {
 
     @Override
     protected Custom createTestInstance() {

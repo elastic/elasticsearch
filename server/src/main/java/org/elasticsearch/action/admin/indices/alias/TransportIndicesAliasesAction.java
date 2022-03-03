@@ -204,7 +204,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 switch (action.actionType()) {
                     case ADD:
                         for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
-                            String resolvedName = this.indexNameExpressionResolver.resolveDateMathExpression(alias, now);
+                            String resolvedName = IndexNameExpressionResolver.resolveDateMathExpression(alias, now);
                             finalActions.add(
                                 new AliasAction.Add(
                                     index.getName(),

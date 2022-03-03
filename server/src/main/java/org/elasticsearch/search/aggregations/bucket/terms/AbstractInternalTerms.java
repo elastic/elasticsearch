@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.TopBucketBuilder;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -29,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyAsc;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
@@ -339,6 +341,26 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             docCountError = aggregations.size() == 1 ? 0 : sumDocCountError;
         }
         return create(name, result, reduceContext.isFinalReduce() ? getOrder() : thisReduceOrder, docCountError, otherDocCount[0]);
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return create(
+            name,
+            getBuckets().stream()
+                .map(
+                    b -> createBucket(
+                        samplingContext.scaleUp(b.getDocCount()),
+                        InternalAggregations.finalizeSampling((InternalAggregations) b.getAggregations(), samplingContext),
+                        b.getShowDocCountError() ? samplingContext.scaleUp(b.getDocCountError()) : 0,
+                        b
+                    )
+                )
+                .collect(Collectors.toList()),
+            getOrder(),
+            samplingContext.scaleUp(getDocCountError()),
+            samplingContext.scaleUp(getSumOfOtherDocCounts())
+        );
     }
 
     protected static XContentBuilder doXContentCommon(

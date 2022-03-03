@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -20,6 +21,11 @@ import java.util.TreeMap;
 public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregationTestCase<InternalAdjacencyMatrix> {
 
     private List<String> keys;
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
 
     @Override
     protected int maxNumberOfBuckets() {
@@ -102,7 +108,7 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
             }
             case 2 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

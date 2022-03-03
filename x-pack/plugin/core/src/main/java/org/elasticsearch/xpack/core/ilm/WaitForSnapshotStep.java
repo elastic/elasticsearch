@@ -49,7 +49,7 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
             throw error(NO_INDEX_METADATA_MESSAGE, index.getName());
         }
 
-        Long actionTime = indexMetadata.getLifecycleExecutionState().getActionTime();
+        Long actionTime = indexMetadata.getLifecycleExecutionState().actionTime();
 
         if (actionTime == null) {
             throw error(NO_ACTION_TIME_MESSAGE, index.getName());

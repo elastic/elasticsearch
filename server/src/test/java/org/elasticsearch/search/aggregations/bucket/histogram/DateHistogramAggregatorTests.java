@@ -14,12 +14,12 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.CheckedConsumer;
@@ -928,9 +928,10 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     new AggregationReduceContext.ForFinal(
                         context.bigArrays(),
                         null,
+                        () -> false,
+                        builder,
                         context.multiBucketConsumer(),
-                        PipelineTree.EMPTY,
-                        () -> false
+                        PipelineTree.EMPTY
                     )
                 );
                 assertThat(

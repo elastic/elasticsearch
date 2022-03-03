@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -545,7 +546,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         String reportId = randomAlphaOfLength(5);
         Map<String, String[]> headers = new HashMap<>();
         headers.put("Content-Type", new String[] { randomContentType });
-        Map<String, String> customWarnings = new HashMap<>(WARNINGS.size());
+        Map<String, String> customWarnings = Maps.newMapWithExpectedSize(WARNINGS.size());
         WARNINGS.keySet().forEach((k) -> {
             final String warning = randomAlphaOfLength(20);
             customWarnings.put(k, warning);
@@ -583,7 +584,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         String reportId = randomAlphaOfLength(5);
         Map<String, String[]> headers = new HashMap<>();
         headers.put("Content-Type", new String[] { randomContentType });
-        Map<String, String> customWarnings = new HashMap<>(WARNINGS.size());
+        Map<String, String> customWarnings = Maps.newMapWithExpectedSize(WARNINGS.size());
         WARNINGS.keySet().forEach((k) -> {
             // add a parameter
             final String warning = randomAlphaOfLength(20) + " %s";
@@ -627,7 +628,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         String reportId = randomAlphaOfLength(5);
         Map<String, String[]> headers = new HashMap<>();
         headers.put("Content-Type", new String[] { randomContentType });
-        Map<String, String> customWarnings = new HashMap<>(WARNINGS.size());
+        Map<String, String> customWarnings = Maps.newMapWithExpectedSize(WARNINGS.size());
         WARNINGS.keySet().forEach((k) -> {
             final String warning = randomAlphaOfLength(20);
             customWarnings.put(k, warning);

@@ -714,22 +714,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
         Tuple<Source, String> tuple = withMinus(ctx);
-
-        long value;
         try {
-            value = Long.valueOf(StringUtils.parseLong(tuple.v2()));
+            Number value = StringUtils.parseIntegral(tuple.v2());
+            return new Literal(tuple.v1(), value, DataTypes.fromJava(value));
         } catch (QlIllegalArgumentException siae) {
             throw new ParsingException(tuple.v1(), siae.getMessage());
         }
-
-        Object val = Long.valueOf(value);
-        DataType type = DataTypes.LONG;
-        // try to downsize to int if possible (since that's the most common type)
-        if ((int) value == value) {
-            type = DataTypes.INTEGER;
-            val = Integer.valueOf((int) value);
-        }
-        return new Literal(tuple.v1(), val, type);
     }
 
     @Override

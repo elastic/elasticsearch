@@ -63,7 +63,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         );
     }
 
-    public void testFieldNameWithDots() throws Exception {
+    public void testFieldNameWithDotsDisallowed() throws Exception {
         XContentBuilder builder = mapping(b -> {
             b.startObject("foo.bar").field("type", "text").endObject();
             b.startObject("foo.baz").field("type", "keyword").endObject();
@@ -97,7 +97,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         assertNotNull(mappingLookup.objectMappers().get("foo"));
     }
 
-    public void testFieldNameWithDotsConflict() throws IOException {
+    public void testFieldNameWithDotPrefixDisallowed() throws IOException {
         XContentBuilder builder = mapping(b -> {
             b.startObject("foo").field("type", "text").endObject();
             b.startObject("foo.baz").field("type", "keyword").endObject();

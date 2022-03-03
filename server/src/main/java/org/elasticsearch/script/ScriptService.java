@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -30,6 +31,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -739,7 +742,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
                 return ClusterState.builder(currentState).metadata(mdb).build();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     public void deleteStoredScript(
@@ -756,7 +759,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
                 return ClusterState.builder(currentState).metadata(mdb).build();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
@@ -855,7 +863,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     }
 
     CacheHolder contextCacheHolder(Settings settings) {
-        Map<String, ScriptCache> contextCache = new HashMap<>(contexts.size());
+        Map<String, ScriptCache> contextCache = Maps.newMapWithExpectedSize(contexts.size());
         contexts.forEach((k, v) -> contextCache.put(k, contextCache(settings, v)));
         return new CacheHolder(contextCache);
     }
@@ -907,7 +915,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         }
 
         CacheHolder(Map<String, ScriptCache> context) {
-            Map<String, AtomicReference<ScriptCache>> refs = new HashMap<>(context.size());
+            Map<String, AtomicReference<ScriptCache>> refs = Maps.newMapWithExpectedSize(context.size());
             context.forEach((k, v) -> refs.put(k, new AtomicReference<>(v)));
             contextCache = Collections.unmodifiableMap(refs);
             general = null;
@@ -944,7 +952,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             if (general != null) {
                 return new ScriptCacheStats(general.stats());
             }
-            Map<String, ScriptStats> context = new HashMap<>(contextCache.size());
+            Map<String, ScriptStats> context = Maps.newMapWithExpectedSize(contextCache.size());
             for (String name : contextCache.keySet()) {
                 context.put(name, contextCache.get(name).get().stats());
             }

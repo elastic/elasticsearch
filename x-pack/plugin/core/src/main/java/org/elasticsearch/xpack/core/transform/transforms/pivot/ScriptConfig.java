@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class ScriptConfig extends AbstractDiffable<ScriptConfig> implements Writeable, ToXContentObject {
+public class ScriptConfig implements SimpleDiffable<ScriptConfig>, Writeable, ToXContentObject {
     private static final Logger logger = LogManager.getLogger(ScriptConfig.class);
 
     // we store the in 2 formats: the raw format and the parsed format

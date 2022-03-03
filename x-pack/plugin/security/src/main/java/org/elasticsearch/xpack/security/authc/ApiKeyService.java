@@ -76,17 +76,16 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
-import org.elasticsearch.xpack.core.security.action.ApiKey;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -138,7 +137,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 
@@ -403,18 +401,21 @@ public class ApiKeyService {
         }
         builder.endObject();
 
-        builder.field("name", name)
-            .field("version", version.id)
-            .field("metadata_flattened", metadata)
-            .startObject("creator")
-            .field("principal", authentication.getUser().principal())
-            .field("full_name", authentication.getUser().fullName())
-            .field("email", authentication.getUser().email())
-            .field("metadata", authentication.getUser().metadata())
-            .field("realm", authentication.getSourceRealm().getName())
-            .field("realm_type", authentication.getSourceRealm().getType())
-            .endObject()
-            .endObject();
+        builder.field("name", name).field("version", version.id).field("metadata_flattened", metadata);
+        {
+            builder.startObject("creator")
+                .field("principal", authentication.getUser().principal())
+                .field("full_name", authentication.getUser().fullName())
+                .field("email", authentication.getUser().email())
+                .field("metadata", authentication.getUser().metadata())
+                .field("realm", authentication.getSourceRealm().getName())
+                .field("realm_type", authentication.getSourceRealm().getType());
+            if (authentication.getSourceRealm().getDomain() != null) {
+                builder.field("realm_domain", authentication.getSourceRealm().getDomain());
+            }
+            builder.endObject();
+        }
+        builder.endObject();
 
         return builder;
     }
@@ -431,26 +432,6 @@ public class ApiKeyService {
             credentials.close();
             listener.onFailure(e);
         }));
-    }
-
-    public Authentication createApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
-        if (false == authResult.isAuthenticated()) {
-            throw new IllegalArgumentException("API Key authn result must be successful");
-        }
-        final User user = authResult.getValue();
-        final RealmRef authenticatedBy = new RealmRef(
-            AuthenticationField.API_KEY_REALM_NAME,
-            AuthenticationField.API_KEY_REALM_TYPE,
-            nodeName
-        );
-        return new Authentication(
-            user,
-            authenticatedBy,
-            null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.API_KEY,
-            authResult.getMetadata()
-        );
     }
 
     void loadApiKeyAndValidateCredentials(
@@ -789,17 +770,6 @@ public class ApiKeyService {
             }
         }
         return null;
-    }
-
-    public static boolean isApiKeyAuthentication(Authentication authentication) {
-        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
-        if (Authentication.AuthenticationType.API_KEY == authType) {
-            assert AuthenticationField.API_KEY_REALM_TYPE.equals(authentication.getAuthenticatedBy().getType())
-                : "API key authentication must have API key realm type";
-            return true;
-        } else {
-            return false;
-        }
     }
 
     void computeHashForApiKey(SecureString apiKey, ActionListener<char[]> listener) {
@@ -1153,8 +1123,7 @@ public class ApiKeyService {
      */
     private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
-            if (exception instanceof ElasticsearchException) {
-                final ElasticsearchException esEx = (ElasticsearchException) exception;
+            if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail), esEx);
@@ -1173,8 +1142,7 @@ public class ApiKeyService {
      */
     private <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
-            if (exception instanceof ElasticsearchException) {
-                final ElasticsearchException esEx = (ElasticsearchException) exception;
+            if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
@@ -1349,15 +1317,14 @@ public class ApiKeyService {
     }
 
     /**
-     * Returns realm name for the authenticated user.
-     * If the user is authenticated by realm type {@value AuthenticationField#API_KEY_REALM_TYPE}
-     * then it will return the realm name of user who created this API key.
+     * Returns realm name of the owner user of an API key if the effective user is an API Key.
+     * If the effective user is not an API key, it just returns the source realm name.
      *
      * @param authentication {@link Authentication}
      * @return realm name
      */
     public static String getCreatorRealmName(final Authentication authentication) {
-        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+        if (authentication.isApiKey()) {
             return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
             return authentication.getSourceRealm().getName();
@@ -1365,15 +1332,14 @@ public class ApiKeyService {
     }
 
     /**
-     * Returns realm type for the authenticated user.
-     * If the user is authenticated by realm type {@value AuthenticationField#API_KEY_REALM_TYPE}
-     * then it will return the realm name of user who created this API key.
+     * Returns realm type of the owner user of an API key if the effective user is an API Key.
+     * If the effective user is not an API key, it just returns the source realm type.
      *
      * @param authentication {@link Authentication}
      * @return realm type
      */
     public static String getCreatorRealmType(final Authentication authentication) {
-        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+        if (authentication.isApiKey()) {
             return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
         } else {
             return authentication.getSourceRealm().getType();
@@ -1387,10 +1353,12 @@ public class ApiKeyService {
      * @return A map for the metadata or an empty map if no metadata is found.
      */
     public static Map<String, Object> getApiKeyMetadata(Authentication authentication) {
-        if (AuthenticationType.API_KEY != authentication.getAuthenticationType()) {
+        if (false == authentication.isAuthenticatedAsApiKey()) {
             throw new IllegalArgumentException(
-                "authentication type must be [api_key], got ["
-                    + authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)
+                "authentication realm must be ["
+                    + AuthenticationField.API_KEY_REALM_TYPE
+                    + "], got ["
+                    + authentication.getAuthenticatedBy().getType()
                     + "]"
             );
         }

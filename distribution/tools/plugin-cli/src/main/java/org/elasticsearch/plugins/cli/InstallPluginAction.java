@@ -391,12 +391,12 @@ public class InstallPluginAction implements Closeable {
             baseUrl,
             pluginId,
             platform,
-            Build.CURRENT.getQualifiedVersion()
+            Build.CURRENT.qualifiedVersion()
         );
         if (urlExists(platformUrl)) {
             return platformUrl;
         }
-        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.CURRENT.getQualifiedVersion());
+        return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.CURRENT.qualifiedVersion());
     }
 
     private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {

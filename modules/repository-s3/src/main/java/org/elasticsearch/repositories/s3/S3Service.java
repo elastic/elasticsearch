@@ -11,13 +11,19 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
+import com.amazonaws.auth.STSAssumeRoleWithWebIdentitySessionCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,10 +31,19 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.env.Environment;
 
 import java.io.Closeable;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.Objects;
 
+import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
+import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
+import static com.amazonaws.SDKGlobalConfiguration.AWS_WEB_IDENTITY_ENV_VAR;
 import static java.util.Collections.emptyMap;
 
 class S3Service implements Closeable {
@@ -49,6 +64,12 @@ class S3Service implements Closeable {
      * in the {@link RepositoryMetadata}.
      */
     private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
+
+    final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
+
+    S3Service(Environment environment) {
+        webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(environment);
+    }
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
@@ -128,7 +149,7 @@ class S3Service implements Closeable {
     // proxy for testing
     AmazonS3 buildClient(final S3ClientSettings clientSettings) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
-        builder.withCredentials(buildCredentials(LOGGER, clientSettings));
+        builder.withCredentials(buildCredentials(LOGGER, clientSettings, webIdentityTokenCredentialsProvider));
         builder.withClientConfiguration(buildConfiguration(clientSettings));
 
         String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
@@ -186,11 +207,22 @@ class S3Service implements Closeable {
     }
 
     // pkg private for tests
-    static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
+    static AWSCredentialsProvider buildCredentials(
+        Logger logger,
+        S3ClientSettings clientSettings,
+        CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider
+    ) {
         final S3BasicCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
-            logger.debug("Using instance profile credentials");
-            return new PrivilegedInstanceProfileCredentialsProvider();
+            if (webIdentityTokenCredentialsProvider.isActive()) {
+                logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials");
+                return new PrivilegedAWSCredentialsProvider(
+                    new AWSCredentialsProviderChain(webIdentityTokenCredentialsProvider, new EC2ContainerCredentialsProviderWrapper())
+                );
+            } else {
+                logger.debug("Using instance profile credentials");
+                return new PrivilegedAWSCredentialsProvider(new EC2ContainerCredentialsProviderWrapper());
+            }
         } else {
             logger.debug("Using basic key/secret credentials");
             return new AWSStaticCredentialsProvider(credentials);
@@ -210,27 +242,114 @@ class S3Service implements Closeable {
         IdleConnectionReaper.shutdown();
     }
 
-    static class PrivilegedInstanceProfileCredentialsProvider implements AWSCredentialsProvider {
-        private final AWSCredentialsProvider credentials;
+    @Override
+    public void close() throws IOException {
+        releaseCachedClients();
+        webIdentityTokenCredentialsProvider.shutdown();
+    }
 
-        private PrivilegedInstanceProfileCredentialsProvider() {
-            // InstanceProfileCredentialsProvider as last item of chain
-            this.credentials = new EC2ContainerCredentialsProviderWrapper();
+    static class PrivilegedAWSCredentialsProvider implements AWSCredentialsProvider {
+        private final AWSCredentialsProvider credentialsProvider;
+
+        private PrivilegedAWSCredentialsProvider(AWSCredentialsProvider credentialsProvider) {
+            this.credentialsProvider = credentialsProvider;
+        }
+
+        AWSCredentialsProvider getCredentialsProvider() {
+            return credentialsProvider;
         }
 
         @Override
         public AWSCredentials getCredentials() {
-            return SocketAccess.doPrivileged(credentials::getCredentials);
+            return SocketAccess.doPrivileged(credentialsProvider::getCredentials);
         }
 
         @Override
         public void refresh() {
-            SocketAccess.doPrivilegedVoid(credentials::refresh);
+            SocketAccess.doPrivilegedVoid(credentialsProvider::refresh);
         }
     }
 
-    @Override
-    public void close() {
-        releaseCachedClients();
+    /**
+     * Customizes {@link com.amazonaws.auth.WebIdentityTokenCredentialsProvider}
+     *
+     * <ul>
+     * <li>Reads the the location of the web identity token not from AWS_WEB_IDENTITY_TOKEN_FILE, but from a symlink
+     * in the plugin directory, so we don't need to create a hardcoded read file permission for the plugin.</li>
+     * <li>Supports customization of the STS endpoint via a system property, so we can test it against a test fixture.</li>
+     * <li>Supports gracefully shutting down the provider and the STS client.</li>
+     * </ul>
+     */
+    static class CustomWebIdentityTokenCredentialsProvider implements AWSCredentialsProvider {
+
+        private STSAssumeRoleWithWebIdentitySessionCredentialsProvider credentialsProvider;
+        private AWSSecurityTokenService stsClient;
+
+        CustomWebIdentityTokenCredentialsProvider(Environment environment) {
+            // Check whether the original environment variable exists. If it doesn't,
+            // the system doesn't support AWS web identity tokens
+            if (System.getenv(AWS_WEB_IDENTITY_ENV_VAR) == null) {
+                return;
+            }
+            // Make sure that a readable symlink to the token file exists in the plugin config directory
+            Path webIdentityTokenFileSymlink = environment.configFile().resolve("repository-s3/aws-web-identity-token-file");
+            if (Files.exists(webIdentityTokenFileSymlink) == false) {
+                throw new IllegalStateException("A Web Identity Token symlink in the config directory doesn't exist");
+            }
+            if (Files.isReadable(webIdentityTokenFileSymlink) == false) {
+                throw new IllegalStateException("Unable to read a Web Identity Token symlink in the config directory");
+            }
+            String roleArn = System.getenv(AWS_ROLE_ARN_ENV_VAR);
+            String roleSessionName = System.getenv(AWS_ROLE_SESSION_NAME_ENV_VAR);
+            if (roleArn == null || roleSessionName == null) {
+                LOGGER.warn(
+                    "Unable to use a web identity token for authentication. The AWS_WEB_IDENTITY_TOKEN_FILE environment "
+                        + "variable is set, but either AWS_ROLE_ARN or AWS_ROLE_SESSION_NAME are missing"
+                );
+                return;
+            }
+            AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
+
+            // Just for testing
+            String customStsEndpoint = System.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride");
+            if (customStsEndpoint != null) {
+                stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, null));
+            }
+            stsClientBuilder.withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()));
+            stsClient = SocketAccess.doPrivileged(stsClientBuilder::build);
+            try {
+                credentialsProvider = new STSAssumeRoleWithWebIdentitySessionCredentialsProvider.Builder(
+                    roleArn,
+                    roleSessionName,
+                    webIdentityTokenFileSymlink.toString()
+                ).withStsClient(stsClient).build();
+            } catch (Exception e) {
+                stsClient.shutdown();
+                throw e;
+            }
+        }
+
+        boolean isActive() {
+            return credentialsProvider != null;
+        }
+
+        @Override
+        public AWSCredentials getCredentials() {
+            Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
+            return credentialsProvider.getCredentials();
+        }
+
+        @Override
+        public void refresh() {
+            if (credentialsProvider != null) {
+                credentialsProvider.refresh();
+            }
+        }
+
+        public void shutdown() throws IOException {
+            if (credentialsProvider != null) {
+                IOUtils.close(credentialsProvider, () -> stsClient.shutdown());
+            }
+        }
     }
 }

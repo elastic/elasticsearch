@@ -249,7 +249,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
-`daily_model_snapshot_retention_after_days`::
+[[put-dailymodelsnapshotretentionafterdays]]`daily_model_snapshot_retention_after_days`::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
 
@@ -259,7 +259,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=data-description]
 //End data_description
 
-`datafeed_config`::
+[[put-datafeedconfig]]`datafeed_config`::
 (Optional, object) The {ml-docs}/ml-dfeeds.html[{dfeed}], which retrieves data
 from {es} for analysis by the job. You can associate only one {dfeed} with each
 {anomaly-job}.
@@ -375,19 +375,19 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
 ====
 //End model_plot_config
 
-`model_snapshot_retention_days`::
+[[put-modelsnapshotretentiondays]]`model_snapshot_retention_days`::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-retention-days]
 
-`renormalization_window_days`::
+[[put-renormalizationwindowdays]]`renormalization_window_days`::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=renormalization-window-days]
 
-`results_index_name`::
+[[put-resultsindexname]]`results_index_name`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-index-name]
 
-`results_retention_days`::
+[[put-resultsretentiondays]]`results_retention_days`::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 

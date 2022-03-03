@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -90,20 +88,13 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
     static int getPendingAllocations(Index index, AllocationDeciders allocationDeciders, ClusterState clusterState) {
         // All the allocation attributes are already set so just need to check
         // if the allocation has happened
-        RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            clusterState.getRoutingNodes(),
-            clusterState,
-            null,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, System.nanoTime());
 
         int allocationPendingAllShards = 0;
 
         ImmutableOpenIntMap<IndexShardRoutingTable> allShards = clusterState.getRoutingTable().index(index).getShards();
-        for (ObjectCursor<IndexShardRoutingTable> shardRoutingTable : allShards.values()) {
-            for (ShardRouting shardRouting : shardRoutingTable.value.shards()) {
+        for (IndexShardRoutingTable shardRoutingTable : allShards.values()) {
+            for (ShardRouting shardRouting : shardRoutingTable.shards()) {
                 String currentNodeId = shardRouting.currentNodeId();
                 boolean canRemainOnCurrentNode = allocationDeciders.canRemain(
                     shardRouting,

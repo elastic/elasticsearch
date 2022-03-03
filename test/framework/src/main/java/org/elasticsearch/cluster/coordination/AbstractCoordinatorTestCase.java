@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialS
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -51,10 +52,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
@@ -68,7 +66,6 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -268,7 +265,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final LinearizabilityChecker linearizabilityChecker = new LinearizabilityChecker();
         private final History history = new History();
         private final Recycler<BytesRef> recycler;
-        private final BigArrays bigArrays;
         private final NodeHealthService nodeHealthService;
 
         private final Function<DiscoveryNode, MockPersistedState> defaultPersistedStateSupplier = MockPersistedState::new;
@@ -286,14 +282,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
-            if (usually()) {
-                recycler = BytesRefRecycler.NON_RECYCLING_INSTANCE;
-                bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-            } else {
-                final PageCacheRecycler pageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY);
-                recycler = new BytesRefRecycler(pageCacheRecycler);
-                bigArrays = new MockBigArrays(pageCacheRecycler, new NoneCircuitBreakerService());
-            }
+            this.recycler = usually()
+                ? BytesRefRecycler.NON_RECYCLING_INSTANCE
+                : new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
 
             assertThat(initialNodeCount, greaterThan(0));
@@ -1241,7 +1232,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     nodeHealthService
                 );
                 masterService.setClusterStatePublisher(coordinator);
-                final GatewayService gatewayService = new GatewayService(settings, allocationService, clusterService, threadPool);
+                final GatewayService gatewayService = new GatewayService(
+                    settings,
+                    new BatchedRerouteService(clusterService, allocationService::reroute),
+                    clusterService,
+                    threadPool
+                );
 
                 logger.trace("starting up [{}]", localNode);
                 transportService.start();
@@ -1390,7 +1386,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final int eventId = history.invoke(new Tuple<>(key, value));
                 return submitUpdateTask("new value [" + value + "]", cs -> setValue(cs, key, value), new ClusterStateTaskListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         history.respond(eventId, value(oldState, key));
                     }
 
@@ -1413,7 +1409,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final int eventId = history.invoke(new Tuple<>(key, null));
                 submitUpdateTask("read value", cs -> ClusterState.builder(cs).build(), new ClusterStateTaskListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         history.respond(eventId, value(newState, key));
                     }
 
@@ -1456,13 +1452,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         }
 
                         @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             updateCommittedStates();
                             ClusterState state = committedStatesByVersion.get(newState.version());
                             assertNotNull("State not committed : " + newState, state);
                             assertStateEquals(state, newState);
                             logger.trace("successfully published: [{}]", newState);
-                            taskListener.clusterStateProcessed(source, oldState, newState);
+                            taskListener.clusterStateProcessed(oldState, newState);
                         }
                     }, ClusterStateTaskExecutor.unbatched());
                 }).run();

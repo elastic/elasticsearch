@@ -103,6 +103,11 @@ public abstract class BaseRestHandler implements RestHandler {
         action.accept(channel);
     }
 
+    @Override
+    public boolean mediaTypesValid(RestRequest request) {
+        return request.getXContentType() != null;
+    }
+
     protected final String unrecognized(
         final RestRequest request,
         final Set<String> invalids,
@@ -240,6 +245,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         public boolean allowsUnsafeBuffers() {
             return delegate.allowsUnsafeBuffers();
+        }
+
+        @Override
+        public boolean mediaTypesValid(RestRequest request) {
+            return delegate.mediaTypesValid(request);
         }
     }
 }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene91.Lucene91HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
@@ -71,7 +71,9 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             false,
             () -> null,
             (n, c, o) -> XContentMapValues.nodeIntegerValue(o),
-            m -> toType(m).dims
+            m -> toType(m).dims,
+            XContentBuilder::field,
+            Objects::toString
         ).addValidator(dims -> {
             if (dims == null) {
                 throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
@@ -102,7 +104,9 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             false,
             () -> null,
             (n, c, o) -> o == null ? null : parseIndexOptions(n, o),
-            m -> toType(m).indexOptions
+            m -> toType(m).indexOptions,
+            XContentBuilder::field,
+            Objects::toString
         );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -498,7 +502,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
     @Override
     public void doValidate(MappingLookup mappers) {
-        if (indexed && mappers.getNestedParent(name()) != null) {
+        if (indexed && mappers.nestedLookup().getNestedParent(name()) != null) {
             throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields cannot be indexed if they're" + " within [nested] mappings");
         }
     }
@@ -524,7 +528,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             return null; // use default format
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            return new Lucene90HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            return new Lucene91HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
         }
     }
 }

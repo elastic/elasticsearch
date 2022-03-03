@@ -18,12 +18,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCacheManagement;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
@@ -48,20 +48,27 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class PolicyStepsRegistry {
     private static final Logger logger = LogManager.getLogger(PolicyStepsRegistry.class);
 
+    private final NamedXContentRegistry xContentRegistry;
     private final Client client;
     private final XPackLicenseState licenseState;
+
     // keeps track of existing policies in the cluster state
     private final SortedMap<String, LifecyclePolicyMetadata> lifecyclePolicyMap;
     // keeps track of what the first step in a policy is, the key is policy name
     private final Map<String, Step> firstStepMap;
     // keeps track of a mapping from policy/step-name to respective Step, the key is policy name
     private final Map<String, Map<Step.StepKey, Step>> stepMap;
-    private final NamedXContentRegistry xContentRegistry;
+
+    // tracks an index->step cache, where the indexmetadata is also tracked for cache invalidation/eviction purposes.
+    // for a given index, the step can be cached as long as the indexmetadata (and the policy!) hasn't changed. since
+    // policies change infrequently, the entire cache is cleared on policy change.
+    private final Map<Index, Tuple<IndexMetadata, Step>> cachedSteps = new ConcurrentHashMap<>();
 
     public PolicyStepsRegistry(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
         this(new TreeMap<>(), new HashMap<>(), new HashMap<>(), xContentRegistry, client, licenseState);
@@ -97,6 +104,9 @@ public class PolicyStepsRegistry {
 
     public void update(IndexLifecycleMetadata meta) {
         assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";
+
+        // since the policies (may have) changed, the whole steps cache needs to be thrown out
+        cachedSteps.clear();
 
         DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, Map<String, LifecyclePolicyMetadata>> mapDiff = DiffableUtils.diff(
             lifecyclePolicyMap,
@@ -155,6 +165,36 @@ public class PolicyStepsRegistry {
     }
 
     /**
+     * Remove the entry for an index from the index->step cache.
+     *
+     * We clear the map entirely when the master of the cluster changes, and when any
+     * policy changes, but in a long-lived cluster that doesn't happen to experience
+     * either of those events (and where indices are removed regularly) we still want
+     * the cache to trim deleted indices.
+     *
+     * n.b. even with this, there's still a pretty small chance that a given index
+     * could leak, if we're right in the middle of populating the cache for that
+     * index (in getStep) when we process the delete here, then we'll end up with an
+     * entry that doesn't get deleted until the master changes or a policy changes
+     * -- it's harmless enough
+     */
+    public void delete(Index deleted) {
+        cachedSteps.remove(deleted);
+    }
+
+    /**
+     * Clear internal maps that were populated by update (and others).
+     */
+    public void clear() {
+        // this is potentially large, so it's important to clear it
+        cachedSteps.clear();
+        // these are relatively small, but there's no harm in clearing them
+        lifecyclePolicyMap.clear();
+        firstStepMap.clear();
+        stepMap.clear();
+    }
+
+    /**
      * Return all ordered steps for the current policy for the index. Does not
      * resolve steps using the phase caching, but only for the currently existing policy.
      */
@@ -164,7 +204,7 @@ public class PolicyStepsRegistry {
             throw new IllegalArgumentException("index " + index + " does not exist in the current cluster state");
         }
         final IndexMetadata indexMetadata = metadata.index(index);
-        final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        final String policyName = indexMetadata.getLifecyclePolicyName();
         final LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policyName);
         if (policyMetadata == null) {
             throw new IllegalArgumentException("the policy [" + policyName + "] for index" + index + " does not exist");
@@ -228,8 +268,7 @@ public class PolicyStepsRegistry {
             // if the current phase definition describes an internal step/phase, do not parse
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    xContentRegistry,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry),
                     phaseDef
                 )
             ) {
@@ -264,14 +303,38 @@ public class PolicyStepsRegistry {
         return phaseSteps;
     }
 
+    /**
+     * Read-only internal helper for getStep that returns a non-null step if one is cached for the provided
+     * IndexMetadata and StepKey, and null otherwise.
+     */
+    @Nullable
+    private Step getCachedStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
+        final Tuple<IndexMetadata, Step> cachedStep = cachedSteps.get(indexMetadata.getIndex());
+        // n.b. we're using instance equality here for the IndexMetadata rather than object equality because it's fast,
+        // this means that we're erring on the side of cache misses (if the IndexMetadata changed in any way, it'll be
+        // a new instance, so we'll miss-and-repopulate the cache for the index in question)
+        if (cachedStep != null && cachedStep.v1() == indexMetadata) {
+            assert cachedStep.v2() != null : "null steps should never be cached in the policy step registry";
+            if (cachedStep.v2() != null && cachedStep.v2().getKey().equals(stepKey)) {
+                return cachedStep.v2();
+            }
+        }
+        return null;
+    }
+
     @Nullable
     public Step getStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
+        final Step cachedStep = getCachedStep(indexMetadata, stepKey);
+        if (cachedStep != null) {
+            return cachedStep;
+        }
+
         if (ErrorStep.NAME.equals(stepKey.getName())) {
             return new ErrorStep(new Step.StepKey(stepKey.getPhase(), stepKey.getAction(), ErrorStep.NAME));
         }
 
         final String phase = stepKey.getPhase();
-        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String policyName = indexMetadata.getLifecyclePolicyName();
         final Index index = indexMetadata.getIndex();
 
         if (policyName == null) {
@@ -279,7 +342,7 @@ public class PolicyStepsRegistry {
         }
 
         // parse phase steps from the phase definition in the index settings
-        final String phaseJson = Optional.ofNullable(indexMetadata.getLifecycleExecutionState().getPhaseDefinition())
+        final String phaseJson = Optional.ofNullable(indexMetadata.getLifecycleExecutionState().phaseDefinition())
             .orElse(InitializePolicyContextStep.INITIALIZATION_PHASE);
 
         final List<Step> phaseSteps;
@@ -304,7 +367,14 @@ public class PolicyStepsRegistry {
                 + phaseSteps;
 
         // Return the step that matches the given stepKey or else null if we couldn't find it
-        return phaseSteps.stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null);
+        final Step s = phaseSteps.stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null);
+        if (s != null) {
+            cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
+            // assert that the cache works as expected -- that is, if we put something into the cache,
+            // we should get back the same thing if we were to invoke getStep again with the same arguments
+            assert s == getCachedStep(indexMetadata, stepKey) : "policy step registry cache failed sanity check";
+        }
+        return s;
     }
 
     /**

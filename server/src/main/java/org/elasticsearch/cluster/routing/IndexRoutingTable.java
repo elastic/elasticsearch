@@ -11,8 +11,8 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.cursors.IntCursor;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
@@ -52,7 +52,7 @@ import java.util.function.Predicate;
  * represented as {@link ShardRouting}.
  * </p>
  */
-public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
+public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Iterable<IndexShardRoutingTable> {
 
     private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = List.of(
         ShardRouting::unassigned,
@@ -315,7 +315,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     }
 
     public static Diff<IndexRoutingTable> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(IndexRoutingTable::readFrom, in);
+        return SimpleDiffable.readDiffFrom(IndexRoutingTable::readFrom, in);
     }
 
     @Override
@@ -362,14 +362,14 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         }
 
         /**
-         * Initializes a new empty index, as as a result of opening a closed index.
+         * Initializes a new empty index, as a result of opening a closed index.
          */
         public Builder initializeAsFromCloseToOpen(IndexMetadata indexMetadata) {
             return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null));
         }
 
         /**
-         * Initializes a new empty index, as as a result of closing an opened index.
+         * Initializes a new empty index, as a result of closing an opened index.
          */
         public Builder initializeAsFromOpenToClose(IndexMetadata indexMetadata) {
             return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, null));
@@ -540,6 +540,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         }
 
         public Builder addIndexShard(IndexShardRoutingTable indexShard) {
+            assert indexShard.shardId().getIndex().equals(index)
+                : "cannot add shard routing table for " + indexShard.shardId() + " to index routing table for " + index;
             shards.put(indexShard.shardId().id(), indexShard);
             return this;
         }
@@ -549,6 +551,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * if it needs to be created.
          */
         public Builder addShard(ShardRouting shard) {
+            assert shard.index().equals(index) : "cannot add [" + shard + "] to routing table for " + index;
             IndexShardRoutingTable indexShard = shards.get(shard.id());
             if (indexShard == null) {
                 indexShard = new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard).build();

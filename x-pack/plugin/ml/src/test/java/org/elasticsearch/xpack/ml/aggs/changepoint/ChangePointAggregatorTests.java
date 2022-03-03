@@ -89,7 +89,7 @@ public class ChangePointAggregatorTests extends ESTestCase {
             DoubleStream.generate(() -> 10 + normal.sample()).limit(25),
             DoubleStream.concat(DoubleStream.of(30 + normal.sample()), DoubleStream.generate(() -> 10 + normal.sample()).limit(14))
         ).toArray();
-        ChangeType type = ChangePointAggregator.maxDeviationNormalModelPValue(values(bucketValues), P_VALUE_THRESHOLD);
+        ChangeType type = ChangePointAggregator.maxDeviationKdePValue(values(bucketValues), P_VALUE_THRESHOLD);
         assertThat(Arrays.toString(bucketValues), type, instanceOf(ChangeType.Spike.class));
         assertThat(type.changePoint(), equalTo(25));
     }
@@ -100,7 +100,7 @@ public class ChangePointAggregatorTests extends ESTestCase {
             DoubleStream.generate(() -> 100 + normal.sample()).limit(25),
             DoubleStream.concat(DoubleStream.of(30 + normal.sample()), DoubleStream.generate(() -> 100 + normal.sample()).limit(14))
         ).toArray();
-        ChangeType type = ChangePointAggregator.maxDeviationNormalModelPValue(values(bucketValues), P_VALUE_THRESHOLD);
+        ChangeType type = ChangePointAggregator.maxDeviationKdePValue(values(bucketValues), P_VALUE_THRESHOLD);
         assertThat(Arrays.toString(bucketValues), type, instanceOf(ChangeType.Dip.class));
         assertThat(type.changePoint(), equalTo(25));
     }

@@ -71,7 +71,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         Tuple<int[], Integer> candidatePoints = candidateChangePoints(maybeBucketsValue.getValues());
         ChangeType changeType = changePValue(maybeBucketsValue, candidatePoints, P_VALUE_THRESHOLD);
         if (changeType.pValue() > P_VALUE_THRESHOLD) {
-            changeType = maxDeviationNormalModelPValue(maybeBucketsValue, P_VALUE_THRESHOLD);
+            changeType = maxDeviationKdePValue(maybeBucketsValue, P_VALUE_THRESHOLD);
         }
         ChangePointBucket changePointBucket = null;
         if (changeType.changePoint() >= 0) {
@@ -83,7 +83,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         return new InternalChangePointAggregation(name(), metadata(), changePointBucket, changeType);
     }
 
-    static ChangeType maxDeviationNormalModelPValue(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
+    static ChangeType maxDeviationKdePValue(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
         double[] timeWindow = bucketValues.getValues();
         double variance = RunningStats.from(timeWindow, i -> 1.0).variance();
         if (variance == 0.0) {
@@ -106,8 +106,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             }
         }
         KDE dist = new KDE(timeWindow, minIndex, maxIndex);
-        KDE.ValueAndMagnitude cdf = dist.adjCdf(minValue, timeWindow.length);
-        KDE.ValueAndMagnitude sf = dist.adjSf(maxValue, timeWindow.length);
+        KDE.ValueAndMagnitude cdf = dist.cdf(minValue);
+        KDE.ValueAndMagnitude sf = dist.sf(maxValue);
 
         if (cdf.isMoreSignificant(sf, timeWindow.length) && cdf.significance(timeWindow.length) * 2 < pValueThreshold) {
             return new ChangeType.Dip(cdf.significance(timeWindow.length) * 2, bucketValues.getBucketIndex(minIndex));
@@ -137,12 +137,10 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         double n = timeWindow.length;
         double dfNull = n - 1;
         LeastSquaresOnlineRegression allLeastSquares = new LeastSquaresOnlineRegression(2);
-        double[] monotonicX = new double[timeWindow.length];
         for (int i = 0; i < timeWindow.length; i++) {
             allLeastSquares.add(i, timeWindow[i], timeWindowWeights[i]);
-            monotonicX[i] = i;
         }
-        double rValue = allLeastSquares.squareResidual();
+        double rValue = allLeastSquares.rSquared();
 
         double vAlt = totalVariance * (1 - Math.abs(rValue));
         double dfAlt = n - 3;
@@ -156,6 +154,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             double slope = regression.getSlope();
             changeType = new ChangeType.NonStationary(pValueVsStationary, rValue, slope < 0 ? "decreasing" : "increasing");
             vNull = vAlt;
+            dfNull = dfAlt;
         }
         RunningStats lowerRange = new RunningStats();
         RunningStats upperRange = new RunningStats();
@@ -181,6 +180,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         if (pValueVsNull < pValueThreshold) {
             changeType = new ChangeType.StepChange(pValueVsNull, bucketValues.getBucketIndex(changePoint));
             vNull = vAlt;
+            dfNull = dfAlt;
         }
 
         VarianceAndRValue vAndR = new VarianceAndRValue(Double.MAX_VALUE, Double.MAX_VALUE);
@@ -202,8 +202,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         for (int cp : candidateChangePoints) {
             double lowerRangeVar = lowerRange.variance();
             double upperRangeVar = upperRange.variance();
-            double rv1 = lowerLeastSquares.squareResidual();
-            double rv2 = upperLeastSquares.squareResidual();
+            double rv1 = lowerLeastSquares.rSquared();
+            double rv2 = upperLeastSquares.rSquared();
             double v1 = lowerRangeVar * (1 - Math.abs(rv1));
             double v2 = upperRangeVar * (1 - Math.abs(rv2));
             VarianceAndRValue varianceAndRValue = new VarianceAndRValue((cp * v1 + (n - cp) * v2) / n, (cp * rv1 + (n - cp) * rv2) / n);
@@ -240,14 +240,11 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             upperRange.addValues(timeWindow, i -> timeWindowWeights[i], candidateChangePoints[0], timeWindow.length);
             lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], 0, candidateChangePoints[0]);
             for (int cp : candidateChangePoints) {
-                double otherDiff = (0.9 * Math.abs(lowerRange.mean() - upperRange.mean())) + 0.1 * Math.abs(
-                    lowerRange.std() - upperRange.std()
-                );
-                if (otherDiff > diff) {
+                double otherDiff = Math.min(cp, timeWindow.length - cp) * (0.9 * Math.abs(lowerRange.mean() - upperRange.mean())) + 0.1
+                    * Math.abs(lowerRange.std() - upperRange.std());
+                if (otherDiff >= diff) {
                     changePoint = cp;
                     diff = otherDiff;
-                } else if (otherDiff == diff) {
-                    changePoint = cp;
                 }
                 lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], cp, cp + step);
                 upperRange.removeValues(timeWindow, i -> timeWindowWeights[i], cp, cp + step);
@@ -279,7 +276,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         double a = weights[i];
         double b = weights[values.length - i];
         for (int j = 0; j < values.length; j++) {
-            if (values[j] <= b && values[j] >= a) {
+            if (values[j] < b && values[j] >= a) {
                 weights[j] = 1.0;
             } else {
                 weights[j] = 0.01;
@@ -343,7 +340,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
         RunningStats removeValue(double value, double weight) {
             sumOfSqrs = Math.max(sumOfSqrs - value * value * weight, 0);
-            count -= Math.max(weight, 0);
+            count = Math.max(count - weight, 0);
             sum -= (value * weight);
             return this;
         }

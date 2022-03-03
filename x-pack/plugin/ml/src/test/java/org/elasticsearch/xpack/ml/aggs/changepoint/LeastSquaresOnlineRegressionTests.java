@@ -27,14 +27,14 @@ public class LeastSquaresOnlineRegressionTests extends ESTestCase {
         for (int i = 0; i < yLess.length; i++) {
             lsLess.add(xLess[i], yLess[i], 1.0);
         }
-        double rsAll = lsAll.squareResidual();
-        double rsLess = lsLess.squareResidual();
+        double rsAll = lsAll.rSquared();
+        double rsLess = lsLess.rSquared();
 
         lsAll.remove(x[x.length - 1], y[y.length - 1], 1.0);
         lsLess.add(x[x.length - 1], y[y.length - 1], 1.0);
 
-        assertThat(rsAll, closeTo(lsLess.squareResidual(), 1e-12));
-        assertThat(rsLess, closeTo(lsAll.squareResidual(), 1e-12));
+        assertThat(rsAll, closeTo(lsLess.rSquared(), 1e-12));
+        assertThat(rsLess, closeTo(lsAll.rSquared(), 1e-12));
     }
 
     public void testOnlineRegression() {
@@ -49,7 +49,7 @@ public class LeastSquaresOnlineRegressionTests extends ESTestCase {
         }
         linearRegression.newSampleData(y, xs);
         double slowRSquared = linearRegression.calculateRSquared();
-        double rs = ls.squareResidual();
+        double rs = ls.rSquared();
         assertThat(rs, closeTo(slowRSquared, 1e-10));
 
         // Test removing the last value
@@ -60,7 +60,7 @@ public class LeastSquaresOnlineRegressionTests extends ESTestCase {
         linearRegression.newSampleData(new double[] { 2.0, 8.0, 7.0, 22.0 }, xs);
         slowRSquared = linearRegression.calculateRSquared();
         ls.remove(x[x.length - 1], y[y.length - 1], 1.0);
-        rs = ls.squareResidual();
+        rs = ls.rSquared();
         assertThat(rs, closeTo(slowRSquared, 1e-10));
     }
 

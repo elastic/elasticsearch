@@ -104,7 +104,7 @@ final class KDE {
         this.bandwidth = var > 0 ? maxLikelihoodBandwidth(this.orderedValues) : 0.01 * (values[maxIndex] - values[minIndex]);
     }
 
-    ValueAndMagnitude adjCdf(double x, int totalNumberOfValues) {
+    ValueAndMagnitude cdf(double x) {
         int a = lowerBound(orderedValues, x - 4.0 * bandwidth);
         int b = lowerBound(orderedValues, x + 4.0 * bandwidth);
         double cdf = 0.0;
@@ -117,7 +117,7 @@ final class KDE {
         return new ValueAndMagnitude(cdf, diff);
     }
 
-    ValueAndMagnitude adjSf(double x, int totalNumberOfValues) {
+    ValueAndMagnitude sf(double x) {
         int a = lowerBound(orderedValues, x - 4.0 * bandwidth);
         int b = lowerBound(orderedValues, x + 4.0 * bandwidth);
         double sf = 0.0;

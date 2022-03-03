@@ -32,7 +32,7 @@ class LeastSquaresOnlineRegression {
         this.Nz = new Array2DRowRealMatrix(this.N, 1);
     }
 
-    double squareResidual() {
+    double rSquared() {
         double result = 0;
         if (statistics.count <= 0.0) {
             return result;

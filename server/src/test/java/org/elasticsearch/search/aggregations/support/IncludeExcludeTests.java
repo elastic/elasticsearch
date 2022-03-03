@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import joptsimple.internal.Strings;
+
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -28,6 +30,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.TreeSet;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class IncludeExcludeTests extends ESTestCase {
     public void testEmptyTermsWithOrds() throws IOException {
@@ -349,5 +353,11 @@ public class IncludeExcludeTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude((String) null, null, null, null));
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(regex, null, values, null));
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(null, regex, null, values));
+    }
+
+    public void testLongIncludeExclude() {
+        String longString = Strings.repeat('a', 10000);
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(longString, null));
+        assertThat(iae.getCause(), instanceOf(StackOverflowError.class));
     }
 }

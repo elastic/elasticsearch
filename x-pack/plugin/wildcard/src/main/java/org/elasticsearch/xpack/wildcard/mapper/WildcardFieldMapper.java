@@ -48,6 +48,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -349,6 +350,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
+        @SuppressForbidden(reason = "we're guarding against StackOverflowError before invoking regexpQuery")
         public Query regexpQuery(
             String value,
             int syntaxFlags,
@@ -392,6 +394,7 @@ public class WildcardFieldMapper extends FieldMapper {
         // * If an expression resolves to a RegExpQuery eg ?? then only the verification
         // query is run.
         // * Anything else is a concrete query that should be run on the ngram index.
+        @SuppressForbidden(reason = "we're guarding against StackOverflowError before invoking regexpQuery")
         public static Query toApproximationQuery(RegExp r) throws IllegalArgumentException {
             Query result = null;
             switch (r.kind) {
@@ -453,6 +456,7 @@ public class WildcardFieldMapper extends FieldMapper {
             return result;
         }
 
+        @SuppressForbidden(reason = "we're guarding against StackOverflowError before invoking regexpQuery")
         private static Query createConcatenationQuery(RegExp r) {
             // Create ANDs of expressions plus collapse consecutive TermQuerys into single longer ones
             ArrayList<Query> queries = new ArrayList<>();
@@ -483,6 +487,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         }
 
+        @SuppressForbidden(reason = "we're guarding against StackOverflowError before invoking regexpQuery")
         private static Query createUnionQuery(RegExp r) {
             // Create an OR of clauses
             ArrayList<Query> queries = new ArrayList<>();
@@ -510,6 +515,7 @@ public class WildcardFieldMapper extends FieldMapper {
             return new MatchAllDocsQuery();
         }
 
+        @SuppressForbidden(reason = "we're guarding against StackOverflowError before invoking regexpQuery")
         private static void findLeaves(RegExp exp, Kind kind, List<Query> queries) {
             if (exp.kind == kind) {
                 findLeaves(exp.exp1, kind, queries);

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -77,7 +76,7 @@ public class MathProcessor implements Processor {
         LOG10(Math::log10),
         PI(() -> Math.PI),
         RADIANS(Math::toRadians),
-        RANDOM((Object l) -> l != null ? new Random(((Number) l).longValue()).nextDouble() : Randomness.get().nextDouble(), true),
+        RANDOM((Object l) -> new Random(((Number) l).longValue()).nextDouble()),
         SIGN((Object l) -> {
             if (l instanceof Double) {
                 return (int) Math.signum((Double) l);

@@ -22,7 +22,7 @@ repositories {
           artifact()
         }
         patternLayout {
-          artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/[module](-[classifier])-[revision].[ext]"
+          artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/[module]-[revision](-[classifier]).[ext]"
         }
       }
     }

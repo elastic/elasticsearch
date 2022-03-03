@@ -378,7 +378,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         return new ClusterInfo(
             diskUsage,
             diskUsage,
-            ImmutableOpenMap.<String, Long>builder().putAll(shardSizes).build(),
+            ImmutableOpenMap.<String, Long>builder().putAllFromMap(shardSizes).build(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of()

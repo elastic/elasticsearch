@@ -273,24 +273,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     @Override
-    protected void prepareRequest(SearchRequest request) {
-        if (request.pointInTimeBuilder() != null) {
-            final IndicesOptions stricterIndicesOptions = IndicesOptions.fromOptions(
-                request.indicesOptions().ignoreUnavailable(),
-                request.indicesOptions().allowNoIndices(),
-                false,
-                false,
-                false,
-                true,
-                true,
-                request.indicesOptions().ignoreThrottled()
-            );
-            request.indicesOptions(stricterIndicesOptions);
-            request.indices(request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry).getActualIndices());
-        }
-    }
-
-    @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         executeRequest((SearchTask) task, searchRequest, this::searchAsyncAction, listener);
     }

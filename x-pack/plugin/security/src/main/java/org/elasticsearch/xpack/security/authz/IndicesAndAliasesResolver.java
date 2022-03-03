@@ -11,6 +11,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -133,6 +134,12 @@ class IndicesAndAliasesResolver {
         if (indicesRequest instanceof IndicesAliasesRequest) {
             return true;
         }
+
+        // Search requests have a special logic for wildcard expansion
+        if (indicesRequest instanceof SearchRequest searchRequest) {
+            return searchRequest.requiresWildcardExpansion();
+        }
+
         // Replaceable requests always require wildcard expansion
         if (indicesRequest instanceof IndicesRequest.Replaceable) {
             return true;

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,6 +49,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.mockScript;
@@ -337,7 +340,8 @@ public class RandomSearchRequestGenerator {
             builder.collapse(randomCollapseBuilder.get());
         }
         if (randomBoolean()) {
-            PointInTimeBuilder pit = new PointInTimeBuilder(randomAlphaOfLengthBetween(3, 10));
+            String encodeId = SearchContextId.encode(List.of(), Map.of(), VersionUtils.randomVersion(random()));
+            PointInTimeBuilder pit = new PointInTimeBuilder(encodeId);
             if (randomBoolean()) {
                 pit.setKeepAlive(TimeValue.timeValueMinutes(randomIntBetween(1, 60)));
             }

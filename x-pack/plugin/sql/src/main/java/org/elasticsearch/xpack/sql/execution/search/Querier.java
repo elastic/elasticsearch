@@ -153,6 +153,7 @@ public class Querier {
         client.execute(OpenPointInTimeAction.INSTANCE, openPitRequest, wrap(openPointInTimeResponse -> {
             String pitId = openPointInTimeResponse.getPointInTimeId();
             search.indices(Strings.EMPTY_ARRAY);
+            search.indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
             search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
             ActionListener<SearchResponse> closePitOnErrorListener = wrap(searchResponse -> {
                 try {
@@ -191,13 +192,13 @@ public class Querier {
         source.timeout(timeOut);
 
         SearchRequest searchRequest = new SearchRequest(INTRODUCING_UNSIGNED_LONG);
-        searchRequest.indices(indices);
-        searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);
+        searchRequest.indices(indices);
         searchRequest.indicesOptions(
             includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
         );
-
+        source.pointInTimeBuilder(null);
+        searchRequest.source(source);
         return searchRequest;
     }
 

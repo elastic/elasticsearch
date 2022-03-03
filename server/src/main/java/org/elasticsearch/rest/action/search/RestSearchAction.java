@@ -44,7 +44,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
 
-import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -192,16 +191,16 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
-        searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+        final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
+        if (searchRequest.indicesOptions().equals(indicesOptions) == false) {
+            searchRequest.indicesOptions(indicesOptions);
+        }
 
         checkRestTotalHits(request, searchRequest);
 
         if (searchRequest.pointInTimeBuilder() != null) {
             if (request.paramAsBoolean("ccs_minimize_roundtrips", false)) {
                 throw new IllegalArgumentException("[ccs_minimize_roundtrips] cannot be used with point in time");
-            }
-            if (searchRequest.indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
-                throw new IllegalArgumentException("[indicesOptions] cannot be used with point in time");
             }
         } else {
             searchRequest.setCcsMinimizeRoundtrips(

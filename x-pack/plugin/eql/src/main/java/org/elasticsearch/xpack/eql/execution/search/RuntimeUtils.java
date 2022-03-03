@@ -155,12 +155,13 @@ public final class RuntimeUtils {
 
     public static SearchRequest prepareRequest(SearchSourceBuilder source, boolean includeFrozen, String... indices) {
         SearchRequest searchRequest = new SearchRequest(SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
-        searchRequest.indices(indices);
-        searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);
+        searchRequest.indices(indices);
         searchRequest.indicesOptions(
             includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
         );
+        source.pointInTimeBuilder(null);
+        searchRequest.source(source);
         return searchRequest;
     }
 

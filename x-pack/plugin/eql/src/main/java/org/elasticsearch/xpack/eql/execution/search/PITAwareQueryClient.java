@@ -99,8 +99,8 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
     private void makeRequestPITCompatible(SearchRequest request) {
         SearchSourceBuilder source = request.source();
-        // don't increase the keep alive
-        source.pointInTimeBuilder(new PointInTimeBuilder(pitId));
+        assert source.pointInTimeBuilder() == null : "Point-in-time was set already";
+        source.pointInTimeBuilder(null);
         // move the indices from the search request to a index filter - see #63132
         String[] indices = request.indices();
         if (CollectionUtils.isEmpty(indices) == false) {
@@ -108,6 +108,9 @@ public class PITAwareQueryClient extends BasicQueryClient {
             QueryBuilder indexQuery = indices.length == 1 ? termQuery(GetResult._INDEX, indices[0]) : termsQuery(GetResult._INDEX, indices);
             RuntimeUtils.addFilter(indexQuery, source);
         }
+        request.indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
+        // don't increase the keep alive
+        source.pointInTimeBuilder(new PointInTimeBuilder(pitId));
     }
 
     // listener handing the extraction of new PIT and closing in case of exceptions

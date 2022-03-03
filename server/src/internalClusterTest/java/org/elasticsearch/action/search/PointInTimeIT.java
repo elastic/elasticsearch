@@ -13,7 +13,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -464,7 +463,6 @@ public class PointInTimeIT extends ESIntegTestCase {
             assertThat(last.getSortValues().length, equalTo(expectedSorts.size()));
             lastSortValues = last.getSortValues();
             searchRequest.source().searchAfter(last.getSortValues());
-            searchRequest.indices(Strings.EMPTY_ARRAY);
             response = client().search(searchRequest).get();
         }
         assertThat(seen.size(), equalTo(expectedNumDocs));

@@ -348,6 +348,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (indices.length > 0) {
                 validationException = addValidationError("[indices] cannot be used with point in time", validationException);
             }
+            if (DEFAULT_INDICES_OPTIONS.equals(indicesOptions) == false) {
+                validationException = addValidationError("[indicesOption] cannot be used with point in time", validationException);
+            }
             if (routing != null) {
                 validationException = addValidationError("[routing] cannot be used with point in time", validationException);
             }
@@ -425,11 +428,21 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
+     * Search requests with point-in-time don't require wildcard expansion as the associated indices are resolved already.
+     */
+    public boolean requiresWildcardExpansion() {
+        return pointInTimeBuilder() == null;
+    }
+
+    /**
      * Sets the indices the search will be executed on.
      */
     @Override
     public SearchRequest indices(String... indices) {
         validateIndices(indices);
+        if (pointInTimeBuilder() != null && indices.length > 0) {
+            throw new IllegalArgumentException("[indices] cannot be used with point in time");
+        }
         this.indices = indices;
         return this;
     }
@@ -447,6 +460,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     public SearchRequest indicesOptions(IndicesOptions indicesOptions) {
+        if (pointInTimeBuilder() != null && indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+            throw new IllegalArgumentException("[indicesOption] cannot be used with point in time");
+        }
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
         return this;
     }
@@ -565,7 +581,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     @Override
     public String[] indices() {
-        return indices;
+        final PointInTimeBuilder pit = pointInTimeBuilder();
+        if (pit != null) {
+            return pit.getActualIndices();
+        } else {
+            return indices;
+        }
     }
 
     /**

@@ -38,7 +38,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -140,9 +139,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
             if (searchRequest.pointInTimeBuilder() != null) {
                 if (restRequest.paramAsBoolean("ccs_minimize_roundtrips", false)) {
                     throw new IllegalArgumentException("[ccs_minimize_roundtrips] cannot be used with point in time");
-                }
-                if (searchRequest.indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
-                    throw new IllegalArgumentException("[indicesOptions] cannot be used with point in time");
                 }
             } else {
                 searchRequest.setCcsMinimizeRoundtrips(

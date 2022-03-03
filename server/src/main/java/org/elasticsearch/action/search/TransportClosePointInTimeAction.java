@@ -41,7 +41,7 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
 
     @Override
     protected void doExecute(Task task, ClosePointInTimeRequest request, ActionListener<ClosePointInTimeResponse> listener) {
-        final SearchContextId searchContextId = SearchContextId.decode(namedWriteableRegistry, request.getId());
+        final SearchContextId searchContextId = SearchContextId.getDecoder(request.getId()).getSearchContextId(namedWriteableRegistry);
         final Collection<SearchContextIdForNode> contextIds = searchContextId.shards().values();
         ClearScrollController.closeContexts(
             clusterService.state().nodes(),

@@ -46,21 +46,12 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             return;
         }
 
-        prepareRequest(request);
-
         if (task != null && request.getShouldStoreResult()) {
             listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
         }
 
         RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
         requestFilterChain.proceed(task, actionName, request, listener);
-    }
-
-    /**
-     * Prepare the request before executing it. Defaults to no-op.
-     */
-    protected void prepareRequest(Request request) {
-
     }
 
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);

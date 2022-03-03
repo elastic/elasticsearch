@@ -50,7 +50,7 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
     }
 
     private final String encodedId;
-    private transient SearchContextId searchContextId; // lazily decoded from the encodedId
+    private transient SearchContextId.Decoder decoder; // lazily decoded from the encodedId
     private TimeValue keepAlive;
 
     public PointInTimeBuilder(String pitID) {
@@ -96,10 +96,20 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
      * Returns the search context of this point in time from its encoded id.
      */
     public SearchContextId getSearchContextId(NamedWriteableRegistry namedWriteableRegistry) {
-        if (searchContextId == null) {
-            searchContextId = SearchContextId.decode(namedWriteableRegistry, encodedId);
+        if (decoder == null) {
+            decoder = SearchContextId.getDecoder(encodedId);
         }
-        return searchContextId;
+        return decoder.getSearchContextId(namedWriteableRegistry);
+    }
+
+    /**
+     * Returns the indices associated with the point in time
+     */
+    public String[] getActualIndices() {
+        if (decoder == null) {
+            decoder = SearchContextId.getDecoder(encodedId);
+        }
+        return decoder.getActualIndices();
     }
 
     /**

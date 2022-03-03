@@ -249,7 +249,6 @@ public class SearchSliceIT extends ESIntegTestCase {
                 }
 
                 Object[] sortValues = searchResponse.getHits().getHits()[numHits - 1].getSortValues();
-                request.setIndices(Strings.EMPTY_ARRAY);
                 searchResponse = request.searchAfter(sortValues).get();
             }
             assertThat(numSliceResults, equalTo(expectedSliceResults));

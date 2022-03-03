@@ -78,38 +78,60 @@ public final class SearchContextId {
         }
     }
 
-    public static SearchContextId decode(NamedWriteableRegistry namedWriteableRegistry, String id) {
-        final ByteBuffer byteBuffer;
-        try {
-            byteBuffer = ByteBuffer.wrap(Base64.getUrlDecoder().decode(id));
-        } catch (Exception e) {
-            throw new IllegalArgumentException("invalid id: [" + id + "]", e);
+    public static final class Decoder {
+        private ByteBuffer byteBuffer;
+        private final Version version;
+        private final Map<ShardId, SearchContextIdForNode> shards;
+        private Map<String, AliasFilter> aliasFilters = null;
+
+        private Decoder(String id) {
+            try {
+                byteBuffer = ByteBuffer.wrap(Base64.getUrlDecoder().decode(id));
+                try (StreamInput in = new ByteBufferStreamInput(byteBuffer)) {
+                    this.version = Version.readVersion(in);
+                    in.setVersion(version);
+                    this.shards = in.readMap(ShardId::new, SearchContextIdForNode::new);
+                }
+            } catch (Exception e) {
+                throw new IllegalArgumentException("invalid point in time id: [" + id + "]", e);
+            }
         }
-        try (StreamInput in = new NamedWriteableAwareStreamInput(new ByteBufferStreamInput(byteBuffer), namedWriteableRegistry)) {
-            final Version version = Version.readVersion(in);
-            in.setVersion(version);
-            final Map<ShardId, SearchContextIdForNode> shards = in.readMap(ShardId::new, SearchContextIdForNode::new);
-            final Map<String, AliasFilter> aliasFilters = in.readMap(StreamInput::readString, AliasFilter::new);
-            if (in.available() > 0) {
-                throw new IllegalArgumentException("Not all bytes were read");
+
+        public SearchContextId getSearchContextId(NamedWriteableRegistry namedWriteableRegistry) {
+            if (byteBuffer != null) {
+                try (StreamInput in = new NamedWriteableAwareStreamInput(new ByteBufferStreamInput(byteBuffer), namedWriteableRegistry)) {
+                    in.setVersion(version);
+                    aliasFilters = in.readMap(StreamInput::readString, AliasFilter::new);
+                    if (in.available() > 0) {
+                        throw new IllegalArgumentException("Not all bytes were read");
+                    }
+                } catch (IOException e) {
+                    throw new IllegalArgumentException(e);
+                } finally {
+                    byteBuffer = null;
+                }
+            } else if (aliasFilters == null) {
+                throw new IllegalStateException("Invalid point in time");
             }
             return new SearchContextId(Collections.unmodifiableMap(shards), Collections.unmodifiableMap(aliasFilters));
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
+        }
+
+        public String[] getActualIndices() {
+            final Set<String> indices = new HashSet<>();
+            for (Map.Entry<ShardId, SearchContextIdForNode> entry : shards.entrySet()) {
+                final String indexName = entry.getKey().getIndexName();
+                final String clusterAlias = entry.getValue().getClusterAlias();
+                if (Strings.isEmpty(clusterAlias)) {
+                    indices.add(indexName);
+                } else {
+                    indices.add(clusterAlias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + indexName);
+                }
+            }
+            return indices.toArray(String[]::new);
         }
     }
 
-    public String[] getActualIndices() {
-        final Set<String> indices = new HashSet<>();
-        for (Map.Entry<ShardId, SearchContextIdForNode> entry : shards().entrySet()) {
-            final String indexName = entry.getKey().getIndexName();
-            final String clusterAlias = entry.getValue().getClusterAlias();
-            if (Strings.isEmpty(clusterAlias)) {
-                indices.add(indexName);
-            } else {
-                indices.add(clusterAlias + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + indexName);
-            }
-        }
-        return indices.toArray(String[]::new);
+    public static Decoder getDecoder(String id) {
+        return new Decoder(id);
     }
 }

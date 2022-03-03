@@ -19,11 +19,15 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -51,7 +55,9 @@ public class SearchContextIdTests extends ESTestCase {
         final AtomicArray<SearchPhaseResult> queryResults = TransportSearchHelperTests.generateQueryResults();
         final Version version = Version.CURRENT;
         final Map<String, AliasFilter> aliasFilters = new HashMap<>();
-        for (SearchPhaseResult result : queryResults.asList()) {
+        final List<SearchPhaseResult> searchPhaseResults = queryResults.asList();
+        final Set<String> queriedIndices = new HashSet<>();
+        for (SearchPhaseResult result : searchPhaseResults) {
             final AliasFilter aliasFilter;
             if (randomBoolean()) {
                 aliasFilter = new AliasFilter(randomQueryBuilder());
@@ -63,27 +69,39 @@ public class SearchContextIdTests extends ESTestCase {
             if (randomBoolean()) {
                 aliasFilters.put(result.getSearchShardTarget().getShardId().getIndex().getUUID(), aliasFilter);
             }
+            final String index = result.getSearchShardTarget().getShardId().getIndexName();
+            queriedIndices.add(RemoteClusterAware.buildRemoteIndexName(result.getSearchShardTarget().getClusterAlias(), index));
         }
-        final String id = SearchContextId.encode(queryResults.asList(), aliasFilters, version);
-        final SearchContextId context = SearchContextId.decode(namedWriteableRegistry, id);
-        assertThat(context.shards().keySet(), hasSize(3));
-        assertThat(context.aliasFilter(), equalTo(aliasFilters));
-        SearchContextIdForNode node1 = context.shards().get(new ShardId("idx", "uuid1", 2));
-        assertThat(node1.getClusterAlias(), equalTo("cluster_x"));
-        assertThat(node1.getNode(), equalTo("node_1"));
-        assertThat(node1.getSearchContextId().getId(), equalTo(1L));
-        assertThat(node1.getSearchContextId().getSessionId(), equalTo("a"));
 
-        SearchContextIdForNode node2 = context.shards().get(new ShardId("idy", "uuid2", 42));
-        assertThat(node2.getClusterAlias(), equalTo("cluster_y"));
-        assertThat(node2.getNode(), equalTo("node_2"));
-        assertThat(node2.getSearchContextId().getId(), equalTo(12L));
-        assertThat(node2.getSearchContextId().getSessionId(), equalTo("b"));
+        final String id = SearchContextId.encode(searchPhaseResults, aliasFilters, version);
+        final SearchContextId.Decoder decoder = SearchContextId.getDecoder(id);
+        for (int i = 0; i < 5; i++) {
+            if (randomBoolean()) {
+                String[] actualIndices = decoder.getActualIndices();
+                assertThat(actualIndices, arrayContainingInAnyOrder(queriedIndices.toArray(String[]::new)));
+            }
+            if (randomBoolean()) {
+                SearchContextId context = decoder.getSearchContextId(namedWriteableRegistry);
+                assertThat(context.shards().keySet(), hasSize(3));
+                assertThat(context.aliasFilter(), equalTo(aliasFilters));
+                SearchContextIdForNode node1 = context.shards().get(new ShardId("idx", "uuid1", 2));
+                assertThat(node1.getClusterAlias(), equalTo("cluster_x"));
+                assertThat(node1.getNode(), equalTo("node_1"));
+                assertThat(node1.getSearchContextId().getId(), equalTo(1L));
+                assertThat(node1.getSearchContextId().getSessionId(), equalTo("a"));
 
-        SearchContextIdForNode node3 = context.shards().get(new ShardId("idy", "uuid2", 43));
-        assertThat(node3.getClusterAlias(), nullValue());
-        assertThat(node3.getNode(), equalTo("node_3"));
-        assertThat(node3.getSearchContextId().getId(), equalTo(42L));
-        assertThat(node3.getSearchContextId().getSessionId(), equalTo("c"));
+                SearchContextIdForNode node2 = context.shards().get(new ShardId("idy", "uuid2", 42));
+                assertThat(node2.getClusterAlias(), equalTo("cluster_y"));
+                assertThat(node2.getNode(), equalTo("node_2"));
+                assertThat(node2.getSearchContextId().getId(), equalTo(12L));
+                assertThat(node2.getSearchContextId().getSessionId(), equalTo("b"));
+
+                SearchContextIdForNode node3 = context.shards().get(new ShardId("idy", "uuid2", 43));
+                assertThat(node3.getClusterAlias(), nullValue());
+                assertThat(node3.getNode(), equalTo("node_3"));
+                assertThat(node3.getSearchContextId().getId(), equalTo(42L));
+                assertThat(node3.getSearchContextId().getSessionId(), equalTo("c"));
+            }
+        }
     }
 }

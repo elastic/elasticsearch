@@ -1,6 +1,12 @@
 [role="xpack"]
 [[xpack-ccr]]
 == {ccr-cap}
+
+TIP: To complete these steps, you must obtain a license that includes 
+{ccr}. For more information about Elastic license levels, see 
+https://www.elastic.co/subscriptions and
+{kibana-ref}/managing-licenses.html[License management].
+
 With {ccr}, you can replicate indices across clusters to:
 
 * Continue handling search requests in the event of a datacenter outage

@@ -498,7 +498,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     }
 
     private static ClusterState adaptClusterStateToLocalNode(ClusterState state, DiscoveryNode node) {
-        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(node.getId())).build();
+        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).add(node).localNodeId(node.getId())).build();
     }
 
     private IndicesClusterStateService createIndicesClusterStateService(

@@ -108,6 +108,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         // Nodes: 0 Tiered Nodes, 1 Data Node
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(0, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode dataNode1 = newNode(1, DiscoveryNodeRole.DATA_ROLE);
@@ -156,6 +157,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         // Nodes: 1 Data, 1 Hot, 1 Warm, 1 Cold, 1 Frozen
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(0, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode dataNode1 = newNode(1, DiscoveryNodeRole.DATA_ROLE);
@@ -261,6 +263,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         int nodeId = 0;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(nodeId++, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode dataNode1 = newNode(nodeId++, DiscoveryNodeRole.DATA_ROLE);
@@ -387,6 +390,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         int nodeId = 0;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(nodeId++, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode hotNode1 = newNode(nodeId++, DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
@@ -525,6 +529,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         int nodeId = 0;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(nodeId++, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode mixedNode1 = newNode(nodeId++, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
@@ -618,6 +623,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         int nodeId = 0;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         DiscoveryNode leader = newNode(nodeId++, DiscoveryNodeRole.MASTER_ROLE);
+        discoBuilder.add(leader);
         discoBuilder.masterNodeId(leader.getId());
 
         DiscoveryNode hotNode1 = newNode(nodeId++, DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
@@ -752,6 +758,9 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         List<NodeStats> nodeStatsList = new ArrayList<>();
         for (DiscoveryNode node : nodes) {
             RoutingNode routingNode = routingNodes.node(node.getId());
+            if (routingNode == null) {
+                continue;
+            }
             Map<Index, List<IndexShardStats>> indexStats = new HashMap<>();
             for (ShardRouting shardRouting : routingNode) {
                 ShardId shardId = shardRouting.shardId();

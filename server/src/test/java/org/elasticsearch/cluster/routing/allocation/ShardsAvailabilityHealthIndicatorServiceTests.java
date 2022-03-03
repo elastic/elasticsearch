@@ -121,8 +121,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testShouldBeGreenWhenThereAreRestartingReplicas() {
         var clusterState = createClusterStateWith(
-            List.of(index("restarting-index", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation("node-0", RESTARTING))),
-            List.of(new NodeShutdown("node-0", RESTART, System.currentTimeMillis(), 60))
+            List.of(
+                index(
+                    "restarting-index",
+                    new ShardAllocation(randomNodeId(), AVAILABLE),
+                    new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis() - 1_000)
+                )
+            ),
+            List.of(new NodeShutdown("node-0", RESTART, 60))
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
@@ -140,8 +146,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testShouldBeGreenWhenThereAreRestartingPrimaries() {
         var clusterState = createClusterStateWith(
-            List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING))),
-            List.of(new NodeShutdown("node-0", RESTART, System.currentTimeMillis(), 60))
+            List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis() - 1_000))),
+            List.of(new NodeShutdown("node-0", RESTART, 60))
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
@@ -153,8 +159,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testShouldBeRedWhenRestartingPrimariesReachedAllocationDelay() {
         var clusterState = createClusterStateWith(
-            List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING))),
-            List.of(new NodeShutdown("node-0", RESTART, System.currentTimeMillis() - 61_000, 60))
+            List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis() - 61_000))),
+            List.of(new NodeShutdown("node-0", RESTART, 60))
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
@@ -184,7 +190,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             .setType(it.type)
                             .setReason("test")
                             .setNodeSeen(true)
-                            .setStartedAtMillis(it.startedAtMillis)
+                            .setStartedAtMillis(System.currentTimeMillis())
                             .setAllocationDelay(
                                 it.allocationDelaySeconds != null ? TimeValue.timeValueSeconds(it.allocationDelaySeconds) : null
                             )
@@ -254,7 +260,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 null,
                 -1,
                 0,
-                0,
+                allocation.unassignedTimeMillis != null ? allocation.unassignedTimeMillis : 0,
                 false,
                 UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
                 Set.of(),
@@ -274,14 +280,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         RESTARTING
     }
 
-    private record ShardAllocation(String nodeId, ShardState state) {}
+    private record ShardAllocation(String nodeId, ShardState state, Long unassignedTimeMillis) {
 
-    private record NodeShutdown(
-        String nodeId,
-        SingleNodeShutdownMetadata.Type type,
-        long startedAtMillis,
-        Integer allocationDelaySeconds
-    ) {}
+        ShardAllocation(String nodeId, ShardState state) {
+            this(nodeId, state, null);
+        }
+    }
+
+    private record NodeShutdown(String nodeId, SingleNodeShutdownMetadata.Type type, Integer allocationDelaySeconds) {}
 
     private static String randomNodeId() {
         return UUID.randomUUID().toString();

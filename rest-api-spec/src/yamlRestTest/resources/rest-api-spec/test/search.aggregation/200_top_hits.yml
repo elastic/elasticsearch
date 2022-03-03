@@ -227,8 +227,8 @@ named queries:
 ---
 fetch fields:
   - skip:
-        version: " - 7.9.99"
-        reason:  "fetch fields to top_hits in 7.10.0"
+        version: " - 7.10.99"
+        reason:  "fetch fields fixed for top_hits in 7.11.0"
 
   - do:
       search:

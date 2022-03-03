@@ -75,7 +75,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
         ChangePointBucket changePointBucket = null;
         if (changeType.changePoint() >= 0) {
-            changePointBucket = extractBucket(bucketsPaths()[0], aggregations, maybeBucketsValue.getBucketIndex(changeType.changePoint()))
+            changePointBucket = extractBucket(bucketsPaths()[0], aggregations, changeType.changePoint())
                 .map(b -> new ChangePointBucket(b.getKey(), b.getDocCount(), (InternalAggregations) b.getAggregations()))
                 .orElse(null);
         }

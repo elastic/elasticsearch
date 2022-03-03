@@ -114,9 +114,9 @@ setup:
               }
             }
           }
-  - match: {aggregations.change_point.type.non_stationary.trend: "increasing"}
-  - is_true: aggregations.change_point.type.non_stationary.p_value
-  - is_true: aggregations.change_point.type.non_stationary.r_value
+  - is_true: aggregations.change_point.type.trend_change
+  - is_true: aggregations.change_point.type.trend_change.p_value
+  - is_true: aggregations.change_point.type.trend_change.r_value
 
 ---
 "Test change_point with missing buckets_path":

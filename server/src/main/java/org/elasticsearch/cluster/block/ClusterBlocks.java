@@ -266,7 +266,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         writeBlockSet(global, out);
-        out.writeMap(indicesBlocks, StreamOutput::writeString, (o, s) -> writeBlockSet(s, o));
+        out.writeImmutableMap(indicesBlocks, StreamOutput::writeString, (o, s) -> writeBlockSet(s, o));
     }
 
     private static void writeBlockSet(Set<ClusterBlock> blocks, StreamOutput out) throws IOException {

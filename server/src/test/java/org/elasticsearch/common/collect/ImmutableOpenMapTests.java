@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ImmutableOpenMapTests extends ESTestCase {
 
@@ -103,6 +104,18 @@ public class ImmutableOpenMapTests extends ESTestCase {
         );
     }
 
+    public void testIntMapKeySet() {
+        ImmutableOpenIntMap<String> map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").fPut(2, "bar").build();
+        Set<Integer> expectedKeys = Set.of(1, 2);
+        Set<Integer> actualKeys = map.keySet();
+        assertThat(actualKeys.contains(1), is(true));
+        assertThat(actualKeys.contains(2), is(true));
+        assertThat(actualKeys, equalTo(expectedKeys));
+        assertThat(expectedKeys, equalTo(actualKeys));
+        assertThat(expectedKeys.stream().filter(actualKeys::contains).count(), equalTo(2L));
+        assertThat(actualKeys.stream().filter(expectedKeys::contains).count(), equalTo(2L));
+    }
+
     public void testSortedKeysSet() {
         assertThat(regionCurrencySymbols.keySet(), equalTo(Set.of("EU", "Japan", "Korea", "UK", "USA")));
     }
@@ -143,7 +156,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
         map.entrySet().forEach(entry -> hMap.put(entry.getKey(), entry.getValue()));
 
         ImmutableOpenMap.Builder<Long, String> builder3 = ImmutableOpenMap.builder(map.size());
-        builder3.putAll(hMap);
+        builder3.putAllFromMap(hMap);
 
         assertThat("forEach should match", map, equalTo(builder1.build()));
         assertThat("forEach on a stream should match", map, equalTo(builder2.build()));
@@ -238,6 +251,15 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertTrue(map.entrySet().contains(entry(1, null)));
         assertFalse(map.containsKey(2));
         assertFalse(map.entrySet().contains(entry(2, null)));
+    }
+
+    public void testContainsValue() {
+        assertTrue(countryPopulations.containsValue(37_846_611));
+    }
+
+    public void testIntMapContainsValue() {
+        ImmutableOpenIntMap<String> map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").fPut(2, "bar").build();
+        assertTrue(map.containsValue("bar"));
     }
 
     private static <KType, VType> Map.Entry<KType, VType> entry(KType key, VType value) {

@@ -116,10 +116,10 @@ public class NerProcessorTests extends ESTestCase {
                 BertTokenizer.SEPARATOR_TOKEN,
                 BertTokenizer.CLASS_TOKEN
             ),
-            new BertTokenization(true, true, null, Tokenization.Truncate.NONE)
+            new BertTokenization(true, true, null, Tokenization.Truncate.NONE, -1)
         ).build();
         TokenizationResult tokenization = tokenizer.buildTokenizationResult(
-            List.of(tokenizer.tokenize("Many use Elasticsearch in London", Tokenization.Truncate.NONE))
+            List.of(tokenizer.tokenize("Many use Elasticsearch in London", Tokenization.Truncate.NONE, -1, 1).get(0))
         );
 
         double[][][] scores = {
@@ -351,10 +351,10 @@ public class NerProcessorTests extends ESTestCase {
     }
 
     private static TokenizationResult tokenize(List<String> vocab, String input) {
-        BertTokenizer tokenizer = BertTokenizer.builder(vocab, new BertTokenization(true, false, null, Tokenization.Truncate.NONE))
+        BertTokenizer tokenizer = BertTokenizer.builder(vocab, new BertTokenization(true, false, null, Tokenization.Truncate.NONE, -1))
             .setDoLowerCase(true)
             .setWithSpecialTokens(false)
             .build();
-        return tokenizer.buildTokenizationResult(List.of(tokenizer.tokenize(input, Tokenization.Truncate.NONE)));
+        return tokenizer.buildTokenizationResult(tokenizer.tokenize(input, Tokenization.Truncate.NONE, -1, 0));
     }
 }

@@ -24,18 +24,16 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -1139,10 +1137,7 @@ public final class Settings implements ToXContentFragment {
          * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
-            try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)
-            ) {
+            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, source)) {
                 this.put(fromXContent(parser, true, true));
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]", e);
@@ -1172,10 +1167,7 @@ public final class Settings implements ToXContentFragment {
                 throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
             }
             // fromXContent doesn't use named xcontent or deprecation.
-            try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, is)
-            ) {
+            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, is)) {
                 if (parser.currentToken() == null) {
                     if (parser.nextToken() == null) {
                         return this; // empty file

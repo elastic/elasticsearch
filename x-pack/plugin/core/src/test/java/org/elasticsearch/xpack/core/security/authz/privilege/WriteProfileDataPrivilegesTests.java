@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
@@ -43,7 +44,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -77,7 +77,7 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
             builder.flush();
 
             final byte[] bytes = out.toByteArray();
-            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, bytes)) {
+            try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, bytes)) {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 final ConfigurableClusterPrivileges.WriteProfileDataPrivileges clone =

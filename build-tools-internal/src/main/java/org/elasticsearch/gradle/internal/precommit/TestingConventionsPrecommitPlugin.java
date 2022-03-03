@@ -29,6 +29,7 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin implement
                 TestingConventionRule itRule = t.getNaming().maybeCreate("IT");
                 itRule.baseClass("org.elasticsearch.test.ESIntegTestCase");
                 itRule.baseClass("org.elasticsearch.test.rest.ESRestTestCase");
+
                 t.setCandidateClassFilesProvider(
                     project.provider(
                         () -> project.getTasks()

@@ -303,8 +303,12 @@ public class PolicyStepsRegistry {
         return phaseSteps;
     }
 
+    /**
+     * Read-only internal helper for getStep that returns a non-null step if one is cached for the provided
+     * IndexMetadata and StepKey, and null otherwise.
+     */
     @Nullable
-    public Step getStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
+    private Step getCachedStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
         final Tuple<IndexMetadata, Step> cachedStep = cachedSteps.get(indexMetadata.getIndex());
         // n.b. we're using instance equality here for the IndexMetadata rather than object equality because it's fast,
         // this means that we're erring on the side of cache misses (if the IndexMetadata changed in any way, it'll be
@@ -314,6 +318,15 @@ public class PolicyStepsRegistry {
             if (cachedStep.v2() != null && cachedStep.v2().getKey().equals(stepKey)) {
                 return cachedStep.v2();
             }
+        }
+        return null;
+    }
+
+    @Nullable
+    public Step getStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
+        final Step cachedStep = getCachedStep(indexMetadata, stepKey);
+        if (cachedStep != null) {
+            return cachedStep;
         }
 
         if (ErrorStep.NAME.equals(stepKey.getName())) {
@@ -359,7 +372,7 @@ public class PolicyStepsRegistry {
             cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
             // assert that the cache works as expected -- that is, if we put something into the cache,
             // we should get back the same thing if we were to invoke getStep again with the same arguments
-            assert s == getStep(indexMetadata, stepKey);
+            assert s == getCachedStep(indexMetadata, stepKey) : "policy step registry cache failed sanity check";
         }
         return s;
     }

@@ -61,7 +61,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var future2 = client().admin().indices().prepareOpen("test-2", "test-3").execute();
 
         // check the queue for the open-indices tasks
-        assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
+        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
 
         block1.call(); // release block
 
@@ -87,7 +87,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var future2 = client().admin().indices().prepareClose("test-2", "test-3").execute();
 
         // check the queue for the first close tasks (the add-block-index-to-close tasks)
-        assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
+        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
 
         // add *another* block to the end of the pending tasks, then unblock the current block so we can progress,
         // then immediately block again on that new block
@@ -95,7 +95,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block1.call(); // release block
         block2.call(); // wait for block
 
-        // check the queue for the second close tasks (the close-indices tasks)
+        // wait for the queue to have the second close tasks (the close-indices tasks)
         assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
 
         block2.call(); // release block
@@ -129,7 +129,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var future2 = client().admin().indices().prepareAddBlock(APIBlock.WRITE, "test-2", "test-3").execute();
 
         // check the queue for the first add-block tasks (the add-index-block tasks)
-        assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
+        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
 
         // add *another* block to the end of the pending tasks, then unblock the current block so we can progress,
         // then immediately block again on that new block
@@ -137,7 +137,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block1.call(); // release block
         block2.call(); // wait for block
 
-        // check the queue for the second add-block tasks (the finalize-index-block tasks)
+        // wait for the queue to have the second add-block tasks (the finalize-index-block tasks)
         assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
 
         block2.call(); // release block

@@ -11,8 +11,8 @@ package org.elasticsearch.gradle.internal;
 import org.apache.commons.io.FileUtils;
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.LoggedExec;
-import org.gradle.api.Action;
 import org.elasticsearch.gradle.Version;
+import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -45,10 +45,10 @@ public class BwcSetupExtension {
     private Provider<File> checkoutDir;
 
     public BwcSetupExtension(
-            Project project,
-            Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
-            Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider,
-            Provider<File> checkoutDir
+        Project project,
+        Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
+        Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider,
+        Provider<File> checkoutDir
     ) {
         this.project = project;
         this.unreleasedVersionInfo = unreleasedVersionInfo;
@@ -70,7 +70,7 @@ public class BwcSetupExtension {
                 @Override
                 public void execute(Task t) {
                     // Execution time so that the checkouts are available
-                    String compilerVersionInfoPath = minimumCompilerVersionPath(unreleasedVersionInfo.get().version);
+                    String compilerVersionInfoPath = minimumCompilerVersionPath(unreleasedVersionInfo.get().version());
                     String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), compilerVersionInfoPath));
                     loggedExec.environment("JAVA_HOME", getJavaHome(Integer.parseInt(minimumCompilerVersion)));
                 }
@@ -108,16 +108,16 @@ public class BwcSetupExtension {
             if (project.getGradle().getStartParameter().isParallelProjectExecutionEnabled()) {
                 loggedExec.args("--parallel");
             }
-            loggedExec.setStandardOutput(new IndentingOutputStream(System.out, unreleasedVersionInfo.get().version));
-            loggedExec.setErrorOutput(new IndentingOutputStream(System.err, unreleasedVersionInfo.get().version));
+            loggedExec.setStandardOutput(new IndentingOutputStream(System.out, unreleasedVersionInfo.get().version()));
+            loggedExec.setErrorOutput(new IndentingOutputStream(System.err, unreleasedVersionInfo.get().version()));
             configAction.execute(loggedExec);
         });
     }
 
     private String minimumCompilerVersionPath(Version bwcVersion) {
-        return (bwcVersion.onOrAfter(BUILD_TOOL_MINIMUM_VERSION)) ?
-                "build-tools-internal/" + MINIMUM_COMPILER_VERSION_PATH :
-                "buildSrc/" + MINIMUM_COMPILER_VERSION_PATH;
+        return (bwcVersion.onOrAfter(BUILD_TOOL_MINIMUM_VERSION))
+            ? "build-tools-internal/" + MINIMUM_COMPILER_VERSION_PATH
+            : "buildSrc/" + MINIMUM_COMPILER_VERSION_PATH;
     }
 
     private static class IndentingOutputStream extends OutputStream {
@@ -132,7 +132,7 @@ public class BwcSetupExtension {
 
         @Override
         public void write(int b) throws IOException {
-            int[] arr = {b};
+            int[] arr = { b };
             write(arr, 0, 1);
         }
 

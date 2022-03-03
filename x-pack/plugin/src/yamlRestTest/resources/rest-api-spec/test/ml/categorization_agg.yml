@@ -1,0 +1,224 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: to_categorize
+        body:
+          mappings:
+            properties:
+              kind:
+                type: keyword
+              text:
+                type: text
+              value:
+                type: long
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: to_categorize
+        refresh: true
+        body: |
+          {"index": {}}
+          {"product": "server","text": "Node 2 stopping", "value": 1}
+          {"index": {}}
+          {"product": "server", "text": "Node 2 starting", "value": 1}
+          {"index": {}}
+          {"product": "server", "text": "Node 4 stopping", "value": 1}
+          {"index": {}}
+          {"product": "server", "text": "Node 5 stopping", "value": 1}
+          {"index": {}}
+          {"product": "user", "text": "User Foo logging on", "value": 1}
+          {"index": {}}
+          {"product": "user", "text": "User Foo logging on", "value": 1}
+          {"index": {}}
+          {"product": "user", "text": "User Foo logging off", "value": 1}
+
+---
+"Test categorization agg simple":
+
+  - do:
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text"
+                }
+              }
+            }
+          }
+  - length: { aggregations.categories.buckets: 4}
+  - match: {aggregations.categories.buckets.0.doc_count: 3}
+  - match: {aggregations.categories.buckets.0.key: "Node stopping" }
+
+  - do:
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "size": 10,
+                  "max_unique_tokens": 2,
+                  "max_matched_tokens": 1,
+                  "similarity_threshold": 11
+                }
+              }
+            }
+          }
+
+  - length: { aggregations.categories.buckets: 2 }
+  - match: { aggregations.categories.buckets.0.doc_count: 4 }
+  - match: { aggregations.categories.buckets.0.key: "Node *" }
+  - match: { aggregations.categories.buckets.1.doc_count: 3 }
+  - match: { aggregations.categories.buckets.1.key: "User Foo logging *" }
+---
+"Test categorization aggregation against unsupported field":
+  - do:
+      catch: /categorize_text agg \[categories\] only works on analyzable text fields/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "value"
+                }
+              }
+            }
+          }
+
+---
+"Test categorization aggregation with poor settings":
+
+  - do:
+      catch: /\[max_unique_tokens\] must be greater than 0 and less than or equal \[100\]/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "max_unique_tokens": -2
+                }
+              }
+            }
+          }
+  - do:
+      catch: /\[max_unique_tokens\] must be greater than 0 and less than or equal \[100\]/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "max_unique_tokens": 101
+                }
+              }
+            }
+          }
+  - do:
+      catch: /\[max_matched_tokens\] must be greater than 0 and less than or equal \[100\]/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "max_matched_tokens": -2
+                }
+              }
+            }
+          }
+  - do:
+      catch: /\[max_matched_tokens\] must be greater than 0 and less than or equal \[100\]/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "max_matched_tokens": 101
+                }
+              }
+            }
+          }
+
+  - do:
+      catch: /\[similarity_threshold\] must be in the range \[1, 100\]/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "similarity_threshold": 0
+                }
+              }
+            }
+          }
+
+  - do:
+      catch: /\[categorization_filters\] cannot be used with \[categorization_analyzer\]/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "categorization_filters": ["foo"],
+                  "categorization_analyzer": "english"
+                }
+              }
+            }
+          }
+
+  - do:
+      catch: /\[categorization_filters\] cannot be used with \[categorization_analyzer\]/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "categorization_analyzer": "english",
+                  "categorization_filters": ["foo"]
+                }
+              }
+            }
+          }

@@ -40,7 +40,7 @@ public class LockingAtomicCounterTests extends ESTestCase {
                 throw new RuntimeException(e);
             }
         });
-        assertThat((long)loop, equalTo(lockingAtomicCounter.get()));
+        assertThat((long) loop, equalTo(lockingAtomicCounter.get()));
     }
 
     public void testRunnableWillNotRunIfCounterHasChanged() throws Exception {

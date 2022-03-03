@@ -40,11 +40,16 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 class TopHitsAggregator extends MetricsAggregator {
 
@@ -62,6 +67,7 @@ class TopHitsAggregator extends MetricsAggregator {
 
     private final SubSearchContext subSearchContext;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
+    private final List<ProfileResult> fetchProfiles;
 
     TopHitsAggregator(
         SubSearchContext subSearchContext,
@@ -73,6 +79,7 @@ class TopHitsAggregator extends MetricsAggregator {
         super(name, context, parent, metadata);
         topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
         this.subSearchContext = subSearchContext;
+        fetchProfiles = context.profiling() ? new ArrayList<>() : null;
     }
 
     @Override
@@ -183,14 +190,16 @@ class TopHitsAggregator extends MetricsAggregator {
         subSearchContext.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
         subSearchContext.fetchPhase().execute(subSearchContext);
         FetchSearchResult fetchResult = subSearchContext.fetchResult();
+        if (fetchProfiles != null) {
+            fetchProfiles.add(fetchResult.profileResult());
+        }
         SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
         for (int i = 0; i < internalHits.length; i++) {
             ScoreDoc scoreDoc = topDocs.scoreDocs[i];
             SearchHit searchHitFields = internalHits[i];
             searchHitFields.shard(subSearchContext.shardTarget());
             searchHitFields.score(scoreDoc.score);
-            if (scoreDoc instanceof FieldDoc) {
-                FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+            if (scoreDoc instanceof FieldDoc fieldDoc) {
                 searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
             }
         }
@@ -221,9 +230,22 @@ class TopHitsAggregator extends MetricsAggregator {
             subSearchContext.from(),
             subSearchContext.size(),
             new TopDocsAndMaxScore(topDocs, Float.NaN),
-            SearchHits.empty(),
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             metadata()
         );
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        List<Map<String, Object>> debug = new ArrayList<>();
+        for (ProfileResult result : fetchProfiles) {
+            Map<String, Object> resultDebug = new HashMap<>();
+            resultDebug.put("time", result.getTime());
+            resultDebug.put("breakdown", result.getTimeBreakdown());
+            debug.add(resultDebug);
+        }
+        add.accept("fetch_profile", debug);
     }
 
     @Override

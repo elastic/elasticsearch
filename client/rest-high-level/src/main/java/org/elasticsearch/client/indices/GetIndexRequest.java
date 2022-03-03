@@ -23,13 +23,15 @@ public class GetIndexRequest extends TimedRequest {
         SETTINGS;
     }
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, true);
+
     static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
     private Feature[] features = DEFAULT_FEATURES;
     private boolean humanReadable = false;
     private transient boolean includeDefaults = false;
 
     private final String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private boolean local = false;
 
     public GetIndexRequest(String... indices) {
@@ -75,11 +77,11 @@ public class GetIndexRequest extends TimedRequest {
         return this;
     }
 
-    public GetIndexRequest addFeatures(Feature... features) {
+    public GetIndexRequest addFeatures(Feature... featuresToAdd) {
         if (this.features == DEFAULT_FEATURES) {
-            return features(features);
+            return features(featuresToAdd);
         } else {
-            return features(ArrayUtils.concat(features(), features, Feature.class));
+            return features(ArrayUtils.concat(features(), featuresToAdd, Feature.class));
         }
     }
 
@@ -116,6 +118,5 @@ public class GetIndexRequest extends TimedRequest {
     public boolean includeDefaults() {
         return includeDefaults;
     }
-
 
 }

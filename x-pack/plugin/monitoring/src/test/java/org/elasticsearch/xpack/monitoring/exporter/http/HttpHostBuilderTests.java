@@ -141,28 +141,33 @@ public class HttpHostBuilderTests extends ESTestCase {
         assertPortThrows(randomIntBetween(65537, Integer.MAX_VALUE));
     }
 
+    @SuppressWarnings("HiddenField")
     private void assertHttpHost(final HttpHostBuilder host, final Scheme scheme, final String hostname, final int port) {
         assertHttpHost(host.build(), scheme, hostname, port);
     }
 
+    @SuppressWarnings("HiddenField")
     private void assertHttpHost(final HttpHost host, final Scheme scheme, final String hostname, final int port) {
         assertThat(host.getSchemeName(), equalTo(scheme.toString()));
         assertThat(host.getHostName(), equalTo(hostname));
         assertThat(host.getPort(), equalTo(port));
     }
 
+    @SuppressWarnings("HiddenField")
     private void assertBuilderPathThrows(final String uri, final String path) {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> HttpHostBuilder.builder(uri));
 
         assertThat(e.getMessage(), containsString("[" + path + "]"));
     }
 
+    @SuppressWarnings("HiddenField")
     private void assertBuilderBadSchemeThrows(final String uri, final String scheme) {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> HttpHostBuilder.builder(uri));
 
         assertThat(e.getMessage(), containsString(scheme));
     }
 
+    @SuppressWarnings("HiddenField")
     private void assertPortThrows(final int port) {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> HttpHostBuilder.builder().port(port));
 

@@ -21,12 +21,10 @@ to achieve high availability despite failures.
   to serve searches from nearby clients.
 
 * The last line of defence against data loss is to take
-  <<backup-cluster,regular snapshots>> of your cluster so that you can restore
-  a completely fresh copy of it elsewhere if needed.
+  <<snapshots-take-snapshot,regular snapshots>> of your cluster so that you can
+  restore a completely fresh copy of it elsewhere if needed.
 --
 
 include::high-availability/cluster-design.asciidoc[]
-
-include::high-availability/backup-cluster.asciidoc[]
 
 include::ccr/index.asciidoc[]

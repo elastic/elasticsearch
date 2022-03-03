@@ -29,6 +29,8 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.Transformer;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
@@ -70,13 +72,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         final var bundleTask = createBundleTasks(project, extension);
         project.afterEvaluate(project1 -> {
-            project1.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
-                // Auto add dependent modules to the test cluster
-                if (project1.findProject(":modules:" + pluginName) != null) {
-                    NamedDomainObjectContainer<ElasticsearchCluster> testClusters = testClusters(project, "testClusters");
-                    testClusters.all(elasticsearchCluster -> elasticsearchCluster.module(":modules:" + pluginName));
-                }
-            });
             final var extension1 = project1.getExtensions().getByType(PluginPropertiesExtension.class);
             configurePublishing(project1, extension1);
             var name = extension1.getName();
@@ -117,17 +112,17 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         // allow running ES with this plugin in the foreground of a build
         var testClusters = testClusters(project, TestClustersPlugin.EXTENSION_NAME);
-        final var runCluster = testClusters.create("runTask", cluster -> {
+        var runCluster = testClusters.register("runTask", c -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
-                cluster.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
+                c.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
             } else {
-                cluster.plugin(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
+                c.plugin(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
             }
         });
 
-        project.getTasks().register("run", RunTask.class, runTask -> {
-            runTask.useCluster(runCluster);
-            runTask.dependsOn(project.getTasks().named(BUNDLE_PLUGIN_TASK_NAME));
+        project.getTasks().register("run", RunTask.class, r -> {
+            r.useCluster(runCluster.get());
+            r.dependsOn(project.getTasks().named(BUNDLE_PLUGIN_TASK_NAME));
         });
     }
 
@@ -148,6 +143,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         var dependencies = project.getDependencies();
         dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
         dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
+        dependencies.add("testImplementation", "org.apache.logging.log4j:log4j-core:" + VersionProperties.getVersions().get("log4j"));
 
         // we "upgrade" these optional deps to provided for plugins, since they will run
         // with a full elasticsearch server that includes optional deps
@@ -155,7 +151,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         dependencies.add("compileOnly", "org.locationtech.jts:jts-core:" + VersionProperties.getVersions().get("jts"));
         dependencies.add("compileOnly", "org.apache.logging.log4j:log4j-api:" + VersionProperties.getVersions().get("log4j"));
         dependencies.add("compileOnly", "org.apache.logging.log4j:log4j-core:" + VersionProperties.getVersions().get("log4j"));
-        dependencies.add("compileOnly", "org.elasticsearch:jna:" + VersionProperties.getVersions().get("jna"));
+        dependencies.add("compileOnly", "net.java.dev.jna:jna:" + VersionProperties.getVersions().get("jna"));
     }
 
     /**
@@ -238,7 +234,8 @@ public class PluginBuildPlugin implements Plugin<Project> {
         project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(task -> task.dependsOn(bundle));
 
         // also make the zip available as a configuration (used when depending on this project)
-        project.getConfigurations().create("zip");
+        Configuration configuration = project.getConfigurations().create("zip");
+        configuration.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
         project.getArtifacts().add("zip", bundle);
 
         return bundle;

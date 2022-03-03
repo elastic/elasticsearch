@@ -71,9 +71,9 @@ public class Cast extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return SqlDataTypeConverter.canConvert(from(), to()) ?
-                TypeResolution.TYPE_RESOLVED :
-                    new TypeResolution("Cannot cast [" + from() + "] to [" + to()+ "]");
+        return SqlDataTypeConverter.canConvert(from(), to())
+            ? TypeResolution.TYPE_RESOLVED
+            : new TypeResolution("Cannot cast [" + from() + "] to [" + to() + "]");
     }
 
     @Override
@@ -85,12 +85,10 @@ public class Cast extends UnaryScalarFunction {
     public ScriptTemplate asScript() {
         ScriptTemplate fieldAsScript = asScript(field());
         return new ScriptTemplate(
-                formatTemplate(format("{sql}.", "cast({},{})", fieldAsScript.template())),
-                paramsBuilder()
-                    .script(fieldAsScript.params())
-                    .variable(dataType.name())
-                    .build(),
-                dataType());
+            formatTemplate(format("{sql}.", "cast({},{})", fieldAsScript.template())),
+            paramsBuilder().script(fieldAsScript.params()).variable(dataType.name()).build(),
+            dataType()
+        );
     }
 
     @Override
@@ -107,7 +105,6 @@ public class Cast extends UnaryScalarFunction {
             return false;
         }
         Cast other = (Cast) obj;
-        return Objects.equals(dataType, other.dataType())
-            && Objects.equals(field(), other.field());
+        return Objects.equals(dataType, other.dataType()) && Objects.equals(field(), other.field());
     }
 }

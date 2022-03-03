@@ -85,7 +85,6 @@ public abstract class BinaryPipe extends Pipe {
         }
 
         BinaryPipe other = (BinaryPipe) obj;
-        return Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right());
+        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
     }
 }

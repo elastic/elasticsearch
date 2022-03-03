@@ -18,17 +18,16 @@ import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
-public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse>
-        implements WriteRequestBuilder<BulkRequestBuilder> {
+public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse> implements WriteRequestBuilder<BulkRequestBuilder> {
 
     public BulkRequestBuilder(ElasticsearchClient client, BulkAction action, @Nullable String globalIndex) {
         super(client, action, new BulkRequest(globalIndex));
@@ -72,7 +71,6 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
         return this;
     }
 
-
     /**
      * Adds an {@link UpdateRequest} to the list of actions to execute.
      */
@@ -100,8 +98,8 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex,
-                                  XContentType xContentType) throws Exception {
+    public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, XContentType xContentType)
+        throws Exception {
         request.add(data, from, length, defaultIndex, xContentType);
         return this;
     }

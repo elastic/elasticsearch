@@ -18,7 +18,6 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
@@ -36,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.Bac
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -812,7 +812,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
 
-        private LongArray subsetSizes = bigArrays().newLongArray(1, true);
+        private LongArray subsetSizes;
 
         SignificantTermsResults(
             SignificanceLookup significanceLookup,
@@ -822,6 +822,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             backgroundFrequencies = significanceLookup.bytesLookup(bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
+            boolean success = false;
+            try {
+                subsetSizes = bigArrays().newLongArray(1, true);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
         }
 
         @Override

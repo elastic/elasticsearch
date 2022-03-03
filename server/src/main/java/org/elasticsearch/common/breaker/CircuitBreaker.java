@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.breaker;
 
-
 import java.util.Locale;
 
 /**
@@ -53,16 +52,12 @@ public interface CircuitBreaker {
         NOOP;
 
         public static Type parseValue(String value) {
-            switch(value.toLowerCase(Locale.ROOT)) {
-                case "noop":
-                    return Type.NOOP;
-                case "parent":
-                    return Type.PARENT;
-                case "memory":
-                    return Type.MEMORY;
-                default:
-                    throw new IllegalArgumentException("No CircuitBreaker with type: " + value);
-            }
+            return switch (value.toLowerCase(Locale.ROOT)) {
+                case "noop" -> Type.NOOP;
+                case "parent" -> Type.PARENT;
+                case "memory" -> Type.MEMORY;
+                default -> throw new IllegalArgumentException("No CircuitBreaker with type: " + value);
+            };
         }
     }
 

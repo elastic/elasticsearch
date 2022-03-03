@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[autoscaling-get-autoscaling-policy]]
 === Get autoscaling policy API
 ++++

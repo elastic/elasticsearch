@@ -1,0 +1,156 @@
+[role="xpack"]
+[[ml-get-job-model-snapshot-upgrade-stats]]
+= Get {anomaly-job} model snapshot upgrade statistics API
+
+[subs="attributes"]
+++++
+<titleabbrev>Get model snapshot upgrade statistics</titleabbrev>
+++++
+
+Retrieves usage information for {anomaly-job} model snapshot upgrades.
+
+[[ml-get-job-model-snapshot-upgrade-stats-request]]
+== {api-request-title}
+
+`GET _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_upgrade/_stats` +
+
+`GET _ml/anomaly_detectors/<job_id>,<job_id>/model_snapshots/_all/_upgrade/_stats` +
+
+`GET _ml/anomaly_detectors/_all/model_snapshots/_all/_upgrade/_stats`
+
+[[ml-get-job-model-snapshot-upgrade-stats-prereqs]]
+== {api-prereq-title}
+
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
+`machine_learning_user` built-in role.
+
+[[ml-get-job-model-snapshot-upgrade-stats-desc]]
+== {api-description-title}
+
+{anomaly-detect-cap} job model snapshot upgrades are ephemeral. Only
+upgrades that are in progress at the time this API is called will be
+returned.
+
+[[ml-get-job-model-snapshot-upgrade-stats-path-parms]]
+== {api-path-parms-title}
+
+`<job_id>`::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
+
+`<snapshot_id>`::
+(string)
+Identifier for the model snapshot.
++
+You can get statistics for multiple {anomaly-job} model snapshot upgrades in a
+single API request by using a comma-separated list of snapshot IDs. You can also
+use wildcard expressions or `_all`.
+
+[[ml-get-job-model-snapshot-upgrade-stats-query-parms]]
+== {api-query-parms-title}
+
+`allow_no_match`::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
+
+[role="child_attributes"]
+[[ml-get-job-model-snapshot-upgrade-stats-results]]
+== {api-response-body-title}
+
+The API returns an array of {anomaly-job} model snapshot upgrade status objects.
+All of these properties are informational; you cannot update their values.
+
+`assignment_explanation`::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
+
+`job_id`::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`node`::
+(object)
+Contains properties for the node that runs the upgrade task. This information is
+available only for upgrade tasks that are assigned to a node.
++
+--
+[%collapsible%open]
+====
+`attributes`:::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
+
+`ephemeral_id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+
+`id`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
+
+`name`:::
+(string)
+The node name. For example, `0-o0tOo`.
+
+`transport_address`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+====
+--
+
+`snapshot_id`::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-id]
+
+`state`::
+(string)
+One of `loading_old_state`, `saving_new_state`, `stopped` or `failed`.
+
+
+[[ml-get-job-model-snapshot-upgrade-stats-response-codes]]
+== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
+
+[[ml-get-job-model-snapshot-upgrade-stats-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _ml/anomaly_detectors/low_request_rate/model_snapshots/_all/_upgrade/_stats
+--------------------------------------------------
+// TEST[skip:it will be too difficult to get a reliable response in docs tests]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "count" : 1,
+  "model_snapshot_upgrades" : [
+    {
+      "job_id" : "low_request_rate",
+      "snapshot_id" : "1828371",
+      "state" : "saving_new_state",
+      "node" : {
+        "id" : "7bmMXyWCRs-TuPfGJJ_yMw",
+        "name" : "node-0",
+        "ephemeral_id" : "hoXMLZB0RWKfR9UPPUCxXX",
+        "transport_address" : "127.0.0.1:9300",
+        "attributes" : {
+          "ml.machine_memory" : "17179869184",
+          "ml.max_open_jobs" : "512"
+        }
+      },
+      "assignment_explanation" : ""
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"7bmMXyWCRs-TuPfGJJ_yMw"/$body.$_path/]
+// TESTRESPONSE[s/"node-0"/$body.$_path/]
+// TESTRESPONSE[s/"hoXMLZB0RWKfR9UPPUCxXX"/$body.$_path/]
+// TESTRESPONSE[s/"127.0.0.1:9300"/$body.$_path/]
+// TESTRESPONSE[s/"17179869184"/$body.datafeeds.0.node.attributes.ml\\.machine_memory/]

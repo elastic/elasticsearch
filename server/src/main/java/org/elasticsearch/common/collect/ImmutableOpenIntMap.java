@@ -17,12 +17,21 @@ import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.predicates.IntObjectPredicate;
 import com.carrotsearch.hppc.predicates.IntPredicate;
 import com.carrotsearch.hppc.procedures.IntObjectProcedure;
 
+import java.util.AbstractCollection;
+import java.util.AbstractSet;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Consumer;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -30,9 +39,15 @@ import java.util.Map;
  * Can be constructed using a {@link #builder()}, or using {@link #builder(org.elasticsearch.common.collect.ImmutableOpenIntMap)}
  * (which is an optimized option to copy over existing content and modify it).
  */
-public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCursor<VType>> {
+public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, Iterable<IntObjectCursor<VType>> {
 
     private final IntObjectHashMap<VType> map;
+
+    /**
+     * Holds cached entrySet().
+     */
+    private Set<Map.Entry<Integer, VType>> entrySet;
+    private Set<Integer> keySet;
 
     private ImmutableOpenIntMap(IntObjectHashMap<VType> map) {
         this.map = map;
@@ -70,6 +85,57 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
      */
     public boolean isEmpty() {
         return map.isEmpty();
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+        return key instanceof Integer i && map.containsKey(i);
+    }
+
+    @Override
+    public boolean containsValue(Object value) {
+        for (ObjectCursor<VType> cursor : map.values()) {
+            if (Objects.equals(cursor.value, value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public VType get(Object key) {
+        if (key instanceof Integer k) {
+            return map.get(k);
+        }
+        return null;
+    }
+
+    @Override
+    public VType put(Integer key, VType value) {
+        throw new UnsupportedOperationException("modification is not supported");
+    }
+
+    @Override
+    public VType remove(Object key) {
+        throw new UnsupportedOperationException("modification is not supported");
+    }
+
+    @Override
+    public void putAll(Map<? extends Integer, ? extends VType> m) {
+        throw new UnsupportedOperationException("modification is not supported");
+    }
+
+    @Override
+    public void clear() {
+        throw new UnsupportedOperationException("modification is not supported");
+    }
+
+    @Override
+    public Set<Integer> keySet() {
+        if (keySet == null) {
+            keySet = new KeySet();
+        }
+        return keySet;
     }
 
     /**
@@ -129,8 +195,18 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
     /**
      * @return Returns a container with all values stored in this map.
      */
-    public ObjectContainer<VType> values() {
-        return map.values();
+    public Collection<VType> values() {
+        return new AbstractCollection<VType>() {
+            @Override
+            public Iterator<VType> iterator() {
+                return valuesIt();
+            }
+
+            @Override
+            public int size() {
+                return map.size();
+            }
+        };
     }
 
     /**
@@ -138,6 +214,146 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
      */
     public Iterator<VType> valuesIt() {
         return ImmutableOpenMap.iterator(map.values());
+    }
+
+    public Set<Map.Entry<Integer, VType>> entrySet() {
+        Set<Map.Entry<Integer, VType>> es;
+        return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;
+    }
+
+    private final class ImmutableEntry implements Map.Entry<Integer, VType> {
+        private final int key;
+        private final VType value;
+
+        ImmutableEntry(int key, VType value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        @Override
+        public Integer getKey() {
+            return key;
+        }
+
+        @Override
+        public VType getValue() {
+            return value;
+        }
+
+        @Override
+        public VType setValue(VType value) {
+            throw new UnsupportedOperationException("collection is immutable");
+        }
+    }
+
+    private final class EntryIterator implements Iterator<Map.Entry<Integer, VType>> {
+
+        private final Iterator<IntObjectCursor<VType>> original;
+
+        EntryIterator() {
+            this.original = map.iterator();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return original.hasNext();
+        }
+
+        @Override
+        public Map.Entry<Integer, VType> next() {
+            final IntObjectCursor<VType> obj = original.next();
+            if (obj == null) {
+                return null;
+            }
+            return new ImmutableEntry(obj.key, obj.value);
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException("removal is unsupported");
+        }
+    }
+
+    private final class KeyIterator implements Iterator<Integer> {
+        private final Iterator<IntObjectCursor<VType>> cursor = map.iterator();
+
+        @Override
+        public boolean hasNext() {
+            return cursor.hasNext();
+        }
+
+        @Override
+        public Integer next() {
+            return cursor.next().key;
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException("removal is not supported");
+        }
+    }
+
+    private abstract class UnmodifiableSetView<T> extends AbstractSet<T> {
+
+        @Override
+        public int size() {
+            return map.size();
+        }
+
+        @Override
+        public Spliterator<T> spliterator() {
+            return Spliterators.spliterator(iterator(), size(), Spliterator.SIZED);
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException("removal is not supported");
+        }
+
+        @Override
+        public boolean remove(Object o) {
+            throw new UnsupportedOperationException("removal is not supported");
+        }
+    }
+
+    private final class EntrySet extends UnmodifiableSetView<Map.Entry<Integer, VType>> {
+
+        public Iterator<Map.Entry<Integer, VType>> iterator() {
+            return new EntryIterator();
+        }
+
+        @SuppressWarnings("unchecked")
+        public boolean contains(Object o) {
+            if (o instanceof Map.Entry<?, ?> == false) {
+                return false;
+            }
+            Map.Entry<Integer, ?> e = (Map.Entry<Integer, ?>) o;
+            int key = e.getKey();
+            if (map.containsKey(key) == false) {
+                return false;
+            }
+            Object val = map.get(key);
+            return Objects.equals(val, e.getValue());
+        }
+
+        public void forEach(Consumer<? super Map.Entry<Integer, VType>> action) {
+            map.forEach((Consumer<? super IntObjectCursor<VType>>) cursor -> {
+                ImmutableEntry entry = new ImmutableEntry(cursor.key, cursor.value);
+                action.accept(entry);
+            });
+        }
+    }
+
+    private final class KeySet extends UnmodifiableSetView<Integer> {
+        @Override
+        public Iterator<Integer> iterator() {
+            return new KeyIterator();
+        }
+
+        @Override
+        public boolean contains(Object o) {
+            return o instanceof Integer i && map.containsKey(i);
+        }
     }
 
     @Override
@@ -163,7 +379,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         return map.hashCode();
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private static final ImmutableOpenIntMap EMPTY = new ImmutableOpenIntMap(new IntObjectHashMap());
 
     @SuppressWarnings("unchecked")

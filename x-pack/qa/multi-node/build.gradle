@@ -13,7 +13,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  extraConfigFile 'roles.yml', file('roles.yml')
+  rolesFile file('roles.yml')
   user username: "test-user", password: "x-pack-test-password", role: "test"
   user username: "super-user", password: "x-pack-super-password"
 }

@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -16,7 +17,6 @@
  */
 package org.elasticsearch.xpack.ml.aggs.heuristic;
 
-
 import org.apache.commons.math3.special.Gamma;
 import org.apache.commons.math3.util.FastMath;
 import org.apache.commons.math3.util.MathUtils;
@@ -32,7 +32,8 @@ public class LongBinomialDistribution {
     private static final double HALF_LOG_2_PI = 0.5 * FastMath.log(MathUtils.TWO_PI);
 
     /** exact Stirling expansion error for certain values. */
-    private static final double[] EXACT_STIRLING_ERRORS = { 0.0, /* 0.0 */
+    private static final double[] EXACT_STIRLING_ERRORS = {
+        0.0, /* 0.0 */
         0.1534264097200273452913848, /* 0.5 */
         0.0810614667953272582196702, /* 1.0 */
         0.0548141210519176538961390, /* 1.5 */
@@ -88,9 +89,7 @@ public class LongBinomialDistribution {
         if (x < 0 || x > numberOfTrials) {
             ret = Double.NEGATIVE_INFINITY;
         } else {
-            ret = logBinomialProbability(x,
-                numberOfTrials, probabilityOfSuccess,
-                1.0 - probabilityOfSuccess);
+            ret = logBinomialProbability(x, numberOfTrials, probabilityOfSuccess, 1.0 - probabilityOfSuccess);
         }
         return ret;
     }
@@ -142,17 +141,12 @@ public class LongBinomialDistribution {
             if (FastMath.floor(z2) == z2) {
                 ret = EXACT_STIRLING_ERRORS[(int) z2];
             } else {
-                ret = Gamma.logGamma(z + 1.0) - (z + 0.5) * FastMath.log(z) +
-                    z - HALF_LOG_2_PI;
+                ret = Gamma.logGamma(z + 1.0) - (z + 0.5) * FastMath.log(z) + z - HALF_LOG_2_PI;
             }
         } else {
             double z2 = z * z;
-            ret = (0.083333333333333333333 -
-                (0.00277777777777777777778 -
-                    (0.00079365079365079365079365 -
-                        (0.000595238095238095238095238 -
-                            0.0008417508417508417508417508 /
-                                z2) / z2) / z2) / z2) / z;
+            ret = (0.083333333333333333333 - (0.00277777777777777777778 - (0.00079365079365079365079365 - (0.000595238095238095238095238
+                - 0.0008417508417508417508417508 / z2) / z2) / z2) / z2) / z;
         }
         return ret;
     }
@@ -181,9 +175,10 @@ public class LongBinomialDistribution {
                 ret = n * FastMath.log(p);
             }
         } else {
-            ret = getStirlingError(n) - getStirlingError(x) -
-                getStirlingError(n - x) - getDeviancePart(x, n * p) -
-                getDeviancePart(n - x, n * q);
+            ret = getStirlingError(n) - getStirlingError(x) - getStirlingError(n - x) - getDeviancePart(x, n * p) - getDeviancePart(
+                n - x,
+                n * q
+            );
             double f = (MathUtils.TWO_PI * x * (n - x)) / n;
             ret = -0.5 * FastMath.log(f) + ret;
         }

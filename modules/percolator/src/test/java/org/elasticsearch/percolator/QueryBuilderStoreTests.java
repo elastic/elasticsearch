@@ -20,7 +20,6 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
@@ -30,10 +29,11 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -67,8 +67,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 for (int i = 0; i < queryBuilders.length; i++) {
                     queryBuilders[i] = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(8));
                     DocumentParserContext documentParserContext = new TestDocumentParserContext();
-                    PercolatorFieldMapper.createQueryBuilderField(version,
-                        fieldMapper, queryBuilders[i], documentParserContext);
+                    PercolatorFieldMapper.createQueryBuilderField(version, fieldMapper, queryBuilders[i], documentParserContext);
                     indexWriter.addDocument(documentParserContext.doc());
                 }
             }
@@ -76,9 +75,10 @@ public class QueryBuilderStoreTests extends ESTestCase {
             SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
             when(searchExecutionContext.indexVersionCreated()).thenReturn(version);
             when(searchExecutionContext.getWriteableRegistry()).thenReturn(writableRegistry());
-            when(searchExecutionContext.getXContentRegistry()).thenReturn(xContentRegistry());
-            when(searchExecutionContext.getForField(fieldMapper.fieldType()))
-                .thenReturn(new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.KEYWORD));
+            when(searchExecutionContext.getParserConfig()).thenReturn(parserConfig());
+            when(searchExecutionContext.getForField(fieldMapper.fieldType())).thenReturn(
+                new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.KEYWORD)
+            );
             when(searchExecutionContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];
                 return new KeywordFieldMapper.KeywordFieldType(fieldName);

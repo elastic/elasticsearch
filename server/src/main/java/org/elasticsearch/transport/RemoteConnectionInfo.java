@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -120,10 +120,10 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RemoteConnectionInfo that = (RemoteConnectionInfo) o;
-        return skipUnavailable == that.skipUnavailable &&
-            Objects.equals(modeInfo, that.modeInfo) &&
-            Objects.equals(initialConnectionTimeout, that.initialConnectionTimeout) &&
-            Objects.equals(clusterAlias, that.clusterAlias);
+        return skipUnavailable == that.skipUnavailable
+            && Objects.equals(modeInfo, that.modeInfo)
+            && Objects.equals(initialConnectionTimeout, that.initialConnectionTimeout)
+            && Objects.equals(clusterAlias, that.clusterAlias);
     }
 
     @Override

@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.plugins.Plugin;
@@ -19,7 +18,6 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.util.Collection;
-import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 
@@ -45,18 +43,6 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
         }
         client().admin().indices().prepareFlush("test").get();
         client().admin().indices().prepareRefresh().get();
-    }
-
-    public void testBasic() {
-        IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").get();
-        List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();
-        assertNull(segments.get(0).toString(), segments.get(0).ramTree);
-    }
-
-    public void testVerbose() {
-        IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").setVerbose(true).get();
-        List<Segment> segments = rsp.getIndices().get("test").iterator().next().getShards()[0].getSegments();
-        assertNotNull(segments.get(0).toString(), segments.get(0).ramTree);
     }
 
     /**

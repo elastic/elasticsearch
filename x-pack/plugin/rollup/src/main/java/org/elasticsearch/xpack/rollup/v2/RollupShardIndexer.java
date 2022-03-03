@@ -24,20 +24,20 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
@@ -192,8 +192,8 @@ class RollupShardIndexer {
         if (fieldType instanceof DateFieldMapper.DateFieldType == false) {
             throw new IllegalArgumentException("Wrong type for the timestamp field, " + "expected [date], got [" + fieldType.name() + "]");
         }
-        if (fieldType.isSearchable() == false) {
-            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "]  is not searchable");
+        if (fieldType.isIndexed() == false) {
+            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "]  is not indexed");
         }
     }
 
@@ -248,14 +248,14 @@ class RollupShardIndexer {
             .build();
     }
 
-    private Rounding createRounding(RollupActionDateHistogramGroupConfig config) {
-        DateHistogramInterval interval = config.getInterval();
-        ZoneId zoneId = config.getTimeZone() != null ? ZoneId.of(config.getTimeZone()) : null;
+    private Rounding createRounding(RollupActionDateHistogramGroupConfig groupConfig) {
+        DateHistogramInterval interval = groupConfig.getInterval();
+        ZoneId zoneId = groupConfig.getTimeZone() != null ? ZoneId.of(groupConfig.getTimeZone()) : null;
         Rounding.Builder tzRoundingBuilder;
-        if (config instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
+        if (groupConfig instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
             TimeValue timeValue = TimeValue.parseTimeValue(interval.toString(), null, getClass().getSimpleName() + ".interval");
             tzRoundingBuilder = Rounding.builder(timeValue);
-        } else if (config instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
+        } else if (groupConfig instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
             Rounding.DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
             tzRoundingBuilder = Rounding.builder(dateTimeUnit);
         } else {
@@ -266,7 +266,7 @@ class RollupShardIndexer {
 
     private void indexBucket(BucketKey key, List<FieldMetricsProducer> fieldsMetrics, int docCount) {
         IndexRequestBuilder request = client.prepareIndex(tmpIndex);
-        Map<String, Object> doc = new HashMap<>(2 + key.groupFields.size() + fieldsMetrics.size());
+        Map<String, Object> doc = Maps.newMapWithExpectedSize(2 + key.groupFields.size() + fieldsMetrics.size());
         doc.put(DocCountFieldMapper.NAME, docCount);
         doc.put(timestampField.name(), timestampFormat.format(key.timestamp));
 
@@ -380,7 +380,7 @@ class RollupShardIndexer {
         return (o1, o2) -> {
             int keySize1 = readInt(o1.bytes, o1.offset);
             int keySize2 = readInt(o2.bytes, o2.offset);
-            return FutureArrays.compareUnsigned(
+            return Arrays.compareUnsigned(
                 o1.bytes,
                 o1.offset + Integer.BYTES,
                 keySize1 + o1.offset + Integer.BYTES,
@@ -540,9 +540,9 @@ class RollupShardIndexer {
             return PointValues.Relation.CELL_CROSSES_QUERY;
         }
 
-        private void checkMinRounding(long rounding) {
-            if (rounding > lastRounding) {
-                nextRounding = rounding;
+        private void checkMinRounding(long roundingValue) {
+            if (roundingValue > lastRounding) {
+                nextRounding = roundingValue;
                 throw new CollectionTerminatedException();
             }
         }

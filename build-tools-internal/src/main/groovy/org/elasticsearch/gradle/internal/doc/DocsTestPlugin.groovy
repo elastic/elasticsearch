@@ -66,6 +66,9 @@ class DocsTestPlugin implements Plugin<Project> {
         TaskProvider<RestTestsFromSnippetsTask> buildRestTests = project.tasks.register('buildRestTests', RestTestsFromSnippetsTask) {
             defaultSubstitutions = commonDefaultSubstitutions
             testRoot.convention(restRootDir)
+            doFirst {
+                project.delete(restRootDir)
+            }
         }
 
         // TODO: This effectively makes testRoot not customizable, which we don't do anyway atm

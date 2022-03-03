@@ -9,12 +9,11 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 
 public interface TransportAddressConnector {
     /**
      * Identify the node at the given address and, if it is a master node and not the local node then establish a full connection to it.
      */
-    void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener);
+    void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<ProbeConnectionResult> listener);
 }

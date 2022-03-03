@@ -6,21 +6,19 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.opensaml.saml.saml2.core.Issuer;
+import org.opensaml.saml.saml2.metadata.Endpoint;
+import org.opensaml.saml.saml2.metadata.EntityDescriptor;
+import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
+
 import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.opensaml.saml.saml2.core.Issuer;
-import org.opensaml.saml.saml2.metadata.Endpoint;
-import org.opensaml.saml.saml2.metadata.EntityDescriptor;
-import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
 
 /**
  * Abstract base class for object that build some sort of {@link org.opensaml.saml.common.SAMLObject}
@@ -39,26 +37,29 @@ public abstract class SamlMessageBuilder {
         this.clock = clock;
     }
 
-    protected String getIdentityProviderEndpoint(String binding,
-                                                 Function<IDPSSODescriptor, ? extends Collection<? extends Endpoint>> selector) {
-        final List<String> locations = identityProvider.getRoleDescriptors(IDPSSODescriptor.DEFAULT_ELEMENT_NAME).stream()
-                .map(rd -> (IDPSSODescriptor) rd)
-                .flatMap(idp -> selector.apply(idp).stream())
-                .filter(endp -> binding.equals(endp.getBinding()))
-                .map(sso -> sso.getLocation())
-                .collect(Collectors.toList());
+    protected String getIdentityProviderEndpoint(
+        String binding,
+        Function<IDPSSODescriptor, ? extends Collection<? extends Endpoint>> selector
+    ) {
+        final List<String> locations = identityProvider.getRoleDescriptors(IDPSSODescriptor.DEFAULT_ELEMENT_NAME)
+            .stream()
+            .map(rd -> (IDPSSODescriptor) rd)
+            .flatMap(idp -> selector.apply(idp).stream())
+            .filter(endp -> binding.equals(endp.getBinding()))
+            .map(sso -> sso.getLocation())
+            .collect(Collectors.toList());
         if (locations.isEmpty()) {
             return null;
         }
         if (locations.size() > 1) {
-            throw new ElasticsearchException("Found multiple locations for binding [{}] in descriptor [{}] - [{}]",
-                    binding, identityProvider.getID(), locations);
+            throw new ElasticsearchException(
+                "Found multiple locations for binding [{}] in descriptor [{}] - [{}]",
+                binding,
+                identityProvider.getID(),
+                locations
+            );
         }
         return locations.get(0);
-    }
-
-    protected DateTime now() {
-        return new DateTime(clock.millis(), DateTimeZone.UTC);
     }
 
     protected Issuer buildIssuer() {

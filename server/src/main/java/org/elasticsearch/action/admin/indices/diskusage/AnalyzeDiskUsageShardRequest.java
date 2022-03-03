@@ -27,7 +27,6 @@ final class AnalyzeDiskUsageShardRequest extends BroadcastShardRequest {
         this.flush = request.flush;
     }
 
-
     AnalyzeDiskUsageShardRequest(StreamInput in) throws IOException {
         super(in);
         this.flush = in.readBoolean();

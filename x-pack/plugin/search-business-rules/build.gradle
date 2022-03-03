@@ -14,10 +14,3 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(":test:framework")
 }
-
-tasks.named('splitPackagesAudit').configure {
-  // Lucene classes should be owned by Lucene!
-  ignoreClasses  'org.apache.lucene.search.CappedScoreQuery',
-    'org.apache.lucene.search.CappedScoreWeight',
-    'org.apache.lucene.search.CappedScorer'
-}

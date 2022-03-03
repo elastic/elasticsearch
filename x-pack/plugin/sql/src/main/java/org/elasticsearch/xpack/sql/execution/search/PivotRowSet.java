@@ -26,8 +26,14 @@ class PivotRowSet extends SchemaCompositeAggRowSet {
     private final List<Object[]> data;
     private final Map<String, Object> lastAfterKey;
 
-    PivotRowSet(Schema schema, List<BucketExtractor> exts, BitSet mask, SearchResponse response, int limit,
-            Map<String, Object> previousLastKey) {
+    PivotRowSet(
+        Schema schema,
+        List<BucketExtractor> exts,
+        BitSet mask,
+        SearchResponse response,
+        int limit,
+        Map<String, Object> previousLastKey
+    ) {
         super(schema, exts, mask, response, limit);
 
         data = buckets.isEmpty() ? emptyList() : new ArrayList<>();

@@ -10,10 +10,10 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -37,7 +37,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     /**
      * Maximum wait time allowed for throttling.
      */
-    private static final TimeValue MAX_THROTTLE_WAIT_TIME =  TimeValue.timeValueHours(1);
+    private static final TimeValue MAX_THROTTLE_WAIT_TIME = TimeValue.timeValueHours(1);
 
     private final BulkByScrollTask task;
 
@@ -93,7 +93,8 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
             timeValueNanos(throttledNanos.get()),
             getRequestsPerSecond(),
             task.getReasonCancelled(),
-            throttledUntil());
+            throttledUntil()
+        );
     }
 
     public void handleCancel() {
@@ -171,15 +172,20 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      * Schedule prepareBulkRequestRunnable to run after some delay. This is where throttling plugs into reindexing so the request can be
      * rescheduled over and over again.
      */
-    public void delayPrepareBulkRequest(ThreadPool threadPool, long lastBatchStartTimeNS, int lastBatchSize,
-                                        AbstractRunnable prepareBulkRequestRunnable) {
+    public void delayPrepareBulkRequest(
+        ThreadPool threadPool,
+        long lastBatchStartTimeNS,
+        int lastBatchSize,
+        AbstractRunnable prepareBulkRequestRunnable
+    ) {
         // Synchronize so we are less likely to schedule the same request twice.
         synchronized (delayedPrepareBulkRequestReference) {
             TimeValue delay = throttleWaitTime(lastBatchStartTimeNS, System.nanoTime(), lastBatchSize);
             logger.debug("[{}]: preparing bulk request for [{}]", task.getId(), delay);
             try {
-                delayedPrepareBulkRequestReference.set(new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(),
-                    delay, new RunOnce(prepareBulkRequestRunnable)));
+                delayedPrepareBulkRequestReference.set(
+                    new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(), delay, new RunOnce(prepareBulkRequestRunnable))
+                );
             } catch (EsRejectedExecutionException e) {
                 prepareBulkRequestRunnable.onRejection(e);
             }
@@ -199,7 +205,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         if (requestsPerSecond == Float.POSITIVE_INFINITY) {
             return 0;
         }
-        //       requests
+        // requests
         // ------------------- == seconds
         // request per seconds
         float targetBatchTimeInSeconds = lastBatchSize / requestsPerSecond;
@@ -255,8 +261,12 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
                  * change in throttle take effect the next time we delay
                  * prepareBulkRequest. We can't just reschedule the request further
                  * out in the future because the bulk context might time out. */
-                logger.debug("[{}]: skipping rescheduling because the new throttle [{}] is slower than the old one [{}]", task.getId(),
-                    newRequestsPerSecond, requestsPerSecond);
+                logger.debug(
+                    "[{}]: skipping rescheduling because the new throttle [{}] is slower than the old one [{}]",
+                    task.getId(),
+                    newRequestsPerSecond,
+                    requestsPerSecond
+                );
                 return this;
             }
 

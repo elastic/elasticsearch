@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -29,7 +29,8 @@ public class RestGetTransformAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS),
-            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID));
+            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID)
+        );
     }
 
     @Override
@@ -41,8 +42,11 @@ public class RestGetTransformAction extends BaseRestHandler {
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(
-                new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+                new PageParams(
+                    restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                )
+            );
         }
         return channel -> client.execute(GetTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

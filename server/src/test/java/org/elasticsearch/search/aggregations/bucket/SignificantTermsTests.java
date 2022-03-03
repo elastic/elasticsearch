@@ -108,26 +108,13 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
     static SignificanceHeuristic getSignificanceHeuristic() {
         SignificanceHeuristic significanceHeuristic = null;
         switch (randomInt(5)) {
-            case 0:
-                significanceHeuristic = new PercentageScore();
-                break;
-            case 1:
-                significanceHeuristic = new ChiSquare(randomBoolean(), randomBoolean());
-                break;
-            case 2:
-                significanceHeuristic = new GND(randomBoolean());
-                break;
-            case 3:
-                significanceHeuristic = new MutualInformation(randomBoolean(), randomBoolean());
-                break;
-            case 4:
-                significanceHeuristic = new ScriptHeuristic(mockScript("foo"));
-                break;
-            case 5:
-                significanceHeuristic = new JLHScore();
-                break;
-            default:
-                fail();
+            case 0 -> significanceHeuristic = new PercentageScore();
+            case 1 -> significanceHeuristic = new ChiSquare(randomBoolean(), randomBoolean());
+            case 2 -> significanceHeuristic = new GND(randomBoolean());
+            case 3 -> significanceHeuristic = new MutualInformation(randomBoolean(), randomBoolean());
+            case 4 -> significanceHeuristic = new ScriptHeuristic(mockScript("foo"));
+            case 5 -> significanceHeuristic = new JLHScore();
+            default -> fail();
         }
         return significanceHeuristic;
     }
@@ -135,16 +122,10 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
     static IncludeExclude getIncludeExclude() {
         IncludeExclude incExc = null;
         switch (randomInt(5)) {
-            case 0:
-                incExc = new IncludeExclude(new RegExp("foobar"), null);
-                break;
-            case 1:
-                incExc = new IncludeExclude(null, new RegExp("foobaz"));
-                break;
-            case 2:
-                incExc = new IncludeExclude(new RegExp("foobar"), new RegExp("foobaz"));
-                break;
-            case 3:
+            case 0 -> incExc = new IncludeExclude(new RegExp("foobar"), null);
+            case 1 -> incExc = new IncludeExclude(null, new RegExp("foobaz"));
+            case 2 -> incExc = new IncludeExclude(new RegExp("foobar"), new RegExp("foobaz"));
+            case 3 -> {
                 SortedSet<BytesRef> includeValues = new TreeSet<>();
                 int numIncs = randomIntBetween(1, 20);
                 for (int i = 0; i < numIncs; i++) {
@@ -152,8 +133,8 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
                 }
                 SortedSet<BytesRef> excludeValues = null;
                 incExc = new IncludeExclude(includeValues, excludeValues);
-                break;
-            case 4:
+            }
+            case 4 -> {
                 SortedSet<BytesRef> includeValues2 = null;
                 SortedSet<BytesRef> excludeValues2 = new TreeSet<>();
                 int numExcs2 = randomIntBetween(1, 20);
@@ -161,8 +142,8 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
                     excludeValues2.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 incExc = new IncludeExclude(includeValues2, excludeValues2);
-                break;
-            case 5:
+            }
+            case 5 -> {
                 SortedSet<BytesRef> includeValues3 = new TreeSet<>();
                 int numIncs3 = randomIntBetween(1, 20);
                 for (int i = 0; i < numIncs3; i++) {
@@ -174,9 +155,8 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
                     excludeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
                 }
                 incExc = new IncludeExclude(includeValues3, excludeValues3);
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         return incExc;
     }

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[enrich-stats-api]]
 === Enrich stats API
 ++++

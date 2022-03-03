@@ -10,21 +10,21 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.action.support.DefaultShardOperationFailedException.readShardOperationFailed;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Base class for all broadcast operation based responses.
@@ -46,13 +46,19 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
 
     @SuppressWarnings("unchecked")
     protected static <T extends BroadcastResponse> void declareBroadcastFields(ConstructingObjectParser<T, Void> PARSER) {
-        ConstructingObjectParser<BroadcastResponse, Void> shardsParser = new ConstructingObjectParser<>("_shards", true,
-            arg -> new BroadcastResponse((int) arg[0], (int) arg[1], (int) arg[2], (List<DefaultShardOperationFailedException>) arg[3]));
+        ConstructingObjectParser<BroadcastResponse, Void> shardsParser = new ConstructingObjectParser<>(
+            "_shards",
+            true,
+            arg -> new BroadcastResponse((int) arg[0], (int) arg[1], (int) arg[2], (List<DefaultShardOperationFailedException>) arg[3])
+        );
         shardsParser.declareInt(constructorArg(), TOTAL_FIELD);
         shardsParser.declareInt(constructorArg(), SUCCESSFUL_FIELD);
         shardsParser.declareInt(constructorArg(), FAILED_FIELD);
-        shardsParser.declareObjectArray(optionalConstructorArg(),
-            (p, c) -> DefaultShardOperationFailedException.fromXContent(p), FAILURES_FIELD);
+        shardsParser.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> DefaultShardOperationFailedException.fromXContent(p),
+            FAILURES_FIELD
+        );
         PARSER.declareObject(constructorArg(), shardsParser, _SHARDS_FIELD);
     }
 
@@ -71,8 +77,12 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
         }
     }
 
-    public BroadcastResponse(int totalShards, int successfulShards, int failedShards,
-                             List<DefaultShardOperationFailedException> shardFailures) {
+    public BroadcastResponse(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
@@ -145,6 +155,5 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
     /**
      * Override in subclass to add custom fields following the common `_shards` field
      */
-    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-    }
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {}
 }

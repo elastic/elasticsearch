@@ -1,0 +1,5 @@
+pr: 83448
+summary: Do not allow safelisted media types on Content-Type
+area: Infra/REST API
+type: bug
+issues: []

@@ -206,7 +206,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
             testClusters {
               myCluster {
                 testDistribution = 'default'
-                extraJarFile(file('${someJar().absolutePath}'))
+                extraJarFiles(files('${someJar().absolutePath}'))
               }
             }
 

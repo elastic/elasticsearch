@@ -35,8 +35,7 @@ public final class TypeListenerBinding implements Element {
     private final Matcher<? super TypeLiteral<?>> typeMatcher;
     private final TypeListener listener;
 
-    TypeListenerBinding(Object source, TypeListener listener,
-                        Matcher<? super TypeLiteral<?>> typeMatcher) {
+    TypeListenerBinding(Object source, TypeListener listener, Matcher<? super TypeLiteral<?>> typeMatcher) {
         this.source = source;
         this.listener = listener;
         this.typeMatcher = typeMatcher;

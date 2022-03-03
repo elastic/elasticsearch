@@ -33,4 +33,8 @@ public interface FloatArray extends BigArray {
      */
     void fill(long fromIndex, long toIndex, float value);
 
+    /**
+     * Bulk set.
+     */
+    void set(long index, byte[] buf, int offset, int len);
 }

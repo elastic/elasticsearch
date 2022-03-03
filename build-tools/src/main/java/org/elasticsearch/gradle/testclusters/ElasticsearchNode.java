@@ -14,13 +14,13 @@ import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.LazyPropertyList;
 import org.elasticsearch.gradle.LazyPropertyMap;
-import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
@@ -37,7 +37,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
-import org.gradle.api.internal.artifacts.ArtifactAttributes;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
@@ -59,8 +59,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -103,7 +105,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
-        "discovery.seed_providers"
+        "discovery.seed_providers",
+        "cluster.deprecation_indexing.enabled"
 
     );
 
@@ -124,6 +127,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
+    private final FileOperations fileOperations;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 
@@ -140,8 +144,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
     private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
     private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
-    private final LazyPropertyList<File> extraJarFiles = new LazyPropertyList<>("Extra jar files", this);
+    private final LazyPropertyList<FileCollection> extraJarConfigurations = new LazyPropertyList<>("Extra jar files", this);
     private final List<Map<String, String>> credentials = new ArrayList<>();
+    private final List<File> roleFiles = new ArrayList<>();
+    private final List<FeatureFlag> featureFlags = new ArrayList<>();
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
     private final Path confPathRepo;
@@ -153,6 +159,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path esStdinFile;
     private final Path tmpDir;
     private final Provider<File> runtimeJava;
+    private final Function<Version, Boolean> isReleasedVersion;
 
     private int currentDistro = 0;
     private TestDistribution testDistribution;
@@ -177,8 +184,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
+        FileOperations fileOperations,
         File workingDirBase,
-        Provider<File> runtimeJava
+        Provider<File> runtimeJava,
+        Function<Version, Boolean> isReleasedVersion
     ) {
         this.clusterName = clusterName;
         this.path = path;
@@ -188,7 +197,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
+        this.fileOperations = fileOperations;
         this.runtimeJava = runtimeJava;
+        this.isReleasedVersion = isReleasedVersion;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
         configFile = workingDir.resolve("config/elasticsearch.yml");
@@ -331,7 +342,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
         Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
         Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
-        extractedConfig.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        extractedConfig.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
         extractedConfig.getAttributes().attribute(bundleAttribute, true);
         pluginAndModuleConfiguration.from(extractedConfig);
     }
@@ -341,10 +352,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
         project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
             transformSpec.getFrom()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE)
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
                 .attribute(bundleAttribute, true);
             transformSpec.getTo()
-                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
                 .attribute(bundleAttribute, true);
             transformSpec.getParameters().setAsFiletreeOutput(true);
         });
@@ -559,16 +570,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
 
-        if (credentials.isEmpty() == false) {
-            logToProcessStdout("Setting up " + credentials.size() + " users");
-
-            credentials.forEach(
-                paramMap -> runElasticsearchBinScript(
-                    getVersion().onOrAfter("6.3.0") ? "elasticsearch-users" : "x-pack/users",
-                    paramMap.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).toArray(String[]::new)
-                )
-            );
-        }
+        configureSecurity();
 
         if (cliSetup.isEmpty() == false) {
             logToProcessStdout("Running " + cliSetup.size() + " setup commands");
@@ -585,7 +587,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private boolean canUseSharedDistribution() {
         // using original location can be too long due to MAX_PATH restrictions on windows CI
         // TODO revisit when moving to shorter paths on CI by using Teamcity
-        return OS.current() != OS.WINDOWS && extraJarFiles.size() == 0 && modules.size() == 0 && plugins.size() == 0;
+        return OS.current() != OS.WINDOWS && extraJarConfigurations.size() == 0 && modules.size() == 0 && plugins.size() == 0;
     }
 
     private void logToProcessStdout(String message) {
@@ -648,10 +650,18 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * //TODO: Remove this when system modules are available
      */
     private void copyExtraJars() {
+        List<File> extraJarFiles = this.extraJarConfigurations.stream()
+            .flatMap(fileCollection -> fileCollection.getFiles().stream())
+            .collect(Collectors.toList());
+
         if (extraJarFiles.isEmpty() == false) {
-            logToProcessStdout("Setting up " + extraJarFiles.size() + " additional jar dependencies");
+            logToProcessStdout("Setting up " + this.extraJarConfigurations.size() + " additional jar dependencies");
         }
         extraJarFiles.forEach(from -> {
+            if (from.getName().endsWith(".jar") == false) {
+                throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
+            }
+
             Path destination = getDistroDir().resolve("lib").resolve(from.getName());
             try {
                 Files.copy(from.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
@@ -660,6 +670,42 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 throw new UncheckedIOException("Can't copy extra jar dependency " + from.getName() + " to " + destination.toString(), e);
             }
         });
+    }
+
+    private void configureSecurity() {
+        if (credentials.isEmpty() == false) {
+            logToProcessStdout("Setting up " + credentials.size() + " users");
+
+            credentials.forEach(
+                paramMap -> runElasticsearchBinScript(
+                    getVersion().onOrAfter("6.3.0") ? "elasticsearch-users" : "x-pack/users",
+                    paramMap.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).toArray(String[]::new)
+                )
+            );
+
+            // If we added users, then also add the standard test roles
+            rolesFile(getBuildPluginFile("/roles.yml"));
+        }
+        if (roleFiles.isEmpty() == false) {
+            logToProcessStdout("Setting up roles.yml");
+
+            Path dst = configFile.getParent().resolve("roles.yml");
+            roleFiles.forEach(from -> {
+                if (Files.exists(from.toPath()) == false) {
+                    throw new TestClustersException(
+                        "Can't create roles.yml config file from " + from + " for " + this + " as it does not exist"
+                    );
+                }
+                try {
+                    final Path source = from.toPath();
+                    final String content = Files.readString(source, StandardCharsets.UTF_8);
+                    Files.writeString(dst, content + System.lineSeparator(), StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+                    LOGGER.info("Appended roles file {} to {}", source, dst);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Can't append roles file " + from + " to " + dst, e);
+                }
+            });
+        }
     }
 
     private void installModules() {
@@ -700,11 +746,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
-    public void extraJarFile(File from) {
-        if (from.toString().endsWith(".jar") == false) {
-            throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
-        }
-        extraJarFiles.add(from);
+    public void extraJarFiles(FileCollection from) {
+        extraJarConfigurations.add(from);
     }
 
     @Override
@@ -719,8 +762,28 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Map<String, String> cred = new LinkedHashMap<>();
         cred.put("useradd", userSpec.getOrDefault("username", "test_user"));
         cred.put("-p", userSpec.getOrDefault("password", "x-pack-test-password"));
-        cred.put("-r", userSpec.getOrDefault("role", "superuser"));
+        cred.put("-r", userSpec.getOrDefault("role", "_es_test_root"));
         credentials.add(cred);
+    }
+
+    private File getBuildPluginFile(String name) {
+        URL resource = getClass().getResource(name);
+        return fileOperations.getResources().getText().fromUri(resource).asFile();
+    }
+
+    @Override
+    public void rolesFile(File rolesYml) {
+        roleFiles.add(rolesYml);
+    }
+
+    @Override
+    public void requiresFeature(String feature, Version from) {
+        featureFlags.add(new FeatureFlag(feature, from, null));
+    }
+
+    @Override
+    public void requiresFeature(String feature, Version from, Version until) {
+        featureFlags.add(new FeatureFlag(feature, from, until));
     }
 
     private void runElasticsearchBinScriptWithInput(String input, String tool, CharSequence... args) {
@@ -770,19 +833,30 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";
         if (systemProperties.isEmpty() == false) {
-            systemPropertiesString = " "
-                + systemProperties.entrySet()
-                    .stream()
-                    .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
-                    // ES_PATH_CONF is also set as an environment variable and for a reference to ${ES_PATH_CONF}
-                    // to work ES_JAVA_OPTS, we need to make sure that ES_PATH_CONF before ES_JAVA_OPTS. Instead,
-                    // we replace the reference with the actual value in other environment variables
-                    .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
-                    .collect(Collectors.joining(" "));
+            systemPropertiesString = " " + systemProperties.entrySet().stream().peek(entry -> {
+                if (entry.getKey().contains("feature_flag")) {
+                    throw new TestClustersException("Invalid system property `" + entry.getKey() + "`. Use `requiresFeature` instead.");
+                }
+            })
+                .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
+                // ES_PATH_CONF is also set as an environment variable and for a reference to ${ES_PATH_CONF}
+                // to work ES_JAVA_OPTS, we need to make sure that ES_PATH_CONF before ES_JAVA_OPTS. Instead,
+                // we replace the reference with the actual value in other environment variables
+                .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
+                .collect(Collectors.joining(" "));
         }
         if (systemProperties.containsKey("io.netty.leakDetection.level") == false) {
             systemPropertiesString = systemPropertiesString + " -Dio.netty.leakDetection.level=paranoid";
         }
+
+        String featureFlagsString = "";
+        if (featureFlags.isEmpty() == false && isReleasedVersion.apply(getVersion())) {
+            featureFlagsString = featureFlags.stream()
+                .filter(f -> getVersion().onOrAfter(f.getFrom()) && (f.getUntil() == null || getVersion().before(f.getUntil())))
+                .map(f -> "-D" + f.getFeature() + "=true")
+                .collect(Collectors.joining(" "));
+        }
+
         String jvmArgsString = "";
         if (jvmArgs.isEmpty() == false) {
             jvmArgsString = " " + jvmArgs.stream().peek(argument -> {
@@ -796,8 +870,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         String heapSize = System.getProperty("tests.heap.size", "512m");
         defaultEnv.put(
             "ES_JAVA_OPTS",
-            "-Xms" + heapSize + " -Xmx" + heapSize + " -ea -esa " + systemPropertiesString + " " + jvmArgsString + " " +
-            // Support passing in additional JVM arguments
+            "-Xms"
+                + heapSize
+                + " -Xmx"
+                + heapSize
+                + " -ea -esa "
+                + systemPropertiesString
+                + " "
+                + featureFlagsString
+                + " "
+                + jvmArgsString
+                + " "
+                +
+                // Support passing in additional JVM arguments
                 System.getProperty("tests.jvm.argline", "")
         );
         defaultEnv.put("ES_TMPDIR", tmpDir.toString());
@@ -1169,9 +1254,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                         throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
                     }
                     syncMethod.accept(destination, source);
-
                 }
             });
+        } catch (UncheckedIOException e) {
+            if (e.getCause()instanceof NoSuchFileException cause) {
+                // Ignore these files that are sometimes left behind by the JVM
+                if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
+                    throw new UncheckedIOException(cause);
+                }
+            } else {
+                throw e;
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Can't walk source " + sourceRoot, e);
         }
@@ -1362,6 +1455,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return files;
     }
 
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public List<File> getRoleFiles() {
+        return roleFiles;
+    }
+
     @Nested
     public List<?> getKeystoreSettings() {
         return keystoreSettings.getNormalizedCollection();
@@ -1400,6 +1499,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Nested
     public List<?> getExtraConfigFiles() {
         return extraConfigFiles.getNormalizedCollection();
+    }
+
+    @Nested
+    public List<FeatureFlag> getFeatureFlags() {
+        return featureFlags;
     }
 
     @Override
@@ -1532,6 +1636,34 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         @Input
         public CharSequence[] getArgs() {
             return args;
+        }
+    }
+
+    private static class FeatureFlag {
+        private final String feature;
+        private final Version from;
+        private final Version until;
+
+        public FeatureFlag(String feature, Version from, Version until) {
+            this.feature = feature;
+            this.from = from;
+            this.until = until;
+        }
+
+        @Input
+        public String getFeature() {
+            return feature;
+        }
+
+        @Input
+        public Version getFrom() {
+            return from;
+        }
+
+        @Input
+        @Optional
+        public Version getUntil() {
+            return until;
         }
     }
 

@@ -7,13 +7,14 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.Map;
 
 public interface InferenceResults extends NamedWriteable, ToXContentFragment {
+    String PREDICTION_PROBABILITY = "prediction_probability";
     String MODEL_ID_RESULTS_FIELD = "model_id";
 
     static void writeResult(InferenceResults results, IngestDocument ingestDocument, String resultField, String modelId) {
@@ -28,6 +29,8 @@ public interface InferenceResults extends NamedWriteable, ToXContentFragment {
             ingestDocument.setFieldValue(resultField, resultMap);
         }
     }
+
+    String getResultsField();
 
     Map<String, Object> asMap();
 

@@ -81,7 +81,7 @@ public final class Request {
         }
     }
 
-    public void addParameters(Map<String, String> paramSource){
+    public void addParameters(Map<String, String> paramSource) {
         paramSource.forEach(this::addParameter);
     }
 
@@ -109,8 +109,8 @@ public final class Request {
      * If you need a different content type then use
      * {@link #setEntity(HttpEntity)}.
      */
-    public void setJsonEntity(String entity) {
-        setEntity(entity == null ? null : new NStringEntity(entity, ContentType.APPLICATION_JSON));
+    public void setJsonEntity(String body) {
+        setEntity(body == null ? null : new NStringEntity(body, ContentType.APPLICATION_JSON));
     }
 
     /**
@@ -174,10 +174,10 @@ public final class Request {
 
         Request other = (Request) obj;
         return method.equals(other.method)
-                && endpoint.equals(other.endpoint)
-                && parameters.equals(other.parameters)
-                && Objects.equals(entity, other.entity)
-                && options.equals(other.options);
+            && endpoint.equals(other.endpoint)
+            && parameters.equals(other.parameters)
+            && Objects.equals(entity, other.entity)
+            && options.equals(other.options);
     }
 
     @Override

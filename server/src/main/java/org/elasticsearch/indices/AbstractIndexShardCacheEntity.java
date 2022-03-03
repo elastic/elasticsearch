@@ -40,7 +40,10 @@ abstract class AbstractIndexShardCacheEntity implements IndicesRequestCache.Cach
 
     @Override
     public final void onRemoval(RemovalNotification<IndicesRequestCache.Key, BytesReference> notification) {
-        stats().onRemoval(notification.getKey(), notification.getValue(),
-                notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED);
+        stats().onRemoval(
+            notification.getKey(),
+            notification.getValue(),
+            notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED
+        );
     }
 }

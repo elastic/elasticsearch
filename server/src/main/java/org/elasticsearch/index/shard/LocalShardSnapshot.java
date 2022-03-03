@@ -95,9 +95,9 @@ final class LocalShardSnapshot implements Closeable {
 
             @Override
             public Lock obtainLock(String name) throws IOException {
-                    /* we do explicitly a no-lock instance since we hold an index commit from a SnapshotDeletionPolicy so we
-                     * can we certain that nobody messes with the files on disk. We also hold a ref on the store which means
-                     * no external source will delete files either.*/
+                /* we do explicitly a no-lock instance since we hold an index commit from a SnapshotDeletionPolicy so we
+                 * can we certain that nobody messes with the files on disk. We also hold a ref on the store which means
+                 * no external source will delete files either.*/
                 return NoLockFactory.INSTANCE.obtainLock(in, name);
             }
 

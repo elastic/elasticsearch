@@ -6,21 +6,21 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
@@ -71,13 +71,15 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
      * ie multiple calls with the same parameters within the same test must return
      * identical objects.
      */
-    protected abstract T createMonitoringDoc(String cluster,
-                                             long timestamp,
-                                             long interval,
-                                             @Nullable MonitoringDoc.Node node,
-                                             MonitoredSystem system,
-                                             String type,
-                                             @Nullable String id);
+    protected abstract T createMonitoringDoc(
+        String cluster,
+        long timestamp,
+        long interval,
+        @Nullable MonitoringDoc.Node node,
+        MonitoredSystem system,
+        String type,
+        @Nullable String id
+    );
 
     /**
      * Assert that two {@link MonitoringDoc} are equal. By default, it
@@ -136,8 +138,10 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
         final T document = createMonitoringDoc(cluster, timestamp, interval, node, system, type, id);
 
         final BytesReference bytes = XContentHelper.toXContent(document, xContentType, false);
-        try (XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes.streamInput())) {
+        try (
+            XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes.streamInput())
+        ) {
             final Map<String, ?> map = parser.map();
 
             assertThat(map.get("cluster_uuid"), equalTo(cluster));
@@ -167,15 +171,15 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
     }
 
     public void testMonitoringNodeConstructor() {
-        final String id = randomAlphaOfLength(5);
+        id = randomAlphaOfLength(5);
         final String name = randomAlphaOfLengthBetween(3, 10);
         final TransportAddress fakeTransportAddress = buildNewFakeTransportAddress();
         final String host = fakeTransportAddress.address().getHostString();
         final String transportAddress = fakeTransportAddress.toString();
         final String ip = fakeTransportAddress.getAddress();
-        final long timestamp = randomNonNegativeLong();
+        timestamp = randomNonNegativeLong();
 
-        final MonitoringDoc.Node node = new MonitoringDoc.Node(id, host, transportAddress, ip, name, timestamp);
+        node = new MonitoringDoc.Node(id, host, transportAddress, ip, name, timestamp);
 
         assertThat(node.getUUID(), equalTo(id));
         assertThat(node.getHost(), equalTo(host));
@@ -186,30 +190,37 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
     }
 
     public void testMonitoringNodeToXContent() throws IOException {
-        final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
+        node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
         final BytesReference xContent = XContentHelper.toXContent(node, XContentType.JSON, randomBoolean());
-        assertEquals("{"
-                    + "\"uuid\":\"_uuid\","
-                    + "\"host\":\"_host\","
-                    + "\"transport_address\":\"_addr\","
-                    + "\"ip\":\"_ip\","
-                    + "\"name\":\"_name\","
-                    + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                + "}" , xContent.utf8ToString());
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "uuid": "_uuid",
+              "host": "_host",
+              "transport_address": "_addr",
+              "ip": "_ip",
+              "name": "_name",
+              "timestamp": "2017-08-31T08:46:30.855Z"
+            }"""), xContent.utf8ToString());
     }
 
     public void testMonitoringNodeEqualsAndHashcode() {
-        final EqualsHashCodeTestUtils.CopyFunction<MonitoringDoc.Node> copy = node -> new MonitoringDoc.Node(node.getUUID(), node.getHost(),
-                node.getTransportAddress(), node.getIp(), node.getName(), node.getTimestamp());
+        final EqualsHashCodeTestUtils.CopyFunction<MonitoringDoc.Node> copy = _node -> new MonitoringDoc.Node(
+            _node.getUUID(),
+            _node.getHost(),
+            _node.getTransportAddress(),
+            _node.getIp(),
+            _node.getName(),
+            _node.getTimestamp()
+        );
 
         final List<EqualsHashCodeTestUtils.MutateFunction<MonitoringDoc.Node>> mutations = new ArrayList<>();
         mutations.add(n -> {
-            String id;
+            String randomId;
             do {
-                id = UUIDs.randomBase64UUID();
-            } while (id.equals(n.getUUID()));
-            return new MonitoringDoc.Node(id, n.getHost(), n.getTransportAddress(), n.getIp(), n.getName(), n.getTimestamp());
+                randomId = UUIDs.randomBase64UUID();
+            } while (randomId.equals(n.getUUID()));
+            return new MonitoringDoc.Node(randomId, n.getHost(), n.getTransportAddress(), n.getIp(), n.getName(), n.getTimestamp());
         });
         mutations.add(n -> {
             String host;
@@ -240,11 +251,11 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
             return new MonitoringDoc.Node(n.getUUID(), n.getHost(), n.getTransportAddress(), n.getIp(), name, n.getTimestamp());
         });
         mutations.add(n -> {
-            long timestamp;
+            long randomTimestamp;
             do {
-                timestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
-            } while (timestamp == n.getTimestamp());
-            return new MonitoringDoc.Node(n.getUUID(), n.getHost(), n.getTransportAddress(), n.getIp(), n.getName(), timestamp);
+                randomTimestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
+            } while (randomTimestamp == n.getTimestamp());
+            return new MonitoringDoc.Node(n.getUUID(), n.getHost(), n.getTransportAddress(), n.getIp(), n.getName(), randomTimestamp);
         });
 
         final MonitoringDoc.Node sourceNode = MonitoringTestUtils.randomMonitoringNode(random());

@@ -19,7 +19,7 @@ import java.io.OutputStream;
  */
 public class Streams {
 
-    private static final ThreadLocal<byte[]> buffer = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
+    private static final ThreadLocal<byte[]> LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
 
     private Streams() {
 
@@ -60,7 +60,7 @@ public class Streams {
      * @see #copy(InputStream, OutputStream, byte[], boolean)
      */
     public static long copy(final InputStream in, final OutputStream out, boolean close) throws IOException {
-        return copy(in, out, buffer.get(), close);
+        return copy(in, out, LOCAL_BUFFER.get(), close);
     }
 
     /**
@@ -74,6 +74,6 @@ public class Streams {
      * @see #copy(InputStream, OutputStream, byte[], boolean)
      */
     public static long copy(final InputStream in, final OutputStream out) throws IOException {
-        return copy(in, out, buffer.get(), true);
+        return copy(in, out, LOCAL_BUFFER.get(), true);
     }
 }

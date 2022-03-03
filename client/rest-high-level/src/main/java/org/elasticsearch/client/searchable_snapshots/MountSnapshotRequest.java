@@ -11,8 +11,8 @@ package org.elasticsearch.client.searchable_snapshots;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -140,7 +140,8 @@ public class MountSnapshotRequest implements ToXContentObject, Validatable {
                 builder.field("renamed_index", renamedIndex);
             }
             if (indexSettings != null) {
-                builder.startObject("index_settings"); {
+                builder.startObject("index_settings");
+                {
                     indexSettings.toXContent(builder, params);
                 }
                 builder.endObject();

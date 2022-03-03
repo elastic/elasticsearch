@@ -25,50 +25,93 @@ public class LookupTests extends ESTestCase {
 
     @Before
     public void setup() {
-        painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Collections.singletonList(
-                WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.lookup")
-        ));
+        painlessLookup = PainlessLookupBuilder.buildFromWhitelists(
+            Collections.singletonList(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.lookup"))
+        );
     }
 
-    public static class A { }                                                   // in whitelist
-    public static class B extends A { }                                         // not in whitelist
+    public static class A {}                                                   // in whitelist
+
+    public static class B extends A {}                                         // not in whitelist
+
     public static class C extends B {                                           // in whitelist
-        public String getString0() { return "C/0"; }                                // in whitelist
-    }
-    public static class D extends B {                                           // in whitelist
-        public String getString0() { return "D/0"; }                                // in whitelist
-        public String getString1(int param0) { return "D/1 (" + param0 + ")"; }     // in whitelist
+        public String getString0() {
+            return "C/0";
+        }                                // in whitelist
     }
 
-    public interface Z { }              // in whitelist
-    public interface Y { }              // not in whitelist
-    public interface X extends Y, Z { } // not in whitelist
-    public interface V extends Y, Z { } // in whitelist
+    public static class D extends B {                                           // in whitelist
+        public String getString0() {
+            return "D/0";
+        }                                // in whitelist
+
+        public String getString1(int param0) {
+            return "D/1 (" + param0 + ")";
+        }     // in whitelist
+    }
+
+    public interface Z {}              // in whitelist
+
+    public interface Y {}              // not in whitelist
+
+    public interface X extends Y, Z {} // not in whitelist
+
+    public interface V extends Y, Z {} // in whitelist
+
     public interface U extends X {      // in whitelist
         String getString2(int x, int y);    // in whitelist
+
         String getString1(int param0);      // in whitelist
+
         String getString0();                // not in whitelist
     }
+
     public interface T extends V {      // in whitelist
         String getString1(int param0);      // in whitelist
+
         int getInt0();                      // in whitelist
     }
-    public interface S extends U, X { } // in whitelist
 
-    public static class AA implements X { }                           // in whitelist
+    public interface S extends U, X {} // in whitelist
+
+    public static class AA implements X {}                           // in whitelist
+
     public static class AB extends AA implements S {                  // not in whitelist
-        public String getString2(int x, int y) { return "" + x + y; }     // not in whitelist
-        public String getString1(int param0) { return "" + param0; }      // not in whitelist
-        public String getString0() { return ""; }                         // not in whitelist
+        public String getString2(int x, int y) {
+            return "" + x + y;
+        }     // not in whitelist
+
+        public String getString1(int param0) {
+            return "" + param0;
+        }      // not in whitelist
+
+        public String getString0() {
+            return "";
+        }                         // not in whitelist
     }
+
     public static class AC extends AB implements V {                  // in whitelist
-        public String getString2(int x, int y) { return "" + x + y; }     // in whitelist
+        public String getString2(int x, int y) {
+            return "" + x + y;
+        }     // in whitelist
     }
+
     public static class AD extends AA implements X, S, T {            // in whitelist
-        public String getString2(int x, int y) { return "" + x + y; }     // in whitelist
-        public String getString1(int param0) { return "" + param0; }      // in whitelist
-        public String getString0() { return ""; }                         // not in whitelist
-        public int getInt0() { return 0; }                                // in whitelist
+        public String getString2(int x, int y) {
+            return "" + x + y;
+        }     // in whitelist
+
+        public String getString1(int param0) {
+            return "" + param0;
+        }      // in whitelist
+
+        public String getString0() {
+            return "";
+        }                         // not in whitelist
+
+        public int getInt0() {
+            return 0;
+        }                                // in whitelist
     }
 
     public void testDirectSubClasses() {

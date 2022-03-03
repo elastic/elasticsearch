@@ -19,8 +19,9 @@ dependencies {
   testImplementation project(':modules:reindex')
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
+  extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("${project.projectDir}/src/test/resources/GeoLite2-City.mmdb")
 }
 
 tasks.named("testingConventions").configure {
@@ -29,4 +30,8 @@ tasks.named("testingConventions").configure {
       baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
     }
   }
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
 }

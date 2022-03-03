@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
@@ -27,7 +27,7 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
     private String[] actionMasks;
     private String localNodeId;
 
-    private List<Tuple<Boolean, TaskInfo>> events  = new ArrayList<>();
+    private List<Tuple<Boolean, TaskInfo>> events = new ArrayList<>();
 
     public RecordingTaskManagerListener(String localNodeId, String... actionMasks) {
         this.actionMasks = actionMasks;
@@ -49,8 +49,7 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
     }
 
     @Override
-    public void waitForTaskCompletion(Task task) {
-    }
+    public void waitForTaskCompletion(Task task) {}
 
     public synchronized List<Tuple<Boolean, TaskInfo>> getEvents() {
         return List.copyOf(events);

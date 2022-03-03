@@ -17,18 +17,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -369,8 +370,18 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         );
     }
 
-    public SnapshotInfo(SnapshotsInProgress.Entry entry) {
-        this(
+    public static SnapshotInfo inProgress(SnapshotsInProgress.Entry entry) {
+        int successfulShards = 0;
+        List<SnapshotShardFailure> shardFailures = new ArrayList<>();
+        for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardsByRepoShardId().entrySet()) {
+            if (c.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS) {
+                successfulShards++;
+            } else if (c.getValue().state().failed() && c.getValue().state().completed()) {
+                shardFailures.add(new SnapshotShardFailure(c.getValue().nodeId(), entry.shardId(c.getKey()), c.getValue().reason()));
+            }
+        }
+        int totalShards = entry.shardsByRepoShardId().size();
+        return new SnapshotInfo(
             entry.snapshot(),
             List.copyOf(entry.indices().keySet()),
             entry.dataStreams(),
@@ -379,9 +390,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             Version.CURRENT,
             entry.startTime(),
             0L,
-            0,
-            0,
-            Collections.emptyList(),
+            totalShards,
+            successfulShards,
+            shardFailures,
             entry.includeGlobalState(),
             entry.userMetadata(),
             SnapshotState.IN_PROGRESS,

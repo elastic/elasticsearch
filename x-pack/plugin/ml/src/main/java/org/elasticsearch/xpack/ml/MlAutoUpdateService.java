@@ -27,8 +27,11 @@ public class MlAutoUpdateService implements ClusterStateListener {
 
     public interface UpdateAction {
         boolean isMinNodeVersionSupported(Version minNodeVersion);
+
         boolean isAbleToRun(ClusterState latestState);
+
         String getName();
+
         void runUpdate();
     }
 
@@ -60,9 +63,7 @@ public class MlAutoUpdateService implements ClusterStateListener {
             .filter(action -> action.isAbleToRun(event.state()))
             .filter(action -> currentlyUpdating.add(action.getName()))
             .collect(Collectors.toList());
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
-            () -> toRun.forEach(this::runUpdate)
-        );
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> toRun.forEach(this::runUpdate));
     }
 
     private void runUpdate(UpdateAction action) {

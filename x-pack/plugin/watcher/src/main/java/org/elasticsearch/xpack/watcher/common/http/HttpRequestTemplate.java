@@ -7,17 +7,18 @@
 package org.elasticsearch.xpack.watcher.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
+
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -43,17 +44,30 @@ public class HttpRequestTemplate implements ToXContentObject {
     private final Map<String, TextTemplate> headers;
     private final BasicAuth auth;
     private final TextTemplate body;
-    @Nullable private final TimeValue connectionTimeout;
-    @Nullable private final TimeValue readTimeout;
-    @Nullable private final HttpProxy proxy;
+    @Nullable
+    private final TimeValue connectionTimeout;
+    @Nullable
+    private final TimeValue readTimeout;
+    @Nullable
+    private final HttpProxy proxy;
 
-    public HttpRequestTemplate(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable TextTemplate path,
-                               Map<String, TextTemplate> params, Map<String, TextTemplate> headers, BasicAuth auth,
-                               TextTemplate body, @Nullable TimeValue connectionTimeout, @Nullable TimeValue readTimeout,
-                               @Nullable HttpProxy proxy) {
+    public HttpRequestTemplate(
+        String host,
+        int port,
+        @Nullable Scheme scheme,
+        @Nullable HttpMethod method,
+        @Nullable TextTemplate path,
+        Map<String, TextTemplate> params,
+        Map<String, TextTemplate> headers,
+        BasicAuth auth,
+        TextTemplate body,
+        @Nullable TimeValue connectionTimeout,
+        @Nullable TimeValue readTimeout,
+        @Nullable HttpProxy proxy
+    ) {
         this.host = host;
         this.port = port;
-        this.scheme = scheme != null ? scheme :Scheme.HTTP;
+        this.scheme = scheme != null ? scheme : Scheme.HTTP;
         this.method = method != null ? method : HttpMethod.GET;
         this.path = path;
         this.params = params != null ? params : emptyMap();
@@ -183,20 +197,24 @@ public class HttpRequestTemplate implements ToXContentObject {
             builder.endObject();
         }
         if (auth != null) {
-            builder.startObject(HttpRequest.Field.AUTH.getPreferredName())
-                    .field(BasicAuth.TYPE, auth, params)
-                    .endObject();
+            builder.startObject(HttpRequest.Field.AUTH.getPreferredName()).field(BasicAuth.TYPE, auth, params).endObject();
         }
         if (body != null) {
             builder.field(HttpRequest.Field.BODY.getPreferredName(), body, params);
         }
         if (connectionTimeout != null) {
-            builder.humanReadableField(HttpRequest.Field.CONNECTION_TIMEOUT.getPreferredName(),
-                    HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.getPreferredName(), connectionTimeout);
+            builder.humanReadableField(
+                HttpRequest.Field.CONNECTION_TIMEOUT.getPreferredName(),
+                HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.getPreferredName(),
+                connectionTimeout
+            );
         }
         if (readTimeout != null) {
-            builder.humanReadableField(HttpRequest.Field.READ_TIMEOUT.getPreferredName(),
-                    HttpRequest.Field.READ_TIMEOUT_HUMAN.getPreferredName(), readTimeout);
+            builder.humanReadableField(
+                HttpRequest.Field.READ_TIMEOUT.getPreferredName(),
+                HttpRequest.Field.READ_TIMEOUT_HUMAN.getPreferredName(),
+                readTimeout
+            );
         }
         if (proxy != null) {
             proxy.toXContent(builder, params);
@@ -276,11 +294,15 @@ public class HttpRequestTemplate implements ToXContentObject {
                 } else if (HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.match(currentFieldName, parser.getDeprecationHandler())) {
                     // Users and 2.x specify the timeout this way
                     try {
-                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser,
-                                HttpRequest.Field.CONNECTION_TIMEOUT.toString()));
+                        builder.connectionTimeout(
+                            WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.CONNECTION_TIMEOUT.toString())
+                        );
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
-                                pe, currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse http request template. invalid time value for [{}] field",
+                            pe,
+                            currentFieldName
+                        );
                     }
                 } else if (HttpRequest.Field.READ_TIMEOUT.match(currentFieldName, parser.getDeprecationHandler())) {
                     builder.readTimeout(TimeValue.timeValueMillis(parser.longValue()));
@@ -289,15 +311,20 @@ public class HttpRequestTemplate implements ToXContentObject {
                     try {
                         builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.READ_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
-                                pe, currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse http request template. invalid time value for [{}] field",
+                            pe,
+                            currentFieldName
+                        );
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (HttpRequest.Field.AUTH.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.auth(BasicAuth.parse(parser));
                     } else {
-                        throw new ElasticsearchParseException("could not parse http request template. unexpected object field [{}]",
-                                currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse http request template. unexpected object field [{}]",
+                            currentFieldName
+                        );
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (HttpRequest.Field.SCHEME.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -307,29 +334,40 @@ public class HttpRequestTemplate implements ToXContentObject {
                     } else if (HttpRequest.Field.HOST.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.host = parser.text();
                     } else {
-                        throw new ElasticsearchParseException("could not parse http request template. unexpected string field [{}]",
-                                currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse http request template. unexpected string field [{}]",
+                            currentFieldName
+                        );
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if (HttpRequest.Field.PORT.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.port = parser.intValue();
                     } else {
-                        throw new ElasticsearchParseException("could not parse http request template. unexpected numeric field [{}]",
-                                currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse http request template. unexpected numeric field [{}]",
+                            currentFieldName
+                        );
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse http request template. unexpected token [{}] for field [{}]",
-                            token, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse http request template. unexpected token [{}] for field [{}]",
+                        token,
+                        currentFieldName
+                    );
                 }
             }
 
             if (builder.host == null) {
-                throw new ElasticsearchParseException("could not parse http request template. missing required [{}] string field",
-                        HttpRequest.Field.HOST.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse http request template. missing required [{}] string field",
+                    HttpRequest.Field.HOST.getPreferredName()
+                );
             }
             if (builder.port <= 0) {
-                throw new ElasticsearchParseException("could not parse http request template. wrong port for [{}]",
-                        HttpRequest.Field.PORT.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse http request template. wrong port for [{}]",
+                    HttpRequest.Field.PORT.getPreferredName()
+                );
             }
 
             return builder.build();
@@ -339,8 +377,11 @@ public class HttpRequestTemplate implements ToXContentObject {
             try {
                 return TextTemplate.parse(parser);
             } catch (ElasticsearchParseException pe) {
-                throw new ElasticsearchParseException("could not parse http request template. could not parse value for [{}] field", pe,
-                        field);
+                throw new ElasticsearchParseException(
+                    "could not parse http request template. could not parse value for [{}] field",
+                    pe,
+                    field
+                );
             }
         }
 
@@ -375,8 +416,7 @@ public class HttpRequestTemplate implements ToXContentObject {
         private TimeValue readTimeout;
         private HttpProxy proxy;
 
-        private Builder() {
-        }
+        private Builder() {}
 
         private Builder(String url) {
             fromUrl(url);
@@ -460,8 +500,20 @@ public class HttpRequestTemplate implements ToXContentObject {
         }
 
         public HttpRequestTemplate build() {
-            return new HttpRequestTemplate(host, port, scheme, method, path, Map.copyOf(params),
-                    Map.copyOf(headers), auth, body, connectionTimeout, readTimeout, proxy);
+            return new HttpRequestTemplate(
+                host,
+                port,
+                scheme,
+                method,
+                path,
+                Map.copyOf(params),
+                Map.copyOf(headers),
+                auth,
+                body,
+                connectionTimeout,
+                readTimeout,
+                proxy
+            );
         }
 
         public Builder fromUrl(String supposedUrl) {

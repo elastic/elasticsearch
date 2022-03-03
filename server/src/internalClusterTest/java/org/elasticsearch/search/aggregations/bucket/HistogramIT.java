@@ -43,7 +43,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -53,6 +52,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -450,7 +450,7 @@ public class HistogramIT extends ESIntegTestCase {
                     s += j + 1;
                 }
             }
-            assertThat(sum.getValue(), equalTo((double) s));
+            assertThat(sum.value(), equalTo((double) s));
             assertEquals(propertiesKeys[i], (double) i * interval);
             assertThat(propertiesDocCounts[i], equalTo(valueCounts[i]));
             assertThat(propertiesCounts[i], equalTo((double) s));
@@ -493,8 +493,8 @@ public class HistogramIT extends ESIntegTestCase {
                     s += j + 1;
                 }
             }
-            assertThat(sum.getValue(), equalTo((double) s));
-            assertThat(sum.getValue(), greaterThanOrEqualTo(previousSum));
+            assertThat(sum.value(), equalTo((double) s));
+            assertThat(sum.value(), greaterThanOrEqualTo(previousSum));
             previousSum = s;
         }
     }
@@ -535,8 +535,8 @@ public class HistogramIT extends ESIntegTestCase {
                     s += j + 1;
                 }
             }
-            assertThat(sum.getValue(), equalTo((double) s));
-            assertThat(sum.getValue(), lessThanOrEqualTo(previousSum));
+            assertThat(sum.value(), equalTo((double) s));
+            assertThat(sum.value(), lessThanOrEqualTo(previousSum));
             previousSum = s;
         }
     }
@@ -618,8 +618,8 @@ public class HistogramIT extends ESIntegTestCase {
             assertThat(bucket.getDocCount(), equalTo(filter.getDocCount()));
             Max max = filter.getAggregations().get("max");
             assertThat(max, Matchers.notNullValue());
-            assertThat(max.getValue(), asc ? greaterThanOrEqualTo(prevMax) : lessThanOrEqualTo(prevMax));
-            prevMax = max.getValue();
+            assertThat(max.value(), asc ? greaterThanOrEqualTo(prevMax) : lessThanOrEqualTo(prevMax));
+            prevMax = max.value();
         }
     }
 
@@ -669,8 +669,7 @@ public class HistogramIT extends ESIntegTestCase {
             ElasticsearchException[] rootCauses = e.guessRootCauses();
             if (rootCauses.length == 1) {
                 ElasticsearchException rootCause = rootCauses[0];
-                if (rootCause instanceof AggregationExecutionException) {
-                    AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
+                if (rootCause instanceof AggregationExecutionException aggException) {
                     assertThat(aggException.getMessage(), Matchers.startsWith("Invalid aggregation order path"));
                 } else {
                     throw e;
@@ -1395,7 +1394,7 @@ public class HistogramIT extends ESIntegTestCase {
             assertThat(avg.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("avg_l")));
             Sum sum = bucket.getAggregations().get("sum_d");
             assertThat(sum, notNullValue());
-            assertThat(sum.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("sum_d")));
+            assertThat(sum.value(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("sum_d")));
             i++;
         }
     }

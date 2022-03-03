@@ -99,11 +99,11 @@ public class DataType {
 
         DataType other = (DataType) obj;
         return Objects.equals(typeName, other.typeName)
-                && Objects.equals(esType, other.esType)
-                && size == other.size
-                && isInteger == other.isInteger
-                && isRational == other.isRational
-                && docValues == other.docValues;
+            && Objects.equals(esType, other.esType)
+            && size == other.size
+            && isInteger == other.isInteger
+            && isRational == other.isRational
+            && docValues == other.docValues;
     }
 
     @Override

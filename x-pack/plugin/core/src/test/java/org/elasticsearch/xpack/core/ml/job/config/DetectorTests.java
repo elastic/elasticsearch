@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
 
@@ -70,9 +70,8 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     public void testExtractAnalysisFields() {
         DetectionRule rule = new DetectionRule.Builder(
-                Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5)))
-                .setActions(RuleAction.SKIP_RESULT)
-                .build();
+            Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5))
+        ).setActions(RuleAction.SKIP_RESULT).build();
         Detector.Builder builder = createDetector();
         builder.setRules(Collections.singletonList(rule));
         Detector detector = builder.build();
@@ -101,9 +100,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     public void testExtractReferencedLists() {
         Detector.Builder builder = createDetector();
-        builder.setRules(Arrays.asList(
+        builder.setRules(
+            Arrays.asList(
                 new DetectionRule.Builder(RuleScope.builder().exclude("by_field", "list1")).build(),
-                new DetectionRule.Builder(RuleScope.builder().exclude("by_field", "list2")).build()));
+                new DetectionRule.Builder(RuleScope.builder().exclude("by_field", "list2")).build()
+            )
+        );
 
         Detector detector = builder.build();
         assertEquals(new HashSet<>(Arrays.asList("list1", "list2")), detector.extractReferencedFilters());
@@ -119,10 +121,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             detector.setPartitionFieldName(RecordWriter.CONTROL_FIELD_NAME);
         }
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class , detector::build);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, detector::build);
 
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME, RecordWriter.CONTROL_FIELD_NAME,
-                RecordWriter.CONTROL_FIELD_NAME), e.getMessage());
+        assertEquals(
+            Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME, RecordWriter.CONTROL_FIELD_NAME, RecordWriter.CONTROL_FIELD_NAME),
+            e.getMessage()
+        );
     }
 
     private Detector.Builder createDetector() {
@@ -131,9 +135,9 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         detector.setOverFieldName("over_field");
         detector.setPartitionFieldName("partition");
         detector.setUseNull(true);
-        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().exclude("partition", "partition_filter"))
-                .setActions(RuleAction.SKIP_RESULT)
-                .build();
+        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().exclude("partition", "partition_filter")).setActions(
+            RuleAction.SKIP_RESULT
+        ).build();
         detector.setRules(Collections.singletonList(rule));
         return detector;
     }
@@ -188,7 +192,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     public void testVerifyFieldNames_givenInvalidChars() {
         Collection<Object[]> testCaseArguments = getCharactersAndValidity();
-        for (Object [] args : testCaseArguments) {
+        for (Object[] args : testCaseArguments) {
             String character = (String) args[0];
             boolean valid = (boolean) args[1];
             Detector.Builder detector = createDetectorWithValidFieldNames();
@@ -204,7 +208,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     public void testVerifyFunctionForPreSummariedInput() {
         Collection<Object[]> testCaseArguments = getCharactersAndValidity();
-        for (Object [] args : testCaseArguments) {
+        for (Object[] args : testCaseArguments) {
             String character = (String) args[0];
             boolean valid = (boolean) args[1];
             Detector.Builder detector = createDetectorWithValidFieldNames();
@@ -220,28 +224,28 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     private static void verifyFieldName(Detector.Builder detector, String character, boolean valid) {
         Detector.Builder updated = createDetectorWithSpecificFieldName(detector.build().getFieldName() + character);
         if (valid == false) {
-            expectThrows(ElasticsearchException.class , updated::build);
+            expectThrows(ElasticsearchException.class, updated::build);
         }
     }
 
     private static void verifyByFieldName(Detector.Builder detector, String character, boolean valid) {
         detector.setByFieldName(detector.build().getByFieldName() + character);
         if (valid == false) {
-            expectThrows(ElasticsearchException.class , detector::build);
+            expectThrows(ElasticsearchException.class, detector::build);
         }
     }
 
     private static void verifyOverFieldName(Detector.Builder detector, String character, boolean valid) {
         detector.setOverFieldName(detector.build().getOverFieldName() + character);
         if (valid == false) {
-            expectThrows(ElasticsearchException.class , detector::build);
+            expectThrows(ElasticsearchException.class, detector::build);
         }
     }
 
     private static void verifyPartitionFieldName(Detector.Builder detector, String character, boolean valid) {
         detector.setPartitionFieldName(detector.build().getPartitionFieldName() + character);
         if (valid == false) {
-            expectThrows(ElasticsearchException.class , detector::build);
+            expectThrows(ElasticsearchException.class, detector::build);
         }
     }
 
@@ -262,21 +266,22 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     private static Collection<Object[]> getCharactersAndValidity() {
-        return Arrays.asList(new Object[][]{
+        return Arrays.asList(
+            new Object[][] {
                 // char, isValid?
-                {"a", true},
-                {"[", true},
-                {"]", true},
-                {"(", true},
-                {")", true},
-                {"=", true},
-                {"-", true},
-                {" ", true},
-                {"\"", false},
-                {"\\", false},
-                {"\t", false},
-                {"\n", false},
-        });
+                { "a", true },
+                { "[", true },
+                { "]", true },
+                { "(", true },
+                { ")", true },
+                { "=", true },
+                { "-", true },
+                { " ", true },
+                { "\"", false },
+                { "\\", false },
+                { "\t", false },
+                { "\n", false }, }
+        );
     }
 
     public void testVerify_GivenFunctionOnly() {
@@ -294,20 +299,21 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         difference.remove(DetectorFunction.TIME_OF_DAY);
         difference.remove(DetectorFunction.TIME_OF_WEEK);
         for (DetectorFunction f : difference) {
-            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                    () -> new Detector.Builder(f, null).build());
-            assertThat(e.getMessage(), equalTo("Unless a count or temporal function is used one of field_name," +
-                    " by_field_name or over_field_name must be set"));
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new Detector.Builder(f, null).build());
+            assertThat(
+                e.getMessage(),
+                equalTo("Unless a count or temporal function is used one of field_name," + " by_field_name or over_field_name must be set")
+            );
         }
     }
 
     public void testVerify_GivenFunctionsNotSupportingOverField() {
         EnumSet<DetectorFunction> noOverFieldFunctions = EnumSet.of(
-                DetectorFunction.NON_ZERO_COUNT,
-                DetectorFunction.LOW_NON_ZERO_COUNT,
-                DetectorFunction.HIGH_NON_ZERO_COUNT
+            DetectorFunction.NON_ZERO_COUNT,
+            DetectorFunction.LOW_NON_ZERO_COUNT,
+            DetectorFunction.HIGH_NON_ZERO_COUNT
         );
-        for (DetectorFunction f: noOverFieldFunctions) {
+        for (DetectorFunction f : noOverFieldFunctions) {
             Detector.Builder builder = new Detector.Builder(f, null);
             builder.setOverFieldName("over_field");
             ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
@@ -322,7 +328,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         difference.remove(DetectorFunction.HIGH_COUNT);
         difference.remove(DetectorFunction.TIME_OF_DAY);
         difference.remove(DetectorFunction.TIME_OF_WEEK);
-        for (DetectorFunction f: difference) {
+        for (DetectorFunction f : difference) {
             Detector.Builder builder = new Detector.Builder(f, null);
             builder.setOverFieldName("over_field");
             expectThrows(ElasticsearchStatusException.class, () -> builder.build());
@@ -331,11 +337,11 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     public void testVerify_GivenFunctionsCanHaveJustOverField() {
         EnumSet<DetectorFunction> noOverFieldFunctions = EnumSet.of(
-                DetectorFunction.COUNT,
-                DetectorFunction.LOW_COUNT,
-                DetectorFunction.HIGH_COUNT
+            DetectorFunction.COUNT,
+            DetectorFunction.LOW_COUNT,
+            DetectorFunction.HIGH_COUNT
         );
-        for (DetectorFunction f: noOverFieldFunctions) {
+        for (DetectorFunction f : noOverFieldFunctions) {
             Detector.Builder builder = new Detector.Builder(f, null);
             builder.setOverFieldName("over_field");
             builder.build();
@@ -435,9 +441,15 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     public void testVerify_GivenFunctionsThatCanHaveByField() {
-        for (DetectorFunction f : EnumSet.of(DetectorFunction.COUNT, DetectorFunction.HIGH_COUNT, DetectorFunction.LOW_COUNT,
-                DetectorFunction.RARE, DetectorFunction.NON_ZERO_COUNT, DetectorFunction.LOW_NON_ZERO_COUNT,
-                DetectorFunction.HIGH_NON_ZERO_COUNT)) {
+        for (DetectorFunction f : EnumSet.of(
+            DetectorFunction.COUNT,
+            DetectorFunction.HIGH_COUNT,
+            DetectorFunction.LOW_COUNT,
+            DetectorFunction.RARE,
+            DetectorFunction.NON_ZERO_COUNT,
+            DetectorFunction.LOW_NON_ZERO_COUNT,
+            DetectorFunction.HIGH_NON_ZERO_COUNT
+        )) {
             Detector.Builder builder = new Detector.Builder(f, null);
             builder.setByFieldName("b");
             builder.build();
@@ -450,11 +462,9 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         detector.setOverFieldName("my_over");
         detector.setByFieldName("my_by");
 
-        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder()
-                .exclude("my_partition", "my_filter_id")
-                .exclude("my_over", "my_filter_id")
-                .exclude("my_by", "my_filter_id"))
-                .build();
+        DetectionRule rule = new DetectionRule.Builder(
+            RuleScope.builder().exclude("my_partition", "my_filter_id").exclude("my_over", "my_filter_id").exclude("my_by", "my_filter_id")
+        ).build();
         detector.setRules(Collections.singletonList(rule));
 
         detector.build();
@@ -537,8 +547,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     public void testVerify_GivenRulesAndFunctionIsLatLong() {
         Detector.Builder detector = new Detector.Builder("lat_long", "geo");
-        detector.setRules(Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
-                new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 42.0))).build()));
+        detector.setRules(
+            Collections.singletonList(
+                new DetectionRule.Builder(Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 42.0)))
+                    .build()
+            )
+        );
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
@@ -547,8 +561,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     public void testVerify_GivenRulesAndFunctionIsMetric() {
         Detector.Builder detector = new Detector.Builder("metric", "some_metric");
-        detector.setRules(Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
-                new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.GT, 42.0))).build()));
+        detector.setRules(
+            Collections.singletonList(
+                new DetectionRule.Builder(Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.TYPICAL, Operator.GT, 42.0)))
+                    .build()
+            )
+        );
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
@@ -558,8 +576,13 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     public void testVerify_GivenRulesAndFunctionIsRare() {
         Detector.Builder detector = new Detector.Builder("rare", null);
         detector.setByFieldName("some_field");
-        detector.setRules(Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
-                new RuleCondition(RuleCondition.AppliesTo.DIFF_FROM_TYPICAL, Operator.GT, 42.0))).build()));
+        detector.setRules(
+            Collections.singletonList(
+                new DetectionRule.Builder(
+                    Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.DIFF_FROM_TYPICAL, Operator.GT, 42.0))
+                ).build()
+            )
+        );
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
@@ -570,8 +593,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         Detector.Builder detector = new Detector.Builder("freq_rare", null);
         detector.setByFieldName("some_field");
         detector.setOverFieldName("some_field2");
-        detector.setRules(Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
-                new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 42.0))).build()));
+        detector.setRules(
+            Collections.singletonList(
+                new DetectionRule.Builder(Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 42.0)))
+                    .build()
+            )
+        );
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
@@ -580,8 +607,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     public void testVerify_GivenTimeConditionRuleAndFunctionIsLatLong() {
         Detector.Builder detector = new Detector.Builder("lat_long", "geo");
-        detector.setRules(Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
-                new RuleCondition(RuleCondition.AppliesTo.TIME, Operator.GT, 42.0))).build()));
+        detector.setRules(
+            Collections.singletonList(
+                new DetectionRule.Builder(Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.TIME, Operator.GT, 42.0)))
+                    .build()
+            )
+        );
         detector.build();
     }
 
@@ -596,20 +627,19 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_FIELD,
-                "my_metric", "[my_by, my_over, my_partition]"), e.getMessage());
+        assertEquals(
+            Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_SCOPE_HAS_INVALID_FIELD, "my_metric", "[my_by, my_over, my_partition]"),
+            e.getMessage()
+        );
     }
 
     public void testVerify_GivenValidRule() {
         Detector.Builder detector = new Detector.Builder("mean", "metricVale");
         detector.setByFieldName("metricName");
         detector.setPartitionFieldName("instance");
-        DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(RuleConditionTests.createRandom()))
-                .setScope(RuleScope.builder()
-                        .include("metricName", "f1")
-                        .exclude("instance", "f2")
-                        .build())
-                .build();
+        DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(RuleConditionTests.createRandom())).setScope(
+            RuleScope.builder().include("metricName", "f1").exclude("instance", "f2").build()
+        ).build();
         detector.setRules(Collections.singletonList(rule));
         detector.build();
     }

@@ -12,9 +12,6 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -23,6 +20,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,6 +43,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
+            MissingOrder missingOrder,
             SortOrder order
         );
     }
@@ -68,7 +69,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
         builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
-            (valuesSourceConfig, interval, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, interval, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
@@ -79,6 +80,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
                     valuesSourceConfig.format(),
                     order,
                     missingBucket,
+                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -93,6 +95,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
                             numericValuesSource::doubleValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
@@ -169,6 +172,6 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     @Override
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
         return registry.getAggregator(REGISTRY_KEY, config)
-            .apply(config, interval, name, script() != null, format(), missingBucket(), order());
+            .apply(config, interval, name, script() != null, format(), missingBucket(), missingOrder(), order());
     }
 }

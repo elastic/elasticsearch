@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.notifications;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -155,7 +155,6 @@ public class MockTransformAuditor extends TransformAuditor {
             assertThat("expected not to see " + expectedName + " but did", saw, equalTo(false));
         }
     }
-
 
     private void audit(Level level, String resourceId, String message) {
         for (AuditExpectation expectation : expectations) {

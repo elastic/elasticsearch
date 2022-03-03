@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.NamedXContentRegistry.EMPTY;
+import static org.elasticsearch.xcontent.NamedXContentRegistry.EMPTY;
 
 /**
  * {@link FilteredMonitoringDoc} are a kind of {@link MonitoringDoc} whose XContent
@@ -35,14 +35,16 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
 
     private final Set<String> filters;
 
-    public FilteredMonitoringDoc(final String cluster,
-                                 final long timestamp,
-                                 final long intervalMillis,
-                                 @Nullable final Node node,
-                                 final MonitoredSystem system,
-                                 final String type,
-                                 @Nullable final String id,
-                                 final Set<String> xContentFilters) {
+    public FilteredMonitoringDoc(
+        final String cluster,
+        final long timestamp,
+        final long intervalMillis,
+        @Nullable final Node node,
+        final MonitoredSystem system,
+        final String type,
+        @Nullable final String id,
+        final Set<String> xContentFilters
+    ) {
         super(cluster, timestamp, intervalMillis, node, system, type, id);
         if (xContentFilters.isEmpty()) {
             throw new IllegalArgumentException("xContentFilters must not be empty");
@@ -62,8 +64,10 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
             try (XContentBuilder filteredBuilder = new XContentBuilder(builder.contentType(), out, filters)) {
                 super.toXContent(filteredBuilder, params);
             }
-            try (InputStream stream = out.bytes().streamInput();
-                 XContentParser parser = xContent.createParser(EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            try (
+                InputStream stream = out.bytes().streamInput();
+                XContentParser parser = xContent.createParser(EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+            ) {
                 return builder.copyCurrentStructure(parser);
             }
         }

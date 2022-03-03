@@ -14,8 +14,11 @@ import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
 import java.io.IOException;
 import java.util.function.BiFunction;
 
-public class InsensitiveBinaryComparisonProcessor extends
-    FunctionalEnumBinaryProcessor<Object, Object, Boolean, InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation> {
+public class InsensitiveBinaryComparisonProcessor extends FunctionalEnumBinaryProcessor<
+    Object,
+    Object,
+    Boolean,
+    InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation> {
 
     public enum InsensitiveBinaryComparisonOperation implements PredicateBiFunction<Object, Object, Boolean> {
 

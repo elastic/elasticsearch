@@ -28,10 +28,14 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private final SearchPhaseController searchPhaseController;
 
     @Inject
-    public TransportSearchScrollAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters,
-                                       SearchTransportService searchTransportService, SearchPhaseController searchPhaseController) {
-        super(SearchScrollAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
+    public TransportSearchScrollAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        SearchTransportService searchTransportService,
+        SearchPhaseController searchPhaseController
+    ) {
+        super(SearchScrollAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;
@@ -41,19 +45,30 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
-            Runnable action;
-            switch (scrollId.getType()) {
-                case QUERY_THEN_FETCH_TYPE:
-                    action = new SearchScrollQueryThenFetchAsyncAction(logger, clusterService, searchTransportService,
-                        searchPhaseController, request, (SearchTask)task, scrollId, listener);
-                    break;
-                case QUERY_AND_FETCH_TYPE: // TODO can we get rid of this?
-                    action = new SearchScrollQueryAndFetchAsyncAction(logger, clusterService, searchTransportService,
-                        searchPhaseController, request, (SearchTask)task, scrollId, listener);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
-            }
+            Runnable action = switch (scrollId.getType()) {
+                case QUERY_THEN_FETCH_TYPE -> new SearchScrollQueryThenFetchAsyncAction(
+                    logger,
+                    clusterService,
+                    searchTransportService,
+                    searchPhaseController,
+                    request,
+                    (SearchTask) task,
+                    scrollId,
+                    listener
+                );
+                case QUERY_AND_FETCH_TYPE -> // TODO can we get rid of this?
+                    new SearchScrollQueryAndFetchAsyncAction(
+                        logger,
+                        clusterService,
+                        searchTransportService,
+                        searchPhaseController,
+                        request,
+                        (SearchTask) task,
+                        scrollId,
+                        listener
+                    );
+                default -> throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
+            };
             action.run();
         } catch (Exception e) {
             listener.onFailure(e);

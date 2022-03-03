@@ -5,90 +5,80 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.Field;
-import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
-
-import java.io.IOException;
 
 public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
-    private final BinaryDocValues in;
-    private final Version indexVersion;
+    public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a vector field!";
+
     private final int dims;
-    private final float[] vector;
-    private BytesRef value;
+    protected final DenseVectorSupplier dvSupplier;
 
-
-    DenseVectorScriptDocValues(BinaryDocValues in, Version indexVersion, int dims) {
-        this.in = in;
-        this.indexVersion = indexVersion;
+    public DenseVectorScriptDocValues(DenseVectorSupplier supplier, int dims) {
+        super(supplier);
+        this.dvSupplier = supplier;
         this.dims = dims;
-        this.vector = new float[dims];
     }
 
-    @Override
-    public void setNextDocId(int docId) throws IOException {
-        if (in.advanceExact(docId)) {
-            value = in.binaryValue();
-        } else {
-            value = null;
-        }
-    }
-
-    // package private access only for {@link ScoreScriptUtils}
-    BytesRef getEncodedValue() {
-        return value;
-    }
-
-    // package private access only for {@link ScoreScriptUtils}
-    int dims() {
+    public int dims() {
         return dims;
     }
 
-    @Override
-    public BytesRef get(int index) {
-        throw new UnsupportedOperationException("accessing a vector field's value through 'get' or 'value' is not supported!" +
-            "Use 'vectorValue' or 'magnitude' instead!'");
+    private DenseVector getCheckedVector() {
+        DenseVector vector = dvSupplier.getInternal();
+        if (vector == null) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+        return vector;
     }
 
     /**
      * Get dense vector's value as an array of floats
      */
     public float[] getVectorValue() {
-        VectorEncoderDecoder.decodeDenseVector(value, vector);
-        return vector;
+        return getCheckedVector().getVector();
     }
 
     /**
      * Get dense vector's magnitude
      */
     public float getMagnitude() {
-        return VectorEncoderDecoder.getMagnitude(indexVersion, value);
+        return getCheckedVector().getMagnitude();
+    }
+
+    public double dotProduct(float[] queryVector) {
+        return getCheckedVector().dotProduct(queryVector);
+    }
+
+    public double l1Norm(float[] queryVector) {
+        return getCheckedVector().l1Norm(queryVector);
+    }
+
+    public double l2Norm(float[] queryVector) {
+        return getCheckedVector().l2Norm(queryVector);
+    }
+
+    @Override
+    public BytesRef get(int index) {
+        throw new UnsupportedOperationException(
+            "accessing a vector field's value through 'get' or 'value' is not supported, use 'vectorValue' or 'magnitude' instead."
+        );
     }
 
     @Override
     public int size() {
-        if (value == null) {
-            return 0;
-        } else {
-            return 1;
+        return dvSupplier.getInternal() == null ? 0 : 1;
+    }
+
+    public interface DenseVectorSupplier extends Supplier<BytesRef> {
+        @Override
+        default BytesRef getInternal(int index) {
+            throw new UnsupportedOperationException();
         }
-    }
 
-    @Override
-    public BytesRef getNonPrimitiveValue() {
-        return value;
-    }
-
-    @Override
-    public Field<BytesRef> toField(String fieldName) {
-        throw new IllegalStateException("not implemented");
+        DenseVector getInternal();
     }
 }

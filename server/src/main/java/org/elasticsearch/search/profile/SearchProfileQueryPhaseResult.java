@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Profile results from a shard for the search phase.
@@ -62,5 +63,19 @@ public class SearchProfileQueryPhaseResult implements Writeable {
 
     public AggregationProfileShardResult getAggregationProfileResults() {
         return aggProfileShardResult;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        SearchProfileQueryPhaseResult other = (SearchProfileQueryPhaseResult) obj;
+        return queryProfileResults.equals(other.queryProfileResults) && aggProfileShardResult.equals(other.aggProfileShardResult);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(queryProfileResults, aggProfileShardResult);
     }
 }

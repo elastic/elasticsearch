@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
@@ -35,35 +35,36 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
     protected ShardFollowNodeTaskStatus createTestInstance() {
         // if you change this constructor, reflect the changes in the hand-written assertions below
         return new ShardFollowNodeTaskStatus(
-                randomAlphaOfLength(4),
-                randomAlphaOfLength(4),
-                randomAlphaOfLength(4),
-                randomInt(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomIntBetween(0, Integer.MAX_VALUE),
-                randomIntBetween(0, Integer.MAX_VALUE),
-                randomIntBetween(0, Integer.MAX_VALUE),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomReadExceptions(),
-                randomNonNegativeLong(),
-                randomBoolean() ? new ElasticsearchException("fatal error") : null);
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
+            randomInt(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomIntBetween(0, Integer.MAX_VALUE),
+            randomIntBetween(0, Integer.MAX_VALUE),
+            randomIntBetween(0, Integer.MAX_VALUE),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomReadExceptions(),
+            randomNonNegativeLong(),
+            randomBoolean() ? new ElasticsearchException("fatal error") : null
+        );
     }
 
     @Override
@@ -102,8 +103,9 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
             assertThat(entry.getValue().v2().getMessage(), containsString(expected.getMessage()));
             assertNotNull(entry.getValue().v2().getCause());
             assertThat(
-                    entry.getValue().v2().getCause(),
-                    anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class)));
+                entry.getValue().v2().getCause(),
+                anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class))
+            );
             assertThat(entry.getValue().v2().getCause().getMessage(), containsString(expected.getCause().getMessage()));
         }
         assertThat(newInstance.timeSinceLastReadMillis(), equalTo(expectedInstance.timeSinceLastReadMillis()));
@@ -119,10 +121,12 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
         final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> readExceptions = new TreeMap<>();
         for (int i = 0; i < count; i++) {
             readExceptions.put(
-                    randomNonNegativeLong(),
-                    Tuple.tuple(
-                            randomIntBetween(0, Integer.MAX_VALUE),
-                            new ElasticsearchException(new IllegalStateException("index [" + i + "]"))));
+                randomNonNegativeLong(),
+                Tuple.tuple(
+                    randomIntBetween(0, Integer.MAX_VALUE),
+                    new ElasticsearchException(new IllegalStateException("index [" + i + "]"))
+                )
+            );
         }
         return readExceptions;
     }

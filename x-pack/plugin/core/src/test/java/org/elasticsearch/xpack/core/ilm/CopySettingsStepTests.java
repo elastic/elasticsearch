@@ -17,8 +17,12 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
 
     @Override
     protected CopySettingsStep createRandomInstance() {
-        return new CopySettingsStep(randomStepKey(), randomStepKey(), randomAlphaOfLengthBetween(1, 10),
-            IndexMetadata.SETTING_NUMBER_OF_SHARDS);
+        return new CopySettingsStep(
+            randomStepKey(),
+            randomStepKey(),
+            randomAlphaOfLengthBetween(1, 10),
+            IndexMetadata.SETTING_NUMBER_OF_SHARDS
+        );
     }
 
     @Override
@@ -29,20 +33,11 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
         String[] settingsKeys = instance.getSettingsKeys();
 
         switch (between(0, 3)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                indexPrefix = randomValueOtherThan(indexPrefix, () -> randomAlphaOfLengthBetween(1, 10));
-                break;
-            case 3:
-                settingsKeys = new String[]{randomAlphaOfLengthBetween(1, 10)};
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> indexPrefix = randomValueOtherThan(indexPrefix, () -> randomAlphaOfLengthBetween(1, 10));
+            case 3 -> settingsKeys = new String[] { randomAlphaOfLengthBetween(1, 10) };
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new CopySettingsStep(key, nextKey, indexPrefix, settingsKeys);
     }
@@ -55,26 +50,33 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
     public void testPerformAction() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        IndexMetadata.Builder sourceIndexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata.Builder sourceIndexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
 
         String indexPrefix = "test-prefix-";
         String targetIndex = indexPrefix + indexName;
 
-        IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndex).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndex)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
 
         final IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.build();
-        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadata, false).put(targetIndexMetadataBuilder).build()
-        ).build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(sourceIndexMetadata, false).put(targetIndexMetadataBuilder).build())
+            .build();
 
-        CopySettingsStep copySettingsStep = new CopySettingsStep(randomStepKey(), randomStepKey(), indexPrefix,
-            LifecycleSettings.LIFECYCLE_NAME);
+        CopySettingsStep copySettingsStep = new CopySettingsStep(
+            randomStepKey(),
+            randomStepKey(),
+            indexPrefix,
+            LifecycleSettings.LIFECYCLE_NAME
+        );
 
         ClusterState newClusterState = copySettingsStep.performAction(sourceIndexMetadata.getIndex(), clusterState);
         IndexMetadata newTargetIndexMetadata = newClusterState.metadata().index(targetIndex);
-        assertThat(newTargetIndexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME), is(policyName));
+        assertThat(newTargetIndexMetadata.getLifecyclePolicyName(), is(policyName));
     }
 }

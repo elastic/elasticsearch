@@ -10,6 +10,7 @@ package org.elasticsearch.search.runtime;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.elasticsearch.script.Script;
 
 import java.util.Arrays;
@@ -50,20 +51,15 @@ public class DoubleScriptFieldTermsQueryTests extends AbstractDoubleScriptFieldQ
             terms.add(Double.doubleToLongBits(term));
         }
         switch (randomInt(2)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> {
                 terms = new LongHashSet(terms);
                 while (false == terms.add(Double.doubleToLongBits(randomDouble()))) {
                     // Random double was already in the set
                 }
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         return new DoubleScriptFieldTermsQuery(script, leafFactory, fieldName, terms);
     }

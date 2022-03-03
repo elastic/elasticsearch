@@ -17,8 +17,10 @@ import java.util.Objects;
  */
 public final class ReloadAnalyzersRequest implements Validatable {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
+
     private final String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     /**
      * Creates a new reload analyzers request

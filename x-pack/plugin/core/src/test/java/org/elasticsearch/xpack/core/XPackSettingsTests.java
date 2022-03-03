@@ -6,17 +6,21 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.jdk.JavaVersion;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
-import javax.crypto.SecretKeyFactory;
 
 import java.security.NoSuchAlgorithmException;
 
+import javax.crypto.SecretKeyFactory;
+
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class XPackSettingsTests extends ESTestCase {
@@ -47,14 +51,20 @@ public class XPackSettingsTests extends ESTestCase {
         if (isPBKDF2Available) {
             assertEquals(pbkdf2Algo, XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         } else {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)
+            );
             assertThat(e.getMessage(), containsString("Support for PBKDF2WithHMACSHA512 must be available"));
         }
 
         final String bcryptAlgo = randomFrom("BCRYPT", "BCRYPT11");
-        assertEquals(bcryptAlgo, XPackSettings.PASSWORD_HASHING_ALGORITHM.get(
-            Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), bcryptAlgo).build()));
+        assertEquals(
+            bcryptAlgo,
+            XPackSettings.PASSWORD_HASHING_ALGORITHM.get(
+                Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), bcryptAlgo).build()
+            )
+        );
     }
 
     public void testDefaultPasswordHashingAlgorithmInFips() {
@@ -83,18 +93,35 @@ public class XPackSettingsTests extends ESTestCase {
         if (isPBKDF2Available) {
             assertEquals(pbkdf2Algo, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(settings));
         } else {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(settings));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(settings)
+            );
             assertThat(e.getMessage(), containsString("Support for PBKDF2WithHMACSHA512 must be available"));
         }
 
         final String bcryptAlgo = randomFrom("BCRYPT", "BCRYPT11");
-        assertEquals(bcryptAlgo, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(
-            Settings.builder().put(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey(), bcryptAlgo).build()));
+        assertEquals(
+            bcryptAlgo,
+            XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(
+                Settings.builder().put(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey(), bcryptAlgo).build()
+            )
+        );
     }
 
     public void testDefaultServiceTokenHashingAlgorithm() {
         assertThat(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(Settings.EMPTY), equalTo("PBKDF2_STRETCH"));
+    }
+
+    // Whether the domain setting is registered by default depends on the build type
+    public void testRealmDomainSettingRegistrationDefault() {
+        assertThat(
+            XPackSettings.getAllSettings()
+                .stream()
+                .filter(setting -> setting.getKey().equals(DOMAIN_TO_REALM_ASSOC_SETTING.getKey()))
+                .toList(),
+            hasSize(Build.CURRENT.isSnapshot() ? 1 : 0)
+        );
     }
 
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {

@@ -91,9 +91,12 @@ class ToCharFormatter {
             of("Dy").formatFn("E").text(),
             of("dy").formatFn("E", x -> x.toLowerCase(Locale.ROOT)).text(),
             of("DDD").formatFn("DDD").numeric(),
-            of("IDDD").formatFn(t -> String.format(Locale.ROOT,
-                "%03d",
-                (t.get(WeekFields.ISO.weekOfWeekBasedYear()) - 1) * 7 + t.get(ChronoField.DAY_OF_WEEK))
+            of("IDDD").formatFn(
+                t -> String.format(
+                    Locale.ROOT,
+                    "%03d",
+                    (t.get(WeekFields.ISO.weekOfWeekBasedYear()) - 1) * 7 + t.get(ChronoField.DAY_OF_WEEK)
+                )
             ).numeric(),
             of("DD").formatFn("d", x -> String.format(Locale.ROOT, "%02d", parseInt(x))).numeric(),
             of("ID").formatFn(t -> String.valueOf(t.get(ChronoField.DAY_OF_WEEK))).numeric(),
@@ -108,8 +111,7 @@ class ToCharFormatter {
             of("J").formatFn(t -> String.valueOf(t.getLong(JulianFields.JULIAN_DAY))).numeric(),
             of("Q").formatFn("Q").numeric(),
             of("RM").formatFn("MM", month -> String.format(Locale.ROOT, "%-4s", monthToRoman(parseInt(month)))).text(),
-            of("rm")
-                .formatFn("MM", month -> String.format(Locale.ROOT, "%-4s", monthToRoman(parseInt(month)).toLowerCase(Locale.ROOT)))
+            of("rm").formatFn("MM", month -> String.format(Locale.ROOT, "%-4s", monthToRoman(parseInt(month)).toLowerCase(Locale.ROOT)))
                 .text(),
             of("TZ").formatFn(ToCharFormatter::zoneAbbreviationOf).text(),
             of("tz").formatFn(t -> zoneAbbreviationOf(t).toLowerCase(Locale.ROOT)).text(),
@@ -131,10 +133,13 @@ class ToCharFormatter {
         FORMATTER_MAP = formatterMap;
     }
 
-    private static final int MAX_TO_CHAR_FORMAT_STRING_LENGTH =
-        FORMATTER_MAP.keySet().stream().mapToInt(String::length).max().orElse(Integer.MAX_VALUE);
+    private static final int MAX_TO_CHAR_FORMAT_STRING_LENGTH = FORMATTER_MAP.keySet()
+        .stream()
+        .mapToInt(String::length)
+        .max()
+        .orElse(Integer.MAX_VALUE);
 
-    private static final String[] ROMAN_NUMBERS = {"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"};
+    private static final String[] ROMAN_NUMBERS = { "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII" };
 
     private final String pattern;
     private final boolean acceptsLowercase;
@@ -149,7 +154,8 @@ class ToCharFormatter {
         boolean acceptsLowercase,
         Function<String, String> fillModeFn,
         boolean hasOrdinalSuffix,
-        Function<TemporalAccessor, String> formatter) {
+        Function<TemporalAccessor, String> formatter
+    ) {
 
         this.pattern = pattern;
         this.acceptsLowercase = acceptsLowercase;

@@ -10,9 +10,9 @@ package org.elasticsearch.client.transform.transforms.pivot;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -75,24 +75,17 @@ public class GroupConfig implements ToXContentObject {
                 continue;
             }
 
-            SingleGroupSource groupSource = null;
-            switch (groupType) {
-                case "terms":
-                    groupSource = TermsGroupSource.fromXContent(parser);
-                    break;
-                case "histogram":
-                    groupSource = HistogramGroupSource.fromXContent(parser);
-                    break;
-                case "date_histogram":
-                    groupSource = DateHistogramGroupSource.fromXContent(parser);
-                    break;
-                case "geotile_grid":
-                    groupSource = GeoTileGroupSource.fromXContent(parser);
-                    break;
-                default:
+            SingleGroupSource groupSource = switch (groupType) {
+                case "terms" -> TermsGroupSource.fromXContent(parser);
+                case "histogram" -> HistogramGroupSource.fromXContent(parser);
+                case "date_histogram" -> DateHistogramGroupSource.fromXContent(parser);
+                case "geotile_grid" -> GeoTileGroupSource.fromXContent(parser);
+                default -> {
                     // not a valid group source. Consume up to the dest field end object
                     consumeUntilEndObject(parser, 2);
-            }
+                    yield null;
+                }
+            };
 
             if (groupSource != null) {
                 groups.put(destinationFieldName, groupSource);
@@ -126,7 +119,7 @@ public class GroupConfig implements ToXContentObject {
         this.groups = groups;
     }
 
-    public Map <String, SingleGroupSource> getGroups() {
+    public Map<String, SingleGroupSource> getGroups() {
         return groups;
     }
 

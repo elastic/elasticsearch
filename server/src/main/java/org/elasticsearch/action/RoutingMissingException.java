@@ -39,7 +39,7 @@ public class RoutingMissingException extends ElasticsearchException {
         return RestStatus.BAD_REQUEST;
     }
 
-    public RoutingMissingException(StreamInput in) throws IOException{
+    public RoutingMissingException(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
             in.readString();

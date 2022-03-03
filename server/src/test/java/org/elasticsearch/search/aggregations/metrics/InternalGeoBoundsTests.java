@@ -8,7 +8,9 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
@@ -83,6 +85,21 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalGeoBounds sampled, InternalGeoBounds reduced, SamplingContext samplingContext) {
+        assertValueClose(sampled.top, reduced.top);
+        assertValueClose(sampled.bottom, reduced.bottom);
+        assertValueClose(sampled.posLeft, reduced.posLeft);
+        assertValueClose(sampled.posRight, reduced.posRight);
+        assertValueClose(sampled.negLeft, reduced.negLeft);
+        assertValueClose(sampled.negRight, reduced.negRight);
+    }
+
+    @Override
     protected void assertFromXContent(InternalGeoBounds aggregation, ParsedAggregation parsedAggregation) {
         assertTrue(parsedAggregation instanceof ParsedGeoBounds);
         ParsedGeoBounds parsed = (ParsedGeoBounds) parsedAggregation;
@@ -133,7 +150,7 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
                 break;
             case 8:
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

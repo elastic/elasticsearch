@@ -11,9 +11,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.security.cert.X509Certificate;
@@ -28,10 +28,10 @@ import java.util.Objects;
  */
 public class CertificateInfo implements ToXContentObject, Writeable, Comparable<CertificateInfo> {
 
-    private static final Comparator<CertificateInfo> COMPARATOR =
-        Comparator.comparing(CertificateInfo::path, Comparator.nullsLast(Comparator.naturalOrder()))
-            .thenComparing(CertificateInfo::alias, Comparator.nullsLast(Comparator.naturalOrder()))
-            .thenComparing(CertificateInfo::serialNumber);
+    private static final Comparator<CertificateInfo> COMPARATOR = Comparator.comparing(
+        CertificateInfo::path,
+        Comparator.nullsLast(Comparator.naturalOrder())
+    ).thenComparing(CertificateInfo::alias, Comparator.nullsLast(Comparator.naturalOrder())).thenComparing(CertificateInfo::serialNumber);
 
     private final String path;
     private final String format;
@@ -113,14 +113,14 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
-                .field("path", path)
-                .field("format", format)
-                .field("alias", alias)
-                .field("subject_dn", subjectDn)
-                .field("serial_number", serialNumber)
-                .field("has_private_key", hasPrivateKey)
-                .timeField("expiry", expiry)
-                .endObject();
+            .field("path", path)
+            .field("format", format)
+            .field("alias", alias)
+            .field("subject_dn", subjectDn)
+            .field("serial_number", serialNumber)
+            .field("has_private_key", hasPrivateKey)
+            .timeField("expiry", expiry)
+            .endObject();
     }
 
     @Override
@@ -138,13 +138,13 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         }
 
         final CertificateInfo that = (CertificateInfo) other;
-        return  Objects.equals(this.path, that.path)
-                && this.format.equals(that.format)
-                && this.hasPrivateKey == that.hasPrivateKey
-                && Objects.equals(this.alias, that.alias)
-                && Objects.equals(this.serialNumber, that.serialNumber)
-                && Objects.equals(this.subjectDn, that.subjectDn)
-                && Objects.equals(this.expiry, that.expiry);
+        return Objects.equals(this.path, that.path)
+            && this.format.equals(that.format)
+            && this.hasPrivateKey == that.hasPrivateKey
+            && Objects.equals(this.alias, that.alias)
+            && Objects.equals(this.serialNumber, that.serialNumber)
+            && Objects.equals(this.subjectDn, that.subjectDn)
+            && Objects.equals(this.expiry, that.expiry);
     }
 
     @Override

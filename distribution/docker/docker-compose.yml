@@ -33,10 +33,10 @@ services:
        - xpack.license.self_generated.type=trial
        - action.destructive_requires_name=false
     volumes:
-       - ./build/repo:/tmp/es-repo
+       - ./testfixtures_shared/repo:/tmp/es-repo
        - ./build/certs/testnode.pem:/usr/share/elasticsearch/config/testnode.pem
        - ./build/certs/testnode.crt:/usr/share/elasticsearch/config/testnode.crt
-       - ./build/logs/default-1:/usr/share/elasticsearch/logs
+       - ./testfixtures_shared/logs/default-1:/usr/share/elasticsearch/logs
        - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
     ports:
       - "9200"
@@ -86,10 +86,10 @@ services:
        - xpack.license.self_generated.type=trial
        - action.destructive_requires_name=false
     volumes:
-       - ./build/repo:/tmp/es-repo
+       - ./testfixtures_shared/repo:/tmp/es-repo
        - ./build/certs/testnode.pem:/usr/share/elasticsearch/config/testnode.pem
        - ./build/certs/testnode.crt:/usr/share/elasticsearch/config/testnode.crt
-       - ./build/logs/default-2:/usr/share/elasticsearch/logs
+       - ./testfixtures_shared/logs/default-2:/usr/share/elasticsearch/logs
        - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
     ports:
       - "9200"

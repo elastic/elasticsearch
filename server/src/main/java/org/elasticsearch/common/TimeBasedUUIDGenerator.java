@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 class TimeBasedUUIDGenerator implements UUIDGenerator {
 
-    // We only use bottom 3 bytes for the sequence number.  Paranoia: init with random int so that if JVM/OS/machine goes down, clock slips
+    // We only use bottom 3 bytes for the sequence number. Paranoia: init with random int so that if JVM/OS/machine goes down, clock slips
     // backwards, and JVM comes back up, we are less likely to be on the same sequenceNumber at the same time:
     private final AtomicInteger sequenceNumber = new AtomicInteger(SecureRandomHolder.INSTANCE.nextInt());
 
@@ -46,12 +46,12 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
     }
 
     @Override
-    public String getBase64UUID()  {
+    public String getBase64UUID() {
         final int sequenceId = sequenceNumber.incrementAndGet() & 0xffffff;
         long currentTimeMillis = currentTimeMillis();
 
         long timestamp = this.lastTimestamp.updateAndGet(lastTimestamp -> {
-            // Don't let timestamp go backwards, at least "on our watch" (while this JVM is running).  We are
+            // Don't let timestamp go backwards, at least "on our watch" (while this JVM is running). We are
             // still vulnerable if we are shut down, clock goes backwards, and we restart... for this we
             // randomize the sequenceNumber on init to decrease chance of collision:
             long nonBackwardsTimestamp = Math.max(lastTimestamp, currentTimeMillis);

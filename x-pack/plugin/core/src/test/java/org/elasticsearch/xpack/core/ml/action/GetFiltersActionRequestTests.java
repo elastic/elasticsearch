@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.ml.action.GetFiltersAction.Request;
 
 public class GetFiltersActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
-
     @Override
     protected Request createTestInstance() {
         if (randomBoolean()) {

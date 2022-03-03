@@ -12,9 +12,9 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.junit.After;
 import org.junit.Before;
@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,15 +37,16 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         // Set logging level to trace
         // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
-        addFailureRetrySetting.setJsonEntity(
-            "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \""
-                + 0
-                + "\","
-                + "\"logger.org.elasticsearch.action.bulk\": \"info\","
-                + // reduces bulk failure spam
-                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\","
-                + "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}"
-        );
+        // reduces bulk failure spam
+        addFailureRetrySetting.setJsonEntity("""
+            {
+              "persistent": {
+                "xpack.transform.num_transform_failure_retries": "0",
+                "logger.org.elasticsearch.action.bulk": "info",
+                "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "trace",
+                "logger.org.elasticsearch.xpack.transform": "trace"
+              }
+            }""");
         client().performRequest(addFailureRetrySetting);
     }
 
@@ -56,7 +57,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
     public void testForceStopFailedTransform() throws Exception {
         String transformId = "test-force-stop-failed-transform";
-        createReviewsIndex(REVIEWS_INDEX_NAME, 10, "date", false, -1, null);
+        createReviewsIndex(REVIEWS_INDEX_NAME, 10, 27, "date", false, -1, null);
         String transformIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
@@ -93,7 +94,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
     public void testStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
-        createReviewsIndex(REVIEWS_INDEX_NAME, 10, "date", false, -1, null);
+        createReviewsIndex(REVIEWS_INDEX_NAME, 10, 27, "date", false, -1, null);
         String transformIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);

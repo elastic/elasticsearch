@@ -33,6 +33,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.is;
 
 // TODO: test CRUD operations
 public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
@@ -45,9 +48,16 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
-        indexService = new AsyncTaskIndexService<>(index, clusterService,
+        indexService = new AsyncTaskIndexService<>(
+            index,
+            clusterService,
             transportService.getThreadPool().getThreadContext(),
-            client(), "test_origin", AsyncSearchResponse::new, writableRegistry(), bigArrays);
+            client(),
+            "test_origin",
+            AsyncSearchResponse::new,
+            writableRegistry(),
+            bigArrays
+        );
     }
 
     @Override
@@ -78,60 +88,112 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testEnsuredAuthenticatedUserIsSame() throws IOException {
-        Authentication original =
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
-        Authentication current = randomBoolean() ? original :
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
-        assertTrue(original.canAccessResourcesOf(current));
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        original.writeToContext(threadContext);
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
+        Authentication original = new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
+        Authentication current = randomBoolean()
+            ? original
+            : new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
+        current.writeToContext(indexService.getSecurityContext().getThreadContext());
+        assertThat(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)), is(true));
 
-        // original is not set
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(Collections.emptyMap(), current));
-        // current is not set
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), null));
+        // original is not authenticated
+        assertThat(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(Collections.emptyMap()), is(true));
+        // current is not authenticated
+        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
+            assertThat(
+                indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)),
+                is(false)
+            );
+            assertThat(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(Map.of()), is(true));
+        }
 
         // original user being run as
         User user = new User(new User("test", "role"), new User("authenticated", "runas"));
-        current = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
-        assertTrue(original.canAccessResourcesOf(current));
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
+        assertThat(
+            indexService.getSecurityContext()
+                .canIAccessResourcesCreatedWithHeaders(
+                    getAuthenticationAsHeaders(
+                        new Authentication(
+                            user,
+                            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"),
+                            new Authentication.RealmRef("realm", "file", "node")
+                        )
+                    )
+                ),
+            is(true)
+        );
 
-        // both user are run as
-        current = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
-        Authentication runAs = current;
-        assertTrue(runAs.canAccessResourcesOf(current));
-        threadContext = new ThreadContext(Settings.EMPTY);
-        original.writeToContext(threadContext);
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
+        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
+            // current user being run as
+            current = new Authentication(
+                user,
+                new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"),
+                new Authentication.RealmRef("realm", "file", "node")
+            );
+            current.writeToContext(indexService.getSecurityContext().getThreadContext());
+            assertThat(
+                indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)),
+                is(true)
+            );
 
-        // different authenticated by type
-        Authentication differentRealmType =
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", randomAlphaOfLength(5), "node"), null);
-        threadContext = new ThreadContext(Settings.EMPTY);
-        original.writeToContext(threadContext);
-        assertFalse(original.canAccessResourcesOf(differentRealmType));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), differentRealmType));
+            // both users are run as
+            assertThat(
+                indexService.getSecurityContext()
+                    .canIAccessResourcesCreatedWithHeaders(
+                        getAuthenticationAsHeaders(
+                            new Authentication(
+                                user,
+                                new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"),
+                                new Authentication.RealmRef("realm", "file", "node")
+                            )
+                        )
+                    ),
+                is(true)
+            );
+        }
 
-        // wrong user
-        Authentication differentUser =
-            new Authentication(new User("test2", "role"), new Authentication.RealmRef("realm", "realm", "node"), null);
-        assertFalse(original.canAccessResourcesOf(differentUser));
+        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
+            // different authenticated by type
+            Authentication differentRealmType = new Authentication(
+                new User("test", "role"),
+                new Authentication.RealmRef("realm", randomAlphaOfLength(10), "node"),
+                null
+            );
+            differentRealmType.writeToContext(indexService.getSecurityContext().getThreadContext());
+            assertFalse(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)));
+        }
+
+        // different user
+        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
+            Authentication differentUser = new Authentication(
+                new User("test2", "role"),
+                new Authentication.RealmRef("realm", "file", "node"),
+                null
+            );
+            differentUser.writeToContext(indexService.getSecurityContext().getThreadContext());
+            assertFalse(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)));
+        }
 
         // run as different user
-        Authentication diffRunAs = new Authentication(new User(new User("test2", "role"), new User("authenticated", "runas")),
-            new Authentication.RealmRef("realm", "file", "node1"), new Authentication.RealmRef("realm", "file", "node1"));
-        assertFalse(original.canAccessResourcesOf(diffRunAs));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), diffRunAs));
+        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
+            Authentication differentRunAs = new Authentication(
+                new User(new User("test2", "role"), new User("authenticated", "runas")),
+                new Authentication.RealmRef("realm_runas", "file", "node1"),
+                new Authentication.RealmRef("realm", "file", "node1")
+            );
+            differentRunAs.writeToContext(indexService.getSecurityContext().getThreadContext());
+            assertFalse(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)));
+        }
 
         // run as different looked up by type
-        Authentication runAsDiffType = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node"));
-        assertFalse(original.canAccessResourcesOf(runAsDiffType));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), runAsDiffType));
+        try (ThreadContext.StoredContext ignore = indexService.getSecurityContext().getThreadContext().stashContext()) {
+            Authentication runAsDiffType = new Authentication(
+                user,
+                new Authentication.RealmRef("realm", "file", "node"),
+                new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node")
+            );
+            runAsDiffType.writeToContext(indexService.getSecurityContext().getThreadContext());
+            assertFalse(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)));
+        }
     }
 
     public void testAutoCreateIndex() throws Exception {
@@ -182,10 +244,15 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     }
 
     private void assertSettings() {
-        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(
-            new GetIndexRequest().indices(index)).actionGet();
+        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(index)).actionGet();
         Settings settings = getIndexResponse.getSettings().get(index);
         Settings expected = AsyncTaskIndexService.settings();
-        assertEquals(expected, settings.filter(expected::hasValue));
+        assertThat(expected, is(settings.filter(expected::hasValue)));
+    }
+
+    private Map<String, String> getAuthenticationAsHeaders(Authentication authentication) throws IOException {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        authentication.writeToContext(threadContext);
+        return threadContext.getHeaders();
     }
 }

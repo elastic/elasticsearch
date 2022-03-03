@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.idp.saml.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,8 +31,9 @@ public abstract class IdpBaseRestHandler extends BaseRestHandler {
         if (isIdpFeatureAllowed()) {
             return consumer;
         } else {
-            return channel -> channel.sendResponse(new BytesRestResponse(channel,
-                LicenseUtils.newComplianceException("Identity Provider")));
+            return channel -> channel.sendResponse(
+                new BytesRestResponse(channel, LicenseUtils.newComplianceException("Identity Provider"))
+            );
         }
     }
 
@@ -47,5 +48,3 @@ public abstract class IdpBaseRestHandler extends BaseRestHandler {
      */
     protected abstract RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException;
 }
-
-

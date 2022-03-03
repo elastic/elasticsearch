@@ -67,10 +67,17 @@ public class FetchContext {
     }
 
     /**
-     * The original query
+     * The original query, not rewritten.
      */
     public Query query() {
         return searchContext.query();
+    }
+
+    /**
+     * The original query in its rewritten form.
+     */
+    public Query rewrittenQuery() {
+        return searchContext.rewrittenQuery();
     }
 
     /**
@@ -207,8 +214,7 @@ public class FetchContext {
         // Usually the root source simply belongs to the hit we're processing. But if
         // there are multiple layers of inner hits and we're in a nested context, then
         // the root source is found on the inner hits context.
-        if (searchContext instanceof InnerHitSubContext && hitContext.hit().getNestedIdentity() != null) {
-            InnerHitSubContext innerHitsContext = (InnerHitSubContext) searchContext;
+        if (searchContext instanceof InnerHitSubContext innerHitsContext && hitContext.hit().getNestedIdentity() != null) {
             return innerHitsContext.getRootLookup();
         } else {
             return hitContext.sourceLookup();

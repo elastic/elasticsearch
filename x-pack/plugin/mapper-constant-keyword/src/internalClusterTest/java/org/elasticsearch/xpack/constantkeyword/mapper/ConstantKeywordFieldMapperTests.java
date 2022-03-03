@@ -12,7 +12,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -22,6 +21,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
 
@@ -36,7 +36,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void writeField(XContentBuilder builder) {
-        //do nothing
+        // do nothing
     }
 
     @Override
@@ -76,10 +76,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         doc = mapper.parse(source(b -> b.field("field", "foo")));
         assertNull(doc.rootDoc().getField("field"));
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", "bar")))
-        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", "bar"))));
         assertEquals(
             "[constant_keyword] field [field] only accepts values that are equal to the value defined in the mappings [foo], "
                 + "but got [bar]",
@@ -107,7 +104,8 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     public void testDynamicValueFieldLimit() throws Exception {
         MapperService mapperService = createMapperService(
             Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1).build(),
-            fieldMapping(b -> b.field("type", "constant_keyword")));
+            fieldMapping(b -> b.field("type", "constant_keyword"))
+        );
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "foo")));
         assertNull(doc.rootDoc().getField("field"));
@@ -129,16 +127,20 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
                 b.field("type", "constant_keyword");
                 b.nullField("value");
             })));
-            assertEquals(e.getMessage(),
-                "Failed to parse mapping: [value] on mapper [field] of type [constant_keyword] must not have a [null] value");
+            assertEquals(
+                e.getMessage(),
+                "Failed to parse mapping: [value] on mapper [field] of type [constant_keyword] must not have a [null] value"
+            );
         }
         {
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "constant_keyword");
                 b.startObject("value").field("foo", "bar").endObject();
             })));
-            assertEquals(e.getMessage(),
-                "Failed to parse mapping: Property [value] on field [field] must be a number or a string, but got [{foo=bar}]");
+            assertEquals(
+                e.getMessage(),
+                "Failed to parse mapping: Property [value] on field [field] must be a number or a string, but got [{foo=bar}]"
+            );
         }
     }
 
@@ -147,8 +149,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             b.field("type", "constant_keyword");
             b.field("value", 74);
         }));
-        ConstantKeywordFieldType ft
-            = (ConstantKeywordFieldType) mapperService.fieldType("field");
+        ConstantKeywordFieldType ft = (ConstantKeywordFieldType) mapperService.fieldType("field");
         assertEquals("74", ft.value());
     }
 
@@ -162,9 +163,10 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             b.field("type", "constant_keyword");
             b.field("value", "bar");
         })));
-        assertEquals(e.getMessage(),
-            "Mapper for [field] conflicts with existing mapper:\n" +
-            "\tCannot update parameter [value] from [foo] to [bar]");
+        assertEquals(
+            e.getMessage(),
+            "Mapper for [field] conflicts with existing mapper:\n" + "\tCannot update parameter [value] from [foo] to [bar]"
+        );
     }
 
     @Override
@@ -178,15 +180,13 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             ConstantKeywordFieldType ft = (ConstantKeywordFieldType) m.fieldType();
             assertEquals("foo", ft.value());
         });
-        checker.registerConflictCheck("value",
-            fieldMapping(b -> {
-                b.field("type", "constant_keyword");
-                b.field("value", "foo");
-            }),
-            fieldMapping(b -> {
-                b.field("type", "constant_keyword");
-                b.field("value", "bar");
-            }));
+        checker.registerConflictCheck("value", fieldMapping(b -> {
+            b.field("type", "constant_keyword");
+            b.field("value", "foo");
+        }), fieldMapping(b -> {
+            b.field("type", "constant_keyword");
+            b.field("value", "bar");
+        }));
     }
 
     @Override

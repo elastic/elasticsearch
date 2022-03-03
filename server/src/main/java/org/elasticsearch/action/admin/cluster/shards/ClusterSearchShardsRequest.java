@@ -12,10 +12,10 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,9 +29,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
     private String preference;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-
-    public ClusterSearchShardsRequest() {
-    }
+    public ClusterSearchShardsRequest() {}
 
     public ClusterSearchShardsRequest(String... indices) {
         indices(indices);

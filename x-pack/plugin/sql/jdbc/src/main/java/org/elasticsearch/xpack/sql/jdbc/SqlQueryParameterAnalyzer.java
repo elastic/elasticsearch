@@ -42,7 +42,7 @@ final class SqlQueryParameterAnalyzer {
                     i = skipString(i, sql, c);
                     break;
                 case '?':
-                    params ++;
+                    params++;
                     break;
                 case '-':
                     if (i + 1 < l && sql.charAt(i + 1) == '-') {
@@ -67,7 +67,6 @@ final class SqlQueryParameterAnalyzer {
         // https://db.apache.org/derby/docs/10.5/ref/rrefjdbc1020262.html
         throw new SQLException("Jdbc escape sequences are not supported yet");
     }
-
 
     /**
      * Skips a line comment starting at the current position i, returns the length of the comment

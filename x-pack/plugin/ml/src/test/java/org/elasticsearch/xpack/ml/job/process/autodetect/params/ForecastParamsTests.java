@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -28,9 +28,13 @@ public class ForecastParamsTests extends ESTestCase {
     }
 
     public void testDurationFormats() {
-        assertEquals(34678L,
-                ForecastParams.builder().duration(TimeValue.parseTimeValue("34678s", DURATION.getPreferredName())).build().getDuration());
-        assertEquals(172800L,
-                ForecastParams.builder().duration(TimeValue.parseTimeValue("2d", DURATION.getPreferredName())).build().getDuration());
+        assertEquals(
+            34678L,
+            ForecastParams.builder().duration(TimeValue.parseTimeValue("34678s", DURATION.getPreferredName())).build().getDuration()
+        );
+        assertEquals(
+            172800L,
+            ForecastParams.builder().duration(TimeValue.parseTimeValue("2d", DURATION.getPreferredName())).build().getDuration()
+        );
     }
 }

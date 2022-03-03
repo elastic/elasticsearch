@@ -22,10 +22,9 @@ import java.util.Collections;
 import java.util.List;
 
 public final class ScriptFieldsPhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
-        if (context.scriptFields() == null) {
+        if (context.scriptFields() == null || context.scriptFields().fields().isEmpty()) {
             return null;
         }
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();
@@ -71,8 +70,7 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
         };
     }
 
-    private FieldScript[] createLeafScripts(LeafReaderContext context,
-                                            List<ScriptFieldsContext.ScriptField> scriptFields) {
+    private FieldScript[] createLeafScripts(LeafReaderContext context, List<ScriptFieldsContext.ScriptField> scriptFields) {
         FieldScript[] scripts = new FieldScript[scriptFields.size()];
         for (int i = 0; i < scripts.length; i++) {
             try {

@@ -11,10 +11,10 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Countable;
 import org.elasticsearch.common.util.PlainIterator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -51,13 +51,24 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      */
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
-        this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).collect(Collectors.toList()),
-            originalIndices, null, null);
+        this(
+            clusterAlias,
+            shardId,
+            shards.stream().map(ShardRouting::currentNodeId).collect(Collectors.toList()),
+            originalIndices,
+            null,
+            null
+        );
     }
 
-    public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId,
-                               List<String> targetNodeIds, OriginalIndices originalIndices,
-                               ShardSearchContextId searchContextId, TimeValue searchContextKeepAlive) {
+    public SearchShardIterator(
+        @Nullable String clusterAlias,
+        ShardId shardId,
+        List<String> targetNodeIds,
+        OriginalIndices originalIndices,
+        ShardSearchContextId searchContextId,
+        TimeValue searchContextKeepAlive
+    ) {
         this.shardId = shardId;
         this.targetNodesIterator = new PlainIterator<>(targetNodeIds);
         this.originalIndices = originalIndices;
@@ -85,7 +96,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     SearchShardTarget nextOrNull() {
         final String nodeId = targetNodesIterator.nextOrNull();
         if (nodeId != null) {
-            return new SearchShardTarget(nodeId, shardId, clusterAlias, originalIndices);
+            return new SearchShardTarget(nodeId, shardId, clusterAlias);
         }
         return null;
     }
@@ -128,7 +139,6 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     boolean skip() {
         return skip;
     }
-
 
     @Override
     public int size() {

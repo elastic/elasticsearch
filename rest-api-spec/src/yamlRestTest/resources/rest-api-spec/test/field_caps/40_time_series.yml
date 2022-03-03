@@ -1,0 +1,231 @@
+---
+setup:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
+
+  - do:
+      indices.create:
+        index: tsdb_index1
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              non_tsdb_field:
+                type: keyword
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      availability_zone:
+                        type: short
+                        time_series_dimension: true
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                        time_series_dimension: true
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: counter
+                          rx:
+                            type: integer
+                            time_series_metric: gauge
+                          packets_dropped:
+                            type: long
+                            time_series_metric: gauge
+                          latency:
+                            type: double
+                            time_series_metric: gauge
+
+  - do:
+      indices.create:
+        index: tsdb_index2
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+              non_tsdb_field:
+                type: keyword
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      availability_zone:
+                        type: short
+                        time_series_dimension: true
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                        time_series_dimension: true
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: integer
+                          packets_dropped:
+                            type: long
+                            time_series_metric: gauge
+                          latency:
+                            type: double
+                            time_series_metric: gauge
+
+---
+"Get simple time series field caps":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
+
+  - do:
+      field_caps:
+        index: 'tsdb_index1'
+        fields: [ "metricset", "non_tsdb_field", "k8s.pod.*" ]
+
+  - match: {fields.metricset.keyword.searchable: true}
+  - match: {fields.metricset.keyword.aggregatable: true}
+  - match: {fields.metricset.keyword.time_series_dimension: true}
+  - is_false: fields.metricset.keyword.time_series_metric
+  - is_false: fields.metricset.keyword.indices
+  - is_false: fields.metricset.keyword.non_searchable_indices
+  - is_false: fields.metricset.keyword.non_aggregatable_indices
+  - is_false: fields.metricset.keyword.non_dimension_indices
+
+  - match: {fields.non_tsdb_field.keyword.searchable: true}
+  - match: {fields.non_tsdb_field.keyword.aggregatable: true}
+  - is_false: fields.non_tsdb_field.keyword.time_series_dimension
+  - is_false: fields.non_tsdb_field.keyword.time_series_metric
+  - is_false: fields.non_tsdb_field.keyword.indices
+  - is_false: fields.non_tsdb_field.keyword.non_searchable_indices
+  - is_false: fields.non_tsdb_field.keyword.non_aggregatable_indices
+  - is_false: fields.non_tsdb_field.keyword.non_dimension_indices
+
+  - match: {fields.k8s\.pod\.availability_zone.short.time_series_dimension: true}
+  - is_false: fields.k8s\.pod\.availability_zone.short.time_series_metric
+  - is_false: fields.k8s\.pod\.availability_zone.short.non_dimension_indices
+
+  - match: {fields.k8s\.pod\.uid.keyword.time_series_dimension: true}
+  - is_false: fields.k8s\.pod\.uid.keyword.time_series_metric
+  - is_false: fields.k8s\.pod\.uid.keyword.non_dimension_indices
+
+  - is_false: fields.k8s\.pod\.name.keyword.time_series_dimension
+  - is_false: fields.k8s\.pod\.name.keyword.time_series_metric
+  - is_false: fields.k8s\.pod\.name.keyword.non_dimension_indices
+
+  - match: {fields.k8s\.pod\.ip.ip.time_series_dimension: true}
+  - is_false: fields.k8s\.pod\.ip.ip.time_series_metric
+  - is_false: fields.k8s\.pod\.ip.ip.non_dimension_indices
+
+  - is_false: fields.k8s\.pod\.network\.tx.long.time_series_dimension
+  - match: {fields.k8s\.pod\.network\.tx.long.time_series_metric: counter}
+  - is_false: fields.k8s\.pod\.network\.tx.long.non_dimension_indices
+
+  - is_false: fields.k8s\.pod\.network\.rx.integer.time_series_dimension
+  - match: {fields.k8s\.pod\.network\.rx.integer.time_series_metric: gauge}
+  - is_false: fields.k8s\.pod\.network\.rx.integer.non_dimension_indices
+
+  - is_false: fields.k8s\.pod\.network\.packets_dropped.long.time_series_dimension
+  - match: {fields.k8s\.pod\.network\.packets_dropped.long.time_series_metric: gauge}
+  - is_false: fields.k8s\.pod\.network\.packets_dropped.long.non_dimension_indices
+
+  - is_false: fields.k8s\.pod\.network\.latency.double.time_series_dimension
+  - match: {fields.k8s\.pod\.network\.latency.double.time_series_metric: gauge}
+  - is_false: fields.k8s\.pod\.network\.latency.double.non_dimension_indices
+
+---
+"Get time series field caps with conflicts":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
+
+  - do:
+      field_caps:
+        index: tsdb_index1,tsdb_index2
+        fields: [ "metricset", "non_tsdb_field", "k8s.pod.*" ]
+
+  - match: {fields.metricset.keyword.searchable: true}
+  - match: {fields.metricset.keyword.aggregatable: true}
+  - is_false: fields.metricset.keyword.time_series_dimension
+  - is_false: fields.metricset.keyword.time_series_metric
+  - is_false: fields.metricset.keyword.indices
+  - is_false: fields.metricset.keyword.non_searchable_indices
+  - is_false: fields.metricset.keyword.non_aggregatable_indices
+  - match: {fields.metricset.keyword.non_dimension_indices: ["tsdb_index2"]}
+  - is_false: fields.metricset.keyword.metric_conflicts_indices
+
+  - match: {fields.non_tsdb_field.keyword.searchable: true}
+  - match: {fields.non_tsdb_field.keyword.aggregatable: true}
+  - is_false: fields.non_tsdb_field.keyword.time_series_dimension
+  - is_false: fields.non_tsdb_field.keyword.time_series_metric
+  - is_false: fields.non_tsdb_field.keyword.indices
+  - is_false: fields.non_tsdb_field.keyword.non_searchable_indices
+  - is_false: fields.non_tsdb_field.keyword.non_aggregatable_indices
+  - is_false: fields.non_tsdb_field.keyword.non_dimension_indices
+  - is_false: fields.non_tsdb_field.keyword.metric_conflicts_indices
+
+  - match: {fields.k8s\.pod\.availability_zone.short.time_series_dimension: true}
+  - is_false: fields.k8s\.pod\.availability_zone.short.time_series_metric
+  - is_false: fields.k8s\.pod\.availability_zone.short.non_dimension_indices
+  - is_false: fields.k8s\.pod\.availability_zone.short.metric_conflicts_indices
+
+  - match: {fields.k8s\.pod\.uid.keyword.time_series_dimension: true}
+  - is_false: fields.k8s\.pod\.uid.keyword.time_series_metric
+  - is_false: fields.k8s\.pod\.uid.keyword.non_dimension_indices
+  - is_false: fields.k8s\.pod\.uid.keyword.metric_conflicts_indices
+
+  - is_false: fields.k8s\.pod\.name.keyword.time_series_dimension
+  - is_false: fields.k8s\.pod\.name.keyword.time_series_metric
+  - is_false: fields.k8s\.pod\.name.keyword.non_dimension_indices
+  - is_false: fields.k8s\.pod\.name.keyword.metric_conflicts_indices
+
+  - match: {fields.k8s\.pod\.ip.ip.time_series_dimension: true}
+  - is_false: fields.k8s\.pod\.ip.ip.time_series_metric
+  - is_false: fields.k8s\.pod\.ip.ip.non_dimension_indices
+  - is_false: fields.k8s\.pod\.ip.ip.metric_conflicts_indices
+
+  - is_false: fields.k8s\.pod\.network\.tx.long.time_series_dimension
+  - is_false: fields.k8s\.pod\.network\.tx.long.time_series_metric
+  - is_false: fields.k8s\.pod\.network\.tx.long.non_dimension_indices
+  - match: {fields.k8s\.pod\.network\.tx.long.metric_conflicts_indices: ["tsdb_index1", "tsdb_index2"]}
+
+  - is_false: fields.k8s\.pod\.network\.rx.integer.time_series_dimension
+  - is_false: fields.k8s\.pod\.network\.rx.integer.time_series_metric
+  - is_false: fields.k8s\.pod\.network\.rx.integer.non_dimension_indices
+  - match: {fields.k8s\.pod\.network\.rx.integer.metric_conflicts_indices: ["tsdb_index1", "tsdb_index2"]}
+
+  - is_false: fields.k8s\.pod\.network\.packets_dropped.long.time_series_dimension
+  - match: {fields.k8s\.pod\.network\.packets_dropped.long.time_series_metric: gauge}
+  - is_false: fields.k8s\.pod\.network\.packets_dropped.long.non_dimension_indices
+  - is_false: fields.k8s\.pod\.network\.packets_dropped.long.metric_conflicts_indices
+
+  - is_false: fields.k8s\.pod\.network\.latency.double.time_series_dimension
+  - match: {fields.k8s\.pod\.network\.latency.double.time_series_metric: gauge}
+  - is_false: fields.k8s\.pod\.network\.latency.double.non_dimension_indices
+  - is_false: fields.k8s\.pod\.network\.latency.double.metric_conflicts_indices

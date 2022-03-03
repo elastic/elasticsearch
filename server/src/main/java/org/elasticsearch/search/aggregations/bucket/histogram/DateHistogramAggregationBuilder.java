@@ -12,9 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -29,6 +26,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -161,6 +161,11 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.DATE;
     }
@@ -186,6 +191,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *
      * @param interval The calendar interval to use with the aggregation
      */
+    @Override
     public DateHistogramAggregationBuilder calendarInterval(DateHistogramInterval interval) {
         dateHistogramInterval.calendarInterval(interval);
         return this;
@@ -199,6 +205,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *
      * @param interval The fixed interval to use with the aggregation
      */
+    @Override
     public DateHistogramAggregationBuilder fixedInterval(DateHistogramInterval interval) {
         dateHistogramInterval.fixedInterval(interval);
         return this;
@@ -488,5 +495,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             && Objects.equals(offset, other.offset)
             && Objects.equals(extendedBounds, other.extendedBounds)
             && Objects.equals(hardBounds, other.hardBounds);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

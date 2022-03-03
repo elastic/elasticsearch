@@ -4,6 +4,6 @@ tasks.withType(RestIntegTestTask).configureEach {
   systemProperty 'tests.ssl.enabled', 'false'
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
 }

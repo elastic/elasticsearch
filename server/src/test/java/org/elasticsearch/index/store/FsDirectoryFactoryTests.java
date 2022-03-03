@@ -72,13 +72,13 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         return new FsDirectoryFactory().newDirectory(idxSettings, path);
     }
 
-    private void doTestPreload(String...preload) throws IOException {
+    private void doTestPreload(String... preload) throws IOException {
         Settings build = Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mmapfs")
             .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
             .build();
         Directory directory = newDirectory(build);
-        try (Directory dir = directory){
+        try (Directory dir = directory) {
             assertSame(dir, directory); // prevent warnings
             assertFalse(directory instanceof SleepingLockWrapper);
             if (preload.length == 0) {
@@ -97,12 +97,16 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 assertFalse(preLoadMMapDirectory.useDelegate("XXX"));
                 assertFalse(preLoadMMapDirectory.getPreload());
                 preLoadMMapDirectory.close();
-                expectThrows(AlreadyClosedException.class, () -> preLoadMMapDirectory.getDelegate().openInput("foo.tmp",
-                    IOContext.DEFAULT));
+                expectThrows(
+                    AlreadyClosedException.class,
+                    () -> preLoadMMapDirectory.getDelegate().openInput("foo.tmp", IOContext.DEFAULT)
+                );
             }
         }
-        expectThrows(AlreadyClosedException.class, () -> directory.openInput(randomBoolean() && preload.length != 0 ?
-            "foo." + preload[0] : "foo.tmp", IOContext.DEFAULT));
+        expectThrows(
+            AlreadyClosedException.class,
+            () -> directory.openInput(randomBoolean() && preload.length != 0 ? "foo." + preload[0] : "foo.tmp", IOContext.DEFAULT)
+        );
     }
 
     public void testStoreDirectory() throws IOException {
@@ -117,8 +121,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
     }
 
     private void doTestStoreDirectory(Path tempDir, String typeSettingValue, IndexModule.Type type) throws IOException {
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder settingsBuilder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
         if (typeSettingValue != null) {
             settingsBuilder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), typeSettingValue);
         }

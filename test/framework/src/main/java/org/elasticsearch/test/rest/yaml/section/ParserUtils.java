@@ -9,7 +9,7 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,7 +33,7 @@ class ParserUtils {
     public static Tuple<String, Object> parseTuple(XContentParser parser) throws IOException {
         parser.nextToken();
         advanceToFieldName(parser);
-        Map<String,Object> map = parser.map();
+        Map<String, Object> map = parser.map();
         assert parser.currentToken() == XContentParser.Token.END_OBJECT;
         parser.nextToken();
 
@@ -47,7 +47,7 @@ class ParserUtils {
 
     public static void advanceToFieldName(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        //we are in the beginning, haven't called nextToken yet
+        // we are in the beginning, haven't called nextToken yet
         if (token == null) {
             token = parser.nextToken();
         }
@@ -58,8 +58,9 @@ class ParserUtils {
             token = parser.nextToken();
         }
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new IllegalArgumentException("malformed test section: field name expected but found " + token + " at "
-                    + parser.getTokenLocation());
+            throw new IllegalArgumentException(
+                "malformed test section: field name expected but found " + token + " at " + parser.getTokenLocation()
+            );
         }
     }
 }

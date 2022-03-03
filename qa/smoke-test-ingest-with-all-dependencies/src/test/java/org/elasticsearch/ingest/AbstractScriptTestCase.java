@@ -32,7 +32,7 @@ public abstract class AbstractScriptTestCase extends ESTestCase {
     public void init() throws Exception {
         MustacheScriptEngine engine = new MustacheScriptEngine();
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
-        scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
     protected TemplateScript.Factory compile(String template) {

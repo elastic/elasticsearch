@@ -1,0 +1,177 @@
+---
+"Test pipeline versioned updates":
+  - skip:
+      version: " - 7.15.99"
+      reason: "added versioned updates in 7.16.0"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # conditional update fails because of missing version
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        if_version: 1
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "version": 1,
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.version: 1 }
+
+  # required version does not match specified version
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        if_version: 99
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+
+  # may not update to same version
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        if_version: 1
+        body:  >
+          {
+            "version": 1,
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+
+  # cannot conditionally update non-existent pipeline
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "my_pipeline2"
+        if_version: 1
+        body:  >
+          {
+            "version": 1,
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+
+  # conditionally update to specified version
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        if_version: 1
+        body:  >
+          {
+            "version": 99,
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.version: 99 }
+
+  # conditionally update without specified version
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        if_version: 99
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.version: 100 }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+  - match: { acknowledged: true }

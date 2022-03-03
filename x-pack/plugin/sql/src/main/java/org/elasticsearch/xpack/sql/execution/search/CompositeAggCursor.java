@@ -11,11 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -28,9 +24,9 @@ import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Rows;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,6 +36,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.sql.execution.search.Querier.logSearchResponse;
+import static org.elasticsearch.xpack.sql.execution.search.Querier.prepareRequest;
 
 /**
  * Cursor for composite aggregation (GROUP BY).
@@ -52,16 +51,22 @@ public class CompositeAggCursor implements Cursor {
     public static final String NAME = "c";
 
     private final String[] indices;
-    private final byte[] nextQuery;
+    private final SearchSourceBuilder nextQuery;
     private final List<BucketExtractor> extractors;
     private final BitSet mask;
     private final int limit;
     private final boolean includeFrozen;
 
-    CompositeAggCursor(byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen,
-            String... indices) {
+    CompositeAggCursor(
+        SearchSourceBuilder nextQuery,
+        List<BucketExtractor> exts,
+        BitSet mask,
+        int remainingLimit,
+        boolean includeFrozen,
+        String... indices
+    ) {
         this.indices = indices;
-        this.nextQuery = next;
+        this.nextQuery = nextQuery;
         this.extractors = exts;
         this.mask = mask;
         this.limit = remainingLimit;
@@ -70,7 +75,7 @@ public class CompositeAggCursor implements Cursor {
 
     public CompositeAggCursor(StreamInput in) throws IOException {
         indices = in.readStringArray();
-        nextQuery = in.readByteArray();
+        nextQuery = new SearchSourceBuilder(in);
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(BucketExtractor.class);
@@ -81,7 +86,7 @@ public class CompositeAggCursor implements Cursor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
-        out.writeByteArray(nextQuery);
+        nextQuery.writeTo(out);
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
@@ -98,7 +103,7 @@ public class CompositeAggCursor implements Cursor {
         return indices;
     }
 
-    byte[] next() {
+    SearchSourceBuilder next() {
         return nextQuery;
     }
 
@@ -119,31 +124,25 @@ public class CompositeAggCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
-        SearchSourceBuilder q;
-        try {
-            q = deserializeQuery(registry, nextQuery);
-        } catch (Exception ex) {
-            listener.onFailure(ex);
-            return;
-        }
-
-        SearchSourceBuilder query = q;
+    public void nextPage(SqlConfiguration cfg, Client client, ActionListener<Page> listener) {
         if (log.isTraceEnabled()) {
-            log.trace("About to execute composite query {} on {}", StringUtils.toString(query), indices);
+            log.trace("About to execute composite query {} on {}", StringUtils.toString(nextQuery), indices);
         }
 
-        SearchRequest request = Querier.prepareRequest(client, query, cfg.pageTimeout(), includeFrozen, indices);
+        SearchRequest request = prepareRequest(nextQuery, cfg.requestTimeout(), includeFrozen, indices);
 
         client.search(request, new ActionListener.Delegating<>(listener) {
             @Override
             public void onResponse(SearchResponse response) {
-                handle(response, request.source(),
-                        makeRowSet(response),
-                        makeCursor(),
-                        () -> client.search(request, this),
-                        delegate,
-                        Schema.EMPTY);
+                handle(
+                    response,
+                    request.source(),
+                    makeRowSet(response),
+                    makeCursor(),
+                    () -> client.search(request, this),
+                    delegate,
+                    Schema.EMPTY
+                );
             }
         });
     }
@@ -152,19 +151,22 @@ public class CompositeAggCursor implements Cursor {
         return () -> new CompositeAggRowSet(extractors, mask, response, limit);
     }
 
-    protected BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor() {
+    protected BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor() {
         return (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData(), includeFrozen, indices);
     }
 
-    static void handle(SearchResponse response, SearchSourceBuilder source,
-            Supplier<CompositeAggRowSet> makeRowSet,
-            BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor,
-            Runnable retry,
-            ActionListener<Page> listener,
-            Schema schema) {
+    static void handle(
+        SearchResponse response,
+        SearchSourceBuilder source,
+        Supplier<CompositeAggRowSet> makeRowSet,
+        BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor,
+        Runnable retry,
+        ActionListener<Page> listener,
+        Schema schema
+    ) {
 
         if (log.isTraceEnabled()) {
-            Querier.logSearchResponse(response, log);
+            logSearchResponse(response, log);
         }
         // there are some results
         if (response.getAggregations().asList().isEmpty() == false) {
@@ -179,15 +181,11 @@ public class CompositeAggCursor implements Cursor {
                 CompositeAggRowSet rowSet = makeRowSet.get();
                 Map<String, Object> afterKey = rowSet.afterKey();
 
-                byte[] queryAsBytes = null;
                 if (afterKey != null) {
                     updateSourceAfterKey(afterKey, source);
-                    queryAsBytes = serializeQuery(source);
                 }
 
-                Cursor next = rowSet.remainingData() == 0
-                        ? Cursor.EMPTY
-                        : makeCursor.apply(queryAsBytes, rowSet);
+                Cursor next = rowSet.remainingData() == 0 ? Cursor.EMPTY : makeCursor.apply(source, rowSet);
                 listener.onResponse(new Page(rowSet, next));
             } catch (Exception ex) {
                 listener.onFailure(ex);
@@ -234,46 +232,21 @@ public class CompositeAggCursor implements Cursor {
     private static void updateSourceAfterKey(Map<String, Object> afterKey, SearchSourceBuilder search) {
         AggregationBuilder aggBuilder = search.aggregations().getAggregatorFactories().iterator().next();
         // update after-key with the new value
-        if (aggBuilder instanceof CompositeAggregationBuilder) {
-            CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;
+        if (aggBuilder instanceof CompositeAggregationBuilder comp) {
             comp.aggregateAfter(afterKey);
         } else {
             throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
         }
     }
 
-    /**
-     * Deserializes the search source from a byte array.
-     */
-    private static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
-        try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(source), registry)) {
-            return new SearchSourceBuilder(in);
-        }
-    }
-
-    /**
-     * Serializes the search source to a byte array.
-     */
-    private static byte[] serializeQuery(SearchSourceBuilder source) throws IOException {
-        if (source == null) {
-            return new byte[0];
-        }
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            source.writeTo(out);
-            return BytesReference.toBytes(out.bytes());
-        }
-    }
-
-
     @Override
-    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(Client client, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(indices), Arrays.hashCode(nextQuery), extractors, limit, mask, includeFrozen);
+        return Objects.hash(Arrays.hashCode(indices), nextQuery, extractors, limit, mask, includeFrozen);
     }
 
     @Override
@@ -283,10 +256,10 @@ public class CompositeAggCursor implements Cursor {
         }
         CompositeAggCursor other = (CompositeAggCursor) obj;
         return Arrays.equals(indices, other.indices)
-                && Arrays.equals(nextQuery, other.nextQuery)
-                && Objects.equals(extractors, other.extractors)
-                && Objects.equals(limit, other.limit)
-                && Objects.equals(includeFrozen, other.includeFrozen);
+            && Objects.equals(nextQuery, other.nextQuery)
+            && Objects.equals(extractors, other.extractors)
+            && Objects.equals(limit, other.limit)
+            && Objects.equals(includeFrozen, other.includeFrozen);
     }
 
     @Override

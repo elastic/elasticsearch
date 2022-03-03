@@ -9,14 +9,14 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public final class KibanaEnrollmentResponse {
 
@@ -30,9 +30,13 @@ public final class KibanaEnrollmentResponse {
         this.httpCa = httpCa;
     }
 
-    public String getTokenName() { return tokenName; }
+    public String getTokenName() {
+        return tokenName;
+    }
 
-    public SecureString getTokenValue() { return tokenValue; }
+    public SecureString getTokenValue() {
+        return tokenValue;
+    }
 
     public String getHttpCa() {
         return httpCa;
@@ -44,17 +48,19 @@ public final class KibanaEnrollmentResponse {
     private static final ParseField HTTP_CA = new ParseField("http_ca");
 
     static final ConstructingObjectParser<Token, Void> TOKEN_PARSER = new ConstructingObjectParser<>(
-        KibanaEnrollmentResponse.class.getName(), true,
+        KibanaEnrollmentResponse.class.getName(),
+        true,
         a -> new Token((String) a[0], (String) a[1])
     );
 
-    private static final ConstructingObjectParser<KibanaEnrollmentResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            KibanaEnrollmentResponse.class.getName(), true,
-            a -> {
-                final Token token = (Token) a[0];
-                return new KibanaEnrollmentResponse(token.name, new SecureString(token.value.toCharArray()), (String) a[1]);
-            });
+    private static final ConstructingObjectParser<KibanaEnrollmentResponse, Void> PARSER = new ConstructingObjectParser<>(
+        KibanaEnrollmentResponse.class.getName(),
+        true,
+        a -> {
+            final Token token = (Token) a[0];
+            return new KibanaEnrollmentResponse(token.name, new SecureString(token.value.toCharArray()), (String) a[1]);
+        }
+    );
 
     static {
         TOKEN_PARSER.declareString(constructorArg(), TOKEN_NAME);
@@ -67,14 +73,16 @@ public final class KibanaEnrollmentResponse {
         return PARSER.apply(parser, null);
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         KibanaEnrollmentResponse that = (KibanaEnrollmentResponse) o;
         return tokenName.equals(that.tokenName) && tokenValue.equals(that.tokenValue) && httpCa.equals(that.httpCa);
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return Objects.hash(tokenName, tokenValue, httpCa);
     }
 

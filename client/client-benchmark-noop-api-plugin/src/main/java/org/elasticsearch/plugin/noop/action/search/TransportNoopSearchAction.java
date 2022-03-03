@@ -35,12 +35,25 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
 
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
-        listener.onResponse(new SearchResponse(new InternalSearchResponse(
-            new SearchHits(
-                new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-            InternalAggregations.EMPTY,
-            new Suggest(Collections.emptyList()),
-            new SearchProfileResults(Collections.emptyMap()), false, false, 1),
-            "", 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY));
+        listener.onResponse(
+            new SearchResponse(
+                new InternalSearchResponse(
+                    new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+                    InternalAggregations.EMPTY,
+                    new Suggest(Collections.emptyList()),
+                    new SearchProfileResults(Collections.emptyMap()),
+                    false,
+                    false,
+                    1
+                ),
+                "",
+                1,
+                1,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
     }
 }

@@ -16,18 +16,18 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
 public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
@@ -81,17 +81,18 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                 }
                 builder.endObject();
 
-                return Collections.singletonList(SystemIndexDescriptor.builder()
-                    .setIndexPattern(SYSTEM_INDEX_NAME + "*")
-                    .setPrimaryIndex(SYSTEM_INDEX_NAME)
-                    .setDescription("Test system index")
-                    .setOrigin(getClass().getName())
-                    .setVersionMetaKey("version")
-                    .setMappings(builder)
-                    .setSettings(SETTINGS)
-                    .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                    .setNetNew()
-                    .build()
+                return Collections.singletonList(
+                    SystemIndexDescriptor.builder()
+                        .setIndexPattern(SYSTEM_INDEX_NAME + "*")
+                        .setPrimaryIndex(SYSTEM_INDEX_NAME)
+                        .setDescription("Test system index")
+                        .setOrigin(getClass().getName())
+                        .setVersionMetaKey("version")
+                        .setMappings(builder)
+                        .setSettings(SETTINGS)
+                        .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                        .setNetNew()
+                        .build()
                 );
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to build " + SYSTEM_INDEX_NAME + " index mappings", e);

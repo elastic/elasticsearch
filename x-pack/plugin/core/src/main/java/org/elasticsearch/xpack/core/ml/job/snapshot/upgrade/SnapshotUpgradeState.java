@@ -17,7 +17,10 @@ import java.util.Locale;
 
 public enum SnapshotUpgradeState implements Writeable, MemoryTrackedTaskState {
 
-    LOADING_OLD_STATE, SAVING_NEW_STATE, STOPPED, FAILED;
+    LOADING_OLD_STATE,
+    SAVING_NEW_STATE,
+    STOPPED,
+    FAILED;
 
     public static SnapshotUpgradeState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

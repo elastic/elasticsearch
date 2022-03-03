@@ -22,8 +22,10 @@ import java.util.Optional;
  */
 public class CloseIndexRequest extends TimedRequest implements Validatable {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
+
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     /**

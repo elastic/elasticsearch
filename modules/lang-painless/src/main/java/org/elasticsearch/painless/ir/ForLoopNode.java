@@ -18,7 +18,7 @@ public class ForLoopNode extends ConditionNode {
     private IRNode initializerNode;
     private ExpressionNode afterthoughtNode;
 
-    public void setInitialzerNode(IRNode initializerNode) {
+    public void setInitializerNode(IRNode initializerNode) {
         this.initializerNode = initializerNode;
     }
 

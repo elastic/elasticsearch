@@ -33,10 +33,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class WatcherPluginTests extends ESTestCase {
 
     public void testWatcherDisabledTests() throws Exception {
-        Settings settings = Settings.builder()
-                .put("xpack.watcher.enabled", false)
-                .put("path.home", createTempDir())
-                .build();
+        Settings settings = Settings.builder().put("xpack.watcher.enabled", false).put("path.home", createTempDir()).build();
         Watcher watcher = new Watcher(settings);
 
         List<ExecutorBuilder<?>> executorBuilders = watcher.getExecutorBuilders(settings);
@@ -46,10 +43,27 @@ public class WatcherPluginTests extends ESTestCase {
 
         // ensure index module is not called, even if watches index is tried
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(Watch.INDEX, settings);
-        AnalysisRegistry registry = new AnalysisRegistry(TestEnvironment.newEnvironment(settings), emptyMap(), emptyMap(), emptyMap(),
-                emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap());
-        IndexModule indexModule = new IndexModule(indexSettings, registry, new InternalEngineFactory(), Collections.emptyMap(),
-            () -> true, TestIndexNameExpressionResolver.newInstance(), Collections.emptyMap());
+        AnalysisRegistry registry = new AnalysisRegistry(
+            TestEnvironment.newEnvironment(settings),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap()
+        );
+        IndexModule indexModule = new IndexModule(
+            indexSettings,
+            registry,
+            new InternalEngineFactory(),
+            Collections.emptyMap(),
+            () -> true,
+            TestIndexNameExpressionResolver.newInstance(),
+            Collections.emptyMap()
+        );
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);
 
@@ -77,10 +91,7 @@ public class WatcherPluginTests extends ESTestCase {
     }
 
     public void testReload() {
-        Settings settings = Settings.builder()
-            .put("xpack.watcher.enabled", true)
-            .put("path.home", createTempDir())
-            .build();
+        Settings settings = Settings.builder().put("xpack.watcher.enabled", true).put("path.home", createTempDir()).build();
         NotificationService<?> mockService = mock(NotificationService.class);
         Watcher watcher = new TestWatcher(settings, mockService);
 
@@ -89,10 +100,7 @@ public class WatcherPluginTests extends ESTestCase {
     }
 
     public void testReloadDisabled() {
-        Settings settings = Settings.builder()
-            .put("xpack.watcher.enabled", false)
-            .put("path.home", createTempDir())
-            .build();
+        Settings settings = Settings.builder().put("xpack.watcher.enabled", false).put("path.home", createTempDir()).build();
         NotificationService<?> mockService = mock(NotificationService.class);
         Watcher watcher = new TestWatcher(settings, mockService);
 

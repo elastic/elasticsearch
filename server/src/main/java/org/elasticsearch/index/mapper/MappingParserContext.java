@@ -17,7 +17,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
 
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -36,18 +35,20 @@ public class MappingParserContext {
     private final ScriptCompiler scriptCompiler;
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
-    private final BooleanSupplier idFieldDataEnabled;
+    private final IdFieldMapper idFieldMapper;
 
-    public MappingParserContext(Function<String, SimilarityProvider> similarityLookupService,
-                                Function<String, Mapper.TypeParser> typeParsers,
-                                Function<String, RuntimeField.Parser> runtimeFieldParsers,
-                                Version indexVersionCreated,
-                                Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-                                DateFormatter dateFormatter,
-                                ScriptCompiler scriptCompiler,
-                                IndexAnalyzers indexAnalyzers,
-                                IndexSettings indexSettings,
-                                BooleanSupplier idFieldDataEnabled) {
+    public MappingParserContext(
+        Function<String, SimilarityProvider> similarityLookupService,
+        Function<String, Mapper.TypeParser> typeParsers,
+        Function<String, RuntimeField.Parser> runtimeFieldParsers,
+        Version indexVersionCreated,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        DateFormatter dateFormatter,
+        ScriptCompiler scriptCompiler,
+        IndexAnalyzers indexAnalyzers,
+        IndexSettings indexSettings,
+        IdFieldMapper idFieldMapper
+    ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
         this.runtimeFieldParsers = runtimeFieldParsers;
@@ -57,7 +58,7 @@ public class MappingParserContext {
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
-        this.idFieldDataEnabled = idFieldDataEnabled;
+        this.idFieldMapper = idFieldMapper;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -68,8 +69,8 @@ public class MappingParserContext {
         return indexSettings;
     }
 
-    public BooleanSupplier isIdFieldDataEnabled() {
-        return idFieldDataEnabled;
+    public IdFieldMapper idFieldMapper() {
+        return idFieldMapper;
     }
 
     public Settings getSettings() {
@@ -116,10 +117,6 @@ public class MappingParserContext {
         return false;
     }
 
-    protected Function<String, SimilarityProvider> similarityLookupService() {
-        return similarityLookupService;
-    }
-
     /**
      * The {@linkplain ScriptCompiler} to compile scripts needed by the {@linkplain Mapper}.
      */
@@ -133,9 +130,18 @@ public class MappingParserContext {
 
     private static class MultiFieldParserContext extends MappingParserContext {
         MultiFieldParserContext(MappingParserContext in) {
-            super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
-                in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
-                in.idFieldDataEnabled);
+            super(
+                in.similarityLookupService,
+                in.typeParsers,
+                in.runtimeFieldParsers,
+                in.indexVersionCreated,
+                in.searchExecutionContextSupplier,
+                in.dateFormatter,
+                in.scriptCompiler,
+                in.indexAnalyzers,
+                in.indexSettings,
+                in.idFieldMapper
+            );
         }
 
         @Override
@@ -146,9 +152,18 @@ public class MappingParserContext {
 
     static class DynamicTemplateParserContext extends MappingParserContext {
         DynamicTemplateParserContext(MappingParserContext in) {
-            super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
-                in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
-                in.idFieldDataEnabled);
+            super(
+                in.similarityLookupService,
+                in.typeParsers,
+                in.runtimeFieldParsers,
+                in.indexVersionCreated,
+                in.searchExecutionContextSupplier,
+                in.dateFormatter,
+                in.scriptCompiler,
+                in.indexAnalyzers,
+                in.indexSettings,
+                in.idFieldMapper
+            );
         }
 
         @Override

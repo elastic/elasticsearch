@@ -44,9 +44,14 @@ public class FakeStringFieldMapper extends FieldMapper {
         @Override
         public FakeStringFieldMapper build(MapperBuilderContext context) {
             return new FakeStringFieldMapper(
-                new FakeStringFieldType(name, true,
-                    new TextSearchInfo(FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)),
-                multiFieldsBuilder.build(this, context), copyTo.build());
+                new FakeStringFieldType(
+                    name,
+                    true,
+                    new TextSearchInfo(FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER)
+                ),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build()
+            );
         }
     }
 
@@ -69,8 +74,7 @@ public class FakeStringFieldMapper extends FieldMapper {
         }
     }
 
-    protected FakeStringFieldMapper(MappedFieldType mappedFieldType,
-                                    MultiFields multiFields, CopyTo copyTo) {
+    protected FakeStringFieldMapper(MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(mappedFieldType.name(), mappedFieldType, Lucene.STANDARD_ANALYZER, multiFields, copyTo);
     }
 

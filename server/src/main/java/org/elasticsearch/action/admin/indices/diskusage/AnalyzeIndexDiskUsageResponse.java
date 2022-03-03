@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,9 +22,13 @@ import java.util.stream.Collectors;
 public final class AnalyzeIndexDiskUsageResponse extends BroadcastResponse {
     private final Map<String, IndexDiskUsageStats> stats;
 
-    AnalyzeIndexDiskUsageResponse(int totalShards, int successfulShards, int failedShards,
-                                  List<DefaultShardOperationFailedException> shardFailures,
-                                  Map<String, IndexDiskUsageStats> stats) {
+    AnalyzeIndexDiskUsageResponse(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures,
+        Map<String, IndexDiskUsageStats> stats
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.stats = stats;
     }
@@ -46,7 +50,8 @@ public final class AnalyzeIndexDiskUsageResponse extends BroadcastResponse {
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        final List<Map.Entry<String, IndexDiskUsageStats>> entries = stats.entrySet().stream()
+        final List<Map.Entry<String, IndexDiskUsageStats>> entries = stats.entrySet()
+            .stream()
             .sorted(Map.Entry.comparingByKey())
             .collect(Collectors.toList());
         for (Map.Entry<String, IndexDiskUsageStats> entry : entries) {

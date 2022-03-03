@@ -11,11 +11,11 @@ package org.elasticsearch.client.eql;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -28,7 +28,7 @@ import static java.util.Collections.emptyMap;
 public class EqlSearchRequest implements Validatable, ToXContentObject {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, true, false);
+    private IndicesOptions indicesOptions;
 
     private QueryBuilder filter = null;
     private String timestampField = "@timestamp";
@@ -247,21 +247,21 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             return false;
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
-        return size == that.size &&
-            fetchSize == that.fetchSize &&
-            Arrays.equals(indices, that.indices) &&
-            Objects.equals(indicesOptions, that.indicesOptions) &&
-            Objects.equals(filter, that.filter) &&
-            Objects.equals(timestampField, that.timestampField) &&
-            Objects.equals(tiebreakerField, that.tiebreakerField) &&
-            Objects.equals(eventCategoryField, that.eventCategoryField) &&
-            Objects.equals(query, that.query) &&
-            Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
-            Objects.equals(keepAlive, that.keepAlive) &&
-            Objects.equals(keepOnCompletion, that.keepOnCompletion) &&
-            Objects.equals(resultPosition, that.resultPosition) &&
-            Objects.equals(fetchFields, that.fetchFields) &&
-            Objects.equals(runtimeMappings, that.runtimeMappings);
+        return size == that.size
+            && fetchSize == that.fetchSize
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Objects.equals(filter, that.filter)
+            && Objects.equals(timestampField, that.timestampField)
+            && Objects.equals(tiebreakerField, that.tiebreakerField)
+            && Objects.equals(eventCategoryField, that.eventCategoryField)
+            && Objects.equals(query, that.query)
+            && Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout)
+            && Objects.equals(keepAlive, that.keepAlive)
+            && Objects.equals(keepOnCompletion, that.keepOnCompletion)
+            && Objects.equals(resultPosition, that.resultPosition)
+            && Objects.equals(fetchFields, that.fetchFields)
+            && Objects.equals(runtimeMappings, that.runtimeMappings);
     }
 
     @Override
@@ -281,7 +281,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             keepOnCompletion,
             resultPosition,
             fetchFields,
-            runtimeMappings);
+            runtimeMappings
+        );
     }
 
     public String[] indices() {

@@ -9,17 +9,17 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -101,10 +101,15 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         for (int i = 0; i < responses.length; i++) {
             BulkItemResponse response = responses[i];
             if (response.isFailed()) {
-                sb.append("\n[").append(i)
-                        .append("]: index [").append(response.getIndex())
-                        .append("], id [").append(response.getId())
-                        .append("], message [").append(response.getFailureMessage()).append("]");
+                sb.append("\n[")
+                    .append(i)
+                    .append("]: index [")
+                    .append(response.getIndex())
+                    .append("], id [")
+                    .append(response.getId())
+                    .append("], message [")
+                    .append(response.getFailureMessage())
+                    .append("]");
             }
         }
         return sb.toString();
@@ -119,7 +124,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     @Override
     public Iterator<BulkItemResponse> iterator() {
-        return Arrays.stream(responses).iterator();
+        return Iterators.forArray(responses);
     }
 
     @Override

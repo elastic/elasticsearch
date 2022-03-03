@@ -10,14 +10,16 @@ package org.elasticsearch.action.admin.indices.readonly;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 
 /**
  * Builder for add index block request
  */
-public class AddIndexBlockRequestBuilder
-    extends AcknowledgedRequestBuilder<AddIndexBlockRequest, AddIndexBlockResponse, AddIndexBlockRequestBuilder> {
+public class AddIndexBlockRequestBuilder extends AcknowledgedRequestBuilder<
+    AddIndexBlockRequest,
+    AddIndexBlockResponse,
+    AddIndexBlockRequestBuilder> {
 
     public AddIndexBlockRequestBuilder(ElasticsearchClient client, AddIndexBlockAction action, APIBlock block, String... indices) {
         super(client, action, new AddIndexBlockRequest(block, indices));

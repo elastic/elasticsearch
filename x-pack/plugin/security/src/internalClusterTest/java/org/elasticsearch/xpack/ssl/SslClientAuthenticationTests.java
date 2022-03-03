@@ -36,6 +36,7 @@ import java.security.SecureRandom;
 import java.security.cert.CertPathBuilderException;
 import java.util.HashSet;
 import java.util.List;
+
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -57,15 +58,13 @@ public class SslClientAuthenticationTests extends SecurityIntegTestCase {
         Settings baseSettings = super.nodeSettings(nodeOrdinal, otherSettings);
 
         Settings.Builder builder = Settings.builder().put(baseSettings);
-        baseSettings.getByPrefix("xpack.security.transport.ssl.")
-                .keySet()
-                .forEach(k -> {
-                    String httpKey = "xpack.security.http.ssl." + k;
-                    String value = baseSettings.get("xpack.security.transport.ssl." + k);
-                    if (value != null) {
-                        builder.put(httpKey, baseSettings.get("xpack.security.transport.ssl." + k));
-                    }
-                });
+        baseSettings.getByPrefix("xpack.security.transport.ssl.").keySet().forEach(k -> {
+            String httpKey = "xpack.security.http.ssl." + k;
+            String value = baseSettings.get("xpack.security.transport.ssl." + k);
+            if (value != null) {
+                builder.put(httpKey, baseSettings.get("xpack.security.transport.ssl." + k));
+            }
+        });
 
         MockSecureSettings secureSettings = (MockSecureSettings) builder.getSecureSettings();
         for (String key : new HashSet<>(secureSettings.getSettingNames())) {
@@ -85,15 +84,15 @@ public class SslClientAuthenticationTests extends SecurityIntegTestCase {
         }
 
         return builder
-                // invert the require auth settings
-                .put("xpack.security.transport.ssl.client_authentication", SslClientAuthenticationMode.NONE)
-                // Due to the TLSv1.3 bug with session resumption when client authentication is not
-                // used, we need to set the protocols since we disabled client auth for transport
-                // to avoid failures on pre 11.0.3 JDKs. See #getProtocols
-                .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
-                .put("xpack.security.http.ssl.enabled", true)
-                .put("xpack.security.http.ssl.client_authentication", SslClientAuthenticationMode.REQUIRED)
-                .build();
+            // invert the require auth settings
+            .put("xpack.security.transport.ssl.client_authentication", SslClientAuthenticationMode.NONE)
+            // Due to the TLSv1.3 bug with session resumption when client authentication is not
+            // used, we need to set the protocols since we disabled client auth for transport
+            // to avoid failures on pre 11.0.3 JDKs. See #getProtocols
+            .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.client_authentication", SslClientAuthenticationMode.REQUIRED)
+            .build();
     }
 
     @Override
@@ -169,9 +168,9 @@ public class SslClientAuthenticationTests extends SecurityIntegTestCase {
      * However if client authentication is turned off and TLSv1.3 is used on the affected JVMs then we will hit this issue.
      */
     private static List<String> getProtocols() {
-        JavaVersion full =
-            AccessController.doPrivileged(
-                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+        JavaVersion full = AccessController.doPrivileged(
+            (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
+        );
         if (full.compareTo(JavaVersion.parse("11.0.3")) < 0) {
             return List.of("TLSv1.2");
         }

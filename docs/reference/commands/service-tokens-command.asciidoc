@@ -1,5 +1,3 @@
-[role="xpack"]
-[testenv="gold+"]
 [[service-tokens-command]]
 == elasticsearch-service-tokens
 

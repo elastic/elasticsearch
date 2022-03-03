@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -104,8 +104,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
                 return false;
             }
             DataStreamStats other = (DataStreamStats) obj;
-            return totalDataStreamCount == other.totalDataStreamCount &&
-                indicesBehindDataStream == other.indicesBehindDataStream;
+            return totalDataStreamCount == other.totalDataStreamCount && indicesBehindDataStream == other.indicesBehindDataStream;
         }
     }
 }

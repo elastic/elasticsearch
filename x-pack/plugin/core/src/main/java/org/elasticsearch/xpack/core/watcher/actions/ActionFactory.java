@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.actions;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -26,5 +26,5 @@ public abstract class ActionFactory {
      * Parses the given xcontent and creates a concrete action
      */
     public abstract ExecutableAction<? extends Action> parseExecutable(String watchId, String actionId, XContentParser parser)
-            throws IOException;
+        throws IOException;
 }

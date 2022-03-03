@@ -35,7 +35,7 @@ import static org.elasticsearch.http.HttpStats.ClientStats.NOT_CLOSED;
  */
 public class HttpClientStatsTracker {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(HttpClientStatsTracker.class);
 
     private final ThreadPool threadPool;
 
@@ -82,10 +82,14 @@ public class HttpClientStatsTracker {
             return;
         }
 
-        httpChannelStats.putIfAbsent(httpChannel, new ClientStatsBuilder(
-            System.identityHashCode(httpChannel),
-            formatAddress(httpChannel.getRemoteAddress()),
-            threadPool.absoluteTimeInMillis()));
+        httpChannelStats.putIfAbsent(
+            httpChannel,
+            new ClientStatsBuilder(
+                System.identityHashCode(httpChannel),
+                formatAddress(httpChannel.getRemoteAddress()),
+                threadPool.absoluteTimeInMillis()
+            )
+        );
         httpChannel.addCloseListener(ActionListener.wrap(() -> {
             try {
                 final ClientStatsBuilder disconnectedClientStats = httpChannelStats.remove(httpChannel);

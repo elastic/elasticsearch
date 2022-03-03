@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[search-aggregations-metrics-top-metrics]]
 === Top metrics aggregation
 ++++

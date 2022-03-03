@@ -99,10 +99,10 @@ public class StopTransformRequest implements Validatable {
         }
         StopTransformRequest other = (StopTransformRequest) obj;
         return Objects.equals(this.id, other.id)
-                && Objects.equals(this.waitForCompletion, other.waitForCompletion)
-                && Objects.equals(this.timeout, other.timeout)
-                && Objects.equals(this.waitForCheckpoint, other.waitForCheckpoint)
-                && Objects.equals(this.allowNoMatch, other.allowNoMatch);
+            && Objects.equals(this.waitForCompletion, other.waitForCompletion)
+            && Objects.equals(this.timeout, other.timeout)
+            && Objects.equals(this.waitForCheckpoint, other.waitForCheckpoint)
+            && Objects.equals(this.allowNoMatch, other.allowNoMatch);
     }
 
 }

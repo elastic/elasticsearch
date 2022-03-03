@@ -23,9 +23,11 @@ public class NodesDeprecationCheckResponse extends BaseNodesResponse<NodesDeprec
         super(in);
     }
 
-    public NodesDeprecationCheckResponse(ClusterName clusterName,
-                                         List<NodesDeprecationCheckAction.NodeResponse> nodes,
-                                         List<FailedNodeException> failures) {
+    public NodesDeprecationCheckResponse(
+        ClusterName clusterName,
+        List<NodesDeprecationCheckAction.NodeResponse> nodes,
+        List<FailedNodeException> failures
+    ) {
         super(clusterName, nodes, failures);
     }
 

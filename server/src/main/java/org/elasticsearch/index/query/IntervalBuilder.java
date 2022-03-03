@@ -15,12 +15,12 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.queries.intervals.IntervalIterator;
+import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 
@@ -48,8 +48,7 @@ public abstract class IntervalBuilder {
     protected abstract IntervalsSource termIntervals(BytesRef term);
 
     public IntervalsSource analyzeText(String query, int maxGaps, boolean ordered) throws IOException {
-        try (TokenStream ts = analyzer.tokenStream(field, query);
-             CachingTokenFilter stream = new CachingTokenFilter(ts)) {
+        try (TokenStream ts = analyzer.tokenStream(field, query); CachingTokenFilter stream = new CachingTokenFilter(ts)) {
             return analyzeText(stream, maxGaps, ordered);
         }
     }
@@ -166,8 +165,7 @@ public abstract class IntervalBuilder {
             if (posInc > 0) {
                 if (synonyms.size() == 1) {
                     terms.add(extend(synonyms.get(0), spaces));
-                }
-                else if (synonyms.size() > 1) {
+                } else if (synonyms.size() > 1) {
                     terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
                 }
                 synonyms.clear();
@@ -177,8 +175,7 @@ public abstract class IntervalBuilder {
         }
         if (synonyms.size() == 1) {
             terms.add(extend(synonyms.get(0), spaces));
-        }
-        else {
+        } else {
             terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
         }
         return combineSources(terms, maxGaps, ordered);

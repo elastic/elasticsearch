@@ -8,9 +8,10 @@
 
 package org.elasticsearch.gradle.internal.doc
 
-import groovy.json.JsonException
-import groovy.json.JsonParserType
-import groovy.json.JsonSlurper
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonToken;
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
@@ -72,7 +73,6 @@ class SnippetsTask extends DefaultTask {
             Snippet snippet = null
             StringBuilder contents = null
             List substitutions = null
-            String testEnv = null
             Closure emit = {
                 snippet.contents = contents.toString()
                 contents = null
@@ -118,15 +118,20 @@ class SnippetsTask extends DefaultTask {
                         .replaceAll(/([:,])\s*(\$[^ ,\n}]+)/, '$1 "$2"')
                         // quote fields starting with $
                         .replaceAll(/(\$[^ ,\n}]+)\s*:/, '"$1":')
-                    JsonSlurper slurper =
-                        new JsonSlurper(type: JsonParserType.INDEX_OVERLAY)
+
+                    JsonFactory jf = new JsonFactory();
+                    jf.configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER,true);
+                    JsonParser jsonParser;
+
                     try {
-                        slurper.parseText(quoted)
-                    } catch (JsonException e) {
-                        throw new InvalidUserDataException("Invalid json "
-                            + "in $snippet. The error is:\n${e.message}.\n"
-                            + "After substitutions and munging, the json "
-                            + "looks like:\n$quoted", e)
+                        jsonParser = jf.createParser(quoted);
+                        while(jsonParser.isClosed() == false) {
+                            jsonParser.nextToken();
+                        }
+                    } catch (JsonParseException e) {
+                        throw new InvalidUserDataException("Invalid json in "
+                        + snippet.toString() + ". The error is:\n" + e.getMessage() + ".\n"
+                        + "After substitutions and munging, the json looks like:\n" + quoted, e);
                     }
                 }
                 perSnippet(snippet)
@@ -134,14 +139,10 @@ class SnippetsTask extends DefaultTask {
             }
             file.eachLine('UTF-8') { String line, int lineNumber ->
                 Matcher matcher
-                matcher = line =~ /\[testenv="([^"]+)"\]\s*/
-                if (matcher.matches()) {
-                    testEnv = matcher.group(1)
-                }
                 if (line ==~ /-{4,}\s*/) { // Four dashes looks like a snippet
                     if (snippet == null) {
                         Path path = docs.dir.toPath().relativize(file.toPath())
-                        snippet = new Snippet(path: path, start: lineNumber, testEnv: testEnv, name: name)
+                        snippet = new Snippet(path: path, start: lineNumber, name: name)
                         if (lastLanguageLine == lineNumber - 1) {
                             snippet.language = lastLanguage
                         }
@@ -327,7 +328,6 @@ class SnippetsTask extends DefaultTask {
         int start
         int end = NOT_FINISHED
         String contents
-        String testEnv
 
         Boolean console = null
         boolean test = false
@@ -356,9 +356,6 @@ class SnippetsTask extends DefaultTask {
             }
             if (test) {
                 result += '// TEST'
-                if (testEnv != null) {
-                    result += "[testenv=$testEnv]"
-                }
                 if (catchPart) {
                     result += "[catch: $catchPart]"
                 }

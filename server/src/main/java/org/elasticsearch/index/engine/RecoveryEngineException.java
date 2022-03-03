@@ -23,7 +23,7 @@ public class RecoveryEngineException extends EngineException {
         this.phase = phase;
     }
 
-    public RecoveryEngineException(StreamInput in) throws IOException{
+    public RecoveryEngineException(StreamInput in) throws IOException {
         super(in);
         phase = in.readInt();
     }

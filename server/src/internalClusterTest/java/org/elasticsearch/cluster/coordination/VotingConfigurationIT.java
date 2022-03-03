@@ -56,12 +56,27 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         // by failing at the pre-voting stage, so that the extra node must be elected instead when the master shuts down. This extra node
         // should then add itself into the voting configuration.
 
-        assertFalse(internalCluster().client().admin().cluster().prepareHealth()
-            .setWaitForNodes("4").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertFalse(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForNodes("4")
+                .setWaitForEvents(Priority.LANGUID)
+                .get()
+                .isTimedOut()
+        );
 
         String excludedNodeName = null;
-        final ClusterState clusterState
-            = internalCluster().client().admin().cluster().prepareState().clear().setNodes(true).setMetadata(true).get().getState();
+        final ClusterState clusterState = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setNodes(true)
+            .setMetadata(true)
+            .get()
+            .getState();
         final Set<String> votingConfiguration = clusterState.getLastCommittedConfiguration().getNodeIds();
         assertThat(votingConfiguration, hasSize(3));
         assertThat(clusterState.nodes().getSize(), equalTo(4));
@@ -77,25 +92,44 @@ public class VotingConfigurationIT extends ESIntegTestCase {
             if (sender.equals(excludedNodeName)) {
                 continue;
             }
-            final MockTransportService senderTransportService
-                = (MockTransportService) internalCluster().getInstance(TransportService.class, sender);
+            final MockTransportService senderTransportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                sender
+            );
             for (final String receiver : nodeNames) {
-                senderTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, receiver),
+                senderTransportService.addSendBehavior(
+                    internalCluster().getInstance(TransportService.class, receiver),
                     (connection, requestId, action, request, options) -> {
                         if (action.equals(PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)) {
                             throw new ElasticsearchException("rejected");
                         }
                         connection.sendRequest(requestId, action, request, options);
-                    });
+                    }
+                );
             }
         }
 
         internalCluster().stopCurrentMasterNode();
-        assertFalse(internalCluster().client().admin().cluster().prepareHealth()
-            .setWaitForNodes("3").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertFalse(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForNodes("3")
+                .setWaitForEvents(Priority.LANGUID)
+                .get()
+                .isTimedOut()
+        );
 
-        final ClusterState newClusterState
-            = internalCluster().client().admin().cluster().prepareState().clear().setNodes(true).setMetadata(true).get().getState();
+        final ClusterState newClusterState = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setNodes(true)
+            .setMetadata(true)
+            .get()
+            .getState();
         assertThat(newClusterState.nodes().getMasterNode().getName(), equalTo(excludedNodeName));
         assertThat(newClusterState.getLastCommittedConfiguration().getNodeIds(), hasItem(newClusterState.nodes().getMasterNodeId()));
     }

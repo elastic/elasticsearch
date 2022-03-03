@@ -8,10 +8,10 @@
 
 package org.elasticsearch.cluster.serialization;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.DiffableUtils.MapDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -58,8 +58,8 @@ public class DiffableTests extends ESTestCase {
             @Override
             protected MapDiff<Integer, TestDiffable, Map<Integer, TestDiffable>> readDiff(StreamInput in) throws IOException {
                 return useProtoForDiffableSerialization
-                        ? DiffableUtils.readJdkMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
-                        : DiffableUtils.readJdkMapDiff(in, keySerializer, diffableValueSerializer());
+                    ? DiffableUtils.readJdkMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
+                    : DiffableUtils.readJdkMapDiff(in, keySerializer, diffableValueSerializer());
             }
         }.execute();
 
@@ -109,9 +109,12 @@ public class DiffableTests extends ESTestCase {
             @Override
             protected MapDiff<Integer, TestDiffable, ImmutableOpenMap<Integer, TestDiffable>> readDiff(StreamInput in) throws IOException {
                 return useProtoForDiffableSerialization
-                        ? DiffableUtils.readImmutableOpenMapDiff(in, keySerializer,
-                        new DiffableUtils.DiffableValueReader<>(TestDiffable::readFrom, TestDiffable::readDiffFrom))
-                        : DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, diffableValueSerializer());
+                    ? DiffableUtils.readImmutableOpenMapDiff(
+                        in,
+                        keySerializer,
+                        new DiffableUtils.DiffableValueReader<>(TestDiffable::readFrom, TestDiffable::readDiffFrom)
+                    )
+                    : DiffableUtils.readImmutableOpenMapDiff(in, keySerializer, diffableValueSerializer());
             }
         }.execute();
 
@@ -164,8 +167,8 @@ public class DiffableTests extends ESTestCase {
             @Override
             protected MapDiff<Integer, TestDiffable, ImmutableOpenIntMap<TestDiffable>> readDiff(StreamInput in) throws IOException {
                 return useProtoForDiffableSerialization
-                        ? DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
-                        : DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, diffableValueSerializer());
+                    ? DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
+                    : DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, diffableValueSerializer());
             }
         }.execute();
 
@@ -204,15 +207,19 @@ public class DiffableTests extends ESTestCase {
         protected final Set<Integer> keys = randomPositiveIntSet();
         protected final Set<Integer> keysToRemove = new HashSet<>(randomSubsetOf(randomInt(keys.size()), keys.toArray(new Integer[0])));
         protected final Set<Integer> keysThatAreNotRemoved = Sets.difference(keys, keysToRemove);
-        protected final Set<Integer> keysToOverride = new HashSet<>(randomSubsetOf(randomInt(keysThatAreNotRemoved.size()),
-                keysThatAreNotRemoved.toArray(new Integer[keysThatAreNotRemoved.size()])));
+        protected final Set<Integer> keysToOverride = new HashSet<>(
+            randomSubsetOf(
+                randomInt(keysThatAreNotRemoved.size()),
+                keysThatAreNotRemoved.toArray(new Integer[keysThatAreNotRemoved.size()])
+            )
+        );
         // make sure keysToAdd does not contain elements in keys
         protected final Set<Integer> keysToAdd = Sets.difference(randomPositiveIntSet(), keys);
         protected final Set<Integer> keysUnchanged = Sets.difference(keysThatAreNotRemoved, keysToOverride);
 
         protected final DiffableUtils.KeySerializer<Integer> keySerializer = randomBoolean()
-                ? DiffableUtils.getIntKeySerializer()
-                : DiffableUtils.getVIntKeySerializer();
+            ? DiffableUtils.getIntKeySerializer()
+            : DiffableUtils.getVIntKeySerializer();
 
         protected final boolean useProtoForDiffableSerialization = randomBoolean();
 
@@ -363,7 +370,7 @@ public class DiffableTests extends ESTestCase {
 
         @Override
         protected ImmutableOpenMap<Integer, V> createMap(Map<Integer, V> values) {
-            return ImmutableOpenMap.<Integer, V>builder().putAll(values).build();
+            return ImmutableOpenMap.<Integer, V>builder().putAllFromMap(values).build();
         }
 
         @Override
@@ -376,7 +383,6 @@ public class DiffableTests extends ESTestCase {
             return map.size();
         }
     }
-
 
     abstract class ImmutableOpenIntMapDriver<V> extends MapDriver<ImmutableOpenIntMap<V>, V> {
 
@@ -405,7 +411,7 @@ public class DiffableTests extends ESTestCase {
 
             @Override
             public Diff<TestDiffable> readDiff(StreamInput in, K key) throws IOException {
-                return AbstractDiffable.readDiffFrom(TestDiffable::readFrom, in);
+                return SimpleDiffable.readDiffFrom(TestDiffable::readFrom, in);
             }
         };
     }
@@ -424,7 +430,7 @@ public class DiffableTests extends ESTestCase {
         };
     }
 
-    public static class TestDiffable extends AbstractDiffable<TestDiffable> {
+    public static class TestDiffable implements SimpleDiffable<TestDiffable> {
 
         private final String value;
 
@@ -441,7 +447,7 @@ public class DiffableTests extends ESTestCase {
         }
 
         public static Diff<TestDiffable> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TestDiffable::readFrom, in);
+            return SimpleDiffable.readDiffFrom(TestDiffable::readFrom, in);
         }
 
         @Override

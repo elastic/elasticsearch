@@ -27,7 +27,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
@@ -78,7 +78,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         when(state.metadata()).thenReturn(metadata);
         final DiscoveryNode mockNode = getLocalNode();
         when(discoveryNodes.getMasterNode()).thenReturn(mockNode);
-        when(discoveryNodes.spliterator()).thenReturn(Arrays.asList(mockNode).spliterator());
+        when(discoveryNodes.stream()).thenAnswer(invocation -> Stream.of(mockNode));
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(false);
         when(discoveryNodes.getMinNodeVersion()).thenReturn(mockNode.getVersion());
         when(state.nodes()).thenReturn(discoveryNodes);
@@ -90,8 +90,13 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     }
 
     protected DiscoveryNode getLocalNode() {
-        return new DiscoveryNode("b", buildNewFakeTransportAddress(), singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true"),
-            emptySet(), Version.CURRENT);
+        return new DiscoveryNode(
+            "b",
+            buildNewFakeTransportAddress(),
+            singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true"),
+            emptySet(),
+            Version.CURRENT
+        );
     }
 
     @After

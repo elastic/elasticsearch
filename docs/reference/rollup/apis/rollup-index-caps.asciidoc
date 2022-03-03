@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-get-rollup-index-caps]]
 === Get rollup index capabilities API
 ++++

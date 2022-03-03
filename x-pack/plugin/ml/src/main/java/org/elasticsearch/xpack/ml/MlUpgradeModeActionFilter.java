@@ -43,9 +43,12 @@ import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
@@ -73,8 +76,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 class MlUpgradeModeActionFilter extends ActionFilter.Simple {
 
-    private static final Set<String> ACTIONS_DISALLOWED_IN_UPGRADE_MODE =
-        Collections.unmodifiableSet(Sets.newHashSet(
+    private static final Set<String> ACTIONS_DISALLOWED_IN_UPGRADE_MODE = Collections.unmodifiableSet(
+        Sets.newHashSet(
             PutJobAction.NAME,
             UpdateJobAction.NAME,
             DeleteJobAction.NAME,
@@ -123,12 +126,18 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
 
             PutTrainedModelAliasAction.NAME,
             PutTrainedModelAction.NAME,
+            PutTrainedModelDefinitionPartAction.NAME,
+            PutTrainedModelVocabularyAction.NAME,
+            // NOTE: StopTrainedModelDeploymentAction doesn't mutate internal indices, and technically neither does this action.
+            // But, preventing new deployments from being created while upgrading is for safety.
+            StartTrainedModelDeploymentAction.NAME,
             DeleteTrainedModelAction.NAME,
             DeleteTrainedModelAliasAction.NAME
-        ));
+        )
+    );
 
-    private static final Set<String> RESET_MODE_EXEMPTIONS =
-        Collections.unmodifiableSet(Sets.newHashSet(
+    private static final Set<String> RESET_MODE_EXEMPTIONS = Collections.unmodifiableSet(
+        Sets.newHashSet(
             DeleteJobAction.NAME,
             CloseJobAction.NAME,
 
@@ -140,8 +149,10 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
             DeleteDataFrameAnalyticsAction.NAME,
             StopDataFrameAnalyticsAction.NAME,
 
+            // No other trained model APIs need to be exempted as `StopTrainedModelDeploymentAction` isn't filtered during upgrade mode
             DeleteTrainedModelAction.NAME
-        ));
+        )
+    );
 
     // At the time the action filter is installed no cluster state is available, so
     // initialise to false/false and let the first change event set the real values
@@ -163,7 +174,10 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
         }
         if (localUpgradeResetFlags.isUpgradeMode && ACTIONS_DISALLOWED_IN_UPGRADE_MODE.contains(action)) {
             throw new ElasticsearchStatusException(
-                "Cannot perform {} action while upgrade mode is enabled", RestStatus.TOO_MANY_REQUESTS, action);
+                "Cannot perform {} action while upgrade mode is enabled",
+                RestStatus.TOO_MANY_REQUESTS,
+                action
+            );
         }
         return true;
     }

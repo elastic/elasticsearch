@@ -45,8 +45,7 @@ public abstract class Cancellable {
 
     static final Cancellable NO_OP = new Cancellable() {
         @Override
-        public void cancel() {
-        }
+        public void cancel() {}
 
         @Override
         void runIfNotCancelled(Runnable runnable) {

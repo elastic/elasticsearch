@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
+import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
+
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 public interface PyTorchProcessFactory {
 
-    NativePyTorchProcess createProcess(String modelId, ExecutorService executorService, Consumer<String> onProcessCrash);
+    NativePyTorchProcess createProcess(TrainedModelDeploymentTask task, ExecutorService executorService, Consumer<String> onProcessCrash);
 }

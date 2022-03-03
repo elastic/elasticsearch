@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,12 +20,7 @@ import java.util.stream.Collectors;
 /**
  * Information about a currently running task and all its subtasks.
  */
-public class TaskGroup implements ToXContentObject {
-
-    private final TaskInfo task;
-
-    private final List<TaskGroup> childTasks;
-
+public record TaskGroup(TaskInfo task, List<TaskGroup> childTasks) implements ToXContentObject {
 
     public TaskGroup(TaskInfo task, List<TaskGroup> childTasks) {
         this.task = task;
@@ -58,12 +53,8 @@ public class TaskGroup implements ToXContentObject {
         }
     }
 
-    public TaskInfo getTaskInfo() {
+    public TaskInfo taskInfo() {
         return task;
-    }
-
-    public List<TaskGroup> getChildTasks() {
-        return childTasks;
     }
 
     @Override

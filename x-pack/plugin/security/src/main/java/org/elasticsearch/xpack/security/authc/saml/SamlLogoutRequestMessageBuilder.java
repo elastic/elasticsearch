@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.time.Clock;
-
 import org.elasticsearch.common.Strings;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.Issuer;
@@ -17,6 +15,8 @@ import org.opensaml.saml.saml2.core.SessionIndex;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.SSODescriptor;
 
+import java.time.Clock;
+
 /**
  * Constructs {@code &lt;LogoutRequest&lt;} objects for use in a SAML Single-Sign-Out flow.
  */
@@ -24,8 +24,13 @@ class SamlLogoutRequestMessageBuilder extends SamlMessageBuilder {
     private final NameID nameId;
     private final String session;
 
-    SamlLogoutRequestMessageBuilder(Clock clock, SpConfiguration serviceProvider, EntityDescriptor identityProvider,
-                                    NameID nameId, String session) {
+    SamlLogoutRequestMessageBuilder(
+        Clock clock,
+        SpConfiguration serviceProvider,
+        EntityDescriptor identityProvider,
+        NameID nameId,
+        String session
+    ) {
         super(identityProvider, serviceProvider, clock);
         this.nameId = nameId;
         this.session = session;
@@ -39,13 +44,13 @@ class SamlLogoutRequestMessageBuilder extends SamlMessageBuilder {
         }
 
         final SessionIndex sessionIndex = SamlUtils.buildObject(SessionIndex.class, SessionIndex.DEFAULT_ELEMENT_NAME);
-        sessionIndex.setSessionIndex(session);
+        sessionIndex.setValue(session);
 
         final Issuer issuer = buildIssuer();
 
         final LogoutRequest request = SamlUtils.buildObject(LogoutRequest.class, LogoutRequest.DEFAULT_ELEMENT_NAME);
         request.setID(buildId());
-        request.setIssueInstant(now());
+        request.setIssueInstant(clock.instant());
         request.setDestination(logoutUrl);
         request.setNameID(nameId);
         request.getSessionIndexes().add(sessionIndex);

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[community-id-processor]]
 === Community ID processor
 ++++

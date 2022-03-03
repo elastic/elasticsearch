@@ -23,8 +23,13 @@ public class GetInfluencersActionResponseTests extends AbstractWireSerializingTe
         int listSize = randomInt(10);
         List<Influencer> hits = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
-            Influencer influencer = new Influencer(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20),
-                    randomAlphaOfLengthBetween(1, 20), new Date(randomNonNegativeLong()), randomNonNegativeLong());
+            Influencer influencer = new Influencer(
+                randomAlphaOfLengthBetween(1, 20),
+                randomAlphaOfLengthBetween(1, 20),
+                randomAlphaOfLengthBetween(1, 20),
+                new Date(randomNonNegativeLong()),
+                randomNonNegativeLong()
+            );
             influencer.setInfluencerScore(randomDouble());
             influencer.setInitialInfluencerScore(randomDouble());
             influencer.setProbability(randomDouble());

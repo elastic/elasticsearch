@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.SearchScope;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
@@ -44,23 +45,37 @@ class UserAttributeGroupsResolver implements GroupsResolver {
     }
 
     @Override
-    public void resolve(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger, Collection<Attribute> attributes,
-                        ActionListener<List<String>> listener) {
+    public void resolve(
+        LDAPInterface connection,
+        String userDn,
+        TimeValue timeout,
+        Logger logger,
+        Collection<Attribute> attributes,
+        ActionListener<List<String>> listener
+    ) {
         if (attributes != null) {
             final List<String> groups = attributes.stream()
-                    .filter((attr) -> attr.getName().equals(attribute))
-                    .flatMap(attr -> Arrays.stream(attr.getValues()))
-                    .collect(Collectors.toUnmodifiableList());
+                .filter((attr) -> attr.getName().equals(attribute))
+                .flatMap(attr -> Arrays.stream(attr.getValues()))
+                .collect(Collectors.toUnmodifiableList());
             listener.onResponse(groups);
         } else {
-            searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, Math.toIntExact(timeout.seconds()),
-                    ignoreReferralErrors, ActionListener.wrap((entry) -> {
-                        if (entry == null || entry.hasAttribute(attribute) == false) {
-                            listener.onResponse(List.of());
-                        } else {
-                            listener.onResponse(List.of(entry.getAttributeValues(attribute)));
-                        }
-                    }, listener::onFailure), attribute);
+            searchForEntry(
+                connection,
+                userDn,
+                SearchScope.BASE,
+                OBJECT_CLASS_PRESENCE_FILTER,
+                Math.toIntExact(timeout.seconds()),
+                ignoreReferralErrors,
+                ActionListener.wrap((entry) -> {
+                    if (entry == null || entry.hasAttribute(attribute) == false) {
+                        listener.onResponse(List.of());
+                    } else {
+                        listener.onResponse(List.of(entry.getAttributeValues(attribute)));
+                    }
+                }, listener::onFailure),
+                attribute
+            );
         }
     }
 
@@ -68,6 +83,5 @@ class UserAttributeGroupsResolver implements GroupsResolver {
     public String[] attributes() {
         return new String[] { attribute };
     }
-
 
 }

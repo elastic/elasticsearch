@@ -14,11 +14,10 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.AssociatedIndexDescriptor.buildAutomaton;
 
@@ -50,36 +49,36 @@ public class SystemDataStreamDescriptor {
      *                                     type is {@link Type#EXTERNAL}. Must not be {@code null}
      * @param executorNames thread pools that should be used for operations on the system data stream
      */
-    public SystemDataStreamDescriptor(String dataStreamName, String description, Type type,
-                                      ComposableIndexTemplate composableIndexTemplate, Map<String, ComponentTemplate> componentTemplates,
-                                      List<String> allowedElasticProductOrigins,
-                                      ExecutorNames executorNames) {
+    public SystemDataStreamDescriptor(
+        String dataStreamName,
+        String description,
+        Type type,
+        ComposableIndexTemplate composableIndexTemplate,
+        Map<String, ComponentTemplate> componentTemplates,
+        List<String> allowedElasticProductOrigins,
+        ExecutorNames executorNames
+    ) {
         this.dataStreamName = Objects.requireNonNull(dataStreamName, "dataStreamName must be specified");
         if (dataStreamName.length() < 2) {
-            throw new IllegalArgumentException(
-                "system data stream name [" + dataStreamName + "] but must at least 2 characters in length"
-            );
+            throw new IllegalArgumentException("system data stream name [" + dataStreamName + "] but must at least 2 characters in length");
         }
         if (dataStreamName.charAt(0) != '.') {
-            throw new IllegalArgumentException(
-                "system data stream name [" + dataStreamName + "] but must start with the character [.]"
-            );
+            throw new IllegalArgumentException("system data stream name [" + dataStreamName + "] but must start with the character [.]");
         }
         this.description = Objects.requireNonNull(description, "description must be specified");
         this.type = Objects.requireNonNull(type, "type must be specified");
         this.composableIndexTemplate = Objects.requireNonNull(composableIndexTemplate, "composableIndexTemplate must be provided");
         this.componentTemplates = componentTemplates == null ? Map.of() : Map.copyOf(componentTemplates);
-        this.allowedElasticProductOrigins =
-            Objects.requireNonNull(allowedElasticProductOrigins, "allowedElasticProductOrigins must not be null");
+        this.allowedElasticProductOrigins = Objects.requireNonNull(
+            allowedElasticProductOrigins,
+            "allowedElasticProductOrigins must not be null"
+        );
         if (type == Type.EXTERNAL && allowedElasticProductOrigins.isEmpty()) {
             throw new IllegalArgumentException("External system data stream without allowed products is not a valid combination");
         }
-        this.executorNames = Objects.nonNull(executorNames)
-            ? executorNames
-            : ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
+        this.executorNames = Objects.nonNull(executorNames) ? executorNames : ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
 
-        this.characterRunAutomaton = new CharacterRunAutomaton(
-            buildAutomaton(backingIndexPatternForDataStream(this.dataStreamName)));
+        this.characterRunAutomaton = new CharacterRunAutomaton(buildAutomaton(backingIndexPatternForDataStream(this.dataStreamName)));
     }
 
     public String getDataStreamName() {
@@ -92,14 +91,7 @@ public class SystemDataStreamDescriptor {
      * @return List of names of backing indices
      */
     public List<String> getBackingIndexNames(Metadata metadata) {
-        ArrayList<String> matchingIndices = new ArrayList<>();
-        metadata.indices().keysIt().forEachRemaining(indexName -> {
-            if (this.characterRunAutomaton.run(indexName)) {
-                matchingIndices.add(indexName);
-            }
-        });
-
-        return Collections.unmodifiableList(matchingIndices);
+        return metadata.indices().keySet().stream().filter(this.characterRunAutomaton::run).collect(Collectors.toUnmodifiableList());
     }
 
     public String getDescription() {

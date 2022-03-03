@@ -19,7 +19,6 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -28,6 +27,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -253,6 +253,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         value -> value,
                         DocValueFormat.RAW,
                         missingBucket,
+                        MissingOrder.DEFAULT,
                         size,
                         1
                     );
@@ -263,18 +264,21 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         context -> FieldData.sortableLongBitsToDoubles(DocValues.getSortedNumeric(context.reader(), fieldType.name())),
                         DocValueFormat.RAW,
                         missingBucket,
+                        MissingOrder.DEFAULT,
                         size,
                         1
                     );
                 } else if (types[i].clazz == BytesRef.class) {
                     if (forceMerge) {
-                        sources[i] = new OrdinalValuesSource(
+                        // we don't create global ordinals but we test this mode when the reader has a single segment
+                        // since ordinals are global in this case.
+                        sources[i] = new GlobalOrdinalValuesSource(
                             bigArrays,
-                            (b) -> {},
                             fieldType,
                             context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
                             DocValueFormat.RAW,
                             missingBucket,
+                            MissingOrder.DEFAULT,
                             size,
                             1
                         );
@@ -286,6 +290,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                             context -> FieldData.toString(DocValues.getSortedSet(context.reader(), fieldType.name())),
                             DocValueFormat.RAW,
                             missingBucket,
+                            MissingOrder.DEFAULT,
                             size,
                             1
                         );

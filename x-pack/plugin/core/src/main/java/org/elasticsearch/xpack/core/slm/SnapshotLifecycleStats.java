@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -56,17 +56,19 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
     public static final ParseField TOTAL_DELETION_FAILURES = new ParseField("total_snapshot_deletion_failures");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SnapshotLifecycleStats, Void> PARSER =
-        new ConstructingObjectParser<>("snapshot_policy_stats", true,
-            a -> {
-                long runs = (long) a[0];
-                long failed = (long) a[1];
-                long timedOut = (long) a[2];
-                long timeMs = (long) a[3];
-                Map<String, SnapshotPolicyStats> policyStatsMap = ((List<SnapshotPolicyStats>) a[4]).stream()
-                    .collect(Collectors.toMap(m -> m.policyId, Function.identity()));
-                return new SnapshotLifecycleStats(runs, failed, timedOut, timeMs, policyStatsMap);
-            });
+    private static final ConstructingObjectParser<SnapshotLifecycleStats, Void> PARSER = new ConstructingObjectParser<>(
+        "snapshot_policy_stats",
+        true,
+        a -> {
+            long runs = (long) a[0];
+            long failed = (long) a[1];
+            long timedOut = (long) a[2];
+            long timeMs = (long) a[3];
+            Map<String, SnapshotPolicyStats> policyStatsMap = ((List<SnapshotPolicyStats>) a[4]).stream()
+                .collect(Collectors.toMap(m -> m.policyId, Function.identity()));
+            return new SnapshotLifecycleStats(runs, failed, timedOut, timeMs, policyStatsMap);
+        }
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), RETENTION_RUNS);
@@ -81,8 +83,13 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
     }
 
     // public for testing
-    public SnapshotLifecycleStats(long retentionRuns, long retentionFailed, long retentionTimedOut, long retentionTimeMs,
-                           Map<String, SnapshotPolicyStats> policyStats) {
+    public SnapshotLifecycleStats(
+        long retentionRuns,
+        long retentionFailed,
+        long retentionTimedOut,
+        long retentionTimeMs,
+        Map<String, SnapshotPolicyStats> policyStats
+    ) {
         this.retentionRunCount.inc(retentionRuns);
         this.retentionFailedCount.inc(retentionFailed);
         this.retentionTimedOut.inc(retentionTimedOut);
@@ -106,30 +113,35 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
         HashMap<String, SnapshotPolicyStats> newPolicyStats = new HashMap<>(this.policyStats);
         // Merges the per-run stats (the stats in "other") with the stats already present
-        other.policyStats
-            .forEach((policyId, perRunPolicyStats) -> {
-                newPolicyStats.compute(policyId, (k, existingPolicyMetrics) -> {
-                    if (existingPolicyMetrics == null) {
-                        return perRunPolicyStats;
-                    } else {
-                        return existingPolicyMetrics.merge(perRunPolicyStats);
-                    }
-                });
+        other.policyStats.forEach((policyId, perRunPolicyStats) -> {
+            newPolicyStats.compute(policyId, (k, existingPolicyMetrics) -> {
+                if (existingPolicyMetrics == null) {
+                    return perRunPolicyStats;
+                } else {
+                    return existingPolicyMetrics.merge(perRunPolicyStats);
+                }
             });
+        });
 
-        return new SnapshotLifecycleStats(this.retentionRunCount.count() + other.retentionRunCount.count(),
+        return new SnapshotLifecycleStats(
+            this.retentionRunCount.count() + other.retentionRunCount.count(),
             this.retentionFailedCount.count() + other.retentionFailedCount.count(),
             this.retentionTimedOut.count() + other.retentionTimedOut.count(),
             this.retentionTimeMs.count() + other.retentionTimeMs.count(),
-            newPolicyStats);
+            newPolicyStats
+        );
     }
 
     public SnapshotLifecycleStats removePolicy(String policyId) {
-        Map<String, SnapshotPolicyStats> policyStats = new HashMap<>(this.policyStats);
-        policyStats.remove(policyId);
-        return new SnapshotLifecycleStats(this.retentionRunCount.count(), this.retentionFailedCount.count(),
-            this.retentionTimedOut.count(), this.retentionTimeMs.count(),
-            policyStats);
+        Map<String, SnapshotPolicyStats> policyStatsCopy = new HashMap<>(this.policyStats);
+        policyStatsCopy.remove(policyId);
+        return new SnapshotLifecycleStats(
+            this.retentionRunCount.count(),
+            this.retentionFailedCount.count(),
+            this.retentionTimedOut.count(),
+            this.retentionTimeMs.count(),
+            policyStatsCopy
+        );
     }
 
     /**
@@ -215,7 +227,8 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         builder.field(RETENTION_TIME.getPreferredName(), retentionTime);
         builder.field(RETENTION_TIME_MILLIS.getPreferredName(), retentionTime.millis());
 
-        List<SnapshotPolicyStats> metrics = getMetrics().values().stream()
+        List<SnapshotPolicyStats> metrics = getMetrics().values()
+            .stream()
             .sorted(Comparator.comparing(SnapshotPolicyStats::getPolicyId)) // maintain a consistent order when serializing
             .collect(Collectors.toList());
         long totalTaken = metrics.stream().mapToLong(s -> s.snapshotsTaken.count()).sum();
@@ -240,8 +253,13 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(retentionRunCount.count(), retentionFailedCount.count(),
-            retentionTimedOut.count(), retentionTimeMs.count(), policyStats);
+        return Objects.hash(
+            retentionRunCount.count(),
+            retentionFailedCount.count(),
+            retentionTimedOut.count(),
+            retentionTimeMs.count(),
+            policyStats
+        );
     }
 
     @Override
@@ -253,11 +271,11 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             return false;
         }
         SnapshotLifecycleStats other = (SnapshotLifecycleStats) obj;
-        return Objects.equals(retentionRunCount.count(), other.retentionRunCount.count()) &&
-            Objects.equals(retentionFailedCount.count(), other.retentionFailedCount.count()) &&
-            Objects.equals(retentionTimedOut.count(), other.retentionTimedOut.count()) &&
-            Objects.equals(retentionTimeMs.count(), other.retentionTimeMs.count()) &&
-            Objects.equals(policyStats, other.policyStats);
+        return Objects.equals(retentionRunCount.count(), other.retentionRunCount.count())
+            && Objects.equals(retentionFailedCount.count(), other.retentionFailedCount.count())
+            && Objects.equals(retentionTimedOut.count(), other.retentionTimedOut.count())
+            && Objects.equals(retentionTimeMs.count(), other.retentionTimeMs.count())
+            && Objects.equals(policyStats, other.policyStats);
     }
 
     @Override
@@ -278,16 +296,18 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         public static final ParseField SNAPSHOTS_DELETED = new ParseField("snapshots_deleted");
         public static final ParseField SNAPSHOT_DELETION_FAILURES = new ParseField("snapshot_deletion_failures");
 
-        static final ConstructingObjectParser<SnapshotPolicyStats, Void> PARSER =
-            new ConstructingObjectParser<>("snapshot_policy_stats", true,
-                a -> {
-                    String id = (String) a[0];
-                    long taken = (long) a[1];
-                    long failed = (long) a[2];
-                    long deleted = (long) a[3];
-                    long deleteFailed = (long) a[4];
-                    return new SnapshotPolicyStats(id, taken, failed, deleted, deleteFailed);
-                });
+        static final ConstructingObjectParser<SnapshotPolicyStats, Void> PARSER = new ConstructingObjectParser<>(
+            "snapshot_policy_stats",
+            true,
+            a -> {
+                String id = (String) a[0];
+                long taken = (long) a[1];
+                long failed = (long) a[2];
+                long deleted = (long) a[3];
+                long deleteFailed = (long) a[4];
+                return new SnapshotPolicyStats(id, taken, failed, deleted, deleteFailed);
+            }
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_ID);
@@ -327,7 +347,8 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
                 this.snapshotsTaken.count() + other.snapshotsTaken.count(),
                 this.snapshotsFailed.count() + other.snapshotsFailed.count(),
                 this.snapshotsDeleted.count() + other.snapshotsDeleted.count(),
-                this.snapshotDeleteFailures.count() + other.snapshotDeleteFailures.count());
+                this.snapshotDeleteFailures.count() + other.snapshotDeleteFailures.count()
+            );
         }
 
         void snapshotTaken() {
@@ -361,8 +382,13 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
         @Override
         public int hashCode() {
-            return Objects.hash(policyId, snapshotsTaken.count(), snapshotsFailed.count(),
-                snapshotsDeleted.count(), snapshotDeleteFailures.count());
+            return Objects.hash(
+                policyId,
+                snapshotsTaken.count(),
+                snapshotsFailed.count(),
+                snapshotsDeleted.count(),
+                snapshotDeleteFailures.count()
+            );
         }
 
         @Override
@@ -374,11 +400,11 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
                 return false;
             }
             SnapshotPolicyStats other = (SnapshotPolicyStats) obj;
-            return Objects.equals(policyId, other.policyId) &&
-                Objects.equals(snapshotsTaken.count(), other.snapshotsTaken.count()) &&
-                Objects.equals(snapshotsFailed.count(), other.snapshotsFailed.count()) &&
-                Objects.equals(snapshotsDeleted.count(), other.snapshotsDeleted.count()) &&
-                Objects.equals(snapshotDeleteFailures.count(), other.snapshotDeleteFailures.count());
+            return Objects.equals(policyId, other.policyId)
+                && Objects.equals(snapshotsTaken.count(), other.snapshotsTaken.count())
+                && Objects.equals(snapshotsFailed.count(), other.snapshotsFailed.count())
+                && Objects.equals(snapshotsDeleted.count(), other.snapshotsDeleted.count())
+                && Objects.equals(snapshotDeleteFailures.count(), other.snapshotDeleteFailures.count());
         }
 
         @Override

@@ -100,8 +100,7 @@ public class Sequence implements Comparable<Sequence>, Accountable {
         }
 
         Sequence other = (Sequence) obj;
-        return Objects.equals(currentStage, other.currentStage)
-                && Objects.equals(key, other.key);
+        return Objects.equals(currentStage, other.currentStage) && Objects.equals(key, other.key);
     }
 
     @Override
@@ -111,10 +110,7 @@ public class Sequence implements Comparable<Sequence>, Accountable {
         nf.setMinimumIntegerDigits(numberOfDigits);
 
         StringBuilder sb = new StringBuilder();
-        sb.append(format(null, "[Seq<{}>[{}/{}]]",
-                key,
-                nf.format(currentStage),
-                nf.format(stages - 1)));
+        sb.append(format(null, "[Seq<{}>[{}/{}]]", key, nf.format(currentStage), nf.format(stages - 1)));
 
         for (int i = 0; i < matches.length; i++) {
             sb.append(format(null, "\n [{}]={{}}", nf.format(i), matches[i]));

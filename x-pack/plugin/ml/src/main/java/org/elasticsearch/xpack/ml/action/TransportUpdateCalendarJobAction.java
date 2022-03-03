@@ -26,8 +26,12 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
     private final JobManager jobManager;
 
     @Inject
-    public TransportUpdateCalendarJobAction(TransportService transportService, ActionFilters actionFilters,
-                                            JobResultsProvider jobResultsProvider, JobManager jobManager) {
+    public TransportUpdateCalendarJobAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        JobResultsProvider jobResultsProvider,
+        JobManager jobManager
+    ) {
         super(UpdateCalendarJobAction.NAME, transportService, actionFilters, UpdateCalendarJobAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
@@ -38,12 +42,11 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
         Set<String> jobIdsToAdd = Strings.tokenizeByCommaToSet(request.getJobIdsToAddExpression());
         Set<String> jobIdsToRemove = Strings.tokenizeByCommaToSet(request.getJobIdsToRemoveExpression());
 
-        jobResultsProvider.updateCalendar(request.getCalendarId(), jobIdsToAdd, jobIdsToRemove,
-                c -> {
-                    jobManager.updateProcessOnCalendarChanged(c.getJobIds(), ActionListener.wrap(
-                            r -> listener.onResponse(new PutCalendarAction.Response(c)),
-                            listener::onFailure
-                    ));
-                }, listener::onFailure);
+        jobResultsProvider.updateCalendar(request.getCalendarId(), jobIdsToAdd, jobIdsToRemove, c -> {
+            jobManager.updateProcessOnCalendarChanged(
+                c.getJobIds(),
+                ActionListener.wrap(r -> listener.onResponse(new PutCalendarAction.Response(c)), listener::onFailure)
+            );
+        }, listener::onFailure);
     }
 }

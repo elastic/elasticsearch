@@ -1,0 +1,52 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
+
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testImplementation project(':x-pack:plugin:vector-tile')
+}
+
+testClusters {
+  'local' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+    setting 'cluster.remote.other.seeds',
+      { "\"${testClusters.named('remote').get().getAllTransportPortURI().join(",")}\"" }
+  }
+  'remote' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+  }
+}
+
+tasks.register("startRemoteCluster", DefaultTestClustersTask.class) {
+  useCluster testClusters.'remote'
+  doLast {
+    "Starting remote cluster before integ tests and integTest cluster is started"
+  }
+}
+
+tasks.named("integTest").configure {
+  dependsOn 'startRemoteCluster'
+  useCluster testClusters.'remote'
+  useCluster testClusters.'local'
+  doFirst {
+    nonInputProperties.systemProperty 'tests.local',
+    "${-> testClusters.named('local').get().getAllHttpSocketURI().get(0)}"
+    nonInputProperties.systemProperty 'tests.remote',
+    "${-> testClusters.named('remote').get().getAllHttpSocketURI().get(0)}"
+  }
+}

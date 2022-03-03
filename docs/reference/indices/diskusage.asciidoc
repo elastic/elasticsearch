@@ -55,8 +55,6 @@ Defaults to `open`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
-
 `run_expensive_tasks`::
 (Required, Boolean) Analyzing field disk usage is resource-intensive. To use the
 API, this parameter must be set to `true`. Defaults to `false`.

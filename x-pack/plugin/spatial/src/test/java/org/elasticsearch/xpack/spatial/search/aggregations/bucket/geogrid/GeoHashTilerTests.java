@@ -27,7 +27,6 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
         return new UnboundedGeoHashGridTiler(precision);
     }
 
-
     @Override
     protected GeoGridTiler getBoundedGridTiler(GeoBoundingBox bbox, int precision) {
         return new BoundedGeoHashGridTiler(precision, bbox);
@@ -43,8 +42,7 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
         if (precision == 0) {
             return new Rectangle(-180, 180, 90, -90);
         }
-        final String hash =
-            Geohash.stringEncode(lon, lat, precision);
+        final String hash = Geohash.stringEncode(lon, lat, precision);
         return Geohash.toBoundingBox(hash);
     }
 
@@ -92,11 +90,11 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
             }
             return 0;
         }
-       return computeBuckets("", bbox, geoValue, precision);
+        return computeBuckets("", bbox, geoValue, precision);
     }
 
-    private int computeBuckets(String hash, GeoBoundingBox bbox,
-                               GeoShapeValues.GeoShapeValue geoValue, int finalPrecision) throws IOException {
+    private int computeBuckets(String hash, GeoBoundingBox bbox, GeoShapeValues.GeoShapeValue geoValue, int finalPrecision)
+        throws IOException {
         int count = 0;
         String[] hashes = Geohash.getSubGeohashes(hash);
         for (int i = 0; i < hashes.length; i++) {
@@ -106,16 +104,14 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
             GeoRelation relation = geoValue.relate(Geohash.toBoundingBox(hashes[i]));
             if (relation != GeoRelation.QUERY_DISJOINT) {
                 if (hashes[i].length() == finalPrecision) {
-                   count++;
+                    count++;
                 } else {
-                    count +=
-                        computeBuckets(hashes[i], bbox, geoValue, finalPrecision);
+                    count += computeBuckets(hashes[i], bbox, geoValue, finalPrecision);
                 }
             }
         }
         return count;
     }
-
 
     private boolean hashIntersectsBounds(String hash, GeoBoundingBox bbox) {
         if (bbox == null) {
@@ -141,8 +137,12 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
 
         Rectangle tile = Geohash.toBoundingBox(Geohash.stringEncode(x, y, 5));
 
-        Rectangle shapeRectangle = new Rectangle(tile.getMinX() + 0.00001, tile.getMaxX() - 0.00001,
-            tile.getMaxY() - 0.00001,  tile.getMinY() + 0.00001);
+        Rectangle shapeRectangle = new Rectangle(
+            tile.getMinX() + 0.00001,
+            tile.getMaxX() - 0.00001,
+            tile.getMaxY() - 0.00001,
+            tile.getMinY() + 0.00001
+        );
         GeoShapeValues.GeoShapeValue value = geoShapeValue(shapeRectangle);
 
         // test shape within tile bounds

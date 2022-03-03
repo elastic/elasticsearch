@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
@@ -38,7 +38,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
             new Route(GET, "/_search/scroll"),
             new Route(POST, "/_search/scroll"),
             new Route(GET, "/_search/scroll/{scroll_id}"),
-            new Route(POST, "/_search/scroll/{scroll_id}"));
+            new Route(POST, "/_search/scroll/{scroll_id}")
+        );
     }
 
     @Override
@@ -59,7 +60,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 } catch (IOException e) {
                     throw new IllegalArgumentException("Failed to parse request body", e);
                 }
-            }});
+            }
+        });
         return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
     }
 

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[search-aggregations-metrics-rate-aggregation]]
 === Rate aggregation
 ++++
@@ -7,7 +6,7 @@
 ++++
 
 A `rate` metrics aggregation can be used only inside a `date_histogram` or `composite` aggregation. It calculates a rate of documents
-or a field in each bucket. The field values can be generated extracted from specific numeric or
+or a field in each bucket. The field values can be extracted from specific numeric or
 <<histogram,histogram fields>> in the documents.
 
 NOTE: For `composite` aggregations, there must be exactly one `date_histogram` source for the `rate` aggregation to be supported.
@@ -27,7 +26,7 @@ A `rate` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following request will group all sales records into monthly bucket and than convert the number of sales transaction in each bucket
+The following request will group all sales records into monthly buckets and then convert the number of sales transactions in each bucket
 into per annual sales rate.
 
 [source,console]
@@ -56,8 +55,8 @@ GET sales/_search
 <1> Histogram is grouped by month.
 <2> But the rate is converted into annual rate.
 
-The response will return the annual rate of transaction in each bucket. Since there are 12 months per year, the annual rate will
-be automatically calculated by multiplying monthly rate by 12.
+The response will return the annual rate of transactions in each bucket. Since there are 12 months per year, the annual rate will
+be automatically calculated by multiplying the monthly rate by 12.
 
 [source,console-result]
 --------------------------------------------------

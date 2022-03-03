@@ -19,10 +19,10 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -129,7 +129,7 @@ public class BulkItemResponseTests extends ESTestCase {
 
             IndexResponseTests.assertDocWriteResponse(expectedDocResponse, actualDocResponse);
             if (expected.getOpType() == DocWriteRequest.OpType.UPDATE) {
-                assertEquals(((UpdateResponse) expectedDocResponse).getGetResult(), ((UpdateResponse)actualDocResponse).getGetResult());
+                assertEquals(((UpdateResponse) expectedDocResponse).getGetResult(), ((UpdateResponse) actualDocResponse).getGetResult());
             }
         }
     }

@@ -40,7 +40,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final String NO_POLICY_PATTERN = "_none";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
 
-    public static final Version SLM_POLICY_FILTERING_VERSION = Version.V_8_0_0;
+    public static final Version SLM_POLICY_FILTERING_VERSION = Version.V_7_16_0;
+
+    public static final Version FROM_SORT_VALUE_VERSION = Version.V_7_16_0;
 
     public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_7_14_0;
 
@@ -64,6 +66,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     @Nullable
     private After after;
+
+    @Nullable
+    private String fromSortValue;
 
     private SortBy sort = SortBy.START_TIME;
 
@@ -122,6 +127,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if (in.getVersion().onOrAfter(SLM_POLICY_FILTERING_VERSION)) {
                 policies = in.readStringArray();
             }
+            if (in.getVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
+                fromSortValue = in.readOptionalString();
+            }
         }
     }
 
@@ -171,6 +179,11 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                 "can't use slm policy filter in snapshots request with node version [" + out.getVersion() + "]"
             );
         }
+        if (out.getVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
+            out.writeOptionalString(fromSortValue);
+        } else if (fromSortValue != null) {
+            throw new IllegalArgumentException("can't use after-value in snapshot request with node version [" + out.getVersion() + "]");
+        }
     }
 
     @Override
@@ -201,8 +214,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if (policies.length != 0) {
                 validationException = addValidationError("can't use slm policy filter with verbose=false", validationException);
             }
-        } else if (after != null && offset > 0) {
-            validationException = addValidationError("can't use after and offset simultaneously", validationException);
+            if (fromSortValue != null) {
+                validationException = addValidationError("can't use from_sort_value with verbose=false", validationException);
+            }
+        } else if (offset > 0) {
+            if (after != null) {
+                validationException = addValidationError("can't use after and offset simultaneously", validationException);
+            }
+        } else if (after != null && fromSortValue != null) {
+            validationException = addValidationError("can't use after and from_sort_value simultaneously", validationException);
         }
         return validationException;
     }
@@ -317,6 +337,16 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
+    public GetSnapshotsRequest fromSortValue(@Nullable String fromSortValue) {
+        this.fromSortValue = fromSortValue;
+        return this;
+    }
+
+    @Nullable
+    public String fromSortValue() {
+        return fromSortValue;
+    }
+
     public GetSnapshotsRequest sort(SortBy sort) {
         this.sort = sort;
         return this;
@@ -382,24 +412,16 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         }
 
         public static SortBy of(String value) {
-            switch (value) {
-                case "start_time":
-                    return START_TIME;
-                case "name":
-                    return NAME;
-                case "duration":
-                    return DURATION;
-                case "index_count":
-                    return INDICES;
-                case "shard_count":
-                    return SHARDS;
-                case "failed_shard_count":
-                    return FAILED_SHARDS;
-                case "repository":
-                    return REPOSITORY;
-                default:
-                    throw new IllegalArgumentException("unknown sort order [" + value + "]");
-            }
+            return switch (value) {
+                case "start_time" -> START_TIME;
+                case "name" -> NAME;
+                case "duration" -> DURATION;
+                case "index_count" -> INDICES;
+                case "shard_count" -> SHARDS;
+                case "failed_shard_count" -> FAILED_SHARDS;
+                case "repository" -> REPOSITORY;
+                default -> throw new IllegalArgumentException("unknown sort order [" + value + "]");
+            };
         }
     }
 
@@ -428,32 +450,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             if (snapshotInfo == null) {
                 return null;
             }
-            final String afterValue;
-            switch (sortBy) {
-                case START_TIME:
-                    afterValue = String.valueOf(snapshotInfo.startTime());
-                    break;
-                case NAME:
-                    afterValue = snapshotInfo.snapshotId().getName();
-                    break;
-                case DURATION:
-                    afterValue = String.valueOf(snapshotInfo.endTime() - snapshotInfo.startTime());
-                    break;
-                case INDICES:
-                    afterValue = String.valueOf(snapshotInfo.indices().size());
-                    break;
-                case SHARDS:
-                    afterValue = String.valueOf(snapshotInfo.totalShards());
-                    break;
-                case FAILED_SHARDS:
-                    afterValue = String.valueOf(snapshotInfo.failedShards());
-                    break;
-                case REPOSITORY:
-                    afterValue = snapshotInfo.repository();
-                    break;
-                default:
-                    throw new AssertionError("unknown sort column [" + sortBy + "]");
-            }
+            final String afterValue = switch (sortBy) {
+                case START_TIME -> String.valueOf(snapshotInfo.startTime());
+                case NAME -> snapshotInfo.snapshotId().getName();
+                case DURATION -> String.valueOf(snapshotInfo.endTime() - snapshotInfo.startTime());
+                case INDICES -> String.valueOf(snapshotInfo.indices().size());
+                case SHARDS -> String.valueOf(snapshotInfo.totalShards());
+                case FAILED_SHARDS -> String.valueOf(snapshotInfo.failedShards());
+                case REPOSITORY -> snapshotInfo.repository();
+            };
             return new After(afterValue, snapshotInfo.repository(), snapshotInfo.snapshotId().getName());
         }
 

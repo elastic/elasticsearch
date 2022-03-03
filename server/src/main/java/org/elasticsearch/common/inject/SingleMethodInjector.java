@@ -34,8 +34,7 @@ class SingleMethodInjector implements SingleMemberInjector {
     final SingleParameterInjector<?>[] parameterInjectors;
     final InjectionPoint injectionPoint;
 
-    SingleMethodInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors)
-            throws ErrorsException {
+    SingleMethodInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors) throws ErrorsException {
         this.injectionPoint = injectionPoint;
         final Method method = (Method) injectionPoint.getMember();
         methodInvoker = createMethodInvoker(method);
@@ -51,8 +50,7 @@ class SingleMethodInjector implements SingleMemberInjector {
 
         return new MethodInvoker() {
             @Override
-            public Object invoke(Object target, Object... parameters)
-                    throws IllegalAccessException, InvocationTargetException {
+            public Object invoke(Object target, Object... parameters) throws IllegalAccessException, InvocationTargetException {
                 return method.invoke(target, parameters);
             }
         };
@@ -78,9 +76,7 @@ class SingleMethodInjector implements SingleMemberInjector {
         } catch (IllegalAccessException e) {
             throw new AssertionError(e); // a security manager is blocking us, we're hosed
         } catch (InvocationTargetException userException) {
-            Throwable cause = userException.getCause() != null
-                    ? userException.getCause()
-                    : userException;
+            Throwable cause = userException.getCause() != null ? userException.getCause() : userException;
             errors.withSource(injectionPoint).errorInjectingMethod(cause);
         }
     }

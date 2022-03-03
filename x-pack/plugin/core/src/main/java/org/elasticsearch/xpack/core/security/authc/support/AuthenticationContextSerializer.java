@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
@@ -48,8 +48,7 @@ public class AuthenticationContextSerializer {
         return deserializeHeaderAndPutInContext(authenticationHeader, ctx);
     }
 
-    Authentication deserializeHeaderAndPutInContext(String headerValue, ThreadContext ctx)
-            throws IOException, IllegalArgumentException {
+    Authentication deserializeHeaderAndPutInContext(String headerValue, ThreadContext ctx) throws IOException, IllegalArgumentException {
         assert ctx.getTransient(contextKey) == null;
 
         Authentication authentication = decode(headerValue);

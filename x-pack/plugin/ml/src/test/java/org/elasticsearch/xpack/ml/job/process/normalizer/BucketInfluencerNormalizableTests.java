@@ -12,7 +12,6 @@ import org.junit.Before;
 
 import java.util.Date;
 
-
 public class BucketInfluencerNormalizableTests extends ESTestCase {
     private static final double EPSILON = 0.0001;
     private static final String INDEX_NAME = "foo-index";
@@ -86,8 +85,10 @@ public class BucketInfluencerNormalizableTests extends ESTestCase {
     }
 
     public void testGetChildren_ByType() {
-        expectThrows(UnsupportedOperationException.class, () -> new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME)
-                .getChildren(Normalizable.ChildType.BUCKET_INFLUENCER));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).getChildren(Normalizable.ChildType.BUCKET_INFLUENCER)
+        );
     }
 
     public void testGetChildren() {
@@ -95,9 +96,13 @@ public class BucketInfluencerNormalizableTests extends ESTestCase {
     }
 
     public void testSetMaxChildrenScore() {
-        expectThrows(UnsupportedOperationException.class,
-                () -> new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME)
-                        .setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 42.0));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> new BucketInfluencerNormalizable(bucketInfluencer, INDEX_NAME).setMaxChildrenScore(
+                Normalizable.ChildType.BUCKET_INFLUENCER,
+                42.0
+            )
+        );
     }
 
     public void testSetParentScore() {

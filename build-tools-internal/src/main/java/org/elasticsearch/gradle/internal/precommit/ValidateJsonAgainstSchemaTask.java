@@ -15,6 +15,7 @@ import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SchemaValidatorsConfig;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileCollection;
@@ -41,7 +42,7 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 /**
- * Incremental task to validate a set of JSON files against against a schema.
+ * Incremental task to validate a set of JSON files against a schema.
  */
 public class ValidateJsonAgainstSchemaTask extends DefaultTask {
     private File jsonSchema;

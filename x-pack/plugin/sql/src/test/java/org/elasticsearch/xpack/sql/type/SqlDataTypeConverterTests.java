@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.sql.type;
 
-import java.time.OffsetTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -19,6 +15,11 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+
+import java.math.BigInteger;
+import java.time.OffsetTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -33,6 +34,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
@@ -152,6 +154,16 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
         {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
+            assertEquals(date(bi.longValue()), conversion.convert(bi));
+
+            BigInteger tooLarge = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(tooLarge));
+            assertEquals("[" + tooLarge + "] out of [long] range", e.getMessage());
+        }
+        {
             Converter conversion = converterFor(INTEGER, to);
             assertNull(conversion.convert(null));
             assertEquals(date(10L), conversion.convert(10));
@@ -222,6 +234,16 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(time(11L), conversion.convert(10.6));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
+            assertEquals(time(bi.longValue()), conversion.convert(bi));
+
+            BigInteger tooLarge = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(tooLarge));
+            assertEquals("[" + tooLarge + "] out of [long] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(INTEGER, to);
@@ -326,8 +348,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             Converter back = converterFor(KEYWORD, DATETIME);
             assertEquals(dt, back.convert(forward.convert(dt)));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
-            assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0",
-                    e.getMessage());
+            assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0", e.getMessage());
         }
     }
 
@@ -511,6 +532,30 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals("cannot cast [Yes] to [boolean]", e.getMessage());
             e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("nO"));
             assertEquals("cannot cast [nO] to [boolean]", e.getMessage());
+        }
+    }
+
+    public void testConversionToUnsignedLong() {
+        DataType to = UNSIGNED_LONG;
+        {
+            Converter conversion = converterFor(DATE, to);
+            assertNull(conversion.convert(null));
+
+            long l = randomNonNegativeLong();
+            ZonedDateTime zdt = asDateOnly(l);
+            assertEquals(BigInteger.valueOf(zdt.toEpochSecond() * 1000), conversion.convert(zdt));
+
+            ZonedDateTime zdtn = asDateOnly(-l);
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(zdtn));
+            assertEquals("[" + zdtn.toEpochSecond() * 1000 + "] out of [unsigned_long] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(TIME, to);
+            assertNull(conversion.convert(null));
+
+            long l = randomLong();
+            OffsetTime ot = asTimeOnly(l);
+            assertEquals(BigInteger.valueOf(ot.atDate(DateUtils.EPOCH).toInstant().toEpochMilli()), conversion.convert(ot));
         }
     }
 
@@ -730,9 +775,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
     }
 
     private DataType randomInterval() {
-        return randomFrom(SqlDataTypes.types().stream()
-                .filter(SqlDataTypes::isInterval)
-                .collect(toList()));
+        return randomFrom(SqlDataTypes.types().stream().filter(SqlDataTypes::isInterval).collect(toList()));
     }
 
     static ZonedDateTime dateTime(long millisSinceEpoch) {

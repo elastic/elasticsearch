@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.tool;
 
 import org.elasticsearch.core.Nullable;
+
 import java.security.SecureRandom;
 
 public class CommandUtils {

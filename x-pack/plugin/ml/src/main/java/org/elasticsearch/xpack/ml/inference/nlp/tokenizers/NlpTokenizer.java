@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DistilBertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.nlp.BertRequestBuilder;
-import org.elasticsearch.xpack.ml.inference.nlp.DistilBertRequestBuilder;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 
@@ -22,22 +21,39 @@ import java.util.OptionalInt;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.VOCABULARY;
 
-public interface NlpTokenizer {
+/**
+ * Base tokenization class for NLP models
+ */
+public interface NlpTokenizer extends Releasable {
 
-    TokenizationResult tokenize(List<String> text);
+    TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations);
+
+    List<TokenizationResult.Tokens> tokenize(String seq, Tokenization.Truncate truncate, int span, int sequenceId);
+
+    TokenizationResult.Tokens tokenize(String seq1, String seq2, Tokenization.Truncate truncate, int sequenceId);
 
     NlpTask.RequestBuilder requestBuilder();
 
-    OptionalInt getPadToken();
+    OptionalInt getPadTokenId();
+
+    String getPadToken();
+
+    OptionalInt getMaskTokenId();
+
+    String getMaskToken();
+
+    default int getSpan() {
+        return -1;
+    }
 
     static NlpTokenizer build(Vocabulary vocabulary, Tokenization params) {
         ExceptionsHelper.requireNonNull(params, TOKENIZATION);
         ExceptionsHelper.requireNonNull(vocabulary, VOCABULARY);
         if (params instanceof BertTokenization) {
-            return BertTokenizer.builder(vocabulary.get(), params).setRequestBuilderFactory(BertRequestBuilder::new).build();
+            return BertTokenizer.builder(vocabulary.get(), params).build();
         }
-        if (params instanceof DistilBertTokenization) {
-            return BertTokenizer.builder(vocabulary.get(), params).setRequestBuilderFactory(DistilBertRequestBuilder::new).build();
+        if (params instanceof MPNetTokenization) {
+            return MPNetTokenizer.mpBuilder(vocabulary.get(), params).build();
         }
         throw new IllegalArgumentException("unknown tokenization type [" + params.getName() + "]");
     }

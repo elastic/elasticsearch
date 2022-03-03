@@ -39,7 +39,7 @@ public class BitLength extends UnaryStringFunction {
 
     @Override
     public DataType dataType() {
-        //TODO investigate if a data type Long (BIGINT) wouldn't be more appropriate here
+        // TODO investigate if a data type Long (BIGINT) wouldn't be more appropriate here
         return DataTypes.INTEGER;
     }
 }

@@ -10,11 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Includes;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request;
 
-import java.util.HashSet;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -22,16 +20,20 @@ public class GetTrainedModelsRequestTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAlphaOfLength(20),
-            randomBoolean() ? null :
-            randomList(10, () -> randomAlphaOfLength(10)),
-            randomBoolean() ? null :
-                Stream.generate(() -> randomFrom(Includes.DEFINITION,
-                    Includes.TOTAL_FEATURE_IMPORTANCE,
-                    Includes.FEATURE_IMPORTANCE_BASELINE,
-                    Includes.HYPERPARAMETERS))
-                    .limit(4)
-                    .collect(Collectors.toSet()));
+        Request request = new Request(
+            randomAlphaOfLength(20),
+            randomBoolean() ? null : randomList(10, () -> randomAlphaOfLength(10)),
+            randomBoolean()
+                ? null
+                : Stream.generate(
+                    () -> randomFrom(
+                        Includes.DEFINITION,
+                        Includes.TOTAL_FEATURE_IMPORTANCE,
+                        Includes.FEATURE_IMPORTANCE_BASELINE,
+                        Includes.HYPERPARAMETERS
+                    )
+                ).limit(4).collect(Collectors.toSet())
+        );
         request.setPageParams(new PageParams(randomIntBetween(0, 100), randomIntBetween(0, 100)));
         return request;
     }
@@ -43,19 +45,6 @@ public class GetTrainedModelsRequestTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, Version version) {
-        if (version.before(Version.V_7_10_0)) {
-            Set<String> includes = new HashSet<>();
-            if (instance.getIncludes().isIncludeModelDefinition()) {
-                includes.add(Includes.DEFINITION);
-            }
-            Request request = new Request(
-                instance.getResourceId(),
-                instance.getTags(),
-                includes);
-            request.setPageParams(instance.getPageParams());
-            request.setAllowNoResources(instance.isAllowNoResources());
-            return request;
-        }
         return instance;
     }
 }

@@ -9,17 +9,19 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -29,11 +31,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SourceConfig implements Writeable, ToXContentObject {
 
@@ -45,15 +47,13 @@ public class SourceConfig implements Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<SourceConfig, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<SourceConfig, Void> parser = new ConstructingObjectParser<>("data_frame_config_source",
-            lenient,
-            args -> {
-                String[] index = ((List<String>)args[0]).toArray(new String[0]);
-                // default handling: if the user does not specify a query, we default to match_all
-                QueryConfig queryConfig = args[1] == null ? QueryConfig.matchAll() : (QueryConfig) args[1];
-                Map<String, Object> runtimeMappings = args[2] == null ? Collections.emptyMap() : (Map<String, Object>) args[2];
-                return new SourceConfig(index, queryConfig, runtimeMappings);
-            });
+        ConstructingObjectParser<SourceConfig, Void> parser = new ConstructingObjectParser<>("data_frame_config_source", lenient, args -> {
+            String[] index = ((List<String>) args[0]).toArray(new String[0]);
+            // default handling: if the user does not specify a query, we default to match_all
+            QueryConfig queryConfig = args[1] == null ? QueryConfig.matchAll() : (QueryConfig) args[1];
+            Map<String, Object> runtimeMappings = args[2] == null ? Collections.emptyMap() : (Map<String, Object>) args[2];
+            return new SourceConfig(index, queryConfig, runtimeMappings);
+        });
         parser.declareStringArray(constructorArg(), INDEX);
         parser.declareObject(optionalConstructorArg(), (p, c) -> QueryConfig.fromXContent(p, lenient), QUERY);
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
@@ -92,9 +92,9 @@ public class SourceConfig implements Writeable, ToXContentObject {
         }
         this.index = index;
         this.queryConfig = ExceptionsHelper.requireNonNull(queryConfig, QUERY.getPreferredName());
-        this.runtimeMappings =
-            Collections.unmodifiableMap(
-                ExceptionsHelper.requireNonNull(runtimeMappings, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()));
+        this.runtimeMappings = Collections.unmodifiableMap(
+            ExceptionsHelper.requireNonNull(runtimeMappings, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName())
+        );
     }
 
     public SourceConfig(final StreamInput in) throws IOException {
@@ -120,13 +120,18 @@ public class SourceConfig implements Writeable, ToXContentObject {
     }
 
     public Map<String, Object> getScriptBasedRuntimeMappings() {
-        return getRuntimeMappings().entrySet().stream()
+        return getRuntimeMappings().entrySet()
+            .stream()
             .filter(e -> e.getValue() instanceof Map<?, ?> && ((Map<?, ?>) e.getValue()).containsKey("script"))
             .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         return queryConfig.validate(validationException);
+    }
+
+    public void checkForDeprecations(String id, NamedXContentRegistry namedXContentRegistry, Consumer<DeprecationIssue> onDeprecation) {
+        queryConfig.checkForDeprecations(id, namedXContentRegistry, onDeprecation);
     }
 
     public boolean requiresRemoteCluster() {
@@ -148,7 +153,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
         builder.array(INDEX.getPreferredName(), index);
         if (params.paramAsBoolean(TransformField.EXCLUDE_GENERATED, false) == false) {
             builder.field(QUERY.getPreferredName(), queryConfig);
-        } else if(queryConfig.equals(QueryConfig.matchAll()) == false) {
+        } else if (queryConfig.equals(QueryConfig.matchAll()) == false) {
             builder.field(QUERY.getPreferredName(), queryConfig);
         }
         if (runtimeMappings.isEmpty() == false) {
@@ -174,7 +179,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
     }
 
     @Override
-    public int hashCode(){
+    public int hashCode() {
         // Using Arrays.hashCode as Objects.hash does not deeply hash nested arrays. Since we are doing Array.equals, this is necessary
         int indexArrayHash = Arrays.hashCode(index);
         return Objects.hash(indexArrayHash, queryConfig, runtimeMappings);

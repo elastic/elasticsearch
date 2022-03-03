@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionSet;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
@@ -27,64 +28,107 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
     public void testRemoveSettingsAbortedByUser() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false).build()).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder()
+                    .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+                    .build()
+            )
+            .get();
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
 
         Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        expectThrows(() -> removeSettings(environment, true,
-            new String[]{ DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey() }),
-            ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build()
+        );
+        expectThrows(
+            () -> removeSettings(
+                environment,
+                true,
+                new String[] { DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey() }
+            ),
+            ElasticsearchNodeCommand.ABORTED_BY_USER_MSG
+        );
     }
 
     public void testRemoveSettingsSuccessful() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false).build()).get();
-        assertThat(client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
-            contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()));
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder()
+                    .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+                    .build()
+            )
+            .get();
+        assertThat(
+            client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
+            contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())
+        );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
 
         Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        MockTerminal terminal = removeSettings(environment, false,
-            randomBoolean() ?
-                new String[]{ DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey() } :
-                new String[]{ "cluster.routing.allocation.disk.*" }
-            );
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build()
+        );
+        MockTerminal terminal = removeSettings(
+            environment,
+            false,
+            randomBoolean()
+                ? new String[] { DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey() }
+                : new String[] { "cluster.routing.allocation.disk.*" }
+        );
         assertThat(terminal.getOutput(), containsString(RemoveSettingsCommand.SETTINGS_REMOVED_MSG));
         assertThat(terminal.getOutput(), containsString("The following settings will be removed:"));
-        assertThat(terminal.getOutput(), containsString(
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey() + ": "  + false));
+        assertThat(
+            terminal.getOutput(),
+            containsString(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey() + ": " + false)
+        );
 
         internalCluster().startNode(dataPathSettings);
-        assertThat(client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
-            not(contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())));
+        assertThat(
+            client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
+            not(contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()))
+        );
     }
 
     public void testSettingDoesNotMatch() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false).build()).get();
-        assertThat(client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
-            contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()));
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder()
+                    .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+                    .build()
+            )
+            .get();
+        assertThat(
+            client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
+            contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())
+        );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
 
         Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        UserException ex = expectThrows(UserException.class, () -> removeSettings(environment, false,
-            new String[]{ "cluster.routing.allocation.disk.bla.*" }));
-        assertThat(ex.getMessage(), containsString("No persistent cluster settings matching [cluster.routing.allocation.disk.bla.*] were " +
-            "found on this node"));
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build()
+        );
+        UserException ex = expectThrows(
+            UserException.class,
+            () -> removeSettings(environment, false, new String[] { "cluster.routing.allocation.disk.bla.*" })
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("No persistent cluster settings matching [cluster.routing.allocation.disk.bla.*] were " + "found on this node")
+        );
     }
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort, String... args)

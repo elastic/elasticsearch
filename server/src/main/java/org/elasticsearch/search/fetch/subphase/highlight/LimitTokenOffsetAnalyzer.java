@@ -41,18 +41,11 @@ public final class LimitTokenOffsetAnalyzer extends AnalyzerWrapper {
 
     @Override
     protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-        return new TokenStreamComponents(
-                components.getSource(),
-                new LimitTokenOffsetFilter(components.getTokenStream(), maxOffset, false)
-        );
+        return new TokenStreamComponents(components.getSource(), new LimitTokenOffsetFilter(components.getTokenStream(), maxOffset, false));
     }
 
     @Override
     public String toString() {
-        return "LimitTokenOffsetAnalyzer("
-                + delegate.toString()
-                + ", maxOffset="
-                + maxOffset
-                + ")";
+        return "LimitTokenOffsetAnalyzer(" + delegate.toString() + ", maxOffset=" + maxOffset + ")";
     }
 }

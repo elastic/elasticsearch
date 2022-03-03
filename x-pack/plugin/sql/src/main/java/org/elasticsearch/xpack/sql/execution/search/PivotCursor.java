@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.type.Schema;
 
@@ -27,9 +28,15 @@ public class PivotCursor extends CompositeAggCursor {
 
     private final Map<String, Object> previousKey;
 
-    PivotCursor(Map<String, Object> previousKey, byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit,
-            boolean includeFrozen,
-            String... indices) {
+    PivotCursor(
+        Map<String, Object> previousKey,
+        SearchSourceBuilder next,
+        List<BucketExtractor> exts,
+        BitSet mask,
+        int remainingLimit,
+        boolean includeFrozen,
+        String... indices
+    ) {
         super(next, exts, mask, remainingLimit, includeFrozen, indices);
         this.previousKey = previousKey;
     }
@@ -61,7 +68,7 @@ public class PivotCursor extends CompositeAggCursor {
     }
 
     @Override
-    protected BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor() {
+    protected BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor() {
         return (q, r) -> {
             Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
             return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingData(), includeFrozen(), indices());

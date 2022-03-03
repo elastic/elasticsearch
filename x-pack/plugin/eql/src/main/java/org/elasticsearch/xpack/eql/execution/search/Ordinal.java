@@ -60,8 +60,8 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
 
         Ordinal other = (Ordinal) obj;
         return Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tiebreaker, other.tiebreaker)
-                && Objects.equals(implicitTiebreaker, other.implicitTiebreaker);
+            && Objects.equals(tiebreaker, other.tiebreaker)
+            && Objects.equals(implicitTiebreaker, other.implicitTiebreaker);
     }
 
     @Override
@@ -119,8 +119,8 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
     }
 
     public Object[] toArray() {
-        return tiebreaker != null ?
-            new Object[] { timestamp.toString(), tiebreaker, implicitTiebreaker }
+        return tiebreaker != null
+            ? new Object[] { timestamp.toString(), tiebreaker, implicitTiebreaker }
             : new Object[] { timestamp.toString(), implicitTiebreaker };
     }
 }

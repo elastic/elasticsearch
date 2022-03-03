@@ -61,8 +61,7 @@ public class HitReference implements Accountable {
         }
 
         HitReference other = (HitReference) obj;
-        return Objects.equals(index, other.index)
-                && Objects.equals(id, other.id);
+        return Objects.equals(index, other.index) && Objects.equals(id, other.id);
     }
 
     @Override

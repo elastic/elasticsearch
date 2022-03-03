@@ -7,14 +7,15 @@
  */
 package org.elasticsearch.gradle.internal;
 
-import java.io.File;
-import java.io.IOException;
-
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
+
+import java.io.File;
+import java.io.IOException;
 
 public class EmptyDirTaskTests extends GradleUnitTestCase {
 

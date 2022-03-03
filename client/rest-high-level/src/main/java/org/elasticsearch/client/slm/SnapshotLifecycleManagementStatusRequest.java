@@ -10,5 +10,4 @@ package org.elasticsearch.client.slm;
 
 import org.elasticsearch.client.TimedRequest;
 
-public class SnapshotLifecycleManagementStatusRequest extends TimedRequest {
-}
+public class SnapshotLifecycleManagementStatusRequest extends TimedRequest {}

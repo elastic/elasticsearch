@@ -9,7 +9,9 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -56,6 +58,18 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             assertEquals(lonSum / totalCount, reduced.centroid().getLon(), 1E-5D);
         }
         assertEquals(totalCount, reduced.count());
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalGeoCentroid sampled, InternalGeoCentroid reduced, SamplingContext samplingContext) {
+        assertEquals(sampled.centroid().getLat(), reduced.centroid().getLat(), 1e-12);
+        assertEquals(sampled.centroid().getLon(), reduced.centroid().getLon(), 1e-12);
+        assertEquals(sampled.count(), samplingContext.scaleUp(reduced.count()), 0);
     }
 
     public void testReduceMaxCount() {
@@ -112,7 +126,7 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
                 break;
             case 3:
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

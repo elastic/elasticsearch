@@ -187,8 +187,9 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         when(authentication.getSourceRealm()).thenReturn(authenticatedBy);
         when(authentication.getAuthenticationType()).thenReturn(authenticationType);
         when(authenticatedBy.getName()).thenReturn(realmName);
+        when(authenticatedBy.getType()).thenReturn(realmName);
         when(authentication.getMetadata()).thenReturn(metadata);
-        when(authentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(authentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
         when(authentication.isApiKey()).thenCallRealMethod();
         return authentication;
     }

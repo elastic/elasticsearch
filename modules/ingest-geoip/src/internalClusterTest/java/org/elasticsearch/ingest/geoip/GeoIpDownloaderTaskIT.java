@@ -55,6 +55,7 @@ public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84617")
     public void testTaskRemovedAfterCancellation() throws Exception {
         assertAcked(
             client().admin()

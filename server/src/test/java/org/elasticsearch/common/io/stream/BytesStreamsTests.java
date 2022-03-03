@@ -521,7 +521,7 @@ public class BytesStreamsTests extends ESTestCase {
 
         final ImmutableOpenMap<String, String> expected = expectedBuilder.build();
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeImmutableMap(expected, StreamOutput::writeString, StreamOutput::writeString);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
 
@@ -537,7 +537,7 @@ public class BytesStreamsTests extends ESTestCase {
 
         final ImmutableOpenMap<TestWriteable, TestWriteable> expected = expectedBuilder.build();
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeMap(expected);
+        out.writeImmutableMap(expected);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
 

@@ -159,9 +159,12 @@ public class MultiPhrasePrefixQuery extends Query {
                 return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
             }
 
+            // Hack so that the Unified Highlighter can still extract the original terms from this query
+            // after rewriting, even though it would normally become a MatchNoDocsQuery against an empty
+            // index
             return new BooleanQuery.Builder().add(query.build(), BooleanClause.Occur.MUST)
                 .add(
-                    Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
+                    new NoRewriteMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
                     BooleanClause.Occur.MUST
                 )
                 .build();

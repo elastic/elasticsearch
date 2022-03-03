@@ -16,9 +16,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 
@@ -54,7 +54,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         ensureGreen("test-1", "test-2", "test-3");
 
         final var block1 = blockMasterService(masterService);
-        block1.call(); // wait for block
+        block1.run(); // wait for block
 
         // fire off some opens
         final var future1 = client().admin().indices().prepareOpen("test-1").execute();
@@ -63,7 +63,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         // check the queue for the open-indices tasks
         assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
 
-        block1.call(); // release block
+        block1.run(); // release block
 
         // assert that the requests were acknowledged
         assertAcked(future1.get());
@@ -80,7 +80,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         ensureGreen("test-1", "test-2", "test-3");
 
         final var block1 = blockMasterService(masterService);
-        block1.call(); // wait for block
+        block1.run(); // wait for block
 
         // fire off some closes
         final var future1 = client().admin().indices().prepareClose("test-1").execute();
@@ -92,13 +92,13 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         // add *another* block to the end of the pending tasks, then unblock the current block so we can progress,
         // then immediately block again on that new block
         final var block2 = blockMasterService(masterService);
-        block1.call(); // release block
-        block2.call(); // wait for block
+        block1.run(); // release block
+        block2.run(); // wait for block
 
         // wait for the queue to have the second close tasks (the close-indices tasks)
         assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
 
-        block2.call(); // release block
+        block2.run(); // release block
 
         // assert that the requests were acknowledged
         final var resp1 = future1.get();
@@ -122,7 +122,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         ensureGreen("test-1", "test-2", "test-3");
 
         final var block1 = blockMasterService(masterService);
-        block1.call(); // wait for block
+        block1.run(); // wait for block
 
         // fire off some closes
         final var future1 = client().admin().indices().prepareAddBlock(APIBlock.WRITE, "test-1").execute();
@@ -134,13 +134,13 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         // add *another* block to the end of the pending tasks, then unblock the current block so we can progress,
         // then immediately block again on that new block
         final var block2 = blockMasterService(masterService);
-        block1.call(); // release block
-        block2.call(); // wait for block
+        block1.run(); // release block
+        block2.run(); // wait for block
 
         // wait for the queue to have the second add-block tasks (the finalize-index-block tasks)
         assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
 
-        block2.call(); // release block
+        block2.run(); // release block
 
         // assert that the requests were acknowledged
         final var resp1 = future1.get();
@@ -154,7 +154,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         assertThat(resp2.getIndices().stream().map(r -> r.getIndex().getName()).toList(), containsInAnyOrder("test-2", "test-3"));
     }
 
-    private static Callable<Void> blockMasterService(MasterService masterService) {
+    private static CheckedRunnable<Exception> blockMasterService(MasterService masterService) {
         final var executionBarrier = new CyclicBarrier(2);
         masterService.submitStateUpdateTask(
             "block",
@@ -170,10 +170,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
             }
         );
 
-        return () -> {
-            executionBarrier.await(10, TimeUnit.SECONDS);
-            return null;
-        };
+        return () -> executionBarrier.await(10, TimeUnit.SECONDS);
     }
 
     /**

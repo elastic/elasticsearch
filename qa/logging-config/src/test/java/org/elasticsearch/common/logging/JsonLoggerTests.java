@@ -8,12 +8,8 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -26,12 +22,12 @@ import org.elasticsearch.logging.DeprecatedMessage;
 import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.ESLogMessage;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.internal.ESLogMessageImpl;
 import org.elasticsearch.logging.internal.LogConfigurator;
 import org.elasticsearch.logging.internal.Loggers;
-import org.elasticsearch.logging.internal.PrefixLogger;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParseField;
@@ -46,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -83,8 +80,8 @@ public class JsonLoggerTests extends ESTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        LoggerContext context = (LoggerContext) LogManager.getContext(false);
-        Configurator.shutdown(context);
+//        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+//        Configurator.shutdown(context);
         super.tearDown();
     }
 
@@ -391,7 +388,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void testCustomMessageWithMultipleFields() throws IOException {
         // If a field is defined to be overridden, it has to always be overridden in that appender.
         final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new ESLogMessageImpl("some message").with("field1", "value1").with("field2", "value2"));
+        testLogger.info(new ESLogMessage("some message").field("field1", "value1").field("field2", "value2"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".json");
         try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
@@ -441,10 +438,11 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     public void testPrefixLoggerInJson() throws IOException {
-        Logger shardIdLogger = Loggers.getLogger("prefix.shardIdLogger", ShardId.fromString("[indexName][123]"));
+        Logger shardIdLogger = Loggers.getLogger("prefix.shardIdLogger",
+            ShardId.fromString("[indexName][123]").getIndexName(), ShardId.fromString("[indexName][123]").getId());
         shardIdLogger.info("This is an info message with a shardId");
 
-        Logger prefixLogger = new PrefixLogger(LogManager.getLogger("prefix.prefixLogger"), "PREFIX");
+        Logger prefixLogger = Loggers.getLogger(LogManager.getLogger("prefix.prefixLogger"), "PREFIX");
         prefixLogger.info("This is an info message with a prefix");
 
         final Path path = clusterLogsPath();
@@ -667,7 +665,16 @@ public class JsonLoggerTests extends ESTestCase {
             .build();
         // need to use custom config path so we can use a custom log4j2.properties file for the test
         final Environment environment = new Environment(mergedSettings, configDir);
-        LogConfigurator.configure(environment);
+        Settings envSettings = environment.settings();
+        String clusterName = ClusterName.CLUSTER_NAME_SETTING.get(envSettings).value();
+        String nodeName = Node.NODE_NAME_SETTING.get(envSettings);
+        Optional<Level> defaultLogLevel = LogSettings.defaultLogLevel(envSettings);
+        Map<String, Level> logLevelSettingsMap = LogSettings.logLevelSettingsMap(envSettings);
+        Path configFile = environment.configFile();
+        Path logsFile = environment.logsFile();
+
+        LogConfigurator.configure(clusterName, nodeName, defaultLogLevel, logLevelSettingsMap, configFile, logsFile);
+
     }
 
     private Matcher<JsonLogLine> logLine(String type, Level level, String nodeName, String component, String message) {

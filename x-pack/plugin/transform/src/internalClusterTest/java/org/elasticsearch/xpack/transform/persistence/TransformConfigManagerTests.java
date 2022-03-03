@@ -25,12 +25,11 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -762,11 +761,20 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
                     .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
                     .build()
             ).numberOfReplicas(0).numberOfShards(1).putMapping(Strings.toString(TransformInternalIndex.mappings()));
-            indexMapBuilder.put(index, builder.build());
+            final var indexMetadata = builder.build();
+            indexMapBuilder.put(index, indexMetadata);
 
             routingTableBuilder.add(
-                IndexRoutingTable.builder(new Index(index, UUIDs.randomBase64UUID()))
-                    .addShard(TestShardRouting.newShardRouting(index, 0, "node_a", null, true, ShardRoutingState.STARTED))
+                IndexRoutingTable.builder(indexMetadata.getIndex())
+                    .addShard(
+                        TestShardRouting.newShardRouting(
+                            new ShardId(indexMetadata.getIndex(), 0),
+                            "node_a",
+                            null,
+                            true,
+                            ShardRoutingState.STARTED
+                        )
+                    )
                     .build()
             );
 

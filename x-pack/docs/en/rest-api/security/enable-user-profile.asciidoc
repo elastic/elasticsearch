@@ -1,0 +1,70 @@
+[role="xpack"]
+[[security-api-enable-user-profile]]
+=== Enable user profile API
+
+beta::[]
+
+++++
+<titleabbrev>Enable user profile</titleabbrev>
+++++
+
+Enable th user profile that's associated with the specified unique ID.
+The user profile is visible to search once enabled.
+
+[[security-api-enable-user-profile-request]]
+==== {api-request-title}
+
+`POST /_security/profile/<uid>/_enable`
+
+[[security-api-enable-user-profile-prereqs]]
+==== {api-prereq-title}
+
+To use this API, you must have at least the `manage_user_profile` cluster privilege.
+
+[[security-api-enable-user-profile-desc]]
+==== {api-description-title}
+
+When activating a user profile with <<security-api-activiate-user-profile>>,
+the profile becomes enabled. You can use this Enable User Profile API and
+the <<security-api-disable-user-profile>> to change the `enabled` status.
+
+[[security-api-enable-user-profile-path-params]]
+==== {api-path-parms-title}
+
+`uid`::
+(Required, string) A unique identifier for the user profile.
+
+[[security-api-enable-user-profile-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+
+`uid`::
+(Required, string) A unique identifier for the user profile.
+
+[[security-api-enable-user-profile-response-body]]
+==== {api-response-body-title}
+
+A successful enable user profile API call returns a JSON structure
+indicating that the request is acknowledged:
+
+[source,js]
+----
+{
+  "acknowledged": true
+}
+----
+// NOTCONSOLE
+
+[[security-api-enable-user-profile-example]]
+==== {api-examples-title}
+
+The following request enables the user profile for a `uid` matching
+`u_kd2JMqwUQwSCCOxMv7M1vw`:
+
+[source,console]
+----
+POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_enable
+----
+// TEST[skip:uid is random and no way to ensure this uid exists]
+

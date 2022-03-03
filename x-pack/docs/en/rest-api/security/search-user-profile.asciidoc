@@ -1,0 +1,95 @@
+[role="xpack"]
+[[security-api-search-user-profile]]
+=== Search user profile API
+
+beta::[]
+
+++++
+<titleabbrev>Update user profile data</titleabbrev>
+++++
+
+Search for user profiles that match the specified search criteria.
+
+[[security-api-search-user-profile-request]]
+==== {api-request-title}
+
+`POST /_security/profile/_search`
+
+[[security-api-search-user-profile-prereqs]]
+==== {api-prereq-title}
+
+To use this API, you must have at least the `manage_user_profile` cluster privilege.
+
+[[security-api-search-user-profile-desc]]
+==== {api-description-title}
+
+[[security-api-search-user-profile-request-body]]
+==== {api-request-body-title}
+
+`name`::
+(Optional, string)
+The string used for matching named related fields of the user profile document.
+Name related fields are `username`, `full_name` and `email` of the user from
+the profile document.
+
+`size`::
+(Optional, number)
+The number of results to be returned from the search. Defaults to 10.
+
+[[security-api-search-user-profile-response-body]]
+==== {api-response-body-title}
+
+This API returns the following top level fields:
+
+`total`::
+(object)
+Metadata about the number of matching profiles.
+
+`took`::
+(integer)
+Milliseconds it took {es} to execute the request.
+
+`profiles`::
+A list of profile documents (ordered by relevance) that match the search criteria.
+
+[[security-api-search-user-profile-example]]
+==== {api-examples-title}
+
+The following request searches for profile documents with name related fields
+matching `jack`:
+
+[source,console]
+----
+POST /_security/profile/_search
+{
+  "name": "jack"
+}
+----
+// TEST[skip:TODO setup and tests will be possible once the profile uid is predictable]
+
+The API returns the following response
+
+[source,js]
+----
+{
+  "total": {
+    "value": 1,
+    "relation": "eq"
+  },
+  "took": 42,
+  "profiles": [
+    {
+      "uid": "u_kd2JMqwUQwSCCOxMv7M1vw",
+      "user": {
+        "username": "jacknich",
+        "full_name": "Jack Nicholson",
+        "email": "jacknich@example.org",
+        "roles": [ "admin", "other_role1" ],
+        "realm_name": "native1",
+        "active": true
+      }
+    }
+  ]
+}
+----
+// NOTCONSOLE

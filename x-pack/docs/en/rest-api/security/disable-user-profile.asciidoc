@@ -1,0 +1,70 @@
+[role="xpack"]
+[[security-api-disable-user-profile]]
+=== Disable user profile API
+
+beta::[]
+
+++++
+<titleabbrev>Disable user profile</titleabbrev>
+++++
+
+Disable th user profile that's associated with the specified unique ID.
+The user profile is **not** visible to search once disabled.
+
+[[security-api-disable-user-profile-request]]
+==== {api-request-title}
+
+`POST /_security/profile/<uid>/_enable`
+
+[[security-api-disable-user-profile-prereqs]]
+==== {api-prereq-title}
+
+To use this API, you must have at least the `manage_user_profile` cluster privilege.
+
+[[security-api-disable-user-profile-desc]]
+==== {api-description-title}
+
+When activating a user profile with <<security-api-activiate-user-profile>>,
+the profile becomes enabled. You can use this Disable User Profile API and
+the <<security-api-enable-user-profile>> to change the `enabled` status.
+
+[[security-api-disable-user-profile-path-params]]
+==== {api-path-parms-title}
+
+`uid`::
+(Required, string) A unique identifier for the user profile.
+
+[[security-api-disable-user-profile-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+
+`uid`::
+(Required, string) A unique identifier for the user profile.
+
+[[security-api-disable-user-profile-response-body]]
+==== {api-response-body-title}
+
+A successful disable user profile API call returns a JSON structure
+indicating that the request is acknowledged:
+
+[source,js]
+----
+{
+  "acknowledged": true
+}
+----
+// NOTCONSOLE
+
+[[security-api-disable-user-profile-example]]
+==== {api-examples-title}
+
+The following request disables the user profile for a `uid` matching
+`u_kd2JMqwUQwSCCOxMv7M1vw`:
+
+[source,console]
+----
+POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_disable
+----
+// TEST[skip:uid is random and no way to ensure this uid exists]
+

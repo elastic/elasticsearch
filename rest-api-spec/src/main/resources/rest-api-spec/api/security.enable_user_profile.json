@@ -1,0 +1,41 @@
+{
+  "security.enable_user_profile":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user-profile.html",
+      "description":"Enable the user profile of the given unique ID so it is visible to search."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/profile/{uid}/_enable",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "uid":{
+              "type":"string",
+              "description":"An unique identifier of the user profile"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "refresh":{
+        "type":"enum",
+        "options":[
+          "true",
+          "false",
+          "wait_for"
+        ],
+        "description":"If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+      }
+    }
+  }
+}

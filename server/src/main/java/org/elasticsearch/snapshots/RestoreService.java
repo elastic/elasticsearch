@@ -1674,10 +1674,10 @@ public class RestoreService implements ClusterStateApplier {
                 if (other.getIndex().equals(index)) {
                     continue; // do not check the searchable snapshot index against itself
                 }
-                final Settings otherSettings = other.getSettings();
-                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(otherSettings) == false) {
+                if (other.isSearchableSnapshot() == false) {
                     continue; // other index is not a searchable snapshot index, skip
                 }
+                final Settings otherSettings = other.getSettings();
                 final String otherSnapshotUuid = otherSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);
                 if (Objects.equals(snapshotUuid, otherSnapshotUuid) == false) {
                     continue; // other index is backed by a different snapshot, skip

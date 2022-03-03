@@ -213,8 +213,9 @@ public class MetadataDeleteIndexService {
         final ClusterState state
     ) {
         final List<Settings> deletedIndicesSettings = indicesToDelete.stream()
-            .map(index -> state.metadata().getIndexSafe(index).getSettings())
-            .filter(SearchableSnapshotsSettings::isSearchableSnapshotStore)
+            .map(index -> state.metadata().getIndexSafe(index))
+            .filter(IndexMetadata::isSearchableSnapshot)
+            .map(IndexMetadata::getSettings)
             .filter(indexSettings -> indexSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false))
             .collect(Collectors.toList());
         if (deletedIndicesSettings.isEmpty()) {
@@ -225,10 +226,8 @@ public class MetadataDeleteIndexService {
             .indices()
             .stream()
             .map(Map.Entry::getValue)
-            .filter(index -> indicesToDelete.contains(index.getIndex()) == false)
-            .map(IndexMetadata::getSettings)
-            .filter(SearchableSnapshotsSettings::isSearchableSnapshotStore)
-            .map(MetadataDeleteIndexService::toSnapshotId)
+            .filter(index -> index.isSearchableSnapshot() && indicesToDelete.contains(index.getIndex()) == false)
+            .map(index -> MetadataDeleteIndexService.toSnapshotId(index.getSettings()))
             .collect(Collectors.toUnmodifiableSet());
 
         final RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE);

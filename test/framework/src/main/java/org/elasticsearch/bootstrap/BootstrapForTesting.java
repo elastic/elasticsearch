@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.RandomizedRunner;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -155,7 +155,13 @@ public class BootstrapForTesting {
                 Permissions fastPathPermissions = new Permissions();
                 addDirectoryPath(fastPathPermissions, "java.io.tmpdir-fastpath", javaTmpDir, "read,readlink,write,delete", true);
 
-                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true, fastPathPermissions);
+                final Policy esPolicy = new ESPolicy(
+                    codebases,
+                    perms,
+                    getPluginPermissions(),
+                    true,
+                    Security.toFilePermissions(fastPathPermissions)
+                );
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {

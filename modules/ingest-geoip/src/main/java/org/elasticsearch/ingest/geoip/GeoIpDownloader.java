@@ -35,9 +35,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -65,9 +64,15 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Property.Dynamic,
         Property.NodeScope
     );
+
+    // for overriding in tests
+    private static final String DEFAULT_ENDPOINT = System.getProperty(
+        "ingest.geoip.downloader.endpoint.default",
+        "https://geoip.elastic.co/v1/database"
+    );
     public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString(
         "ingest.geoip.downloader.endpoint",
-        "https://geoip.elastic.co/v1/database",
+        DEFAULT_ENDPOINT,
         Property.NodeScope
     );
 
@@ -134,10 +139,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         String url = endpoint + "?elastic_geoip_service_tos=agree";
         logger.debug("fetching geoip databases overview from [{}]", url);
         byte[] data = httpClient.getBytes(url);
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, data)
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, data)) {
             return (List<T>) parser.list();
         }
     }
@@ -257,6 +259,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         try {
             updateDatabases();
         } catch (Exception e) {
+            stats = stats.failedDownload();
             logger.error("exception during geoip databases update", e);
         }
         try {
@@ -291,6 +294,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         if (scheduled != null) {
             scheduled.cancel();
         }
+        markAsCompleted();
     }
 
     @Override

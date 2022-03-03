@@ -24,47 +24,46 @@ archivesBaseName = 'elasticsearch'
 
 dependencies {
 
-  moduleApi project(':libs:elasticsearch-core')
-  moduleApi project(":libs:elasticsearch-logging")
-  moduleApi project(':libs:elasticsearch-secure-sm')
-  moduleApi project(':libs:elasticsearch-x-content')
-  moduleApi project(":libs:elasticsearch-geo")
-  moduleApi project(":libs:elasticsearch-lz4")
+  api project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-secure-sm')
+  api project(':libs:elasticsearch-x-content')
+  api project(":libs:elasticsearch-geo")
+  api project(":libs:elasticsearch-lz4")
 
-  moduleImplementation project(':libs:elasticsearch-plugin-classloader')
+  implementation project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
-  moduleApi "org.apache.lucene:lucene-core:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-grouping:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-highlighter:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-join:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-memory:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-misc:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-queries:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-queryparser:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
-  moduleApi "org.apache.lucene:lucene-suggest:${versions.lucene}"
+  api "org.apache.lucene:lucene-core:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
+  api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  api "org.apache.lucene:lucene-grouping:${versions.lucene}"
+  api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
+  api "org.apache.lucene:lucene-join:${versions.lucene}"
+  api "org.apache.lucene:lucene-memory:${versions.lucene}"
+  api "org.apache.lucene:lucene-misc:${versions.lucene}"
+  api "org.apache.lucene:lucene-queries:${versions.lucene}"
+  api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
+  api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  moduleApi project(":libs:elasticsearch-cli")
-  moduleApi 'com.carrotsearch:hppc:0.8.1'
+  api project(":libs:elasticsearch-cli")
+  api 'com.carrotsearch:hppc:0.8.1'
 
   // percentiles aggregation
-  moduleApi 'com.tdunning:t-digest:3.2'
+  api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
-  moduleApi 'org.hdrhistogram:HdrHistogram:2.1.9'
+  api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
   // logging
-//  moduleApi "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-//  moduleApi "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  // api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  // api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
-  moduleApi "net.java.dev.jna:jna:${versions.jna}"
+  api "net.java.dev.jna:jna:${versions.jna}"
 
-//  moduleApi "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
-//  moduleApi "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
+  // api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
+  // api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
@@ -88,7 +87,7 @@ tasks.named("testingConventions").configure {
     naming.clear()
     naming {
         Tests {
-            baseClass "org.apache.lucene.util.LuceneTestCase"
+            baseClass "org.apache.lucene.tests.util.LuceneTestCase"
         }
         IT {
             baseClass "org.elasticsearch.test.ESIntegTestCase"
@@ -131,11 +130,9 @@ tasks.named("processResources").configure {
 if (BuildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
-        systemProperty 'es.random_sampler_feature_flag_registered', 'true'
     }
     tasks.named("internalClusterTest").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
-        systemProperty 'es.random_sampler_feature_flag_registered', 'true'
     }
 }
 

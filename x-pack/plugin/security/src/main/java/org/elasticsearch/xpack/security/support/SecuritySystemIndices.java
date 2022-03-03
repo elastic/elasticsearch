@@ -44,7 +44,7 @@ public class SecuritySystemIndices {
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
     private final SystemIndexDescriptor mainDescriptor;
     private final SystemIndexDescriptor tokenDescriptor;
@@ -280,6 +280,27 @@ public class SecuritySystemIndices {
                                 builder.startObject("properties");
                                 {
                                     builder.startObject("manage");
+                                    {
+                                        builder.field("type", "object");
+                                        builder.startObject("properties");
+                                        {
+                                            builder.startObject("applications");
+                                            builder.field("type", "keyword");
+                                            builder.endObject();
+                                        }
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                            builder.startObject("profile");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("write");
                                     {
                                         builder.field("type", "object");
                                         builder.startObject("properties");
@@ -827,10 +848,6 @@ public class SecuritySystemIndices {
                                     builder.endObject();
 
                                     builder.startObject("full_name");
-                                    builder.field("type", "search_as_you_type");
-                                    builder.endObject();
-
-                                    builder.startObject("display_name");
                                     builder.field("type", "search_as_you_type");
                                     builder.endObject();
 

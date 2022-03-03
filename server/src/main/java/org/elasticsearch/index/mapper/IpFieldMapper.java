@@ -20,7 +20,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -161,7 +160,7 @@ public class IpFieldMapper extends FieldMapper {
                 name,
                 new IpFieldType(
                     context.buildFullName(name),
-                    indexed.getValue(),
+                    indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                     stored.getValue(),
                     hasDocValues.getValue(),
                     parseNullValue(),
@@ -492,12 +491,7 @@ public class IpFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
         if (dimension) {
-            // Encode the tsid part of the dimension field if the _tsid field is enabled.
-            // If the _tsid field is not enabled, we can skip the encoding part.
-            BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
-                ? TimeSeriesIdFieldMapper.encodeTsidValue(NetworkAddress.format(address))
-                : null;
-            context.doc().addDimensionBytes(fieldType().name(), bytes);
+            context.getDimensions().addIp(fieldType().name(), address);
         }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);
@@ -526,5 +520,14 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(dimension).init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup lookup) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(name())) {
+            throw new IllegalArgumentException(
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + name() + "]"
+            );
+        }
     }
 }

@@ -206,7 +206,7 @@ public class ClientYamlTestExecutionContext {
     }
 
     /**
-     * Returns the current es version as a string
+     * @return the version of the oldest node in the cluster
      */
     public Version esVersion() {
         return clientYamlTestClient.getEsVersion();

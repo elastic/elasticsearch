@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -297,7 +298,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             .getShardOrNull(new ShardId(resolveIndex("index"), 0));
         // we will add multiple retention leases and expect to see them synced to all replicas
         final int length = randomIntBetween(1, 8);
-        final Map<String, RetentionLease> currentRetentionLeases = new LinkedHashMap<>(length);
+        final Map<String, RetentionLease> currentRetentionLeases = Maps.newLinkedHashMapWithExpectedSize(length);
         final List<String> ids = new ArrayList<>(length);
         for (int i = 0; i < length; i++) {
             final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));

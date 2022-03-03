@@ -51,8 +51,6 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.analytics.InferencePipelineAggregationBuilder;
-import org.elasticsearch.client.analytics.ParsedInference;
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
 import org.elasticsearch.client.analytics.StringStatsAggregationBuilder;
@@ -278,7 +276,6 @@ public class RestHighLevelClient implements Closeable {
     private final IndicesClient indicesClient = new IndicesClient(this);
     private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
-    private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
     private final TransformClient transformClient = new TransformClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
@@ -389,20 +386,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public SearchableSnapshotsClient searchableSnapshots() {
         return searchableSnapshotsClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Machine Learning APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html">
-     * Machine Learning APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Machine Learning API calls
-     */
-    public MachineLearningClient machineLearning() {
-        return machineLearningClient;
     }
 
     /**
@@ -2730,7 +2713,6 @@ public class RestHighLevelClient implements Closeable {
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
         map.put(StringStatsAggregationBuilder.NAME, (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c));
         map.put(TopMetricsAggregationBuilder.NAME, (p, c) -> ParsedTopMetrics.PARSER.parse(p, (String) c));
-        map.put(InferencePipelineAggregationBuilder.NAME, (p, c) -> ParsedInference.fromXContent(p, (String) (c)));
         map.put(TimeSeriesAggregationBuilder.NAME, (p, c) -> ParsedTimeSeries.fromXContent(p, (String) (c)));
         List<NamedXContentRegistry.Entry> entries = map.entrySet()
             .stream()

@@ -35,6 +35,7 @@ ES_HOME=`dirname "$ES_HOME"`
 # now set the classpath
 ES_CLASSPATH="$ES_HOME/lib/*"  # for the CLI tools - make these modules too.
 ES_MODULEPATH="$ES_HOME/lib/"
+LAUNCHERS_MODULEPATH="$ES_MODULEPATH:$ES_HOME/lib/launchers/"
 
 # now set the path to java
 if [ ! -z "$ES_JAVA_HOME" ]; then
@@ -81,7 +82,7 @@ else
 fi
 
 # check the Java version
-"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
+"$JAVA" "$XSHARE" --module-path "$LAUNCHERS_MODULEPATH" -m org.elasticsearch.java_version_checker/org.elasticsearch.tools.java_version_checker.JavaVersionChecker
 
 export HOSTNAME=$HOSTNAME
 

@@ -9,7 +9,7 @@ esplugin {
 archivesBaseName = 'x-pack-async'
 
 dependencies {
-  moduleCompileOnly project(":server")
+  compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
 }
 

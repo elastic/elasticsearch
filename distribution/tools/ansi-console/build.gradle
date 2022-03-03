@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.build'
 archivesBaseName = 'elasticsearch-ansi-console'
 
 dependencies {
-  moduleCompileOnly project(":server")
+  compileOnly project(":server")
   testImplementation project(":test:framework")
 
   // multi-platform (Windows too) terminal detection and output formatting

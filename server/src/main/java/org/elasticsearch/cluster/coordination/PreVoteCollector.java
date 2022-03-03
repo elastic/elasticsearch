@@ -63,7 +63,7 @@ public class PreVoteCollector {
 
         transportService.registerRequestHandler(
             REQUEST_PRE_VOTE_ACTION_NAME,
-            Names.GENERIC,
+            Names.CLUSTER_COORDINATION,
             false,
             false,
             PreVoteRequest::new,
@@ -174,7 +174,7 @@ public class PreVoteCollector {
 
                         @Override
                         public String executor() {
-                            return Names.GENERIC;
+                            return Names.CLUSTER_COORDINATION;
                         }
 
                         @Override

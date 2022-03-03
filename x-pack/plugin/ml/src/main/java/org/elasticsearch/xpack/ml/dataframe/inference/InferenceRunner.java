@@ -157,7 +157,7 @@ public class InferenceRunner {
 
         Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);
         long processedTestDocCount = searchResponse.getHits().getTotalHits().value;
-        Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.getValue();
+        Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
         if (lastIncrementalId != null) {
             LOGGER.debug(
                 () -> new ParameterizedMessage(

@@ -62,7 +62,7 @@ public class UserPrivilegeResolver {
         }
     }
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(UserPrivilegeResolver.class);
     private final Client client;
     private final SecurityContext securityContext;
     private final ApplicationActionsResolver actionsResolver;

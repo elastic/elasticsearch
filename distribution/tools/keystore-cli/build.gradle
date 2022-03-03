@@ -9,7 +9,7 @@
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  moduleCompileOnly project(":server")
+  compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"

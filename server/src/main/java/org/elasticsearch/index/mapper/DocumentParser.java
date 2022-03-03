@@ -603,11 +603,12 @@ public final class DocumentParser {
     // we do not check for shadowing runtime fields because they only apply to leaf
     // fields
     private static Mapper getMapper(final DocumentParserContext context, ObjectMapper objectMapper, String fieldName) {
-        String fieldPath = context.path().pathAsText(fieldName);
-        // Check if mapper is a metadata mapper first
-        Mapper mapper = context.getMetadataMapper(fieldPath);
-        if (mapper != null) {
-            return mapper;
+        if (context.path().atRoot()) {
+            // Check if mapper is a metadata mapper first
+            Mapper mapper = context.getMetadataMapper(fieldName);
+            if (mapper != null) {
+                return mapper;
+            }
         }
         return objectMapper.getMapper(fieldName);
     }

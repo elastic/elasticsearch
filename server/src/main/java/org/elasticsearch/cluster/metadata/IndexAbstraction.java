@@ -371,10 +371,6 @@ public interface IndexAbstraction {
                 return getWriteIndex();
             }
 
-            if (getType() != IndexAbstraction.Type.DATA_STREAM) {
-                return getWriteIndex();
-            }
-
             if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
                 return getWriteIndex();
             }

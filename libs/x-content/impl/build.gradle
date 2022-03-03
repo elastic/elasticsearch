@@ -11,13 +11,13 @@ apply plugin: 'elasticsearch.java'
 archivesBaseName = "x-content-impl"
 
 dependencies {
-  moduleCompileOnly project(':libs:elasticsearch-core')
-  moduleCompileOnly project(':libs:elasticsearch-x-content')
-  moduleImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  moduleImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-  moduleImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  moduleImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  moduleImplementation "org.yaml:snakeyaml:${versions.snakeyaml}"
+  compileOnly project(':libs:elasticsearch-core')
+  compileOnly project(':libs:elasticsearch-x-content')
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'

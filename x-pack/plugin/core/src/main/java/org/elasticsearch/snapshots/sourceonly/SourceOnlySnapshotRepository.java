@@ -140,7 +140,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
             context.onFailure(
                 new IllegalStateException(
-                    "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " + "or filters the source"
+                    "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
                 )
             );
             return;

@@ -16,6 +16,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
@@ -178,10 +180,16 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             ) {
                 logger.trace("{} removing retention lease [{}] while unfollowing leader index", followerShardId, retentionLeaseId);
                 final ThreadContext threadContext = threadPool.getThreadContext();
+                // We're about to stash the thread context for this retention lease removal. The listener will be completed while the
+                // context is stashed. The context needs to be restored in the listener when it is completing or else it is simply wiped.
+                final ActionListener<ActionResponse.Empty> preservedListener = new ContextPreservingActionListener<>(
+                    threadContext.newRestorableContext(true),
+                    listener
+                );
                 try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
                     // we have to execute under the system context so that if security is enabled the removal is authorized
                     threadContext.markAsSystemContext();
-                    CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, listener);
+                    CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, preservedListener);
                 }
             }
 
@@ -220,7 +228,12 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 }
             }
 
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     @Override

@@ -16,12 +16,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
@@ -170,13 +169,7 @@ public class IndexingStateProcessor implements StateProcessor {
      * Only first non-blank line is parsed and document id is assumed to be a nested "index._id" field of type String.
      */
     static String extractDocId(String firstNonBlankLine) throws IOException {
-        try (
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE,
-                firstNonBlankLine
-            )
-        ) {
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, firstNonBlankLine)) {
             Map<String, Object> map = parser.map();
             if ((map.get("index") instanceof Map) == false) {
                 throw new IllegalStateException("Could not extract \"index\" field out of [" + firstNonBlankLine + "]");

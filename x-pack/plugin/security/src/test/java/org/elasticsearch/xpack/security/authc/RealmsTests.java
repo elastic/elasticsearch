@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
@@ -795,7 +796,12 @@ public class RealmsTests extends ESTestCase {
     }
 
     public void testUnlicensedWithNonStandardRealms() throws Exception {
-        final String selectedRealmType = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE, OpenIdConnectRealmSettings.TYPE);
+        final String selectedRealmType = randomFrom(
+            SamlRealmSettings.TYPE,
+            KerberosRealmSettings.TYPE,
+            OpenIdConnectRealmSettings.TYPE,
+            JwtRealmSettings.TYPE
+        );
         factories.put(selectedRealmType, config -> new DummyRealm(config));
         final LicensedFeature.Persistent feature = InternalRealms.getLicensedFeature(selectedRealmType);
         String realmName = randomAlphaOfLengthBetween(3, 8);

@@ -13,9 +13,9 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.apache.lucene.store.BaseDirectoryTestCase;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.store.BaseDirectoryTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.ParameterizedMessage;
@@ -57,7 +58,12 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     public void submit(ClusterService clusterService) {
         String source = new ParameterizedMessage("record [{}] migration [{}]", featureName, status.succeeded() ? "success" : "failure")
             .getFormattedMessage();
-        clusterService.submitStateUpdateTask(source, this, ClusterStateTaskExecutor.unbatched());
+        clusterService.submitStateUpdateTask(source, this, newExecutor());
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     @Override

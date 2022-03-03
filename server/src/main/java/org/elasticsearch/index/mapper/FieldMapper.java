@@ -675,7 +675,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             this.value = null;
             this.parser = parser;
             this.initializer = initializer;
-            this.mergeValidator = (previous, toMerge, conflicts) -> updateable || Objects.equals(previous, toMerge);
+            this.mergeValidator = updateable
+                ? (previous, toMerge, conflicts) -> true
+                : (previous, toMerge, conflicts) -> Objects.equals(previous, toMerge);
             this.serializer = serializer;
             this.conflictSerializer = conflictSerializer;
         }

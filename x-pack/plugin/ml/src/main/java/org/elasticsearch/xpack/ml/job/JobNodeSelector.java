@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -220,7 +221,7 @@ public class JobNodeSelector {
                 reason = createReason(
                     jobId,
                     nodeNameAndMlAttributes(node),
-                    "This node is not providing accurate information to determine is load by memory."
+                    "This node is not providing accurate information to determine its load by memory."
                 );
                 logger.trace(reason);
                 reasons.put(node.getName(), reason);
@@ -275,7 +276,8 @@ public class JobNodeSelector {
             reasons.values(),
             maxNodeSize > 0L
                 ? NativeMemoryCalculator.allowedBytesForMl(maxNodeSize, maxMachineMemoryPercent, useAutoMemoryPercentage)
-                : Long.MAX_VALUE
+                : Long.MAX_VALUE,
+            maxNodeSize
         );
     }
 
@@ -283,18 +285,19 @@ public class JobNodeSelector {
         long estimatedMemoryUsage,
         DiscoveryNode minLoadedNode,
         Collection<String> reasons,
-        long biggestPossibleJob
+        long mostAvailableMemoryForML,
+        long maxNodeSize
     ) {
         if (minLoadedNode == null) {
             String explanation = String.join("|", reasons);
             PersistentTasksCustomMetadata.Assignment currentAssignment = new PersistentTasksCustomMetadata.Assignment(null, explanation);
             logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
-            if ((MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage) > biggestPossibleJob) {
+            if ((MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage) > mostAvailableMemoryForML) {
                 ParameterizedMessage message = new ParameterizedMessage(
                     "[{}] not waiting for node assignment as estimated job size [{}] is greater than largest possible job size [{}]",
                     jobId,
                     MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + estimatedMemoryUsage,
-                    biggestPossibleJob
+                    mostAvailableMemoryForML
                 );
                 logger.info(message);
                 List<String> newReasons = new ArrayList<>(reasons);
@@ -302,13 +305,16 @@ public class JobNodeSelector {
                 explanation = String.join("|", newReasons);
                 return new PersistentTasksCustomMetadata.Assignment(null, explanation);
             }
-            return considerLazyAssignment(currentAssignment);
+            return considerLazyAssignment(currentAssignment, maxNodeSize);
         }
         logger.debug("selected node [{}] for job [{}]", minLoadedNode, jobId);
         return new PersistentTasksCustomMetadata.Assignment(minLoadedNode.getId(), "");
     }
 
-    PersistentTasksCustomMetadata.Assignment considerLazyAssignment(PersistentTasksCustomMetadata.Assignment currentAssignment) {
+    PersistentTasksCustomMetadata.Assignment considerLazyAssignment(
+        PersistentTasksCustomMetadata.Assignment currentAssignment,
+        long maxNodeSize
+    ) {
 
         assert currentAssignment.getExecutorNode() == null;
 
@@ -319,10 +325,21 @@ public class JobNodeSelector {
             }
         }
 
+        // Can we scale horizontally?
         if (numMlNodes < maxLazyNodes) { // Means we have lazy nodes left to allocate
             return AWAITING_LAZY_ASSIGNMENT;
         }
-
+        // Can we scale vertically and is scaling possible?
+        if (maxNodeSize > 0L && maxLazyNodes > 0) {
+            OptionalLong smallestMLNode = candidateNodes.stream()
+                .filter(MachineLearning::isMlNode)
+                .map(NodeLoadDetector::getNodeSize)
+                .flatMapToLong(OptionalLong::stream)
+                .min();
+            if (smallestMLNode.isPresent() && smallestMLNode.getAsLong() < maxNodeSize) {
+                return AWAITING_LAZY_ASSIGNMENT;
+            }
+        }
         return currentAssignment;
     }
 

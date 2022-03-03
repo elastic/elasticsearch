@@ -16,7 +16,7 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.ParameterizedMessage;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -82,7 +82,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     private static ExecutorService executorService;
     protected Map<String, HttpHandler> handlers;
 
-    private static final Logger log = LogManager.getLogger();
+    private static final Logger log = LogManager.getLogger(ESMockAPIBasedRepositoryIntegTestCase.class);
 
     @BeforeClass
     public static void startHttpServer() throws Exception {

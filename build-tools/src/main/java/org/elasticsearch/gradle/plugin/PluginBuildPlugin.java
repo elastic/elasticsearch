@@ -32,7 +32,6 @@ import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.RegularFile;
-import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -142,8 +141,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
     private static void configureDependencies(final Project project) {
         var dependencies = project.getDependencies();
-        // #### we need a module compile only dependency here.
-        // dependencies.add("moduleCompileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
         dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
         dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
         dependencies.add("testImplementation", "org.apache.logging.log4j:log4j-core:" + VersionProperties.getVersions().get("log4j"));
@@ -238,7 +235,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         // also make the zip available as a configuration (used when depending on this project)
         Configuration configuration = project.getConfigurations().create("zip");
-        configuration.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
+        configuration.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
         project.getArtifacts().add("zip", bundle);
 
         return bundle;

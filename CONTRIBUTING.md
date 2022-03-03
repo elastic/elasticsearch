@@ -112,11 +112,11 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 16 is required to build Elasticsearch. You must have a JDK 16 installation
+JDK 17 is required to build Elasticsearch. You must have a JDK 17 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 16 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 17 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 16 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 17 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
@@ -151,9 +151,9 @@ and then run `curl` in another window like this:
 ### Importing the project into IntelliJ IDEA
 
 The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
-Elasticsearch builds using Java 16. When importing into IntelliJ you will need
+Elasticsearch builds using Java 17. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"16"** so that the project import will detect it automatically. For more details
+"17"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will
@@ -482,9 +482,11 @@ that the logs fill up with noise and the useful signal is lost.
 
 Elasticsearch uses Log4J for logging. In most cases you should log via a
 `Logger` named after the class that is writing the log messages, which you can
-do by declaring a static field of the class as follows:
+do by declaring a static field of the class. For example:
 
-    private static final Logger logger = LogManager.getLogger();
+    class Foo {
+        private static final Logger logger = LogManager.getLogger(Foo.class);
+    }
 
 In rare situations you may want to configure your `Logger` slightly
 differently, perhaps specifying a different class or maybe using one of the

@@ -1035,7 +1035,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (MlStrings.isValidId(id) == false) {
                 throw ExceptionsHelper.badRequestException(getMessage(INVALID_ID, ID.getPreferredName(), id));
             }
-            if (indices == null || indices.isEmpty() || indices.contains(null) || indices.contains("")) {
+            if (indices == null || indices.isEmpty() || indices.contains("")) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
             }
 

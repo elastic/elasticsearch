@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMet
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
+import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Collections;
@@ -70,6 +72,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -89,6 +92,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     private final NamedXContentRegistry xContentRegistry;
     private final MlMemoryTracker memoryTracker;
     protected volatile int maxLazyMLNodes;
+    protected volatile long maxMLNodeSize;
 
     @Inject
     public TransportStartTrainedModelDeploymentAction(
@@ -121,11 +125,17 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.trainedModelAllocationService = Objects.requireNonNull(trainedModelAllocationService);
         this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
+        this.maxMLNodeSize = MachineLearning.MAX_ML_NODE_SIZE.get(settings).getBytes();
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_ML_NODE_SIZE, this::setMaxMLNodeSize);
     }
 
     private void setMaxLazyMLNodes(int value) {
         this.maxLazyMLNodes = value;
+    }
+
+    private void setMaxMLNodeSize(ByteSizeValue value) {
+        this.maxMLNodeSize = value.getBytes();
     }
 
     @Override
@@ -241,7 +251,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         AllocationStatus.State state,
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
     ) {
-        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state, maxLazyMLNodes);
+        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state, maxLazyMLNodes, maxMLNodeSize);
         trainedModelAllocationService.waitForAllocationCondition(
             modelId,
             predicate,
@@ -402,11 +412,13 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         private final String modelId;
         private final AllocationStatus.State waitForState;
         private final int maxLazyMLNodes;
+        private final long maxMLNodeSize;
 
-        DeploymentStartedPredicate(String modelId, AllocationStatus.State waitForState, int maxLazyMLNodes) {
+        DeploymentStartedPredicate(String modelId, AllocationStatus.State waitForState, int maxLazyMLNodes, long maxMLNodeSize) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
             this.waitForState = waitForState;
             this.maxLazyMLNodes = maxLazyMLNodes;
+            this.maxMLNodeSize = maxMLNodeSize;
         }
 
         @Override
@@ -445,9 +457,14 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
                 .filter(TaskParams::mayAllocateToNode)
                 .collect(Collectors.toList());
+            OptionalLong smallestMLNode = nodes.stream().map(NodeLoadDetector::getNodeSize).flatMapToLong(OptionalLong::stream).min();
 
             // No nodes allocated at all!
-            if (nodesAndState.isEmpty() && maxLazyMLNodes <= nodes.size()) {
+            if (nodesAndState.isEmpty()
+                // We cannot scale horizontally
+                && maxLazyMLNodes <= nodes.size()
+                // We cannot scale vertically
+                && (smallestMLNode.isEmpty() || smallestMLNode.getAsLong() >= maxMLNodeSize)) {
                 String msg = "Could not start deployment because no suitable nodes were found, allocation explanation ["
                     + trainedModelAllocation.getReason()
                     + "]";

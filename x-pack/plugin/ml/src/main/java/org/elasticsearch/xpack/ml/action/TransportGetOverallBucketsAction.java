@@ -186,7 +186,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
                     Min min = aggregations.get(EARLIEST_TIME);
                     long earliestTime = Intervals.alignToFloor((long) min.getValue(), maxBucketSpanMillis);
                     Max max = aggregations.get(LATEST_TIME);
-                    long latestTime = Intervals.alignToCeil((long) max.getValue() + 1, maxBucketSpanMillis);
+                    long latestTime = Intervals.alignToCeil((long) max.value() + 1, maxBucketSpanMillis);
                     listener.onResponse(
                         new ChunkedBucketSearcher(
                             jobsContext,

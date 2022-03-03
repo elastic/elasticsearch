@@ -17,7 +17,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -25,6 +24,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -193,7 +193,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             Aggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_max"));
-            assertThat(((Max) (children.asList().get(0))).getValue(), equalTo(1.0));
+            assertThat(((Max) (children.asList().get(0))).value(), equalTo(1.0));
         });
         testSearchCase(query, dataset, aggregation -> {
             MaxAggregationBuilder max = new MaxAggregationBuilder("the_max").field(LONG_FIELD);
@@ -207,7 +207,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             Aggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_max"));
-            assertThat(((Max) (children.asList().get(0))).getValue(), equalTo(1.0));
+            assertThat(((Max) (children.asList().get(0))).value(), equalTo(1.0));
         });
     }
 

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -20,15 +21,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
-import org.elasticsearch.xpack.core.common.IteratingActionListener;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.BiConsumer;
 
 public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUsageRequest, XPackUsageResponse> {
 
@@ -66,32 +61,28 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
 
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener) {
-        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener = listener.delegateFailure(
-            (l, usages) -> l.onResponse(new XPackUsageResponse(usages))
-        );
-        final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(usageActions.size());
-        final AtomicInteger position = new AtomicInteger(0);
-        final BiConsumer<XPackUsageFeatureAction, ActionListener<List<Usage>>> consumer = (featureUsageAction, iteratingListener) -> {
-            // Since we're executing the actions locally we should create a new request
-            // to avoid mutating the original request and setting the wrong parent task,
-            // since it is possible that the parent task gets cancelled and new child tasks are banned.
-            final XPackUsageRequest childRequest = new XPackUsageRequest();
-            childRequest.setParentTask(request.getParentTask());
-            client.executeLocally(featureUsageAction, childRequest, iteratingListener.delegateFailure((l, usageResponse) -> {
-                featureSetUsages.set(position.getAndIncrement(), usageResponse.getUsage());
-                // the value sent back doesn't matter since our predicate keeps iterating
-                l.onResponse(Collections.emptyList());
-            }));
-        };
-        IteratingActionListener<List<XPackFeatureSet.Usage>, XPackUsageFeatureAction> iteratingActionListener =
-            new IteratingActionListener<>(usageActionListener, consumer, usageActions, threadPool.getThreadContext(), (ignore) -> {
-                final List<Usage> usageList = new ArrayList<>(featureSetUsages.length());
-                for (int i = 0; i < featureSetUsages.length(); i++) {
-                    usageList.add(featureSetUsages.get(i));
+        new ActionRunnable<>(listener) {
+            final List<XPackFeatureSet.Usage> responses = new ArrayList<>(usageActions.size());
+
+            @Override
+            protected void doRun() {
+                if (responses.size() < usageActions().size()) {
+                    final var childRequest = new XPackUsageRequest();
+                    childRequest.setParentTask(request.getParentTask());
+                    client.executeLocally(
+                        usageActions.get(responses.size()),
+                        childRequest,
+                        listener.delegateFailure((delegate, response) -> {
+                            responses.add(response.getUsage());
+                            run(); // XPackUsageFeatureTransportAction always forks to MANAGEMENT so no risk of stack overflow here
+                        })
+                    );
+                } else {
+                    assert responses.size() == usageActions.size() : responses.size() + " vs " + usageActions.size();
+                    listener.onResponse(new XPackUsageResponse(responses));
                 }
-                return usageList;
-            }, (ignore) -> true);
-        iteratingActionListener.run();
+            }
+        }.run();
     }
 
     @Override

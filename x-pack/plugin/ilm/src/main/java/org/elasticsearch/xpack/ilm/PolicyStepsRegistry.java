@@ -21,10 +21,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -268,8 +268,7 @@ public class PolicyStepsRegistry {
             // if the current phase definition describes an internal step/phase, do not parse
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    xContentRegistry,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry),
                     phaseDef
                 )
             ) {

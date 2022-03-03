@@ -19,6 +19,8 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -138,6 +140,23 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         }
         CollectionUtil.introSort(rare, order.comparator());
         return createWithFilter(name, rare, filter);
+    }
+
+    @Override
+    public A finalizeSampling(SamplingContext samplingContext) {
+        return createWithFilter(
+            name,
+            getBuckets().stream()
+                .map(
+                    b -> createBucket(
+                        samplingContext.scaleUp(b.getDocCount()),
+                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext),
+                        b
+                    )
+                )
+                .collect(Collectors.toList()),
+            filter
+        );
     }
 
     public abstract boolean containsTerm(SetBackedScalingCuckooFilter filter, B bucket);

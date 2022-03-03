@@ -32,7 +32,7 @@ dependencies {
 
   })
 
-  moduleApi project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-core')
 
   providerImpl project(':libs:elasticsearch-x-content:impl')
 

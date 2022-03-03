@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -63,7 +64,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                             clusterService.submitStateUpdateTask(
                                 "system_index_metadata_upgrade_service {system metadata change}",
                                 new SystemIndexMetadataUpdateTask(),
-                                ClusterStateTaskExecutor.unbatched()
+                                newExecutor()
                             );
                             break;
                         }
@@ -71,6 +72,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                 }
             }
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     // visible for testing

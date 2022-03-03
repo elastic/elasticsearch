@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -54,19 +55,20 @@ class IndexLifecycleRunner {
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
 
-    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (currentState, tasks) -> {
-        ClusterStateTaskExecutor.ClusterTasksResult.Builder<IndexLifecycleClusterStateUpdateTask> builder =
-            ClusterStateTaskExecutor.ClusterTasksResult.builder();
+    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (
+        currentState,
+        taskContexts) -> {
         ClusterState state = currentState;
-        for (IndexLifecycleClusterStateUpdateTask task : tasks) {
+        for (final var taskContext : taskContexts) {
             try {
+                final var task = taskContext.getTask();
                 state = task.execute(state);
-                builder.success(task, new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+                taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
             } catch (Exception e) {
-                builder.failure(task, e);
+                taskContext.onFailure(e);
             }
         }
-        return builder.build(state);
+        return state;
     };
 
     IndexLifecycleRunner(
@@ -329,7 +331,7 @@ class IndexLifecycleRunner {
                         }
                     }
                 },
-                ClusterStateTaskExecutor.unbatched()
+                newExecutor()
             );
         } else {
             logger.debug("policy [{}] for index [{}] on an error step after a terminal error, skipping execution", policy, index);
@@ -534,7 +536,7 @@ class IndexLifecycleRunner {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
             }),
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -685,5 +687,10 @@ class IndexLifecycleRunner {
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

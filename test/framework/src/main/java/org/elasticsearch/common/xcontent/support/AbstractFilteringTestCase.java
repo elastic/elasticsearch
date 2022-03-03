@@ -13,7 +13,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -55,7 +55,7 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
                         .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
                 ) {
                     // copyCurrentStructure does not property handle filters when it is passed a json parser. So we hide it.
-                    return builder.copyCurrentStructure(new FilterXContentParser(parser) {
+                    return builder.copyCurrentStructure(new FilterXContentParserWrapper(parser) {
                     });
                 }
             }

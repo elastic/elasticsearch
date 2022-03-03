@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -46,6 +47,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -71,7 +73,6 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 /**
  * This class implements CRUD operation for the
@@ -87,12 +88,14 @@ public class DatafeedConfigProvider {
     private static final Logger logger = LogManager.getLogger(DatafeedConfigProvider.class);
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final ClusterService clusterService;
 
     public static final Map<String, String> TO_XCONTENT_PARAMS = Map.of(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
 
-    public DatafeedConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
+    public DatafeedConfigProvider(Client client, NamedXContentRegistry xContentRegistry, ClusterService clusterService) {
         this.client = client;
         this.xContentRegistry = xContentRegistry;
+        this.clusterService = clusterService;
     }
 
     /**
@@ -107,7 +110,9 @@ public class DatafeedConfigProvider {
 
         if (headers.isEmpty() == false) {
             // Filter any values in headers that aren't security fields
-            config = new DatafeedConfig.Builder(config).setHeaders(filterSecurityHeaders(headers)).build();
+            config = new DatafeedConfig.Builder(config).setHeaders(
+                ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterService.state())
+            ).build();
         }
 
         final String datafeedId = config.getId();
@@ -299,7 +304,7 @@ public class DatafeedConfigProvider {
 
                 DatafeedConfig updatedConfig;
                 try {
-                    updatedConfig = update.apply(configBuilder.build(), headers);
+                    updatedConfig = update.apply(configBuilder.build(), headers, clusterService.state());
                 } catch (Exception e) {
                     delegate.onFailure(e);
                     return;

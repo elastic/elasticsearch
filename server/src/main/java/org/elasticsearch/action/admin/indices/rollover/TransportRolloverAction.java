@@ -373,23 +373,24 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
 
         @Override
-        public ClusterTasksResult<RolloverTask> execute(ClusterState currentState, List<RolloverTask> tasks) throws Exception {
-            ClusterStateTaskExecutor.ClusterTasksResult.Builder<RolloverTask> builder = ClusterStateTaskExecutor.ClusterTasksResult
-                .builder();
+        public ClusterState execute(ClusterState currentState, List<TaskContext<RolloverTask>> taskContexts) throws Exception {
             ClusterState state = currentState;
-            for (RolloverTask task : tasks) {
+            for (final var taskContext : taskContexts) {
                 try {
+                    final var task = taskContext.getTask();
                     state = task.performRollover(state);
-                    builder.success(task, new LegacyClusterTaskResultActionListener(task, currentState));
+                    taskContext.success(new LegacyClusterTaskResultActionListener(task, currentState));
                 } catch (Exception e) {
-                    builder.failure(task, e);
+                    taskContext.onFailure(e);
                 }
             }
 
             if (state != currentState) {
                 var reason = new StringBuilder();
                 Strings.collectionToDelimitedStringWithLimit(
-                    (Iterable<String>) () -> tasks.stream().map(t -> t.sourceIndex.get() + "->" + t.rolloverIndex.get()).iterator(),
+                    (Iterable<String>) () -> taskContexts.stream()
+                        .map(t -> t.getTask().sourceIndex.get() + "->" + t.getTask().rolloverIndex.get())
+                        .iterator(),
                     ",",
                     "bulk rollover [",
                     "]",
@@ -398,7 +399,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 );
                 state = allocationService.reroute(state, reason.toString());
             }
-            return builder.build(state);
+            return state;
         }
     }
 }

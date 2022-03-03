@@ -202,7 +202,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         Metadata metadata = Metadata.builder()
             .indices(
                 ImmutableOpenMap.<String, IndexMetadata>builder()
-                    .putAll(
+                    .putAllFromMap(
                         Map.of(
                             WITH_DEFAULT_PIPELINE,
                             IndexMetadata.builder(WITH_DEFAULT_PIPELINE)

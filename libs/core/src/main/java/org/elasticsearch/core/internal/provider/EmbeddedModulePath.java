@@ -202,16 +202,42 @@ final class EmbeddedModulePath {
     }
 
     static boolean isPackageName(String name) {
-        return true; // isTypeName(name); //TODO: just add some basic checks
+        return isTypeName(name);
     }
 
     static boolean isClassName(String name) {
-        return true; // isTypeName(name); same as isPackageName
+        return isTypeName(name);
     }
 
-    static String packageName(String cn) {
-        int index = cn.lastIndexOf('.');
-        return (index == -1) ? "" : cn.substring(0, index);
+    static boolean isTypeName(String name) {
+        int next;
+        int off = 0;
+        while ((next = name.indexOf('.', off)) != -1) {
+            String id = name.substring(off, next);
+            if (!isJavaIdentifier(id))
+                return false;
+            off = next+1;
+        }
+        String last = name.substring(off);
+        return isJavaIdentifier(last);
+    }
+
+    static boolean isJavaIdentifier(String str) {
+        if (str.isEmpty())
+            return false;
+
+        int first = Character.codePointAt(str, 0);
+        if (!Character.isJavaIdentifierStart(first))
+            return false;
+
+        int i = Character.charCount(first);
+        while (i < str.length()) {
+            int cp = Character.codePointAt(str, i);
+            if (!Character.isJavaIdentifierPart(cp))
+                return false;
+            i += Character.charCount(cp);
+        }
+        return true;
     }
 
     private static final String MANIFEST_PATH = "META-INF/MANIFEST.MF";

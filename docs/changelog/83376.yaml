@@ -1,5 +1,0 @@
-pr: 83376
-summary: Fix txt format for empty result sets
-area: SQL
-type: bug
-issues: []

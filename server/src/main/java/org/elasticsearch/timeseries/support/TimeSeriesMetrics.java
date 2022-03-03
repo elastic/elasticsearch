@@ -63,7 +63,7 @@ import static org.elasticsearch.index.IndexSettings.MAX_INNER_RESULT_WINDOW_SETT
  * Reads data in a time series style way.
  */
 public class TimeSeriesMetrics {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(TimeSeriesMetrics.class);
 
     private final int bucketBatchSize;
     private final int docBatchSize;

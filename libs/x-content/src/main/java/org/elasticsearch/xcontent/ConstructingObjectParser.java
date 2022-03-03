@@ -365,7 +365,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         }
 
         // calculate the positions for the arguments
-        return constructorArgInfos.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
+        return constructorArgInfos.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().size()));
     }
 
     @Override

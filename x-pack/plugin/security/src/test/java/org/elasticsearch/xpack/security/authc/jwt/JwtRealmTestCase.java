@@ -40,7 +40,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -66,10 +65,6 @@ import static org.mockito.Mockito.when;
 
 public abstract class JwtRealmTestCase extends JwtTestCase {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealmTestCase.class);
-
-    protected static final String NODE_CERT = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt";
-    protected static final String NODE_KEY = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem";
-    protected static final String NODE_CERT2 = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt";
 
     record JwtIssuerAndRealm(JwtIssuer issuer, JwtRealm realm) {}
 
@@ -206,8 +201,15 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final Map<String, User> users = JwtTestCase.generateTestUsersWithRoles(userCount, roleCount);
 
         // Decide if public PKC JWKSet will be hosted in a local file or an HTTPS URL. If HTTPS URL, tell issuer to set up an HTTPS server.
-        final List<Path> caCerts = /*randomBoolean() ? null : */ List.of(getDataPath(NODE_CERT));
-        return new JwtIssuer(issuer, audiences, algJwkPairsPkc, algJwkPairsHmac, algJwkPairHmacOidc, users, caCerts);
+        return new JwtIssuer(
+            issuer,
+            audiences,
+            algJwkPairsPkc,
+            algJwkPairsHmac,
+            algJwkPairHmacOidc,
+            users,
+            randomBoolean() // createHttpsServer
+        );
     }
 
     protected JwtRealm createJwtRealm(
@@ -252,16 +254,14 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             if (jwtIssuer.httpsServer == null) {
                 jwkSetPath = super.saveToTempFile("jwkset.", ".json", jwtIssuer.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8));
             } else {
-                jwkSetPath = jwtIssuer.httpsServer.url;
                 authcSettings.putList(
-                    SSLConfigurationSettings.CERT_AUTH_PATH.realm(JwtRealmSettings.TYPE).getKey(),
-                    List.of(getDataPath(NODE_CERT).toFile().getAbsolutePath())
+                    RealmSettings.getFullSettingKey(
+                        new RealmConfig.RealmIdentifier(JwtRealmSettings.TYPE, authcRealmName),
+                        SSLConfigurationSettings.CAPATH_SETTING_REALM
+                    ),
+                    jwtIssuer.httpsServer.certPath
                 );
-                // SSLConfigurationSettings.CERT_AUTH_PATH.withPrefix(JwtRealmSettings.TYPE).getKey(),
-                // authcSettings.putList(
-                // RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.ssl.CAPATH_SETTING_REALM.apply(JwtRealmSettings.TYPE)),
-                // List.of(getDataPath(TRUSTED_CA_CERT).toFile().getAbsolutePath())
-                // );
+                jwkSetPath = jwtIssuer.httpsServer.jwkSetUrl;
             }
             authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.PKC_JWKSET_PATH), jwkSetPath);
         }

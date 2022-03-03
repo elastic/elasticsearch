@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,10 +17,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +57,7 @@ public class JwtIssuer implements Closeable {
         final List<AlgJwkPair> algAndJwksHmac,
         final AlgJwkPair algAndJwkHmacOidc,
         final Map<String, User> users,
-        final List<Path> caCerts
+        final boolean createHttpsServer
     ) throws Exception {
         this.issuer = issuer;
         this.audiences = audiences;
@@ -88,27 +83,11 @@ public class JwtIssuer implements Closeable {
         this.encodedJwkSetHmac = jwkSetHmac.getKeys().isEmpty() ? null : JwtUtil.serializeJwkSet(jwkSetHmac, false);
         this.encodedKeyHmacOidc = (algAndJwkHmacOidc == null) ? null : JwtUtil.serializeJwkHmacOidc(this.algAndJwkHmacOidc.jwk);
 
-        if (Strings.hasText(this.encodedJwkSetPkcPublic) == false) {
-            this.httpsServer = null; // no PKC JWKSet, so no need for an HTTPS server
-        } else if ((caCerts == null) || (caCerts.isEmpty())) {
-            this.httpsServer = null; // caller will use local file, so no need for an HTTPS server
+        if ((Strings.hasText(this.encodedJwkSetPkcPublic) == false) || (createHttpsServer == false)) {
+            this.httpsServer = null; // no PKC JWKSet, or skip HTTPS server because caller will use local file instead
         } else {
             final byte[] encodedJwkSetPkcPublicBytes = this.encodedJwkSetPkcPublic.getBytes(StandardCharsets.UTF_8);
-            final HttpHandler httpHandler = new HttpHandler() {
-                @Override
-                public void handle(final HttpExchange httpExchange) throws IOException {
-                    LOGGER.info("Received request: " + httpExchange);
-                    try {
-                        try (OutputStream os = httpExchange.getResponseBody()) {
-                            os.write(encodedJwkSetPkcPublicBytes);
-                            httpExchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, encodedJwkSetPkcPublicBytes.length);
-                        }
-                    } finally {
-                        httpExchange.close();
-                    }
-                }
-            };
-            this.httpsServer = new JwtIssuerHttpsServer("localhost", 0, 0, 0, caCerts, httpHandler);
+            this.httpsServer = new JwtIssuerHttpsServer("localhost", 0, 0, 0, encodedJwkSetPkcPublicBytes);
         }
     }
 

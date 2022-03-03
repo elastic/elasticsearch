@@ -59,7 +59,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
             JwtTestCase.randomJwks(Collections.emptyList()),
             new JwtIssuer.AlgJwkPair("HS256", hmacJwkOidc),
             Collections.singletonMap("security_test_user", new User("security_test_user", "security_test_role")),
-            null
+            false
         );
 
         // Create JWT realm settings with hard-coded name, order, issuer, audiences, algorithms, principal claim, secret, HMAC verify key

@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -67,7 +67,7 @@ setup:
 index with routing:
   - skip:
       version: " - 8.1.99"
-      reason: message changed in 8.2.0
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: /specifying routing is not supported because the destination index \[test\] is in time series mode/
@@ -90,7 +90,7 @@ index with routing:
 index with routing over _bulk:
   - skip:
       version: " - 8.1.99"
-      reason: message changed in 8.2.0
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       bulk:
@@ -104,8 +104,8 @@ index with routing over _bulk:
 ---
 noop update:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -126,8 +126,8 @@ noop update:
 ---
 update:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   # We fail even though the document isn't found.
   - do:
@@ -151,8 +151,8 @@ update:
 ---
 update over _bulk:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       bulk:
@@ -165,8 +165,8 @@ update over _bulk:
 ---
 search with routing:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   # We fail even though the document isn't found.
   - do:
@@ -178,8 +178,8 @@ search with routing:
 ---
 alias with routing:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: /routing is forbidden on CRUD operations that target indices in \[index.mode=time_series\]/
@@ -192,8 +192,8 @@ alias with routing:
 ---
 alias with search_routing:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: /routing is forbidden on CRUD operations that target indices in \[index.mode=time_series\]/
@@ -207,7 +207,7 @@ alias with search_routing:
 sort by _id:
   - skip:
       version: " - 8.1.99"
-      reason: error message changed in 8.2
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: /Fielddata is not supported on \[_id\] field in \[time_series\] indices/
@@ -221,7 +221,7 @@ sort by _id:
 aggregate on _id:
   - skip:
       version: " - 8.1.99"
-      reason: error message changed in 8.2
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: /Fielddata is not supported on \[_id\] field in \[time_series\] indices/

@@ -393,7 +393,13 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
         Exception e = expectThrows(MapperParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
         assertThat(
             e.getCause().getMessage(),
-            equalTo("_id must be unset or set to [" + testCase.expectedId + "] because [index] is in time_series mode")
+            equalTo(
+                "_id must be unset or set to ["
+                    + testCase.expectedId
+                    + "] but was ["
+                    + testCase.expectedId
+                    + "wrong] because [index] is in time_series mode"
+            )
         );
     }
 

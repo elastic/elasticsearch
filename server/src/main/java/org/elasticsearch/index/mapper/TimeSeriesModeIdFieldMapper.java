@@ -143,8 +143,9 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
-                    "_id must be unset or set to [%s] because [%s] is in time_series mode",
+                    "_id must be unset or set to [%s] but was [%s] because [%s] is in time_series mode",
                     id,
+                    context.sourceToParse().id(),
                     context.indexSettings().getIndexMetadata().getIndex().getName()
                 )
             );

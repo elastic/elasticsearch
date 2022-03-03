@@ -310,9 +310,17 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                         }
                     }
 
+                    boolean isMultiValue;
+                    try {
+                        isMultiValue = context.isMultiValued(fieldContext.field());
+                    } catch (AggregationExecutionException ex) {
+                        // If we can't check, err on the side of slow but always correct.
+                        isMultiValue = true;
+                    }
+
                     // Check the query for bounds
                     if (context.query() != null) {
-                        if (context.isMultiValued(fieldContext.field())) {
+                        if (isMultiValue) {
                             return Rounding::prepareForUnknown;
                         }
                         context.query().visit(new QueryVisitor() {

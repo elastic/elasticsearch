@@ -314,8 +314,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     try {
                         isMultiValue = context.isMultiValued(fieldContext.field());
                     } catch (AggregationExecutionException ex) {
-                        // If we can't check, err on the side of slow but always correct.
-                        isMultiValue = true;
+                        // If we can't check, don't agressively disable the optimization
+                        isMultiValue = false;
                     }
 
                     // Check the query for bounds

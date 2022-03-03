@@ -32,7 +32,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.RestoreInfo;
-import org.elasticsearch.snapshots.SnapshotDeletionsPendingExecutor;
+import org.elasticsearch.snapshots.SnapshotDeletionsPendingService;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -54,7 +54,7 @@ import java.util.concurrent.CyclicBarrier;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
-import static org.elasticsearch.snapshots.SnapshotDeletionsPendingExecutor.PENDING_SNAPSHOT_DELETIONS_EXPIRATION_INTERVAL_SETTING;
+import static org.elasticsearch.snapshots.SnapshotDeletionsPendingService.PENDING_SNAPSHOT_DELETIONS_EXPIRATION_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -452,7 +452,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                         .setTransientSettings(
                             Settings.builder()
                                 .put(
-                                    SnapshotDeletionsPendingExecutor.PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING.getKey(),
+                                    SnapshotDeletionsPendingService.PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING.getKey(),
                                     TimeValue.timeValueMillis(randomLongBetween(100L, 1000L))
                                 )
                                 .build()
@@ -501,7 +501,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
                         .setTransientSettings(
                             Settings.builder()
                                 .putNull(PENDING_SNAPSHOT_DELETIONS_EXPIRATION_INTERVAL_SETTING.getKey())
-                                .putNull(SnapshotDeletionsPendingExecutor.PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING.getKey())
+                                .putNull(SnapshotDeletionsPendingService.PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING.getKey())
                                 .build()
                         )
                 );

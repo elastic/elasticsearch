@@ -178,7 +178,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final SystemIndices systemIndices;
 
-    private final SnapshotDeletionsPendingExecutor snapshotPendingDeletions;
+    private final SnapshotDeletionsPendingService snapshotPendingDeletions;
 
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
@@ -226,7 +226,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
         }
         this.systemIndices = systemIndices;
-        this.snapshotPendingDeletions = new SnapshotDeletionsPendingExecutor(this, clusterService, threadPool, settings);
+        this.snapshotPendingDeletions = new SnapshotDeletionsPendingService(this, clusterService, threadPool, settings);
     }
 
     /**

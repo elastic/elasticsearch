@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -27,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.snapshots.SnapshotDeletionsPendingExecutor.ConflictType;
+import org.elasticsearch.snapshots.SnapshotDeletionsPendingService.ConflictType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
@@ -38,6 +40,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -52,13 +55,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class SnapshotDeletionsPendingExecutorTests extends ESTestCase {
+public class SnapshotDeletionsPendingServiceTests extends ESTestCase {
 
     private SnapshotsService snapshotsService;
     private DeterministicTaskQueue taskQueue;
     private ClusterService clusterService;
     private TestThreadPool threadPool;
-    private SnapshotDeletionsPendingExecutor executor;
+    private SnapshotDeletionsPendingService executor;
 
     @Before
     @Override
@@ -73,7 +76,7 @@ public class SnapshotDeletionsPendingExecutorTests extends ESTestCase {
             return null;
         }).when(snapshotsService).deleteSnapshotsByUuid(any(), any(), any());
         taskQueue = new DeterministicTaskQueue();
-        executor = new SnapshotDeletionsPendingExecutor(snapshotsService, clusterService, taskQueue.getThreadPool(), Settings.EMPTY);
+        executor = new SnapshotDeletionsPendingService(snapshotsService, clusterService, taskQueue.getThreadPool(), Settings.EMPTY);
         clusterService.addStateApplier(event -> executor.processPendingDeletions(event.state(), event.previousState()));
     }
 
@@ -186,7 +189,12 @@ public class SnapshotDeletionsPendingExecutorTests extends ESTestCase {
 
     private static ClusterState emptyState() {
         return ClusterState.builder(ClusterState.EMPTY_STATE)
-            .nodes(DiscoveryNodes.builder().localNodeId("_node").masterNodeId("_node"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(new DiscoveryNode("_node", buildNewFakeTransportAddress(), emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT))
+                    .localNodeId("_node")
+                    .masterNodeId("_node")
+            )
             .metadata(Metadata.builder().generateClusterUuidIfNeeded())
             .build();
     }

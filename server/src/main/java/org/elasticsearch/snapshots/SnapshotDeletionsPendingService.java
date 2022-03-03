@@ -13,8 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsPending;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -41,6 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
@@ -49,9 +52,9 @@ import static org.elasticsearch.snapshots.SnapshotUtils.deletionsSources;
 import static org.elasticsearch.snapshots.SnapshotUtils.restoreSources;
 import static org.elasticsearch.snapshots.SnapshotsService.findRepositoryForPendingDeletion;
 
-public class SnapshotDeletionsPendingExecutor {
+public class SnapshotDeletionsPendingService {
 
-    private static final Logger logger = LogManager.getLogger(SnapshotDeletionsPendingExecutor.class);
+    private static final Logger logger = LogManager.getLogger(SnapshotDeletionsPendingService.class);
 
     public static final Setting<TimeValue> PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING = Setting.timeSetting(
         "snapshot.snapshot_deletions_pending.retry_interval",
@@ -91,11 +94,12 @@ public class SnapshotDeletionsPendingExecutor {
     private final SnapshotsService snapshotsService;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    private final ClusterStateTaskExecutor<RemoveSnapshotDeletionsPendingTask> removePendingDeletionsExecutor;
 
     private volatile TimeValue pendingDeletionsRetryInterval;
     private volatile TimeValue pendingDeletionsExpirationInterval;
 
-    SnapshotDeletionsPendingExecutor(
+    SnapshotDeletionsPendingService(
         SnapshotsService snapshotsService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -104,6 +108,7 @@ public class SnapshotDeletionsPendingExecutor {
         this.snapshotsService = Objects.requireNonNull(snapshotsService);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
+        this.removePendingDeletionsExecutor = new RemoveSnapshotDeletionsPendingExecutor();
         pendingDeletionsRetryInterval = PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING, t -> pendingDeletionsRetryInterval = t);
@@ -394,34 +399,12 @@ public class SnapshotDeletionsPendingExecutor {
                                 );
                             }
                             if (pendingDeletionsToRemove.isEmpty() == false) {
-                                clusterService.submitStateUpdateTask("remove-snapshot-deletions-in-pending", new ClusterStateUpdateTask() {
-                                    @Override
-                                    public ClusterState execute(ClusterState currentState) {
-                                        final SnapshotDeletionsPending currentPendings = currentState.custom(
-                                            SnapshotDeletionsPending.TYPE,
-                                            SnapshotDeletionsPending.EMPTY
-                                        );
-                                        final SnapshotDeletionsPending updatedPendings = currentPendings.withRemovedSnapshots(
-                                            List.copyOf(pendingDeletionsToRemove)
-                                        );
-                                        if (currentPendings == updatedPendings) {
-                                            return currentState;
-                                        }
-                                        return ClusterState.builder(currentState)
-                                            .putCustom(SnapshotDeletionsPending.TYPE, updatedPendings)
-                                            .build();
-                                    }
-
-                                    @Override
-                                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                                        triggered.removeAll(pendingDeletionsToRemove);
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        triggered.removeAll(pendingDeletionsToRemove);
-                                    }
-                                }, ClusterStateTaskExecutor.unbatched());
+                                clusterService.submitStateUpdateTask(
+                                    "remove-snapshot-deletions-in-pending",
+                                    new RemoveSnapshotDeletionsPendingTask(List.copyOf(pendingDeletionsToRemove)),
+                                    ClusterStateTaskConfig.build(Priority.NORMAL),
+                                    removePendingDeletionsExecutor
+                                );
                             }
                         }
                     }
@@ -446,6 +429,65 @@ public class SnapshotDeletionsPendingExecutor {
                 () -> new ParameterizedMessage("[{}] failed to trigger deletion of snapshots {}", repositoryName, snapshots.keySet()),
                 e
             );
+        }
+    }
+
+    private class RemoveSnapshotDeletionsPendingExecutor implements ClusterStateTaskExecutor<RemoveSnapshotDeletionsPendingTask> {
+
+        @Override
+        public ClusterState execute(ClusterState currentState, List<TaskContext<RemoveSnapshotDeletionsPendingTask>> taskContexts)
+            throws Exception {
+            ClusterState state = currentState;
+            for (final var taskContext : taskContexts) {
+                final var task = taskContext.getTask();
+                try {
+                    SnapshotDeletionsPending currentPendings = state.custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
+                    SnapshotDeletionsPending updatedPendings = currentPendings.withRemovedSnapshots(task.pendingDeletionsToRemove);
+                    if (currentPendings != updatedPendings) {
+                        state = ClusterState.builder(state).putCustom(SnapshotDeletionsPending.TYPE, updatedPendings).build();
+                    }
+                    taskContext.success(task.newPublicationListener());
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
+            }
+            return state;
+        }
+    }
+
+    private class RemoveSnapshotDeletionsPendingTask implements ClusterStateTaskListener {
+
+        private final List<SnapshotId> pendingDeletionsToRemove;
+        private final AtomicBoolean removed;
+
+        private RemoveSnapshotDeletionsPendingTask(List<SnapshotId> pendingDeletionsToRemove) {
+            this.pendingDeletionsToRemove = pendingDeletionsToRemove;
+            this.removed = new AtomicBoolean();
+        }
+
+        private void removeAllPendingDeletions() {
+            if (removed.compareAndSet(false, true)) {
+                pendingDeletionsToRemove.forEach(triggered::remove);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            removeAllPendingDeletions();
+        }
+
+        ActionListener<ClusterState> newPublicationListener() {
+            return new ActionListener<>() {
+                @Override
+                public void onResponse(ClusterState clusterState) {
+                    removeAllPendingDeletions();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    removeAllPendingDeletions();
+                }
+            };
         }
     }
 }

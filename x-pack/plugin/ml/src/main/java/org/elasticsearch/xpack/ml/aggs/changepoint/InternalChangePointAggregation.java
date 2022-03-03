@@ -39,6 +39,14 @@ public class InternalChangePointAggregation extends InternalAggregation {
         this.changeType = in.readNamedWriteable(ChangeType.class);
     }
 
+    public ChangePointBucket getBucket() {
+        return bucket;
+    }
+
+    public ChangeType getChangeType() {
+        return changeType;
+    }
+
     @Override
     public String getWriteableName() {
         return ChangePointAggregationBuilder.NAME.getPreferredName();

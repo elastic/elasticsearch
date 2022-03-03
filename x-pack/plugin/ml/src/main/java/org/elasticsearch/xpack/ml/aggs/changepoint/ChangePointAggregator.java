@@ -75,9 +75,9 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
         ChangePointBucket changePointBucket = null;
         if (changeType.changePoint() >= 0) {
-            changePointBucket = extractBucket(bucketsPaths()[0], aggregations, changeType.changePoint())
-                .map(b -> new ChangePointBucket(b.getKey(), b.getDocCount(), (InternalAggregations) b.getAggregations()))
-                .orElse(null);
+            changePointBucket = extractBucket(bucketsPaths()[0], aggregations, changeType.changePoint()).map(
+                b -> new ChangePointBucket(b.getKey(), b.getDocCount(), (InternalAggregations) b.getAggregations())
+            ).orElse(null);
         }
 
         return new InternalChangePointAggregation(name(), metadata(), changePointBucket, changeType);
@@ -125,12 +125,16 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         double pValueThreshold
     ) {
         double[] timeWindow = bucketValues.getValues();
+        double totalUnweightedVariance = RunningStats.from(timeWindow, i -> 1.0).variance();
+        ChangeType changeType = new ChangeType.Stationary();
+        if (totalUnweightedVariance == 0.0) {
+            return changeType;
+        }
         double[] timeWindowWeights = outlierWeights(timeWindow);
         int[] candidateChangePoints = candidateChangePointsAndStep.v1();
         int step = candidateChangePointsAndStep.v2();
         double totalVariance = RunningStats.from(timeWindow, i -> timeWindowWeights[i]).variance();
         double vNull = totalVariance;
-        ChangeType changeType = new ChangeType.Stationary();
         if (totalVariance == 0.0) {
             return changeType;
         }

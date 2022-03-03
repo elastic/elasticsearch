@@ -422,8 +422,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 } catch (Exception e) {
                     handleException(summary, publicationStartTime, newClusterState, e);
                 }
-            }
-            finally {
+            } finally {
                 taskManager.unregister(task);
             }
         }

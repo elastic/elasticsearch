@@ -21,8 +21,9 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A MatchNoDocsQuery that will not be recognised by lucene's core rewriting rules,
- * useful for protecting highlight queries against rewriting.
+ * A MatchNoDocsQuery that will not be recognised by Lucene's core rewriting rules,
+ * useful for protecting the unified highlighter against rewriting. See
+ * https://issues.apache.org/jira/browse/LUCENE-10454 for an explanation.
  */
 public class NoRewriteMatchNoDocsQuery extends Query {
 

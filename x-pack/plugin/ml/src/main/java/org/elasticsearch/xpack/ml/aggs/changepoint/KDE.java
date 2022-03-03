@@ -12,12 +12,8 @@ import org.apache.commons.math3.special.Erf;
 import org.apache.commons.math3.util.FastMath;
 import org.elasticsearch.common.Randomness;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -38,20 +34,22 @@ final class KDE {
      */
     private static double maxLikelihoodBandwidth(double[] orderedValues) {
         int step = Math.max((int) (orderedValues.length / 10.0 + 0.5), 2);
-        List<Integer> trainingIndex = new ArrayList<>();
+        IntStream.Builder trainingIndicesBuilder = IntStream.builder();
+        IntStream.Builder testIndicesBuilder = IntStream.builder();
         for (int i = 0; i < orderedValues.length; i += step) {
             int adjStep = Math.min(i + step, orderedValues.length) - i;
             List<Integer> indices = IntStream.range(i, i + adjStep).boxed().collect(Collectors.toList());
             Randomness.shuffle(indices);
-            indices.stream().limit(Math.min(adjStep / 2, 4)).forEach(trainingIndex::add);
+            int n = Math.min(adjStep / 2, 4);
+            indices.stream().limit(n).forEach(trainingIndicesBuilder::add);
+            indices.stream().skip(n).forEach(testIndicesBuilder::add);
         }
-        Collections.sort(trainingIndex);
-        Set<Integer> trainingSet = new HashSet<>(trainingIndex);
-        int[] testIndices = IntStream.range(0, orderedValues.length).filter(i -> trainingSet.contains(i) == false).toArray();
-        int testStep = (testIndices.length + 19) / 20;
-        testIndices = IntStream.range(0, testIndices.length).filter(i -> i % testStep == 0).toArray();
-        double[] xTrain = trainingIndex.stream().mapToDouble(i -> orderedValues[i]).toArray();
-        double maxLogLikeliHood = -Double.MAX_VALUE;
+        int[] trainingIndices = trainingIndicesBuilder.build().toArray();
+        int[] testIndices = testIndicesBuilder.build().toArray();
+        Arrays.sort(trainingIndices);
+        Arrays.sort(testIndices);
+        double[] xTrain = IntStream.of(trainingIndices).mapToDouble(i -> orderedValues[i]).toArray();
+        double maxLogLikelihood = -Double.MAX_VALUE;
         double result = 0;
         for (int i = 0; i < 20; ++i) {
             double bandwidth = 0.02 * (i + 1) * (orderedValues[orderedValues.length - 1] - orderedValues[0]);
@@ -59,25 +57,25 @@ final class KDE {
             double logLikelihood = IntStream.of(testIndices)
                 .mapToDouble(j -> logLikelihood(xTrain, bandwidth, logBandwidth, orderedValues[j]))
                 .sum();
-            if (logLikelihood > maxLogLikeliHood) {
-                maxLogLikeliHood = logLikelihood;
-                result = bandwidth;
-            } else if (logLikelihood == maxLogLikeliHood && bandwidth > result) {
+            if (logLikelihood >= maxLogLikelihood) {
+                maxLogLikelihood = logLikelihood;
                 result = bandwidth;
             }
         }
         return result;
     }
 
+    private static int lowerBound(double[] xs, double x) {
+        int retVal = Arrays.binarySearch(xs, x);
+        if (retVal < 0) {
+            retVal = -1 - retVal;
+        }
+        return retVal;
+    }
+
     private static double logLikelihood(double[] xs, double bandwidth, double logBandwidth, double x) {
-        int a = Arrays.binarySearch(xs, x - 3.0 * bandwidth);
-        if (a < 0) {
-            a = -1 - a;
-        }
-        int b = Arrays.binarySearch(xs, x + 3.0 * bandwidth);
-        if (b < 0) {
-            b = -1 - b;
-        }
+        int a = lowerBound(xs, x - 3.0 * bandwidth);
+        int b = lowerBound(xs, x + 3.0 * bandwidth);
         double[] logPdfs = IntStream.range(Math.max(Math.min(a, b - 1), 0), Math.min(Math.max(b, a + 1), xs.length)).mapToDouble(i -> {
             double y = (x - xs[i]) / bandwidth;
             return -0.5 * y * y - logBandwidth;
@@ -92,60 +90,44 @@ final class KDE {
 
     KDE(double[] values, int minIndex, int maxIndex) {
         int excluded = (int) (0.025 * ((double) values.length) + 0.5);
-        List<Double> orderedValues = new ArrayList<>(values.length - excluded);
+        double[] orderedValues = new double[values.length];
+        int j = 0;
         for (int i = 0; i < values.length; i++) {
             if ((i >= minIndex - excluded && i <= minIndex + excluded) || (i >= maxIndex - excluded && i <= maxIndex + excluded)) {
                 continue;
             }
-            orderedValues.add(values[i]);
+            orderedValues[j++] = values[i];
         }
-        this.orderedValues = orderedValues.stream().sorted().mapToDouble(Double::doubleValue).toArray();
+        this.orderedValues = Arrays.copyOf(orderedValues, j);
+        Arrays.sort(this.orderedValues);
         double var = variance(this.orderedValues);
         this.bandwidth = var > 0 ? maxLikelihoodBandwidth(this.orderedValues) : 0.01 * (values[maxIndex] - values[minIndex]);
     }
 
     ValueAndMagnitude adjCdf(double x, int totalNumberOfValues) {
-        int a = Arrays.binarySearch(orderedValues, x - 4.0 * bandwidth);
-        if (a < 0) {
-            a = -1 - a;
-        }
-        int b = Arrays.binarySearch(orderedValues, x + 4.0 * bandwidth);
-        if (b < 0) {
-            b = -1 - b;
-        }
+        int a = lowerBound(orderedValues, x - 4.0 * bandwidth);
+        int b = lowerBound(orderedValues, x + 4.0 * bandwidth);
         double cdf = 0.0;
-        int n = 0;
-        double diff = 0.0;
+        double diff = Double.MAX_VALUE;
         for (int i = a; i < Math.min(Math.max(b, a + 1), orderedValues.length); i++) {
             cdf += new NormalDistribution(orderedValues[i], bandwidth).cumulativeProbability(x);
-            diff += Math.abs(orderedValues[i] - x);
-            n++;
+            diff = Math.min(Math.abs(orderedValues[i] - x), diff);
         }
         cdf /= orderedValues.length;
-        diff /= n;
-        return new ValueAndMagnitude(cdf > ESTIMATOR_EPS ? 1 - Math.pow(1 - cdf, totalNumberOfValues) : totalNumberOfValues * cdf, diff);
+        return new ValueAndMagnitude(cdf, diff);
     }
 
     ValueAndMagnitude adjSf(double x, int totalNumberOfValues) {
-        int a = Arrays.binarySearch(orderedValues, x - 4.0 * bandwidth);
-        if (a < 0) {
-            a = -1 - a;
-        }
-        int b = Arrays.binarySearch(orderedValues, x + 4.0 * bandwidth);
-        if (b < 0) {
-            b = -1 - b;
-        }
+        int a = lowerBound(orderedValues, x - 4.0 * bandwidth);
+        int b = lowerBound(orderedValues, x + 4.0 * bandwidth);
         double sf = 0.0;
-        int n = 0;
-        double diff = 0.0;
+        double diff = Double.MAX_VALUE;
         for (int i = Math.max(Math.min(a, b - 1), 0); i < b; i++) {
             sf += normSf(orderedValues[i], bandwidth, x);
-            diff += Math.abs(orderedValues[i] - x);
-            n++;
+            diff = Math.min(Math.abs(orderedValues[i] - x), diff);
         }
         sf /= orderedValues.length;
-        diff /= n;
-        return new ValueAndMagnitude(sf > ESTIMATOR_EPS ? 1 - Math.pow(1 - sf, totalNumberOfValues) : totalNumberOfValues * sf, diff);
+        return new ValueAndMagnitude(sf, diff);
     }
 
     static double normSf(double mean, double standardDeviation, double x) {
@@ -157,13 +139,17 @@ final class KDE {
     }
 
     static record ValueAndMagnitude(double value, double magnitude) {
-        boolean isMoreSignificant(ValueAndMagnitude o) {
-            int c = Double.compare(value, o.value);
+        boolean isMoreSignificant(ValueAndMagnitude o, int numberOfTestedValues) {
+            int c = Double.compare(significance(numberOfTestedValues), o.significance(numberOfTestedValues));
             if (c != 0) {
                 return c < 0;
             } else {
                 return magnitude > o.magnitude;
             }
+        }
+
+        double significance(int numberOfTestedValues) {
+            return value > ESTIMATOR_EPS ? 1 - Math.pow(1 - value, numberOfTestedValues) : numberOfTestedValues * value;
         }
     }
 

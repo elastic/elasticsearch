@@ -7,9 +7,9 @@
 
 experimental::[]
 
-A sibling pipeline that detects a change point in a metric. Given a distribution of values provided by the sibling
-multi-bucket aggregation, this aggregation indicates where find the bucket at which the distribution of points significantly
-changes.
+A sibling pipeline that detects, spikes, dips, and change points in a metric. Given a distribution of values
+provided by the sibling multi-bucket aggregation, this aggregation indicates the bucket of any spike or dip
+and/or the bucket at which the largest change in the distribution of values, if they are statistically significant.
 
 
 
@@ -64,11 +64,11 @@ The found change point type and its related values. Possible types:
 --
 * `dip`: a significant dip occurs at this change point
 * `distribution_change`: the overall distribution of the values has changed significantly
-* `non_stationary`: there is no change point, but the values are not in a stationary distribution
-* `spike`: a significant spike occurs at this change point
+* `non_stationary`: there is no change point, but the values are not from a stationary distribution
+* `spike`: a significant spike occurs at this point
 * `stationary`: no change point found
 * `step_change`: the change indicates a statistically significant step up or down in value distribution
-* `trend_change`: there is an overall trend change occurring at this change point
+* `trend_change`: there is an overall trend change occurring at this point
 --
 
 ==== Response example

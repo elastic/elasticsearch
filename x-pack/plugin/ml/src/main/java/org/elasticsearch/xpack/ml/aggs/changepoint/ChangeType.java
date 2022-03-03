@@ -29,6 +29,60 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         return 1.0;
     }
 
+    abstract class AbstractChangePoint implements ChangeType {
+        private final double pValue;
+        private final int changePoint;
+
+        protected AbstractChangePoint(double pValue, int changePoint) {
+            this.pValue = pValue;
+            this.changePoint = changePoint;
+        }
+
+        @Override
+        public double pValue() {
+            return pValue;
+        }
+
+        @Override
+        public int changePoint() {
+            return changePoint;
+        }
+
+        public AbstractChangePoint(StreamInput in) throws IOException {
+            pValue = in.readDouble();
+            changePoint = in.readVInt();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().field("p_value", pValue).field("change_point", changePoint).endObject();
+        }
+
+        @Override
+        public String getWriteableName() {
+            return getName();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeDouble(pValue);
+            out.writeVInt(changePoint);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AbstractChangePoint that = (AbstractChangePoint) o;
+            return Double.compare(that.pValue, pValue) == 0 && changePoint == that.changePoint;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pValue, changePoint);
+        }
+    }
+
     /**
      * Indicates that no change has occurred
      */
@@ -72,108 +126,35 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     /**
      * Indicates a step change occurred
      */
-    class StepChange implements ChangeType {
+    class StepChange extends AbstractChangePoint {
         public static final String NAME = "step_change";
-        private final double pValue;
-        private final int changePoint;
 
         public StepChange(double pValue, int changePoint) {
-            this.pValue = pValue;
-            this.changePoint = changePoint;
-        }
-
-        @Override
-        public double pValue() {
-            return pValue;
-        }
-
-        @Override
-        public int changePoint() {
-            return changePoint;
+            super(pValue, changePoint);
         }
 
         public StepChange(StreamInput in) throws IOException {
-            pValue = in.readDouble();
-            changePoint = in.readVInt();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("p_value", pValue).field("change_point", changePoint).endObject();
-        }
-
-        @Override
-        public String getWriteableName() {
-            return getName();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(pValue);
-            out.writeVInt(changePoint);
+            super(in);
         }
 
         @Override
         public String getName() {
             return NAME;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            StepChange that = (StepChange) o;
-            return Double.compare(that.pValue, pValue) == 0 && changePoint == that.changePoint;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(pValue, changePoint);
         }
     }
 
     /**
      * Indicates a distribution change occurred
      */
-    class DistributionChange implements ChangeType {
+    class DistributionChange extends AbstractChangePoint {
         public static final String NAME = "distribution_change";
-        private final double pValue;
-        private final int changePoint;
 
         public DistributionChange(double pValue, int changePoint) {
-            this.pValue = pValue;
-            this.changePoint = changePoint;
+            super(pValue, changePoint);
         }
 
         public DistributionChange(StreamInput in) throws IOException {
-            pValue = in.readDouble();
-            changePoint = in.readVInt();
-        }
-
-        @Override
-        public double pValue() {
-            return pValue;
-        }
-
-        @Override
-        public int changePoint() {
-            return changePoint;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("p_value", pValue).field("change_point", changePoint).endObject();
-        }
-
-        @Override
-        public String getWriteableName() {
-            return getName();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(pValue);
-            out.writeVInt(changePoint);
+            super(in);
         }
 
         @Override
@@ -181,18 +162,6 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
             return NAME;
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DistributionChange that = (DistributionChange) o;
-            return Double.compare(that.pValue, pValue) == 0 && changePoint == that.changePoint;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(pValue, changePoint);
-        }
     }
 
     /**
@@ -333,126 +302,40 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     /**
      * Indicates a spike occurred
      */
-    class Spike implements ChangeType {
+    class Spike extends AbstractChangePoint {
         public static final String NAME = "spike";
-        private final double pValue;
-        private final int changePoint;
 
         public Spike(double pValue, int changePoint) {
-            this.pValue = pValue;
-            this.changePoint = changePoint;
+            super(pValue, changePoint);
         }
 
         public Spike(StreamInput in) throws IOException {
-            pValue = in.readDouble();
-            changePoint = in.readVInt();
-        }
-
-        @Override
-        public double pValue() {
-            return pValue;
-        }
-
-        @Override
-        public int changePoint() {
-            return changePoint;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("p_value", pValue).field("change_point", changePoint).endObject();
-        }
-
-        @Override
-        public String getWriteableName() {
-            return getName();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(pValue);
-            out.writeVInt(changePoint);
+            super(in);
         }
 
         @Override
         public String getName() {
             return NAME;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Spike spike = (Spike) o;
-            return Double.compare(spike.pValue, pValue) == 0 && changePoint == spike.changePoint;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(pValue, changePoint);
         }
     }
 
     /**
      * Indicates a dip occurred
      */
-    class Dip implements ChangeType {
+    class Dip extends AbstractChangePoint {
         public static final String NAME = "dip";
-        private final double pValue;
-        private final int changePoint;
 
         public Dip(double pValue, int changePoint) {
-            this.pValue = pValue;
-            this.changePoint = changePoint;
+            super(pValue, changePoint);
         }
 
         public Dip(StreamInput in) throws IOException {
-            pValue = in.readDouble();
-            changePoint = in.readVInt();
-        }
-
-        @Override
-        public double pValue() {
-            return pValue;
-        }
-
-        @Override
-        public int changePoint() {
-            return changePoint;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("p_value", pValue).field("change_point", changePoint).endObject();
-        }
-
-        @Override
-        public String getWriteableName() {
-            return getName();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(pValue);
-            out.writeVInt(changePoint);
+            super(in);
         }
 
         @Override
         public String getName() {
             return NAME;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Dip dip = (Dip) o;
-            return Double.compare(dip.pValue, pValue) == 0 && changePoint == dip.changePoint;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(pValue, changePoint);
         }
     }
 

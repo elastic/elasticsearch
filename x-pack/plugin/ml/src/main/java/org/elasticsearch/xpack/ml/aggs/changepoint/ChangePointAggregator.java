@@ -106,14 +106,14 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             }
         }
         KDE dist = new KDE(timeWindow, minIndex, maxIndex);
-        KDE.ValueAndMagnitude pLeftTail = dist.adjCdf(minValue, timeWindow.length);
-        KDE.ValueAndMagnitude pRightTail = dist.adjSf(maxValue, timeWindow.length);
+        KDE.ValueAndMagnitude cdf = dist.adjCdf(minValue, timeWindow.length);
+        KDE.ValueAndMagnitude sf = dist.adjSf(maxValue, timeWindow.length);
 
-        if (pLeftTail.isMoreSignificant(pRightTail) && pLeftTail.value() * 2 < pValueThreshold) {
-            return new ChangeType.Dip(pLeftTail.value() * 2, bucketValues.getBucketIndex(minIndex));
+        if (cdf.isMoreSignificant(sf, timeWindow.length) && cdf.significance(timeWindow.length) * 2 < pValueThreshold) {
+            return new ChangeType.Dip(cdf.significance(timeWindow.length) * 2, bucketValues.getBucketIndex(minIndex));
         }
-        if (pRightTail.value() * 2 < pValueThreshold) {
-            return new ChangeType.Spike(pRightTail.value() * 2, bucketValues.getBucketIndex(maxIndex));
+        if (sf.significance(timeWindow.length) * 2 < pValueThreshold) {
+            return new ChangeType.Spike(sf.significance(timeWindow.length) * 2, bucketValues.getBucketIndex(maxIndex));
         }
         return new ChangeType.Stationary();
 
@@ -142,7 +142,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             allLeastSquares.add(i, timeWindow[i], timeWindowWeights[i]);
             monotonicX[i] = i;
         }
-        double rValue = allLeastSquares.squareResidual(monotonicX, timeWindow, allLeastSquares.parameters());
+        double rValue = allLeastSquares.squareResidual();
 
         double vAlt = totalVariance * (1 - Math.abs(rValue));
         double dfAlt = n - 3;
@@ -198,34 +198,12 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         for (int i = candidateChangePoints[0], x = 0; i < timeWindow.length; i++, x++) {
             upperLeastSquares.add(x, timeWindow[i], timeWindowWeights[i]);
         }
-        // TODO This is crazy inefficient, not only does it do multiple array copies, it calculates r_value without
-        // taking account previous values.
         int upperMovingWindow = 0;
         for (int cp : candidateChangePoints) {
             double lowerRangeVar = lowerRange.variance();
             double upperRangeVar = upperRange.variance();
-            double rv1 = lowerLeastSquares.squareResidual(
-                monotonicX,
-                0,
-                cp,
-                timeWindow,
-                0,
-                cp,
-                lowerLeastSquares.parameters(),
-                i -> timeWindowWeights[i],
-                lowerRangeVar
-            );
-            double rv2 = upperLeastSquares.squareResidual(
-                monotonicX,
-                upperMovingWindow,
-                timeWindow.length - cp,
-                timeWindow,
-                cp,
-                timeWindow.length - cp,
-                upperLeastSquares.parameters(),
-                i -> timeWindowWeights[i],
-                upperRangeVar
-            );
+            double rv1 = lowerLeastSquares.squareResidual();
+            double rv2 = upperLeastSquares.squareResidual();
             double v1 = lowerRangeVar * (1 - Math.abs(rv1));
             double v2 = upperRangeVar * (1 - Math.abs(rv2));
             VarianceAndRValue varianceAndRValue = new VarianceAndRValue((cp * v1 + (n - cp) * v2) / n, (cp * rv1 + (n - cp) * rv2) / n);

@@ -27,14 +27,14 @@ public class LeastSquaresOnlineRegressionTests extends ESTestCase {
         for (int i = 0; i < yLess.length; i++) {
             lsLess.add(xLess[i], yLess[i], 1.0);
         }
-        double rsAll = lsAll.squareResidual(x, y, lsAll.parameters());
-        double rsLess = lsLess.squareResidual(xLess, yLess, lsLess.parameters());
+        double rsAll = lsAll.squareResidual();
+        double rsLess = lsLess.squareResidual();
 
         lsAll.remove(x[x.length - 1], y[y.length - 1], 1.0);
         lsLess.add(x[x.length - 1], y[y.length - 1], 1.0);
 
-        assertThat(rsAll, closeTo(lsLess.squareResidual(x, y, lsLess.parameters()), 1e-12));
-        assertThat(rsLess, closeTo(lsAll.squareResidual(xLess, yLess, lsAll.parameters()), 1e-12));
+        assertThat(rsAll, closeTo(lsLess.squareResidual(), 1e-12));
+        assertThat(rsLess, closeTo(lsAll.squareResidual(), 1e-12));
     }
 
     public void testOnlineRegression() {
@@ -49,9 +49,8 @@ public class LeastSquaresOnlineRegressionTests extends ESTestCase {
         }
         linearRegression.newSampleData(y, xs);
         double slowRSquared = linearRegression.calculateRSquared();
-        double[] params = ls.parameters();
-        double rs = ls.squareResidual(x, y, params);
-        assertThat(rs, closeTo(slowRSquared, 1e-15));
+        double rs = ls.squareResidual();
+        assertThat(rs, closeTo(slowRSquared, 1e-10));
 
         // Test removing the last value
         xs = new double[y.length - 1][];
@@ -61,10 +60,8 @@ public class LeastSquaresOnlineRegressionTests extends ESTestCase {
         linearRegression.newSampleData(new double[] { 2.0, 8.0, 7.0, 22.0 }, xs);
         slowRSquared = linearRegression.calculateRSquared();
         ls.remove(x[x.length - 1], y[y.length - 1], 1.0);
-        params = ls.parameters();
-        rs = ls.squareResidual(new double[] { 1.0, 4.0, 2.0, 15.0 }, new double[] { 2.0, 8.0, 7.0, 22.0 }, params);
-        assertThat(rs, closeTo(slowRSquared, 1e-15));
-
+        rs = ls.squareResidual();
+        assertThat(rs, closeTo(slowRSquared, 1e-10));
     }
 
 }

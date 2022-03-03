@@ -37,6 +37,7 @@ import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.NAME;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.AVAILABLE;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.RESTARTING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.UNAVAILABLE;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
@@ -169,6 +170,19 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    public void testShouldBeGreenWhenThereAreInitializingPrimaries() {
+        var clusterState = createClusterStateWith(
+            List.of(index("restarting-index", new ShardAllocation("node-0", INITIALIZING))),
+            List.of()
+        );
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(),
+            equalTo(createExpectedResult(GREEN, "This cluster has 1 creating primary.", Map.of("creating_primaries", 1)))
+        );
+    }
+
     public void testShouldBeGreenWhenThereAreRestartingPrimaries() {
         var clusterState = createClusterStateWith(
             List.of(index("restarting-index", new ShardAllocation("node-0", RESTARTING, System.currentTimeMillis()))),
@@ -238,6 +252,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             override.getOrDefault("unassigned_primaries", 0),
             "initializing_primaries",
             override.getOrDefault("initializing_primaries", 0),
+            "creating_primaries",
+            override.getOrDefault("creating_primaries", 0),
             "restarting_primaries",
             override.getOrDefault("restarting_primaries", 0),
             "started_primaries",
@@ -269,10 +285,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var routing = newUnassigned(
             shardId,
             primary,
-            primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
+            getSource(primary, allocation.state),
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
         );
-        if (allocation.state == UNAVAILABLE) {
+        if (allocation.state == UNAVAILABLE || allocation.state == INITIALIZING) {
             return routing;
         }
         routing = routing.initialize(allocation.nodeId, null, 0);
@@ -301,8 +317,19 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         throw new AssertionError("Unexpected state [" + allocation.state + "]");
     }
 
+    private static RecoverySource getSource(boolean primary, ShardState state) {
+        if (primary) {
+            return state == INITIALIZING
+                ? RecoverySource.EmptyStoreRecoverySource.INSTANCE
+                : RecoverySource.ExistingStoreRecoverySource.INSTANCE;
+        } else {
+            return RecoverySource.PeerRecoverySource.INSTANCE;
+        }
+    }
+
     public enum ShardState {
         UNAVAILABLE,
+        INITIALIZING,
         AVAILABLE,
         RESTARTING
     }

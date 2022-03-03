@@ -17,6 +17,8 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
+import java.util.stream.Collectors;
+
 public class TestingConventionsPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
@@ -28,7 +30,15 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin implement
                 itRule.baseClass("org.elasticsearch.test.ESIntegTestCase");
                 itRule.baseClass("org.elasticsearch.test.rest.ESRestTestCase");
 
-                t.setTestTasks(project.getTasks().withType(Test.class).matching(test -> test.isEnabled()));
+                t.setCandidateClassFilesProvider(
+                    project.provider(
+                        () -> project.getTasks()
+                            .withType(Test.class)
+                            .matching(Task::getEnabled)
+                            .stream()
+                            .collect(Collectors.toMap(Task::getPath, task -> task.getCandidateClassFiles().getFiles()))
+                    )
+                );
                 SourceSetContainer javaSourceSets = GradleUtils.getJavaSourceSets(project);
                 t.setSourceSets(javaSourceSets);
                 // Run only after everything is compiled

@@ -310,7 +310,7 @@ public class PolicyStepsRegistry {
         // this means that we're erring on the side of cache misses (if the IndexMetadata changed in any way, it'll be
         // a new instance, so we'll miss-and-repopulate the cache for the index in question)
         if (cachedStep != null && cachedStep.v1() == indexMetadata) {
-            assert cachedStep.v2() != null;
+            assert cachedStep.v2() != null : "null steps should never be cached in the policy step registry";
             if (cachedStep.v2() != null && cachedStep.v2().getKey().equals(stepKey)) {
                 return cachedStep.v2();
             }

@@ -42,7 +42,7 @@ dependencies {
   // required by io.grpc
   implementation 'io.perfmark:perfmark-api:0.24.0'
   implementation 'io.perfmark:perfmark-impl:0.24.0'
-  implementation 'com.google.guava:failureaccess:1.0.1'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   // required by grpc-netty
   api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"

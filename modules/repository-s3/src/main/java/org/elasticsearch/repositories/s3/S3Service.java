@@ -313,8 +313,16 @@ class S3Service implements Closeable {
             }
             AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
 
-            String region = SocketAccess.doPrivileged(() -> new DefaultAwsRegionProviderChain().getRegion());
+            // Custom system property used for specifying a mocked version of the STS for testing
             String customStsEndpoint = System.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
+            String region = null;
+            try {
+                // We need to load the configured AWS region explicitly under the Security Manager,
+                // so the AWS SDK doesn't make any guesses internally.
+                region = SocketAccess.doPrivileged(() -> new DefaultAwsRegionProviderChain().getRegion());
+            } catch (Exception e) {
+                LOGGER.warn("Unable to lookup information about the AWS region", e);
+            }
             stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, region));
             stsClientBuilder.withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()));
             stsClient = SocketAccess.doPrivileged(stsClientBuilder::build);

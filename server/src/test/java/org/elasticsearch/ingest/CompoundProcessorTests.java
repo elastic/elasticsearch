@@ -342,18 +342,17 @@ public class CompoundProcessorTests extends ESTestCase {
             @Override
             public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
                 throw new AssertionError();
-                //ingestDocument.executePipeline(pipeline2, handler);
             }
 
             @Override
             public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-                //throw new AssertionError();
-
-
                 IngestDocument[] result = new IngestDocument[1];
                 Exception[] error = new Exception[1];
 
-                ingestDocument.executePipeline(pipeline2, (document, e)->{result[0] = document; error[0] = e;});
+                ingestDocument.executePipeline(pipeline2, (document, e) -> {
+                    result[0] = document;
+                    error[0] = e;
+                });
                 if (error[0] != null) {
                     throw error[0];
                 }
@@ -408,22 +407,21 @@ public class CompoundProcessorTests extends ESTestCase {
         Pipeline pipeline1 = new Pipeline("1", null, null, null, new CompoundProcessor(new AbstractProcessor(null, null) {
             @Override
             public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-                //throw new UnsupportedOperationException();
-
                 IngestDocument[] result = new IngestDocument[1];
                 Exception[] error = new Exception[1];
 
-                ingestDocument.executePipeline(pipeline2, (document, e)->{result[0] = document; error[0] = e;});
+                ingestDocument.executePipeline(pipeline2, (document, e) -> {
+                    result[0] = document;
+                    error[0] = e;
+                });
                 if (error[0] != null) {
                     throw error[0];
                 }
                 return result[0];
-
             }
 
             @Override
             public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-                //ingestDocument.executePipeline(pipeline2, handler);
                 throw new UnsupportedOperationException();
             }
 

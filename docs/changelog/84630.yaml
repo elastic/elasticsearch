@@ -1,0 +1,5 @@
+pr: 84630
+summary: Test JWT realm with HTTPS URL for PKC JWKSet
+area: Authentication
+type: feature
+issues: []

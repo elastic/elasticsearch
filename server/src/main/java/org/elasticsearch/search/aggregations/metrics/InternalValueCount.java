@@ -26,7 +26,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     private final long value;
 
     public InternalValueCount(String name, long value, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, null, metadata);
         this.value = value;
     }
 

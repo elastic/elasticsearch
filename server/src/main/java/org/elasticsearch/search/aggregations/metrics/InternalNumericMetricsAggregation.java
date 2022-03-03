@@ -22,11 +22,11 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
 
     private static final DocValueFormat DEFAULT_FORMAT = DocValueFormat.RAW;
 
-    protected DocValueFormat format = DEFAULT_FORMAT;
+    protected final DocValueFormat format;
 
     public abstract static class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
-        protected SingleValue(String name, Map<String, Object> metadata) {
-            super(name, metadata);
+        protected SingleValue(String name, DocValueFormat format, Map<String, Object> metadata) {
+            super(name, format, metadata);
         }
 
         /**
@@ -68,8 +68,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
     }
 
     public abstract static class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
-        protected MultiValue(String name, Map<String, Object> metadata) {
-            super(name, metadata);
+        protected MultiValue(String name, DocValueFormat format, Map<String, Object> metadata) {
+            super(name, format, metadata);
         }
 
         /**
@@ -105,8 +105,9 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         }
     }
 
-    private InternalNumericMetricsAggregation(String name, Map<String, Object> metadata) {
+    private InternalNumericMetricsAggregation(String name, DocValueFormat format, Map<String, Object> metadata) {
         super(name, metadata);
+        this.format = format != null ? format : DEFAULT_FORMAT;
     }
 
     /**
@@ -114,6 +115,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
      */
     protected InternalNumericMetricsAggregation(StreamInput in) throws IOException {
         super(in);
+        this.format = in.readNamedWriteable(DocValueFormat.class);
     }
 
     @Override

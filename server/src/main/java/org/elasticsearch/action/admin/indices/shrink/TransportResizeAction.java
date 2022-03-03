@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -148,7 +149,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         String sourceIndex,
         ResizeRequest resizeRequest,
         Task task,
-        ActionListener<TargetNumberOfShardsCalculator> listener
+        ActionListener<ResizeNumberOfShardsCalculator> listener
     ) {
         if (resizeRequest.getResizeType() == ResizeType.SHRINK) {
             IndicesStatsRequestBuilder statsRequestBuilder = client.admin()
@@ -164,15 +165,18 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 statsRequest,
                 listener.delegateFailure(
                     (delegatedListener, indicesStatsResponse) -> delegatedListener.onResponse(
-                        new TargetNumberOfShardsCalculator.Shrink(sourceIndex, indicesStatsResponse)
+                        new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(indicesStatsResponse.getPrimaries().store, i -> {
+                            IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
+                            return shard == null ? null : shard.getPrimary().getDocs();
+                        })
                     )
                 )
             );
         } else if (resizeRequest.getResizeType() == ResizeType.SPLIT) {
-            listener.onResponse(new TargetNumberOfShardsCalculator.Split());
+            listener.onResponse(new ResizeNumberOfShardsCalculator.SplitShardsCalculator());
         } else {
             assert resizeRequest.getResizeType() == ResizeType.CLONE;
-            listener.onResponse(new TargetNumberOfShardsCalculator.Clone());
+            listener.onResponse(new ResizeNumberOfShardsCalculator.CloneShardsCalculator());
         }
     }
 
@@ -181,7 +185,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         final ResizeRequest resizeRequest,
         final IndexMetadata sourceMetadata,
         final String targetIndexName,
-        final TargetNumberOfShardsCalculator targetNumberOfShardsCalculator
+        final ResizeNumberOfShardsCalculator resizeNumberOfShardsCalculator
     ) {
         final CreateIndexRequest targetIndex = resizeRequest.getTargetIndexRequest();
         final Settings.Builder targetIndexSettingsBuilder = Settings.builder()
@@ -196,8 +200,8 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             requestedNumberOfShards = null;
         }
         ByteSizeValue maxPrimaryShardSize = resizeRequest.getMaxPrimaryShardSize();
-        int targetNumberOfShards = targetNumberOfShardsCalculator.calculate(requestedNumberOfShards, maxPrimaryShardSize, sourceMetadata);
-        targetNumberOfShardsCalculator.verify(targetNumberOfShards, sourceMetadata);
+        int targetNumberOfShards = resizeNumberOfShardsCalculator.calculate(requestedNumberOfShards, maxPrimaryShardSize, sourceMetadata);
+        resizeNumberOfShardsCalculator.validate(targetNumberOfShards, sourceMetadata);
 
         if (IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
             throw new IllegalArgumentException("cannot provide a routing partition size value when resizing an index");

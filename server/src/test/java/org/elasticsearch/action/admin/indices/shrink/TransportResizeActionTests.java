@@ -83,7 +83,7 @@ public class TransportResizeActionTests extends ESTestCase {
                     new ResizeRequest("target", "source"),
                     state,
                     "target",
-                    new TargetNumberOfShardsCalculator.Shrink(
+                    new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                         new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
                         (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100))
                     )
@@ -98,7 +98,7 @@ public class TransportResizeActionTests extends ESTestCase {
                 req,
                 createClusterState("source", 8, 1, Settings.builder().put("index.blocks.write", true).build()).metadata().index("source"),
                 "target",
-                new TargetNumberOfShardsCalculator.Shrink(
+                new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
                     (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null
                 )
@@ -117,7 +117,7 @@ public class TransportResizeActionTests extends ESTestCase {
                     Settings.builder().put("index.blocks.write", true).put("index.soft_deletes.enabled", true).build()
                 ).metadata().index("source"),
                 "target",
-                new TargetNumberOfShardsCalculator.Shrink(
+                new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
                     (i) -> new DocsStats(between(10, 1000), between(1, 10), between(1, 10000))
                 )
@@ -147,7 +147,7 @@ public class TransportResizeActionTests extends ESTestCase {
             new ResizeRequest("target", "source"),
             clusterState.metadata().index("source"),
             "target",
-            new TargetNumberOfShardsCalculator.Shrink(
+            new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                 new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
                 (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000))
             )
@@ -176,13 +176,23 @@ public class TransportResizeActionTests extends ESTestCase {
         resizeRequest.setResizeType(ResizeType.SPLIT);
         resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2).build());
         IndexMetadata indexMetadata = clusterState.metadata().index("source");
-        TransportResizeAction.prepareCreateIndexRequest(resizeRequest, indexMetadata, "target", new TargetNumberOfShardsCalculator.Split());
+        TransportResizeAction.prepareCreateIndexRequest(
+            resizeRequest,
+            indexMetadata,
+            "target",
+            new ResizeNumberOfShardsCalculator.SplitShardsCalculator()
+        );
 
         resizeRequest.getTargetIndexRequest()
             .settings(
                 Settings.builder().put("index.number_of_routing_shards", randomIntBetween(2, 10)).put("index.number_of_shards", 2).build()
             );
-        TransportResizeAction.prepareCreateIndexRequest(resizeRequest, indexMetadata, "target", new TargetNumberOfShardsCalculator.Split());
+        TransportResizeAction.prepareCreateIndexRequest(
+            resizeRequest,
+            indexMetadata,
+            "target",
+            new ResizeNumberOfShardsCalculator.SplitShardsCalculator()
+        );
     }
 
     public void testPassNumRoutingShardsAndFail() {
@@ -211,7 +221,7 @@ public class TransportResizeActionTests extends ESTestCase {
             resizeRequest,
             clusterState.metadata().index("source"),
             "target",
-            new TargetNumberOfShardsCalculator.Split()
+            new ResizeNumberOfShardsCalculator.SplitShardsCalculator()
         );
 
         resizeRequest.getTargetIndexRequest()
@@ -225,7 +235,7 @@ public class TransportResizeActionTests extends ESTestCase {
                 resizeRequest,
                 finalState.metadata().index("source"),
                 "target",
-                new TargetNumberOfShardsCalculator.Split()
+                new ResizeNumberOfShardsCalculator.SplitShardsCalculator()
             )
         );
         assertEquals("cannot provide index.number_of_routing_shards on resize", iae.getMessage());
@@ -259,7 +269,10 @@ public class TransportResizeActionTests extends ESTestCase {
             target,
             clusterState.metadata().index(indexName),
             "target",
-            new TargetNumberOfShardsCalculator.Shrink(new StoreStats(between(1, 100), between(0, 100), between(1, 100)), (i) -> stats)
+            new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
+                new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
+                (i) -> stats
+            )
         );
         assertNotNull(request.recoverFrom());
         assertEquals(indexName, request.recoverFrom().getName());
@@ -286,7 +299,7 @@ public class TransportResizeActionTests extends ESTestCase {
                     resizeRequest,
                     state,
                     "target",
-                    new TargetNumberOfShardsCalculator.Shrink(
+                    new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                         new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
                         (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100))
                     )
@@ -326,7 +339,7 @@ public class TransportResizeActionTests extends ESTestCase {
             target1,
             clusterState.metadata().index("source"),
             "target",
-            new TargetNumberOfShardsCalculator.Shrink(storeStats, (i) -> stats)
+            new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(storeStats, (i) -> stats)
         );
         assertNotNull(request1.recoverFrom());
         assertEquals("source", request1.recoverFrom().getName());
@@ -347,7 +360,7 @@ public class TransportResizeActionTests extends ESTestCase {
             target2,
             clusterState.metadata().index("source"),
             "target",
-            new TargetNumberOfShardsCalculator.Shrink(storeStats2, (i) -> stats)
+            new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(storeStats2, (i) -> stats)
         );
         assertNotNull(request2.recoverFrom());
         assertEquals("source", request2.recoverFrom().getName());

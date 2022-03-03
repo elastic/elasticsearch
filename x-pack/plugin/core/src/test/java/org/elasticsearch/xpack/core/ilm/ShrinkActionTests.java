@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -114,7 +115,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(0);
-        assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true);
+        assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true, false);
     }
 
     public void testPerformActionWithSkipBecauseOfSearchableSnapshot() throws InterruptedException {
@@ -134,7 +135,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
             )
             .numberOfShards(numberOfShards * 2)
             .numberOfReplicas(0);
-        assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true);
+        assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true, false);
     }
 
     public void testPerformActionWithoutSkip() throws InterruptedException {
@@ -153,7 +154,24 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(numShards)
             .numberOfReplicas(0);
-        assertPerformAction(lifecycleName, indexName, indexMetadatBuilder, action, nextStepKey, false);
+        assertPerformAction(lifecycleName, indexName, indexMetadatBuilder, action, nextStepKey, false, false);
+    }
+
+    public void testFailureIsPropagated() throws InterruptedException {
+        String lifecycleName = randomAlphaOfLengthBetween(4, 10);
+        int numberOfShards = randomIntBetween(1, 10);
+        ShrinkAction action = new ShrinkAction(numberOfShards, null);
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        String indexName = randomAlphaOfLength(5);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(0);
+        assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true, true);
     }
 
     public void assertPerformAction(
@@ -162,7 +180,8 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         IndexMetadata.Builder indexMetadataBuilder,
         ShrinkAction action,
         StepKey nextStepKey,
-        boolean shouldSkip
+        boolean shouldSkip,
+        boolean withError
     ) throws InterruptedException {
         String phase = randomAlphaOfLengthBetween(1, 10);
         List<Step> steps = action.toSteps(client, phase, nextStepKey);
@@ -204,9 +223,10 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
                     )
             )
             .build();
-        setUpIndicesStatsRequestMock(indexName);
+        setUpIndicesStatsRequestMock(indexName, withError);
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        step.performAction(state.metadata().index(indexName), state, null, new ActionListener<Void>() {
+        AtomicBoolean failurePropagated = new AtomicBoolean(false);
+        step.performAction(state.metadata().index(indexName), state, null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 countDownLatch.countDown();
@@ -214,11 +234,19 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
             @Override
             public void onFailure(Exception e) {
-                fail("Unexpected exception: " + e.getMessage());
+                if (withError) {
+                    assertThat(e.getMessage(), equalTo("simulated"));
+                    failurePropagated.set(true);
+                    countDownLatch.countDown();
+                } else {
+                    fail("Unexpected exception: " + e.getMessage());
+                }
             }
         });
         assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
-        if (shouldSkip) {
+        if (withError) {
+            assertTrue(failurePropagated.get());
+        } else if (shouldSkip) {
             assertThat(step.getNextStepKey(), equalTo(nextStepKey));
         } else {
             assertThat(step.getNextStepKey(), equalTo(steps.get(1).getKey()));
@@ -335,7 +363,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.get(16).getNextStepKey(), equalTo(expectedFifteenKey));
     }
 
-    private void setUpIndicesStatsRequestMock(String index) {
+    private void setUpIndicesStatsRequestMock(String index, boolean withError) {
         IndicesStatsRequestBuilder builder = Mockito.mock(IndicesStatsRequestBuilder.class);
         IndicesStatsResponse response = Mockito.mock(IndicesStatsResponse.class);
         CommonStats commonStats = Mockito.mock(CommonStats.class);
@@ -353,7 +381,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
             @SuppressWarnings("unchecked")
             ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) invocation.getArguments()[0];
             assertNotNull(listener);
-            listener.onResponse(response);
+            if (withError) {
+                listener.onFailure(new RuntimeException("simulated"));
+            } else {
+                listener.onResponse(response);
+            }
             return null;
         }).when(builder).execute(Mockito.any());
     }

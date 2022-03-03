@@ -16,9 +16,9 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.action.admin.indices.shrink.TargetNumberOfShardsCalculator.Shrink.calculateAcceptableNumberOfShards;
+import static org.elasticsearch.action.admin.indices.shrink.ResizeNumberOfShardsCalculator.ShrinkShardsCalculator.calculateAcceptableNumberOfShards;
 
-public class TargetNumberOfShardsCalculatorTests extends ESTestCase {
+public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
 
     public void testShrink() {
         Settings settings = Settings.builder()
@@ -28,24 +28,25 @@ public class TargetNumberOfShardsCalculatorTests extends ESTestCase {
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
 
-        TargetNumberOfShardsCalculator.Shrink shrink = new TargetNumberOfShardsCalculator.Shrink(
-            new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-            (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000))
-        );
-        assertEquals(4, shrink.calculate(4, null, indexMetadata));
-        assertEquals(1, shrink.calculate(null, null, indexMetadata));
-        assertEquals(1, shrink.calculate(null, ByteSizeValue.ofGb(50), indexMetadata));
-        shrink.verify(1, indexMetadata);
-        expectThrows(IllegalArgumentException.class, () -> shrink.calculate(4, ByteSizeValue.ofGb(50), indexMetadata));
-        expectThrows(IllegalArgumentException.class, () -> shrink.verify(10, indexMetadata));
+        ResizeNumberOfShardsCalculator.ShrinkShardsCalculator shrinkShardsCalculator =
+            new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
+                new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
+                (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000))
+            );
+        assertEquals(4, shrinkShardsCalculator.calculate(4, null, indexMetadata));
+        assertEquals(1, shrinkShardsCalculator.calculate(null, null, indexMetadata));
+        assertEquals(1, shrinkShardsCalculator.calculate(null, ByteSizeValue.ofGb(50), indexMetadata));
+        shrinkShardsCalculator.validate(1, indexMetadata);
+        expectThrows(IllegalArgumentException.class, () -> shrinkShardsCalculator.calculate(4, ByteSizeValue.ofGb(50), indexMetadata));
+        expectThrows(IllegalArgumentException.class, () -> shrinkShardsCalculator.validate(10, indexMetadata));
 
         assertTrue(
             expectThrows(
                 IllegalStateException.class,
-                () -> new TargetNumberOfShardsCalculator.Shrink(
+                () -> new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
                     (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100))
-                ).verify(1, indexMetadata)
+                ).validate(1, indexMetadata)
             ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards ")
         );
     }
@@ -58,10 +59,17 @@ public class TargetNumberOfShardsCalculatorTests extends ESTestCase {
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
 
-        TargetNumberOfShardsCalculator.Clone clone = new TargetNumberOfShardsCalculator.Clone();
-        assertEquals(indexMetadata.getNumberOfShards(), clone.calculate(null, null, indexMetadata));
-        assertEquals(indexMetadata.getNumberOfShards() + 1, clone.calculate(indexMetadata.getNumberOfShards() + 1, null, indexMetadata));
-        expectThrows(IllegalArgumentException.class, () -> clone.verify(indexMetadata.getNumberOfShards() + 1, indexMetadata));
+        ResizeNumberOfShardsCalculator.CloneShardsCalculator cloneShardsCalculator =
+            new ResizeNumberOfShardsCalculator.CloneShardsCalculator();
+        assertEquals(indexMetadata.getNumberOfShards(), cloneShardsCalculator.calculate(null, null, indexMetadata));
+        assertEquals(
+            indexMetadata.getNumberOfShards() + 1,
+            cloneShardsCalculator.calculate(indexMetadata.getNumberOfShards() + 1, null, indexMetadata)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> cloneShardsCalculator.validate(indexMetadata.getNumberOfShards() + 1, indexMetadata)
+        );
     }
 
     public void testSplitInputs() {
@@ -72,10 +80,14 @@ public class TargetNumberOfShardsCalculatorTests extends ESTestCase {
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
 
-        TargetNumberOfShardsCalculator.Split split = new TargetNumberOfShardsCalculator.Split();
-        assertEquals(10, split.calculate(10, null, indexMetadata));
-        expectThrows(AssertionError.class, () -> split.calculate(null, null, indexMetadata));
-        expectThrows(IllegalArgumentException.class, () -> split.verify(indexMetadata.getNumberOfShards() - 1, indexMetadata));
+        ResizeNumberOfShardsCalculator.SplitShardsCalculator splitShardsCalculator =
+            new ResizeNumberOfShardsCalculator.SplitShardsCalculator();
+        assertEquals(10, splitShardsCalculator.calculate(10, null, indexMetadata));
+        expectThrows(AssertionError.class, () -> splitShardsCalculator.calculate(null, null, indexMetadata));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> splitShardsCalculator.validate(indexMetadata.getNumberOfShards() - 1, indexMetadata)
+        );
     }
 
     public void testCalculateTargetShardsNumberInShrink() {

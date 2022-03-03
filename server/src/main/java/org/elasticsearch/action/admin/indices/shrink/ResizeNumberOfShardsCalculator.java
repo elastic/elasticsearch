@@ -11,8 +11,6 @@ package org.elasticsearch.action.admin.indices.shrink;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -28,7 +26,7 @@ import java.util.function.IntFunction;
  * This class calculates and verifies the number of shards of a target index after a resize operation. It supports three operations SHRINK,
  * SPLIT and CLONE.
  */
-public interface TargetNumberOfShardsCalculator {
+public interface ResizeNumberOfShardsCalculator {
 
     /**
      * Calculates the target number of shards based on the parameters of the request
@@ -37,33 +35,24 @@ public interface TargetNumberOfShardsCalculator {
      * @param sourceMetadata the index metadata of the source index
      * @return the number of shards for the target index
      */
-    int calculate(@Nullable Integer numberOfShards, ByteSizeValue maxPrimaryShardSize, IndexMetadata sourceMetadata);
+    int calculate(@Nullable Integer numberOfShards, @Nullable ByteSizeValue maxPrimaryShardSize, IndexMetadata sourceMetadata);
 
     /**
-     * Verifies if the target number of shards is feasible based on the operation. For example, in the case of SHRINK it will check if the
-     * doc count per shard is within limits and in the other opetations it will ensure we get the right exceptions if the number of shards
-     * is wrong or less than etc.
+     * Validates the target number of shards based on the operation. For example, in the case of SHRINK it will check if the doc count per
+     * shard is within limits and in the other opetations it will ensure we get the right exceptions if the number of shards is wrong or
+     * less than etc.
      * @param numberOfShards the number of shards the target index is going to have
      * @param sourceMetadata the index metadata of the source index
      */
-    void verify(int numberOfShards, IndexMetadata sourceMetadata);
+    void validate(int numberOfShards, IndexMetadata sourceMetadata);
 
-    class Shrink implements TargetNumberOfShardsCalculator {
+    class ShrinkShardsCalculator implements ResizeNumberOfShardsCalculator {
         private static final Logger logger = LogManager.getLogger(TransportResizeAction.class);
 
         private final StoreStats indexStoreStats;
         private final IntFunction<DocsStats> perShardDocStats;
 
-        public Shrink(String sourceIndex, IndicesStatsResponse indicesStatsResponse) {
-            this.indexStoreStats = indicesStatsResponse.getPrimaries().store;
-            this.perShardDocStats = i -> {
-                IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
-                return shard == null ? null : shard.getPrimary().getDocs();
-            };
-        }
-
-        // Facilitates testing
-        public Shrink(StoreStats indexStoreStats, IntFunction<DocsStats> perShardDocStats) {
+        public ShrinkShardsCalculator(StoreStats indexStoreStats, IntFunction<DocsStats> perShardDocStats) {
             this.indexStoreStats = indexStoreStats;
             this.perShardDocStats = perShardDocStats;
         }
@@ -107,7 +96,7 @@ public interface TargetNumberOfShardsCalculator {
         }
 
         @Override
-        public void verify(int numberOfShards, IndexMetadata sourceMetadata) {
+        public void validate(int numberOfShards, IndexMetadata sourceMetadata) {
             for (int i = 0; i < numberOfShards; i++) {
                 Set<ShardId> shardIds = IndexMetadata.selectShrinkShards(i, sourceMetadata, numberOfShards);
                 long count = 0;
@@ -155,7 +144,7 @@ public interface TargetNumberOfShardsCalculator {
         }
     }
 
-    class Clone implements TargetNumberOfShardsCalculator {
+    class CloneShardsCalculator implements ResizeNumberOfShardsCalculator {
 
         @Override
         public int calculate(Integer numberOfShards, ByteSizeValue maxPrimaryShardSize, IndexMetadata sourceMetadata) {
@@ -163,7 +152,7 @@ public interface TargetNumberOfShardsCalculator {
         }
 
         @Override
-        public void verify(int numberOfShards, IndexMetadata sourceMetadata) {
+        public void validate(int numberOfShards, IndexMetadata sourceMetadata) {
             for (int i = 0; i < numberOfShards; i++) {
                 // we just execute this to ensure we get the right exceptions if the number of shards is wrong etc.
                 Objects.requireNonNull(IndexMetadata.selectCloneShard(i, sourceMetadata, numberOfShards));
@@ -171,7 +160,7 @@ public interface TargetNumberOfShardsCalculator {
         }
     }
 
-    class Split implements TargetNumberOfShardsCalculator {
+    class SplitShardsCalculator implements ResizeNumberOfShardsCalculator {
 
         @Override
         public int calculate(Integer numberOfShards, ByteSizeValue maxPrimaryShardSize, IndexMetadata sourceMetadata) {
@@ -180,7 +169,7 @@ public interface TargetNumberOfShardsCalculator {
         }
 
         @Override
-        public void verify(int numberOfShards, IndexMetadata sourceMetadata) {
+        public void validate(int numberOfShards, IndexMetadata sourceMetadata) {
             for (int i = 0; i < numberOfShards; i++) {
                 // we just execute this to ensure we get the right exceptions if the number of shards is wrong or less than etc.
                 Objects.requireNonNull(IndexMetadata.selectSplitShard(i, sourceMetadata, numberOfShards));

@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.indices.shrink.TargetNumberOfShardsCalculator;
+import org.elasticsearch.action.admin.indices.shrink.ResizeNumberOfShardsCalculator;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
@@ -180,11 +181,13 @@ public class ShrinkAction implements LifecycleAction {
                     .setDocs(true)
                     .setStore(true)
                     .execute(listener.delegateFailure((delegateListener, indicesStatsResponse) -> {
-                        int targetNumberOfShards = new TargetNumberOfShardsCalculator.Shrink(indexName, indicesStatsResponse).calculate(
-                            numberOfShards,
-                            maxPrimaryShardSize,
-                            indexMetadata
-                        );
+                        int targetNumberOfShards = new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
+                            indicesStatsResponse.getPrimaries().store,
+                            i -> {
+                                IndexShardStats shard = indicesStatsResponse.getIndex(indexName).getIndexShards().get(i);
+                                return shard == null ? null : shard.getPrimary().getDocs();
+                            }
+                        ).calculate(numberOfShards, maxPrimaryShardSize, indexMetadata);
                         delegateListener.onResponse(indexMetadata.getNumberOfShards() == targetNumberOfShards);
                     }));
             },

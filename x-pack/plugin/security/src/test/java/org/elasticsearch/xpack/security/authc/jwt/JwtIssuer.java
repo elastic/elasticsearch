@@ -48,12 +48,28 @@ public class JwtIssuer {
         this.users = users;
     }
 
+    String audiencesCsv() {
+        return String.join(",", this.audiences);
+    }
+
+    String algorithmsCsv() {
+        return String.join(",", this.getAllAlgorithms());
+    }
+
+    String algorithmsCsvPkc() {
+        return String.join(",", this.algAndJwksPkc.stream().map(AlgJwkPair::alg).toList());
+    }
+
+    String algorithmsCsvHmac() {
+        return String.join(",", this.algAndJwksPkc.stream().map(AlgJwkPair::alg).toList());
+    }
+
     Set<String> getAllAlgorithms() {
-        return getAllAlgJwkPairs().stream().map(p -> p.alg).collect(Collectors.toSet());
+        return this.getAllAlgJwkPairs().stream().map(p -> p.alg).collect(Collectors.toSet());
     }
 
     Set<JWK> getAllJwks() {
-        return getAllAlgJwkPairs().stream().map(p -> p.jwk).collect(Collectors.toSet());
+        return this.getAllAlgJwkPairs().stream().map(p -> p.jwk).collect(Collectors.toSet());
     }
 
     Set<AlgJwkPair> getAllAlgJwkPairs() {

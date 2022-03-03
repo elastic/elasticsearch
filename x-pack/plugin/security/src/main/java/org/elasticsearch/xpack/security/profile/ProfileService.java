@@ -54,8 +54,6 @@ import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataReq
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -72,6 +70,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 
 public class ProfileService {
@@ -229,6 +228,18 @@ public class ProfileService {
                 )
             );
         });
+    }
+
+    public void setEnabled(String uid, boolean enabled, RefreshPolicy refreshPolicy, ActionListener<AcknowledgedResponse> listener) {
+        final XContentBuilder builder;
+        try {
+            builder = XContentFactory.jsonBuilder();
+            builder.startObject().field("user_profile", Map.of("enabled", enabled)).endObject();
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+        doUpdate(buildUpdateRequest(uid, builder, refreshPolicy, -1, -1), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
     }
 
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {
@@ -491,10 +502,6 @@ public class ProfileService {
             doc.access(),
             doc.applicationData()
         );
-    }
-
-    private boolean isFileOrNativeRealm(String realmType) {
-        return FileRealmSettings.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
     }
 
     // Package private for testing

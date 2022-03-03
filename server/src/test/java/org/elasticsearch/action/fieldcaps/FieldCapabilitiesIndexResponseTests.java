@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,6 +29,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
 
@@ -81,34 +85,68 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
             inList.add(new FieldCapabilitiesIndexResponse(index, hashing, fieldCaps, canMatch));
         }
         Randomness.shuffle(inList);
-        final List<FieldCapabilitiesIndexResponse> serializedList;
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            FieldCapabilitiesIndexResponse.writeList(output, inList);
-            try (
-                StreamInput in = new NamedWriteableAwareStreamInput(
-                    output.bytes().streamInput(),
-                    new NamedWriteableRegistry(Collections.emptyList())
-                )
-            ) {
-                serializedList = FieldCapabilitiesIndexResponse.readList(in);
+        // old versions
+        {
+            final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_2_0);
+            final List<FieldCapabilitiesIndexResponse> serializedList;
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.setVersion(oldVersion);
+                FieldCapabilitiesIndexResponse.writeList(output, inList);
+                try (
+                    StreamInput in = new NamedWriteableAwareStreamInput(
+                        output.bytes().streamInput(),
+                        new NamedWriteableRegistry(Collections.emptyList())
+                    )
+                ) {
+                    in.setVersion(oldVersion);
+                    serializedList = FieldCapabilitiesIndexResponse.readList(in);
+                }
+            }
+            assertThat(serializedList, hasSize(inList.size()));
+            for (int i = 0; i < inList.size(); i++) {
+                FieldCapabilitiesIndexResponse serialized = serializedList.get(i);
+                assertThat(serialized.getIndexMappingHash(), nullValue());
+                FieldCapabilitiesIndexResponse in = inList.get(i);
+                assertThat(serialized.get(), equalTo(in.get()));
+                assertThat(serialized.getIndexName(), equalTo(in.getIndexName()));
+                assertThat(serialized.canMatch(), equalTo(in.canMatch()));
             }
         }
-        assertThat(
-            serializedList.stream().sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName)).toList(),
-            equalTo(inList.stream().sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName)).toList())
-        );
-        Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponses = serializedList.stream()
-            .filter(r -> r.canMatch() && r.getIndexMappingHash() != null)
-            .collect(Collectors.groupingBy(FieldCapabilitiesIndexResponse::getIndexMappingHash));
-        assertThat(groupedResponses.keySet(), equalTo(mappingHashToIndices.keySet()));
-        for (Map.Entry<String, List<FieldCapabilitiesIndexResponse>> e : groupedResponses.entrySet()) {
-            List<String> indices = mappingHashToIndices.get(e.getKey());
-            List<FieldCapabilitiesIndexResponse> rs = e.getValue();
-            assertThat(rs.stream().map(FieldCapabilitiesIndexResponse::getIndexName).sorted().toList(), equalTo(indices));
-            for (FieldCapabilitiesIndexResponse r : rs) {
-                assertTrue(r.canMatch());
-                assertSame(r.get(), rs.get(0).get());
+        // new versions
+        {
+            final List<FieldCapabilitiesIndexResponse> serializedList;
+            final Version newVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_2_0, Version.CURRENT);
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.setVersion(newVersion);
+                FieldCapabilitiesIndexResponse.writeList(output, inList);
+                try (
+                    StreamInput in = new NamedWriteableAwareStreamInput(
+                        output.bytes().streamInput(),
+                        new NamedWriteableRegistry(Collections.emptyList())
+                    )
+                ) {
+                    in.setVersion(newVersion);
+                    serializedList = FieldCapabilitiesIndexResponse.readList(in);
+                }
+            }
+            assertThat(
+                serializedList.stream().sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName)).toList(),
+                equalTo(inList.stream().sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName)).toList())
+            );
+            Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponses = serializedList.stream()
+                .filter(r -> r.canMatch() && r.getIndexMappingHash() != null)
+                .collect(Collectors.groupingBy(FieldCapabilitiesIndexResponse::getIndexMappingHash));
+            assertThat(groupedResponses.keySet(), equalTo(mappingHashToIndices.keySet()));
+            for (Map.Entry<String, List<FieldCapabilitiesIndexResponse>> e : groupedResponses.entrySet()) {
+                List<String> indices = mappingHashToIndices.get(e.getKey());
+                List<FieldCapabilitiesIndexResponse> rs = e.getValue();
+                assertThat(rs.stream().map(FieldCapabilitiesIndexResponse::getIndexName).sorted().toList(), equalTo(indices));
+                for (FieldCapabilitiesIndexResponse r : rs) {
+                    assertTrue(r.canMatch());
+                    assertSame(r.get(), rs.get(0).get());
+                }
             }
         }
+
     }
 }

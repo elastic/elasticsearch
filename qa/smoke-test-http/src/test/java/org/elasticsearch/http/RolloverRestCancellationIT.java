@@ -14,7 +14,7 @@ import org.elasticsearch.client.Request;
 
 public class RolloverRestCancellationIT extends BlockedSearcherRestCancellationTestCase {
 
-    public void testIndicesStatsRestCancellation() throws Exception {
+    public void testRolloverRestCancellation() throws Exception {
         runTest(new Request(HttpPost.METHOD_NAME, "test/_rollover"), RolloverAction.NAME);
     }
 }

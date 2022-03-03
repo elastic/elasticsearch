@@ -35,15 +35,13 @@ class InMemoryModuleFinder implements ModuleFinder {
 
     /**
      * Creates a module finder that eagerly scans the given paths to build an in memory module finder.
-     *
+     * <p>
      * The set missingModules are filtered out of the requires directives of the retrieved module descriptors.
      */
     static InMemoryModuleFinder of(Set<String> missingModules, Path... entries) {
         return new InMemoryModuleFinder(
-            ModuleFinder.of(entries)
-                .findAll()
-                .stream()
-                .map(ModuleReference::descriptor)
+            Arrays.stream(entries)
+                .map(EmbeddedModulePath::descriptorFor)
                 .map(md -> filterRequires(md, missingModules))
                 .collect(
                     Collectors.toUnmodifiableMap(
@@ -55,10 +53,18 @@ class InMemoryModuleFinder implements ModuleFinder {
     }
 
     static ModuleDescriptor filterRequires(ModuleDescriptor md, Set<String> missingModules) {
-        if (missingModules.size() == 0) {
+        if (missingModules.size() == 0
+            || md.isAutomatic()
+            || md.requires().stream().anyMatch(req -> missingModules.contains(req.name())) == false) {
             return md;
         }
-        ModuleDescriptor.Builder builder = ModuleDescriptor.newModule(md.name());
+
+        ModuleDescriptor.Builder builder;
+        if (md.isOpen()) {
+            builder = ModuleDescriptor.newOpenModule(md.name());
+        } else {
+            builder = ModuleDescriptor.newModule(md.name());
+        }
         md.version().ifPresent(builder::version);
         md.requires().stream().filter(req -> missingModules.contains(req.name()) == false).forEach(builder::requires);
         md.exports().forEach(builder::exports);
@@ -69,7 +75,9 @@ class InMemoryModuleFinder implements ModuleFinder {
         return builder.build();
     }
 
-    /** Creates a module finder of the given module descriptors. */
+    /**
+     * Creates a module finder of the given module descriptors.
+     */
     static InMemoryModuleFinder of(ModuleDescriptor... descriptors) {
         return new InMemoryModuleFinder(
             Arrays.stream(descriptors)

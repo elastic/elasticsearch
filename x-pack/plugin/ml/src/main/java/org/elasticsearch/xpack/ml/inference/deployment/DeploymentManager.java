@@ -115,7 +115,10 @@ public class DeploymentManager {
                 processContext.rejectedExecutionCount.intValue(),
                 processContext.timeoutCount.intValue(),
                 processContext.inferenceThreads,
-                processContext.modelThreads
+                processContext.modelThreads,
+                stats.peakThroughput(),
+                stats.recentStats().requestsProcessed(),
+                stats.recentStats().avgInferenceTime()
             );
         });
     }
@@ -142,7 +145,9 @@ public class DeploymentManager {
         });
 
         ActionListener<Boolean> modelLoadedListener = ActionListener.wrap(success -> {
-            executorServiceForProcess.execute(() -> processContext.getResultProcessor().process(processContext.process.get()));
+            executorServiceForProcess.execute(
+                () -> processContext.getResultProcessor().process(processContext.process.get().readResults())
+            );
             listener.onResponse(task);
         }, listener::onFailure);
 

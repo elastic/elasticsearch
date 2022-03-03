@@ -44,7 +44,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * The unreleased last minor is the current major with a upped minor: 7._4_.0
      * The unreleased revision is the very release with a upped revision 7.3._1_
      */
-    private static final org.apache.lucene.util.Version LUCENE_8_11_1 = org.apache.lucene.util.Version.fromBits(8, 11, 1);
 
     public static final int V_EMPTY_ID = 0;
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
@@ -97,10 +96,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_16_1 = new Version(7_16_01_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_7_16_2 = new Version(7_16_02_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_7_16_3 = new Version(7_16_03_99, org.apache.lucene.util.Version.LUCENE_8_10_1);
-    public static final Version V_7_17_0 = new Version(7_17_00_99, LUCENE_8_11_1);
-    public static final Version V_7_17_1 = new Version(7_17_01_99, LUCENE_8_11_1);
+    public static final Version V_7_17_0 = new Version(7_17_00_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+    public static final Version V_7_17_1 = new Version(7_17_01_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
+    public static final Version V_7_17_2 = new Version(7_17_02_99, org.apache.lucene.util.Version.LUCENE_8_11_1);
     public static final Version V_8_0_0 = new Version(8_00_00_99, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_0_1 = new Version(8_00_01_99, org.apache.lucene.util.Version.LUCENE_9_0_0);
+    public static final Version V_8_0_2 = new Version(8_00_02_99, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_1_0 = new Version(8_01_00_99, org.apache.lucene.util.Version.LUCENE_9_0_0);
     public static final Version V_8_2_0 = new Version(8_02_00_99, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version CURRENT = V_8_2_0;

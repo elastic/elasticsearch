@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.ECDSASigner;
@@ -25,12 +26,14 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.JOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jose.util.Base64URL;
+import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.SecureString;
 
-import java.text.ParseException;
 import java.util.Date;
 import java.util.List;
 
@@ -280,18 +283,33 @@ public class JwtValidateUtil {
      * @throws Exception Error if JWKs fail to validate the Signed JWT.
      */
     public static void validateSignature(final SignedJWT jwt, final List<JWK> jwks) throws Exception {
+        assert jwks != null && jwks.isEmpty() == false : "Caller must provide a non-empty JWK list";
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
         LOGGER.trace("JWKs [" + jwks.size() + "], JWT KID [ + id + ], and JWT Algorithm [" + alg.getName() + "] before filters.");
 
+        // If JWT has optional kid header, and realm JWKs have optional kid attribute, any mismatches JWT.kid vs JWK.kid can be ignored.
+        // Keep any JWKs if JWK optional kid attribute is missing. Keep all JWKs if JWT optional kid header is missing.
         final List<JWK> jwksKid = jwks.stream().filter(j -> ((id == null) || (j.getKeyID() == null) || (id.equals(j.getKeyID())))).toList();
         LOGGER.trace("JWKs [" + jwksKid.size() + "] after KID [" + id + "||null] filter.");
 
+        // JWT has mandatory alg header. If realm JWKs have optional alg attribute, any mismatches JWT.alg vs JWK.alg can be ignored.
+        // Keep any JWKs if JWK optional alg attribute is missing.
         final List<JWK> jwksAlg = jwksKid.stream().filter(j -> (j.getAlgorithm() == null) || (alg.equals(j.getAlgorithm()))).toList();
         LOGGER.trace("JWKs [" + jwksAlg.size() + " after Algorithm [" + alg.getName() + "||null] filter.");
 
+        // PKC Example: Realm has five PKC JWKs RSA-2048, RSA-3072, EC-P256, EC-P384, and EC-P512. JWT alg allows ignoring some.
+        // - If JWT alg is RS256, only RSA-2048 and RSA-3072 are valid for a JWT RS256 signature. Ignore three EC JWKs.
+        // - If JWT alg is ES512, only EC-P512 is valid for a JWT ES512 signature. Ignore four JWKs (two RSA, two EC).
+        // - If JWT alg is ES384, only EC-P384 is valid for a JWT ES384 signature. Ignore four JWKs (two RSA, two EC).
+        // - If JWT alg is ES256, only EC-P256 is valid for a JWT ES256 signature. Ignore four JWKs (two RSA, two EC).
+        //
+        // HMAC Example: Realm has six HMAC JWKs of bit lengths 256, 320, 384, 400, 512, and 1000. JWT alg allows ignoring some.
+        // - If JWT alg is HS256, all are valid for a JWT HS256 signature. Don't ignore any HMAC JWKs.
+        // - If JWT alg is HS384, only 384, 400, 512, and 1000 are valid for a JWT HS384 signature. Ignore two HMAC JWKs.
+        // - If JWT alg is HS512, only 512 and 1000 are valid for a JWT HS512 signature. Ignore four HMAC JWKs.
         final List<JWK> jwksStrength = jwksAlg.stream().filter(j -> JwkValidateUtil.isMatch(j, alg.getName())).toList();
-        LOGGER.trace("JWKs [" + jwksStrength.size() + "] after Algorithm [" + alg + "] match filter.");
+        LOGGER.debug("JWKs [" + jwksStrength.size() + "] after Algorithm [" + alg + "] match filter.");
 
         for (final JWK jwk : jwksStrength) {
             if (jwt.verify(JwtValidateUtil.createJwsVerifier(jwk))) {
@@ -337,13 +355,26 @@ public class JwtValidateUtil {
         );
     }
 
-    public static boolean verifyJWT(final JWSVerifier jwtVerifier, final SignedJWT signedJwt) throws Exception {
-        return signedJwt.verify(jwtVerifier);
+    // Build from Base64 components. Signature may or may not be valid. Useful for negative test cases.
+    public static SecureString buildJwt(final JWSHeader header, final JWTClaimsSet claims, final Base64URL signature) throws Exception {
+        final SignedJWT signedJwt = new SignedJWT(header.toBase64URL(), claims.toPayload().toBase64URL(), signature);
+        return new SecureString(signedJwt.serialize().toCharArray());
     }
 
-    public static SignedJWT signJwt(final JWSSigner jwtSigner, final SignedJWT unsignedJwt) throws JOSEException, ParseException {
+    public static SignedJWT buildUnsignedJwt(final JWSHeader jwtHeader, final JWTClaimsSet jwtClaimsSet) {
+        return new SignedJWT(jwtHeader, jwtClaimsSet);
+    }
+
+    // Convenience method to construct JWSVerifier from JWK, and verify the signed JWT
+    public static boolean verifyJwt(final JWK jwk, final SignedJWT signedJwt) throws Exception {
+        return signedJwt.verify(JwtValidateUtil.createJwsVerifier(jwk));
+    }
+
+    // Convenience method to construct JWSSigner from JWK, sign the JWT, and return serialized SecureString
+    public static SecureString signJwt(final JWK jwk, final SignedJWT unsignedJwt) throws Exception {
+        // Copy the header and claims set to a new unsigned JWT, in case JWT is being re-signing
         final SignedJWT signedJwt = new SignedJWT(unsignedJwt.getHeader(), unsignedJwt.getJWTClaimsSet());
-        signedJwt.sign(jwtSigner);
-        return signedJwt;
+        signedJwt.sign(JwtValidateUtil.createJwsSigner(jwk));
+        return new SecureString(signedJwt.serialize().toCharArray());
     }
 }

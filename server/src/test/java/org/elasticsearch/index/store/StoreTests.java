@@ -355,7 +355,7 @@ public class StoreTests extends ESTestCase {
         writer.commit();
         writer.close();
         metadata = store.getMetadata(null);
-        assertThat(metadata.asMap().isEmpty(), is(false));
+        assertThat(metadata.fileMetadataMap().isEmpty(), is(false));
         for (StoreFileMetadata meta : metadata) {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
@@ -486,13 +486,13 @@ public class StoreTests extends ESTestCase {
         for (String file : store.directory().listAll()) {
             if (IndexWriter.WRITE_LOCK_NAME.equals(file) == false && file.startsWith("extra") == false) {
                 assertTrue(
-                    file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length,
-                    metadata.asMap().containsKey(file)
+                    file + " is not in the map: " + metadata.fileMetadataMap().size() + " vs. " + store.directory().listAll().length,
+                    metadata.fileMetadataMap().containsKey(file)
                 );
             } else {
                 assertFalse(
-                    file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length,
-                    metadata.asMap().containsKey(file)
+                    file + " is not in the map: " + metadata.fileMetadataMap().size() + " vs. " + store.directory().listAll().length,
+                    metadata.fileMetadataMap().containsKey(file)
                 );
             }
         }
@@ -678,8 +678,8 @@ public class StoreTests extends ESTestCase {
             }
             dvUpdateSnapshot = store.getMetadata(null);
         }
-        logger.info("--> source: {}", dvUpdateSnapshot.asMap());
-        logger.info("--> target: {}", newCommitMetadata.asMap());
+        logger.info("--> source: {}", dvUpdateSnapshot.fileMetadataMap());
+        logger.info("--> target: {}", newCommitMetadata.fileMetadataMap());
         Store.RecoveryDiff dvUpdateDiff = dvUpdateSnapshot.recoveryDiff(newCommitMetadata);
         final int delFileCount;
         if (delFile == null || dvUpdateDiff.different.isEmpty()) {
@@ -924,12 +924,12 @@ public class StoreTests extends ESTestCase {
         in.setVersion(targetNodeVersion);
         Store.MetadataSnapshot inMetadataSnapshot = Store.MetadataSnapshot.readFrom(in);
         Map<String, StoreFileMetadata> origEntries = new HashMap<>();
-        origEntries.putAll(outMetadataSnapshot.asMap());
-        for (Map.Entry<String, StoreFileMetadata> entry : inMetadataSnapshot.asMap().entrySet()) {
+        origEntries.putAll(outMetadataSnapshot.fileMetadataMap());
+        for (Map.Entry<String, StoreFileMetadata> entry : inMetadataSnapshot.fileMetadataMap().entrySet()) {
             assertThat(entry.getValue().name(), equalTo(origEntries.remove(entry.getKey()).name()));
         }
         assertThat(origEntries.size(), equalTo(0));
-        assertThat(inMetadataSnapshot.getCommitUserData(), equalTo(outMetadataSnapshot.getCommitUserData()));
+        assertThat(inMetadataSnapshot.commitUserData(), equalTo(outMetadataSnapshot.commitUserData()));
     }
 
     public void testEmptyMetadataSnapshotStreaming() throws Exception {
@@ -974,9 +974,9 @@ public class StoreTests extends ESTestCase {
         writer.close();
         Store.MetadataSnapshot metadata;
         metadata = store.getMetadata(randomBoolean() ? null : deletionPolicy.snapshot());
-        assertFalse(metadata.asMap().isEmpty());
+        assertFalse(metadata.fileMetadataMap().isEmpty());
         // do not check for correct files, we have enough tests for that above
-        assertThat(metadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
+        assertThat(metadata.commitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
         TestUtil.checkIndex(store.directory());
         assertDeleteContent(store, store.directory());
         IOUtils.close(store);

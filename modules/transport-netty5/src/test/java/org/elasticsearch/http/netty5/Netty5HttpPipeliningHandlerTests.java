@@ -8,7 +8,6 @@
 
 package org.elasticsearch.http.netty5;
 
-import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -202,8 +201,8 @@ public class Netty5HttpPipeliningHandlerTests extends ESTestCase {
         assertThat(data, is(expectedContent));
     }
 
-    private Netty4HttpRequest createHttpRequest(String uri) {
-        return new Netty4HttpRequest(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri, Netty5Utils.EMPTY_BUFFER));
+    private Netty5HttpRequest createHttpRequest(String uri) {
+        return new Netty5HttpRequest(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri, Netty5Utils.EMPTY_BUFFER));
     }
 
     private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {

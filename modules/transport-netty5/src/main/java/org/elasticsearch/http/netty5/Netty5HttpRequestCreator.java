@@ -16,11 +16,11 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import org.elasticsearch.ExceptionsHelper;
 
 @ChannelHandler.Sharable
-final class Netty4HttpRequestCreator extends MessageToMessageDecoder<FullHttpRequest> {
+final class Netty5HttpRequestCreator extends MessageToMessageDecoder<FullHttpRequest> {
 
-    static final Netty4HttpRequestCreator INSTANCE = new Netty4HttpRequestCreator();
+    static final Netty5HttpRequestCreator INSTANCE = new Netty5HttpRequestCreator();
 
-    private Netty4HttpRequestCreator() {}
+    private Netty5HttpRequestCreator() {}
 
     @Override
     protected void decode(ChannelHandlerContext ctx, FullHttpRequest msg) {
@@ -33,9 +33,9 @@ final class Netty4HttpRequestCreator extends MessageToMessageDecoder<FullHttpReq
             } else {
                 nonError = (Exception) cause;
             }
-            ctx.write(new Netty4HttpRequest(msg, nonError));
+            ctx.fireChannelRead(new Netty5HttpRequest(msg, nonError));
         } else {
-            ctx.write(new Netty4HttpRequest(msg));
+            ctx.fireChannelRead(new Netty5HttpRequest(msg));
         }
     }
 }

@@ -34,7 +34,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-public class Netty4HttpRequest implements HttpRequest {
+public class Netty5HttpRequest implements HttpRequest {
 
     private final FullHttpRequest request;
     private final BytesReference content;
@@ -43,7 +43,7 @@ public class Netty4HttpRequest implements HttpRequest {
     private final Exception inboundException;
     private final boolean pooled;
 
-    Netty4HttpRequest(FullHttpRequest request) {
+    Netty5HttpRequest(FullHttpRequest request) {
         this(
             request,
             new HttpHeadersMap(request.headers()),
@@ -53,7 +53,7 @@ public class Netty4HttpRequest implements HttpRequest {
         );
     }
 
-    Netty4HttpRequest(FullHttpRequest request, Exception inboundException) {
+    Netty5HttpRequest(FullHttpRequest request, Exception inboundException) {
         this(
             request,
             new HttpHeadersMap(request.headers()),
@@ -64,7 +64,7 @@ public class Netty4HttpRequest implements HttpRequest {
         );
     }
 
-    private Netty4HttpRequest(
+    private Netty5HttpRequest(
         FullHttpRequest request,
         HttpHeadersMap headers,
         AtomicBoolean released,
@@ -74,7 +74,7 @@ public class Netty4HttpRequest implements HttpRequest {
         this(request, headers, released, pooled, content, null);
     }
 
-    private Netty4HttpRequest(
+    private Netty5HttpRequest(
         FullHttpRequest request,
         HttpHeadersMap headers,
         AtomicBoolean released,
@@ -150,7 +150,7 @@ public class Netty4HttpRequest implements HttpRequest {
         }
         try {
             final Buffer copiedContent = request.payload().copy();
-            return new Netty4HttpRequest(
+            return new Netty5HttpRequest(
                 new DefaultFullHttpRequest(
                     request.protocolVersion(),
                     request.method(),
@@ -213,12 +213,12 @@ public class Netty4HttpRequest implements HttpRequest {
             headersWithoutContentTypeHeader,
             trailingHeaders
         );
-        return new Netty4HttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), released, pooled, content);
+        return new Netty5HttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), released, pooled, content);
     }
 
     @Override
-    public Netty4HttpResponse createResponse(RestStatus status, BytesReference contentRef) {
-        return new Netty4HttpResponse(request.protocolVersion(), status, contentRef);
+    public Netty5HttpResponse createResponse(RestStatus status, BytesReference contentRef) {
+        return new Netty5HttpResponse(request.protocolVersion(), status, contentRef);
     }
 
     @Override

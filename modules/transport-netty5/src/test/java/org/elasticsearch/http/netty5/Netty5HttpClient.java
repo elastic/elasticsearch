@@ -34,6 +34,7 @@ import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpVersion;
 
 import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.FutureListener;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
@@ -145,7 +146,14 @@ class Netty5HttpClient implements Closeable {
             channelFuture.sync();
 
             for (HttpRequest request : requests) {
-                channelFuture.getNow().writeAndFlush(request);
+                channelFuture.getNow().writeAndFlush(request).addListener(new FutureListener<Void>() {
+                    @Override
+                    public void operationComplete(Future<? extends Void> future) throws Exception {
+                        if (future.isFailed()) {
+                            throw new AssertionError(future.cause());
+                        }
+                    }
+                });
             }
             if (latch.await(30L, TimeUnit.SECONDS) == false) {
                 fail("Failed to get all expected responses.");

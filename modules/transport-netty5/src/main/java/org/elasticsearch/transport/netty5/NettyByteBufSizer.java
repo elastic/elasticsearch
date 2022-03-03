@@ -9,6 +9,7 @@
 package org.elasticsearch.transport.netty5;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.api.adaptor.ByteBufAdaptor;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
@@ -28,9 +29,9 @@ public class NettyByteBufSizer extends MessageToMessageDecoder<ByteBuf> {
         if (msg.capacity() >= 1024) {
             ByteBuf resized = msg.discardReadBytes().capacity(readableBytes);
             assert resized.readableBytes() == readableBytes;
-            ctx.write(resized.retain());
+            ctx.fireChannelRead(ByteBufAdaptor.extractOrCopy(ctx.bufferAllocator(), resized.retain()));
         } else {
-            ctx.write(msg.retain());
+            ctx.fireChannelRead(ByteBufAdaptor.extractOrCopy(ctx.bufferAllocator(), msg.retain()));
         }
     }
 }

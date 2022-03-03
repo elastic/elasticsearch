@@ -9,6 +9,8 @@
 package org.elasticsearch.transport.netty5;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.api.Buffer;
+import io.netty.buffer.api.adaptor.ByteBufAdaptor;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
@@ -65,12 +67,12 @@ final class Netty5MessageChannelHandler extends ChannelHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         assert Transports.assertDefaultThreadContext(transport.getThreadPool().getThreadContext());
         assert Transports.assertTransportThread();
-        assert msg instanceof ByteBuf : "Expected message type ByteBuf, found: " + msg.getClass();
+        assert msg instanceof Buffer : "Expected message type ByteBuf, found: " + msg.getClass();
 
-        final ByteBuf buffer = (ByteBuf) msg;
+        final Buffer buffer = (Buffer) msg;
         Netty5TcpChannel channel = ctx.channel().attr(Netty5Transport.CHANNEL_KEY).get();
         final BytesReference wrapped = Netty5Utils.toBytesReference(buffer);
-        try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, new ByteBufRefCounted(buffer))) {
+        try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, buffer::close)) {
             pipeline.handleBytes(channel, reference);
         }
     }
@@ -145,12 +147,12 @@ final class Netty5MessageChannelHandler extends ChannelHandlerAdapter {
             final int bufferSize = Math.min(readableBytes, 1 << 18);
             final int readerIndex = write.buf.readerIndex();
             final boolean sliced = readableBytes != bufferSize;
-            final ByteBuf writeBuffer;
+            final Buffer writeBuffer;
             if (sliced) {
-                writeBuffer = write.buf.retainedSlice(readerIndex, bufferSize);
+                writeBuffer = ByteBufAdaptor.extractOrCopy(ctx.bufferAllocator(), write.buf.retainedSlice(readerIndex, bufferSize));
                 write.buf.readerIndex(readerIndex + bufferSize);
             } else {
-                writeBuffer = write.buf;
+                writeBuffer = ByteBufAdaptor.extractOrCopy(ctx.bufferAllocator(), write.buf);
             }
             final Future<Void> writeFuture = ctx.write(writeBuffer);
             needsFlush = true;

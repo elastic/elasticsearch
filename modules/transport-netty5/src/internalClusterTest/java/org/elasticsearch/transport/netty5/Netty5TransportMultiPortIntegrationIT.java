@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
-public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase {
+public class Netty5TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase {
 
     private static int randomPort = -1;
     private static String randomPortRange;

@@ -12,6 +12,7 @@ import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
 
 import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.FutureListener;
 import io.netty.util.concurrent.Promise;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
@@ -44,8 +45,8 @@ public class Netty5HttpPipeliningHandler extends ChannelHandlerAdapter {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        assert msg instanceof Netty4HttpRequest : "Invalid message type: " + msg.getClass();
-        HttpPipelinedRequest pipelinedRequest = aggregator.read(((Netty4HttpRequest) msg));
+        assert msg instanceof Netty5HttpRequest : "Invalid message type: " + msg.getClass();
+        HttpPipelinedRequest pipelinedRequest = aggregator.read(((Netty5HttpRequest) msg));
         ctx.fireChannelRead(pipelinedRequest);
     }
 
@@ -58,7 +59,16 @@ public class Netty5HttpPipeliningHandler extends ChannelHandlerAdapter {
         try {
             List<Tuple<HttpPipelinedResponse, Promise<Void>>> readyResponses = aggregator.write(response, promise);
             for (Tuple<HttpPipelinedResponse, Promise<Void>> readyResponse : readyResponses) {
-                ctx.write(readyResponse.v1().getDelegateRequest());
+                ctx.write(readyResponse.v1().getDelegateRequest()).addListener(new FutureListener<Void>() {
+                    @Override
+                    public void operationComplete(Future<? extends Void> future) throws Exception {
+                        if (future.isFailed()) {
+                            readyResponse.v2().tryFailure(future.cause());
+                        } else {
+                            readyResponse.v2().trySuccess(null);
+                        }
+                    }
+                });
             }
             success = true;
         } catch (IllegalStateException e) {

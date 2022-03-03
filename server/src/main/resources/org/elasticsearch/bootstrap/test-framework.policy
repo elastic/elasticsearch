@@ -111,3 +111,8 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
    permission java.net.SocketPermission "*", "accept,connect";
 };
+
+// TODO: Nasty
+grant {
+   permission java.lang.RuntimePermission "shutdownHooks";
+};

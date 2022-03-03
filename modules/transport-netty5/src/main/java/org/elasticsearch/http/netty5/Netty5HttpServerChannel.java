@@ -17,12 +17,12 @@ import org.elasticsearch.transport.netty5.Netty5TcpChannel;
 
 import java.net.InetSocketAddress;
 
-public class Netty4HttpServerChannel implements HttpServerChannel {
+public class Netty5HttpServerChannel implements HttpServerChannel {
 
     private final Channel channel;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
-    Netty4HttpServerChannel(Channel channel) {
+    Netty5HttpServerChannel(Channel channel) {
         this.channel = channel;
         Netty5TcpChannel.addListener(this.channel.closeFuture(), closeContext);
     }

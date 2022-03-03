@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.net.NetUtils;
@@ -299,14 +300,8 @@ public class Netty5Transport extends TcpTransport {
         Future<Channel> connectFuture = bootstrapWithHandler.connect();
 
         final Channel channel;
-        try {
-            channel = connectFuture.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError(e);
-        } catch (ExecutionException e) {
-            throw new AssertionError(e);
-        }
+        connectFuture.syncUninterruptibly();
+        channel = connectFuture.getNow();
         if (channel == null) {
             ExceptionsHelper.maybeDieOnAnotherThread(connectFuture.cause());
             throw new IOException(connectFuture.cause());
@@ -339,7 +334,7 @@ public class Netty5Transport extends TcpTransport {
     protected class ClientChannelInitializer extends ChannelInitializer<Channel> {
 
         @Override
-        protected void initChannel(Channel ch) throws Exception {
+        protected void initChannel(Channel ch) {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty5NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty5NioSocketChannel) ch).javaChannel());

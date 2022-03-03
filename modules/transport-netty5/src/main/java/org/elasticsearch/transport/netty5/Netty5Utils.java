@@ -17,6 +17,7 @@ import io.netty.util.NettyRuntime;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Booleans;
@@ -102,7 +103,11 @@ public class Netty5Utils {
     }
 
     public static BytesReference toBytesReference(final Buffer buffer) {
-        final byte[] copy = new byte[buffer.readableBytes()];
+        int readable = buffer.readableBytes();
+        if (readable == 0) {
+            return BytesArray.EMPTY;
+        }
+        final byte[] copy = new byte[readable];
         buffer.copy().readBytes(copy, 0, copy.length);
         return new BytesArray(copy);
     }

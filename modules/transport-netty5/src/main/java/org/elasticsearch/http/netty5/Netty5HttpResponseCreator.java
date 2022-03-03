@@ -26,7 +26,7 @@ import java.util.List;
  * Split up large responses to prevent batch compression down the pipeline.
  */
 @ChannelHandler.Sharable
-final class Netty5HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpResponse> {
+final class Netty5HttpResponseCreator extends MessageToMessageEncoder<Netty5HttpResponse> {
 
     static final Netty5HttpResponseCreator INSTANCE = new Netty5HttpResponseCreator();
 
@@ -44,7 +44,7 @@ final class Netty5HttpResponseCreator extends MessageToMessageEncoder<Netty4Http
     }
 
     @Override
-    protected void encode(ChannelHandlerContext ctx, Netty4HttpResponse msg, List<Object> out) {
+    protected void encode(ChannelHandlerContext ctx, Netty5HttpResponse msg, List<Object> out) {
         if (DO_NOT_SPLIT_HTTP_RESPONSES || msg.payload().readableBytes() <= SPLIT_THRESHOLD) {
             out.add(msg);
         } else {

@@ -45,7 +45,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.transport.netty4.ESLoggingHandler:trace,org.elasticsearch.transport.TransportLogger:trace",
+        value = "org.elasticsearch.transport.netty5.ESLoggingHandler:trace,org.elasticsearch.transport.TransportLogger:trace",
         reason = "to ensure we log network events on TRACE level"
     )
     public void testLoggingHandler() {

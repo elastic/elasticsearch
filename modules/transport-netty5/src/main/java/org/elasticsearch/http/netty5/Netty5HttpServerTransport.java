@@ -18,11 +18,7 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvBufferAllocator;
 import io.netty.channel.RecvBufferAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
-import io.netty.handler.codec.http.HttpContentCompressor;
-import io.netty.handler.codec.http.HttpContentDecompressor;
-import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.HttpRequestDecoder;
-import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.handler.codec.http.*;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
@@ -257,7 +253,7 @@ public class Netty5HttpServerTransport extends AbstractHttpServerTransport {
     protected HttpServerChannel bind(InetSocketAddress socketAddress) throws Exception {
         Future<Channel> future = serverBootstrap.bind(socketAddress).sync();
         Channel channel = future.getNow();
-        Netty4HttpServerChannel httpServerChannel = new Netty4HttpServerChannel(channel);
+        Netty5HttpServerChannel httpServerChannel = new Netty5HttpServerChannel(channel);
         channel.attr(HTTP_SERVER_CHANNEL_KEY).set(httpServerChannel);
         return httpServerChannel;
     }
@@ -283,24 +279,24 @@ public class Netty5HttpServerTransport extends AbstractHttpServerTransport {
         return new HttpChannelHandler(this, handlingSettings);
     }
 
-    static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
-    static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-http-server-channel");
+    static final AttributeKey<Netty5HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
+    static final AttributeKey<Netty5HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-http-server-channel");
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty5HttpServerTransport transport;
-        private final Netty4HttpRequestHandler requestHandler;
+        private final Netty5HttpRequestHandler requestHandler;
         private final HttpHandlingSettings handlingSettings;
 
         protected HttpChannelHandler(final Netty5HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
-            this.requestHandler = new Netty4HttpRequestHandler(transport);
+            this.requestHandler = new Netty5HttpRequestHandler(transport);
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
-            Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
+            Netty5HttpChannel nettyHttpChannel = new Netty5HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
@@ -316,7 +312,7 @@ public class Netty5HttpServerTransport extends AbstractHttpServerTransport {
             if (handlingSettings.isCompression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
-            ch.pipeline().addLast("request_creator", Netty4HttpRequestCreator.INSTANCE);
+            ch.pipeline().addLast("request_creator", Netty5HttpRequestCreator.INSTANCE);
             ch.pipeline().addLast("response_creator", Netty5HttpResponseCreator.INSTANCE);
             ch.pipeline().addLast("pipelining", new Netty5HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
@@ -342,7 +338,7 @@ public class Netty5HttpServerTransport extends AbstractHttpServerTransport {
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
-            Netty4HttpServerChannel httpServerChannel = ctx.channel().attr(HTTP_SERVER_CHANNEL_KEY).get();
+            Netty5HttpServerChannel httpServerChannel = ctx.channel().attr(HTTP_SERVER_CHANNEL_KEY).get();
             if (cause instanceof Error) {
                 transport.onServerException(httpServerChannel, new Exception(cause));
             } else {

@@ -17,9 +17,9 @@ import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.netty5.Netty5Utils;
 
-public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpResponse {
+public class Netty5HttpResponse extends DefaultFullHttpResponse implements HttpResponse {
 
-    Netty4HttpResponse(HttpVersion version, RestStatus status, BytesReference content) {
+    Netty5HttpResponse(HttpVersion version, RestStatus status, BytesReference content) {
         super(version, HttpResponseStatus.valueOf(status.getStatus()), Netty5Utils.toBuffer(content));
     }
 

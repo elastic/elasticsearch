@@ -500,7 +500,7 @@ public class MetadataIndexStateService {
                     final var task = taskContext.getTask();
                     final Tuple<ClusterState, Map<Index, ClusterBlock>> blockResult = addIndexBlock(
                         task.request.indices(),
-                        currentState,
+                        state,
                         task.request.getBlock()
                     );
                     state = blockResult.v1();

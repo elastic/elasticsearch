@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -118,7 +119,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         clusterService.submitStateUpdateTask(
                             "slm-record-success-" + policyMetadata.getPolicy().getId(),
                             WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), snapshotStartTime, timestamp),
-                            ClusterStateTaskExecutor.unbatched()
+                            newExecutor()
                         );
                         historyStore.putAsync(
                             SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(), request.snapshot())
@@ -143,7 +144,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     clusterService.submitStateUpdateTask(
                         "slm-record-failure-" + policyMetadata.getPolicy().getId(),
                         WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e),
-                        ClusterStateTaskExecutor.unbatched()
+                        newExecutor()
                     );
                     final SnapshotHistoryItem failureRecord;
                     try {
@@ -170,6 +171,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         }).orElse(null);
 
         return Optional.ofNullable(snapshotName);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     /**

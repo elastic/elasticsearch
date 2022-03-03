@@ -90,15 +90,12 @@ public class MetadataMappingService {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateTask> {
         @Override
-        public ClusterTasksResult<PutMappingClusterStateUpdateTask> execute(
-            ClusterState currentState,
-            List<PutMappingClusterStateUpdateTask> tasks
-        ) throws Exception {
-            final ClusterState originalState = currentState;
+        public ClusterState execute(ClusterState currentState, List<TaskContext<PutMappingClusterStateUpdateTask>> taskContexts)
+            throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
-            ClusterTasksResult.Builder<PutMappingClusterStateUpdateTask> builder = ClusterTasksResult.builder();
             try {
-                for (PutMappingClusterStateUpdateTask task : tasks) {
+                for (final var taskContext : taskContexts) {
+                    final var task = taskContext.getTask();
                     final PutMappingClusterStateUpdateRequest request = task.request;
                     try {
                         for (Index index : request.indices()) {
@@ -111,7 +108,7 @@ public class MetadataMappingService {
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
-                        builder.success(task, new ActionListener<>() {
+                        taskContext.success(new ActionListener<>() {
                             @Override
                             public void onResponse(ClusterState clusterState) {
                                 // listener is notified at the end of acking
@@ -123,10 +120,10 @@ public class MetadataMappingService {
                             }
                         }, task);
                     } catch (Exception e) {
-                        builder.failure(task, e);
+                        taskContext.onFailure(e);
                     }
                 }
-                return builder.build(currentState);
+                return currentState;
             } finally {
                 IOUtils.close(indexMapperServices.values());
             }

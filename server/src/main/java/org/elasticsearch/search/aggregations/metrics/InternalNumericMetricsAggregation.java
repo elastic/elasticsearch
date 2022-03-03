@@ -36,6 +36,15 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
             super(in);
         }
 
+        /**
+         * Read from a stream.
+         *
+         * @param readFormat whether to read the "format" field
+         */
+        protected SingleValue(StreamInput in, boolean readFormat) throws IOException {
+            super(in, readFormat);
+        }
+
         @Override
         public String getValueAsString() {
             return format.format(value()).toString();
@@ -79,6 +88,15 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
             super(in);
         }
 
+        /**
+         * Read from a stream.
+         *
+         * @param readFormat whether to read the "format" field
+         */
+        protected MultiValue(StreamInput in, boolean readFormat) throws IOException {
+            super(in, readFormat);
+        }
+
         public abstract double value(String name);
 
         public String valueAsString(String name) {
@@ -114,8 +132,17 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
      * Read from a stream.
      */
     protected InternalNumericMetricsAggregation(StreamInput in) throws IOException {
+        this(in, true);
+    }
+
+    /**
+     * Read from a stream.
+     * @param readFormat whether to read the "format" field
+     *                   Should be {@code true} iff the "format" field is being written to the wire by the agg
+     */
+    protected InternalNumericMetricsAggregation(StreamInput in, boolean readFormat) throws IOException {
         super(in);
-        this.format = in.readNamedWriteable(DocValueFormat.class);
+        this.format = readFormat ? in.readNamedWriteable(DocValueFormat.class) : DEFAULT_FORMAT;
     }
 
     @Override

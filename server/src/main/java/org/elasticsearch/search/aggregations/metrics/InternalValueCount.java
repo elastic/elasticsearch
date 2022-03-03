@@ -34,7 +34,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
      * Read from a stream.
      */
     public InternalValueCount(StreamInput in) throws IOException {
-        super(in);
+        super(in, false);
         value = in.readVLong();
     }
 

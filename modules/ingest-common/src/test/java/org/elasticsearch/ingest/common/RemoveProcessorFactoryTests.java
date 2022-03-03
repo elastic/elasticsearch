@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -69,11 +70,8 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo("missing field [processors.remove.keep] or [processors.remove.field]. Please specify one of them.")
-            );
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("[processors.remove.keep] or [processors.remove.field] must be specified"));
         }
     }
 
@@ -84,10 +82,10 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch (IllegalArgumentException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(
                 e.getMessage(),
-                equalTo("Too many fields specified. Please specify either [processors.remove.keep] or [processors.remove.field].")
+                equalTo("[processors.remove.keep] and [processors.remove.field] cannot both be used in the same processor")
             );
         }
     }

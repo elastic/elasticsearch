@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class LatestIT extends TransformIntegTestCase {
+public class LatestIT extends TransformRestTestCase {
 
     private static final String SOURCE_INDEX_NAME = "basic-crud-latest-reviews";
     private static final int NUM_USERS = 28;

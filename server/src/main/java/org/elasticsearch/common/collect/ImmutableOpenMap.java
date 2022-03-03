@@ -41,7 +41,7 @@ import java.util.stream.StreamSupport;
  * Can be constructed using a {@link #builder()}, or using {@link #builder(ImmutableOpenMap)} (which is an optimized
  * option to copy over existing content and modify it).
  */
-public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObjectCursor<KType, VType>> {
+public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, Iterable<ObjectObjectCursor<KType, VType>> {
 
     private final ObjectObjectHashMap<KType, VType> map;
 
@@ -62,24 +62,60 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      * key may not be the default value of the primitive type (it may be any value previously
      * assigned to that slot).
      */
-    public VType get(KType key) {
-        return map.get(key);
+    @Override
+    @SuppressWarnings("unchecked")
+    public VType get(Object key) {
+        return map.get((KType) key);
     }
 
     /**
      * @return Returns the value associated with the given key or the provided default value if the
      * key is not associated with any value.
      */
-    public VType getOrDefault(KType key, VType defaultValue) {
-        return map.getOrDefault(key, defaultValue);
+    @Override
+    @SuppressWarnings("unchecked")
+    public VType getOrDefault(Object key, VType defaultValue) {
+        return map.getOrDefault((KType) key, defaultValue);
     }
 
     /**
      * Returns <code>true</code> if this container has an association to a value for
      * the given key.
      */
-    public boolean containsKey(KType key) {
-        return map.containsKey(key);
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean containsKey(Object key) {
+        return map.containsKey((KType) key);
+    }
+
+    @Override
+    public boolean containsValue(Object value) {
+        for (ObjectCursor<VType> cursor : map.values()) {
+            if (Objects.equals(cursor.value, value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public VType put(KType key, VType value) {
+        throw new UnsupportedOperationException("modification is not supported");
+    }
+
+    @Override
+    public VType remove(Object key) {
+        throw new UnsupportedOperationException("modification is not supported");
+    }
+
+    @Override
+    public void putAll(Map<? extends KType, ? extends VType> m) {
+        throw new UnsupportedOperationException("modification is not supported");
+    }
+
+    @Override
+    public void clear() {
+        throw new UnsupportedOperationException("modification is not supported");
     }
 
     /**
@@ -254,6 +290,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     /**
      * Returns a {@link Set} view of the keys contained in this map.
      */
+    @Override
     public Set<KType> keySet() {
         return new AbstractSet<>() {
             @Override
@@ -284,6 +321,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     /**
      * Returns a {@link Collection} view of the values contained in the map.
      */
+    @Override
     public Collection<VType> values() {
         return new AbstractCollection<VType>() {
             @Override
@@ -376,15 +414,6 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         return EMPTY;
     }
 
-    /**
-     * @return  An immutable copy of the given map
-     */
-    public static <KType, VType> ImmutableOpenMap<KType, VType> copyOf(ObjectObjectMap<KType, VType> map) {
-        Builder<KType, VType> builder = builder();
-        builder.putAll(map);
-        return builder.build();
-    }
-
     public static <KType, VType> Builder<KType, VType> builder() {
         return new Builder<>();
     }
@@ -425,7 +454,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         /**
          * Puts all the entries in the map to the builder.
          */
-        public Builder<KType, VType> putAll(Map<KType, VType> map) {
+        public Builder<KType, VType> putAllFromMap(Map<KType, VType> map) {
             for (Map.Entry<KType, VType> entry : map.entrySet()) {
                 this.map.put(entry.getKey(), entry.getValue());
             }

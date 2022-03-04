@@ -639,7 +639,7 @@ public class MachineLearning extends Plugin
      * potentially growing uncontrollably we impose a limit on the number of
      * trained model deployments.
      */
-    public static final int MAX_TRAINED_MODEL_DEPLOYMENTS = 200;
+    public static final int MAX_TRAINED_MODEL_DEPLOYMENTS = 100;
 
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 

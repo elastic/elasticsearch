@@ -30,7 +30,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
-public class CustomWebIdentityTokenCredentialsProviderTest extends ESTestCase {
+public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
+
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
     private static final String ROLE_NAME = "sts-fixture-test";
 

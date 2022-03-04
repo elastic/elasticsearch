@@ -656,9 +656,8 @@ public class IndexResolver {
 
         Set<String> resolvedAliases = new HashSet<>();
         if (aliases != null) {
-            Iterator<ObjectObjectCursor<String, List<AliasMetadata>>> iterator = aliases.iterator();
-            while (iterator.hasNext()) {
-                for (AliasMetadata alias : iterator.next().value) {
+            for (var aliasList : aliases.values()) {
+                for (AliasMetadata alias : aliasList) {
                     resolvedAliases.add(alias.getAlias());
                 }
             }
@@ -838,13 +837,11 @@ public class IndexResolver {
         Map<String, Set<String>> typesErrors = new HashMap<>(); // map holding aliases and a list of unique field types across its indices
         Map<String, Set<String>> aliasToIndices = new HashMap<>(); // map with aliases and their list of indices
 
-        Iterator<ObjectObjectCursor<String, List<AliasMetadata>>> iter = aliases.iterator();
-        while (iter.hasNext()) {
-            ObjectObjectCursor<String, List<AliasMetadata>> index = iter.next();
-            for (AliasMetadata aliasMetadata : index.value) {
+        for (var entry : aliases.entrySet()) {
+            for (AliasMetadata aliasMetadata : entry.getValue()) {
                 String aliasName = aliasMetadata.alias();
                 aliasToIndices.putIfAbsent(aliasName, new HashSet<>());
-                aliasToIndices.get(aliasName).add(index.key);
+                aliasToIndices.get(aliasName).add(entry.getKey());
             }
         }
 

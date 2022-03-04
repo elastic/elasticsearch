@@ -136,8 +136,8 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(rolledIndexName);
         int currentActiveShards = 0;
-        for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-            currentActiveShards += shardRouting.value.activeShards().size();
+        for (var shardRouting : indexRoutingTable.getShards().values()) {
+            currentActiveShards += shardRouting.activeShards().size();
         }
         return new Result(enoughShardsActive, new ActiveShardsInfo(currentActiveShards, activeShardCount.toString(), enoughShardsActive));
     }

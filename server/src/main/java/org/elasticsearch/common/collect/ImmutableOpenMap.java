@@ -21,7 +21,6 @@ import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
 import java.util.AbstractCollection;
-import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
@@ -32,8 +31,6 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -354,26 +351,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
                 throw new UnsupportedOperationException();
             }
         };
-    }
-
-    /**
-     * Returns a sequential unordered stream of the map entries.
-     *
-     * @return a {@link Stream} of the map entries as {@link Map.Entry}
-     */
-    public Stream<Map.Entry<KType, VType>> stream() {
-        final Iterator<ObjectObjectCursor<KType, VType>> mapIterator = map.iterator();
-        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(), Spliterator.SIZED | Spliterator.DISTINCT) {
-            @Override
-            public boolean tryAdvance(Consumer<? super Map.Entry<KType, VType>> action) {
-                if (mapIterator.hasNext() == false) {
-                    return false;
-                }
-                ObjectObjectCursor<KType, VType> cursor = mapIterator.next();
-                action.accept(new AbstractMap.SimpleImmutableEntry<>(cursor.key, cursor.value));
-                return true;
-            }
-        }, false);
     }
 
     @Override

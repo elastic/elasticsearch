@@ -53,14 +53,22 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
     public void testStreamOperationsAreSupported() {
         assertThat(
-            regionCurrencySymbols.stream().filter(e -> e.getKey().startsWith("U")).map(Map.Entry::getValue).collect(Collectors.toSet()),
+            regionCurrencySymbols.entrySet()
+                .stream()
+                .filter(e -> e.getKey().startsWith("U"))
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toSet()),
             equalTo(Set.of("£", "$"))
         );
     }
 
     public void testSortedStream() {
         assertThat(
-            regionCurrencySymbols.stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList()),
+            regionCurrencySymbols.entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toList()),
             equalTo(List.of("€", "¥", "₩", "£", "$"))
         );
     }
@@ -69,7 +77,8 @@ public class ImmutableOpenMapTests extends ESTestCase {
         ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
 
         int limit = randomIntBetween(0, map.size());
-        Map<Long, List<String>> collectedViaStreams = map.stream()
+        Map<Long, List<String>> collectedViaStreams = map.entrySet()
+            .stream()
             .filter(e -> e.getKey() > 0)
             .sorted(Map.Entry.comparingByKey())
             .limit(limit)
@@ -94,7 +103,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testEmptyStreamWorks() {
-        assertThat(ImmutableOpenMap.of().stream().count(), equalTo(0L));
+        assertThat(ImmutableOpenMap.of().entrySet().stream().count(), equalTo(0L));
     }
 
     public void testKeySetStreamOperationsAreSupported() {

@@ -179,7 +179,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      * Returns a stream of all nodes, with master nodes at the front
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
-        return Stream.concat(masterNodes.stream().map(Map.Entry::getValue), stream().filter(n -> n.isMasterNode() == false));
+        return Stream.concat(masterNodes.values().stream(), stream().filter(n -> n.isMasterNode() == false));
     }
 
     /**

@@ -217,6 +217,7 @@ public class MlInitializationService implements ClusterStateListener {
         // Step 2: Extract ML internal indices that are not hidden and make them hidden.
         ActionListener<GetSettingsResponse> getSettingsListener = ActionListener.wrap(getSettingsResponse -> {
             String[] nonHiddenIndices = getSettingsResponse.getIndexToSettings()
+                .entrySet()
                 .stream()
                 .filter(e -> e.getValue().getAsBoolean(SETTING_INDEX_HIDDEN, false) == false)
                 .map(Map.Entry::getKey)

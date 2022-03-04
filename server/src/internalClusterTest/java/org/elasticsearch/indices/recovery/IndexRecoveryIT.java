@@ -1000,7 +1000,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         List<String> nodes = randomSubsetOf(
             2,
-            clusterService().state().nodes().getDataNodes().stream().map(node -> node.getValue().getName()).collect(Collectors.toSet())
+            clusterService().state().nodes().getDataNodes().values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet())
         );
         String indexName = "test-index";
         createIndex(

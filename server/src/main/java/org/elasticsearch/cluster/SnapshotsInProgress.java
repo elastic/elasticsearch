@@ -1297,7 +1297,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeImmutableMap(shards);
             out.writeLong(repositoryStateId);
             out.writeOptionalString(failure);
-            out.writeMap(userMetadata);
+            out.writeGenericMap(userMetadata);
             Version.writeVersion(version, out);
             out.writeStringCollection(dataStreams);
             out.writeOptionalWriteable(source);

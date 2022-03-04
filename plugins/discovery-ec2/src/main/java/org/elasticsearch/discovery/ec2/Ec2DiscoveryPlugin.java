@@ -146,7 +146,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
             urlConnection = SocketAccess.doPrivilegedIOException(() -> (HttpURLConnection) url.openConnection());
             urlConnection.setConnectTimeout(CONNECT_TIMEOUT);
-            getToken(azMetadataTokenUrl).ifPresent(v -> urlConnection.setRequestProperty("X-aws-ec2-metadata-token", v));
+            getToken(azMetadataTokenUrl).ifPresent(token -> urlConnection.setRequestProperty("X-aws-ec2-metadata-token", token));
         } catch (final IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
             throw new UncheckedIOException(e);

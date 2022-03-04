@@ -18,7 +18,6 @@ import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -431,8 +430,8 @@ public class ShardStateAction {
         }
 
         @Override
-        public void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
-            int numberOfUnassignedShards = clusterStatePublicationEvent.getNewState().getRoutingNodes().unassigned().size();
+        public void clusterStatePublished(ClusterState newClusterState) {
+            int numberOfUnassignedShards = newClusterState.getRoutingNodes().unassigned().size();
             if (numberOfUnassignedShards > 0) {
                 // The reroute called after failing some shards will not assign any shard back to the node on which it failed. If there were
                 // no other options for a failed shard then it is left unassigned. However, absent other options it's better to try and
@@ -775,7 +774,7 @@ public class ShardStateAction {
         }
 
         @Override
-        public void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
+        public void clusterStatePublished(ClusterState newClusterState) {
             rerouteService.reroute(
                 "reroute after starting shards",
                 Priority.NORMAL,

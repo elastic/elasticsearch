@@ -17,6 +17,7 @@ import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.predicates.IntObjectPredicate;
 import com.carrotsearch.hppc.predicates.IntPredicate;
 import com.carrotsearch.hppc.procedures.IntObjectProcedure;
@@ -93,8 +94,8 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, It
 
     @Override
     public boolean containsValue(Object value) {
-        for (int i = 0; i < map.size(); ++i) {
-            if (Objects.equals(map.values[i], value)) {
+        for (ObjectCursor<VType> cursor : map.values()) {
+            if (Objects.equals(cursor.value, value)) {
                 return true;
             }
         }
@@ -191,14 +192,12 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, It
         };
     }
 
-    /**
-     * @return Returns a container with all values stored in this map.
-     */
+    @Override
     public Collection<VType> values() {
         return new AbstractCollection<VType>() {
             @Override
             public Iterator<VType> iterator() {
-                return valuesIt();
+                return ImmutableOpenMap.iterator(map.values());
             }
 
             @Override
@@ -208,13 +207,7 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, It
         };
     }
 
-    /**
-     * Returns a direct iterator over the keys.
-     */
-    public Iterator<VType> valuesIt() {
-        return ImmutableOpenMap.iterator(map.values());
-    }
-
+    @Override
     public Set<Map.Entry<Integer, VType>> entrySet() {
         Set<Map.Entry<Integer, VType>> es;
         return (es = entrySet) == null ? (entrySet = new EntrySet()) : es;
@@ -274,16 +267,16 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType>, It
     }
 
     private final class KeyIterator implements Iterator<Integer> {
-        private int index = 0;
+        private final Iterator<IntObjectCursor<VType>> cursor = map.iterator();
 
         @Override
         public boolean hasNext() {
-            return index < map.size();
+            return cursor.hasNext();
         }
 
         @Override
         public Integer next() {
-            return map.keys[index++];
+            return cursor.next().key;
         }
 
         @Override

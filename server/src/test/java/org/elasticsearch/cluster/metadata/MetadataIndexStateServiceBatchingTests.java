@@ -51,15 +51,12 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var clusterService = getInstanceFromNode(ClusterService.class);
         final var masterService = clusterService.getMasterService();
 
-        // create some indices
+        // create some indices, and close them
         createIndex("test-1", client().admin().indices().prepareCreate("test-1"));
         createIndex("test-2", client().admin().indices().prepareCreate("test-2"));
         createIndex("test-3", client().admin().indices().prepareCreate("test-3"));
-        ensureGreen("test-1", "test-2", "test-3");
-
-        // and then close them (and wait for the close to actually run)
         assertAcked(client().admin().indices().prepareClose("test-1", "test-2", "test-3"));
-        assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(0)));
+        ensureGreen("test-1", "test-2", "test-3");
 
         final var block1 = blockMasterService(masterService);
         block1.run(); // wait for block

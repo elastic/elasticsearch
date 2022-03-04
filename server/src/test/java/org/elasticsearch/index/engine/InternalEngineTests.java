@@ -2594,8 +2594,7 @@ public class InternalEngineTests extends EngineTestCase {
         try {
             initialEngine = createEngine(defaultSettings, store, createTempDir(), newLogMergePolicy(), null);
             final ShardRouting primary = TestShardRouting.newShardRouting(
-                "test",
-                shardId.id(),
+                shardId,
                 "node1",
                 null,
                 true,

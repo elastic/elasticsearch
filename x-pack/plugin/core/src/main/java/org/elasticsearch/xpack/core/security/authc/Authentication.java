@@ -55,6 +55,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AT
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
@@ -178,6 +179,7 @@ public class Authentication implements ToXContentObject {
         Objects.requireNonNull(runAs);
         assert false == runAs.isRunAs();
         assert false == getUser().isRunAs();
+        assert AuthenticationType.REALM == getAuthenticationType() || AuthenticationType.API_KEY == getAuthenticationType();
         return new Authentication(
             new User(runAs, getUser()),
             getAuthenticatedBy(),
@@ -228,8 +230,14 @@ public class Authentication implements ToXContentObject {
         return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType());
     }
 
-    public boolean isAuthenticatedWithApiKey() {
-        return AuthenticationType.API_KEY.equals(getAuthenticationType());
+    /**
+     * Whether the authenticating user is an API key, including a simple API key or a token created by an API key.
+     * @return
+     */
+    public boolean isAuthenticatedAsApiKey() {
+        final boolean result = AuthenticationField.API_KEY_REALM_TYPE.equals(getAuthenticatedBy().getType());
+        assert false == result || AuthenticationField.API_KEY_REALM_NAME.equals(getAuthenticatedBy().getName());
+        return result;
     }
 
     public boolean isAuthenticatedAnonymously() {
@@ -244,14 +252,20 @@ public class Authentication implements ToXContentObject {
      * Authenticate with a service account and no run-as
      */
     public boolean isServiceAccount() {
-        return isAuthenticatedWithServiceAccount() && false == getUser().isRunAs();
+        final boolean result = ServiceAccountSettings.REALM_TYPE.equals(getSourceRealm().getType());
+        assert false == result || ServiceAccountSettings.REALM_NAME.equals(getSourceRealm().getName())
+            : "service account realm name mismatch";
+        return result;
     }
 
     /**
-     * Authenticated with an API key and no run-as
+     * Whether the effective user is an API key, this including a simple API key authentication
+     * or a token created by the API key.
      */
     public boolean isApiKey() {
-        return isAuthenticatedWithApiKey() && false == getUser().isRunAs();
+        final boolean result = AuthenticationField.API_KEY_REALM_TYPE.equals(getSourceRealm().getType());
+        assert false == result || AuthenticationField.API_KEY_REALM_NAME.equals(getSourceRealm().getName()) : "api key realm name mismatch";
+        return result;
     }
 
     /**
@@ -280,59 +294,86 @@ public class Authentication implements ToXContentObject {
             out.writeBoolean(false);
         }
         out.writeVInt(type.ordinal());
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
     }
 
     /**
-     * Checks whether the user or API key of the passed in authentication can access the resources owned by the user
-     * or API key of this authentication. The rules are as follows:
-     *   * True if the authentications are for the same API key (same API key ID)
-     *   * True if they are the same username from the same realm
-     *      - For file and native realm, same realm means the same realm type
-     *      - For all other realms, same realm means same realm type plus same realm name
-     *   * An user and its API key cannot access each other's resources
-     *   * An user and its token can access each other's resources
-     *   * Two API keys are never able to access each other's resources regardless of their ownership.
+     * Checks whether the current authentication, which can be for a user or for an API Key, can access the resources
+     * (e.g. search scrolls and async search results) created (owned) by the passed in authentication.
      *
-     *  This check is a best effort and it does not account for certain static and external changes.
-     *  See also <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/security-limitations.html">
+     * The rules are as follows:
+     *   * a resource created by an API Key can only be accessed by the exact same key; the creator user, its tokens,
+     *   or any of its other keys cannot access it.
+     *   * a resource created by a user authenticated by a realm, or any of its tokens, can be accessed by the same
+     *   username authenticated by the same realm or by other realms from the same security domain (at the time of the
+     *   access), or any of its tokens; realms are considered the same if they have the same type and name (except for
+     *   file and native realms, for which only the type is considered, the name is irrelevant), see also
+     *      <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/security-limitations.html">
      *      security limitations</a>
      */
-    public boolean canAccessResourcesOf(Authentication other) {
-        if (isApiKey() && other.isApiKey()) {
-            final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
-                .equals(other.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
-            if (sameKeyId) {
-                assert getUser().principal().equals(getUser().principal())
-                    : "The same API key ID cannot be attributed to two different usernames";
-            }
+    public boolean canAccessResourcesOf(Authentication resourceCreatorAuthentication) {
+        // if we introduce new authentication types in the future, it is likely that we'll need to revisit this method
+        assert EnumSet.of(
+            Authentication.AuthenticationType.REALM,
+            Authentication.AuthenticationType.API_KEY,
+            Authentication.AuthenticationType.TOKEN,
+            Authentication.AuthenticationType.ANONYMOUS,
+            Authentication.AuthenticationType.INTERNAL
+        ).containsAll(EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
+            : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
+                + EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType());
+        final AuthenticationContext myAuthContext = AuthenticationContext.fromAuthentication(this);
+        final AuthenticationContext creatorAuthContext = AuthenticationContext.fromAuthentication(resourceCreatorAuthentication);
+        if (API_KEY.equals(myAuthContext.getEffectiveSubject().getType())
+            && API_KEY.equals(creatorAuthContext.getEffectiveSubject().getType())) {
+            final boolean sameKeyId = myAuthContext.getEffectiveSubject()
+                .getMetadata()
+                .get(AuthenticationField.API_KEY_ID_KEY)
+                .equals(creatorAuthContext.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+            assert false == sameKeyId
+                || myAuthContext.getEffectiveSubject()
+                    .getUser()
+                    .principal()
+                    .equals(creatorAuthContext.getEffectiveSubject().getUser().principal())
+                : "The same API key ID cannot be attributed to two different usernames";
             return sameKeyId;
-        }
-
-        if (getAuthenticationType().equals(other.getAuthenticationType())
-            || (AuthenticationType.REALM == getAuthenticationType() && AuthenticationType.TOKEN == other.getAuthenticationType())
-            || (AuthenticationType.TOKEN == getAuthenticationType() && AuthenticationType.REALM == other.getAuthenticationType())) {
-            if (false == getUser().principal().equals(other.getUser().principal())) {
-                return false;
-            }
-            final RealmRef thisRealm = getSourceRealm();
-            final RealmRef otherRealm = other.getSourceRealm();
-            if (FileRealmSettings.TYPE.equals(thisRealm.getType()) || NativeRealmSettings.TYPE.equals(thisRealm.getType())) {
-                return thisRealm.getType().equals(otherRealm.getType());
-            }
-            return thisRealm.getName().equals(otherRealm.getName()) && thisRealm.getType().equals(otherRealm.getType());
-        } else {
-            assert EnumSet.of(
-                AuthenticationType.REALM,
-                AuthenticationType.API_KEY,
-                AuthenticationType.TOKEN,
-                AuthenticationType.ANONYMOUS,
-                AuthenticationType.INTERNAL
-            ).containsAll(EnumSet.of(getAuthenticationType(), other.getAuthenticationType()))
-                : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
-                    + EnumSet.of(getAuthenticationType(), other.getAuthenticationType());
-            return false;
-        }
+        } else if ((API_KEY.equals(myAuthContext.getEffectiveSubject().getType())
+            && false == API_KEY.equals(creatorAuthContext.getEffectiveSubject().getType()))
+            || (false == API_KEY.equals(myAuthContext.getEffectiveSubject().getType())
+                && API_KEY.equals(creatorAuthContext.getEffectiveSubject().getType()))) {
+                    // an API Key cannot access resources created by non-API Keys or vice-versa
+                    return false;
+                } else {
+                    if (false == myAuthContext.getEffectiveSubject()
+                        .getUser()
+                        .principal()
+                        .equals(creatorAuthContext.getEffectiveSubject().getUser().principal())) {
+                        return false;
+                    }
+                    final Authentication.RealmRef myAuthRealm = myAuthContext.getEffectiveSubject().getRealm();
+                    final Authentication.RealmRef creatorAuthRealm = creatorAuthContext.getEffectiveSubject().getRealm();
+                    if (null == myAuthRealm.getDomain()) {
+                        // the authentication accessing the resource is for a user from a realm not part of any domain
+                        return equivalentRealms(
+                            myAuthRealm.getName(),
+                            myAuthRealm.getType(),
+                            creatorAuthRealm.getName(),
+                            creatorAuthRealm.getType()
+                        );
+                    } else {
+                        for (RealmConfig.RealmIdentifier domainRealm : myAuthRealm.getDomain().realms()) {
+                            if (equivalentRealms(
+                                domainRealm.getName(),
+                                domainRealm.getType(),
+                                creatorAuthRealm.getName(),
+                                creatorAuthRealm.getType()
+                            )) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                }
     }
 
     @Override
@@ -368,7 +409,7 @@ public class Authentication implements ToXContentObject {
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
-        if (isAuthenticatedWithServiceAccount()) {
+        if (isServiceAccount()) {
             final String tokenName = (String) getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
             final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
@@ -405,7 +446,7 @@ public class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
-        if (isAuthenticatedWithApiKey()) {
+        if (isApiKey()) {
             this.assertApiKeyMetadata();
             final String apiKeyId = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
             final String apiKeyName = (String) this.metadata.get(AuthenticationField.API_KEY_NAME_KEY);
@@ -418,7 +459,7 @@ public class Authentication implements ToXContentObject {
     }
 
     private void assertApiKeyMetadata() {
-        assert (false == isAuthenticatedWithApiKey()) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
+        assert (false == isAuthenticatedAsApiKey()) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
     }
 
@@ -580,6 +621,10 @@ public class Authentication implements ToXContentObject {
         }
     }
 
+    public static boolean isFileOrNativeRealm(String realmType) {
+        return FileRealmSettings.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
+    }
+
     public static ConstructingObjectParser<RealmRef, Void> REALM_REF_PARSER = new ConstructingObjectParser<>(
         "realm_ref",
         false,
@@ -694,8 +739,9 @@ public class Authentication implements ToXContentObject {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> maybeRewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
         Map<String, Object> metadata = authentication.getMetadata();
-        // If authentication type is API key, regardless whether it has run-as, the metadata must contain API key role descriptors
-        if (authentication.isAuthenticatedWithApiKey()) {
+        // If authentication user is an API key or a token created by an API key,
+        // regardless whether it has run-as, the metadata must contain API key role descriptors
+        if (authentication.isAuthenticatedAsApiKey()) {
             assert metadata.containsKey(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
@@ -743,6 +789,19 @@ public class Authentication implements ToXContentObject {
             return BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private static boolean equivalentRealms(String name1, String type1, String name2, String type2) {
+        if (false == type1.equals(type2)) {
+            return false;
+        }
+        if (isFileOrNativeRealm(type1)) {
+            // file and native realms can be renamed, but they always point to the same set of users
+            return true;
+        } else {
+            // if other realms are renamed, it is an indication that they point to a different user set
+            return name1.equals(name2);
         }
     }
 

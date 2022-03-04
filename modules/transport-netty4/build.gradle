@@ -109,6 +109,7 @@ tasks.named("thirdPartyAudit").configure {
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
     'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
     'io.netty.internal.tcnative.Library',
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLContext',

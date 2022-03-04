@@ -74,8 +74,6 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                 Authentication authentication = securityContext.getAuthentication();
                 if (authentication.isServiceAccount()) {
                     // Service account itself cannot create OAuth2 tokens.
-                    // But it is possible to create an oauth2 token if the service account run-as a different user.
-                    // In this case, the token will be created for the run-as user (not the service account).
                     listener.onFailure(new ElasticsearchException("OAuth2 token creation is not supported for service accounts"));
                     return;
                 }

@@ -35,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -607,8 +608,13 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 logger.error("failed to clear migration results when starting new migration", e);
                 listener.onFailure(e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
         logger.debug("submitted update task to clear migration results");
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private SystemIndexMigrationInfo currentMigrationInfo() {

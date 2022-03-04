@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -26,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Result of the significant terms aggregation.
@@ -254,6 +256,28 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             list[i] = ordered.pop();
         }
         return create(globalSubsetSize, globalSupersetSize, Arrays.asList(list));
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        long supersetSize = samplingContext.scaleUp(getSupersetSize());
+        long subsetSize = samplingContext.scaleUp(getSubsetSize());
+        return create(
+            subsetSize,
+            supersetSize,
+            getBuckets().stream()
+                .map(
+                    b -> createBucket(
+                        samplingContext.scaleUp(b.subsetDf),
+                        subsetSize,
+                        samplingContext.scaleUp(b.supersetDf),
+                        supersetSize,
+                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext),
+                        b
+                    )
+                )
+                .collect(Collectors.toList())
+        );
     }
 
     @Override

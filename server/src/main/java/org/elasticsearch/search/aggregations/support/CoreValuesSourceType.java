@@ -318,11 +318,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                         isMultiValue = false;
                     }
 
-                    // Check the query for bounds
-                    if (context.query() != null) {
-                        if (isMultiValue) {
-                            return Rounding::prepareForUnknown;
-                        }
+                    // Check the query for bounds.  If the field is multivalued, we can't apply query bounds, because a document that
+                    // matches the query might also have values outside the query, which would not be included in any range.
+                    if (context.query() != null && false == isMultiValue) {
                         context.query().visit(new QueryVisitor() {
                             @Override
                             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {

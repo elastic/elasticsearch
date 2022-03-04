@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
@@ -33,6 +34,7 @@ public class CustomWebIdentityTokenCredentialsProviderTest extends ESTestCase {
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
     private static final String ROLE_NAME = "sts-fixture-test";
 
+    @SuppressForbidden(reason = "HTTP server is used for testing")
     public void testCreateWebIdentityTokenCredentialsProvider() throws Exception {
         HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
         httpServer.createContext("/", exchange -> {
@@ -59,7 +61,8 @@ public class CustomWebIdentityTokenCredentialsProviderTest extends ESTestCase {
                       <ResponseMetadata>
                         <RequestId>ad4156e9-bce1-11e2-82e6-6b6efEXAMPLE</RequestId>
                       </ResponseMetadata>
-                    </AssumeRoleWithWebIdentityResponse>""".formatted(
+                    </AssumeRoleWithWebIdentityResponse>
+                    """.formatted(
                     ROLE_ARN,
                     ROLE_NAME,
                     ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"))
@@ -70,10 +73,10 @@ public class CustomWebIdentityTokenCredentialsProviderTest extends ESTestCase {
         });
         httpServer.start();
 
-        Environment environment = Mockito.mock(Environment.class);
         Path configDirectory = Files.createTempDirectory("web-idenity-token-test");
         Files.createDirectory(configDirectory.resolve("repository-s3"));
         Files.writeString(configDirectory.resolve("repository-s3/aws-web-identity-token-file"), "YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl");
+        Environment environment = Mockito.mock(Environment.class);
         Mockito.when(environment.configFile()).thenReturn(configDirectory);
 
         // No region is set, but the SDK shouldn't fail because of that

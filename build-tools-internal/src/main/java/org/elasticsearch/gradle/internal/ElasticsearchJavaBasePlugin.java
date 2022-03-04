@@ -153,5 +153,5 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             return Integer.parseInt(javaVersion.getMajorVersion());
         });
     }
-    
+
 }

@@ -55,7 +55,7 @@ public class KeywordField implements Field<String> {
 
             @Override
             public boolean hasNext() {
-                return index < size();
+                return index < supplier.size();
             }
 
             @Override

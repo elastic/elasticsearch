@@ -16,10 +16,10 @@ import java.io.IOException;
 
 public class StringDocValuesSupplier implements DocValuesSupplier<String>, FieldSupplier.Supplier<String> {
 
-    private final SortedBinaryDocValues input;
+    protected final SortedBinaryDocValues input;
 
-    private String[] values = new String[0];
-    private int count;
+    protected String[] values = new String[0];
+    protected int count;
 
     public StringDocValuesSupplier(SortedBinaryDocValues input) {
         this.input = input;
@@ -37,7 +37,7 @@ public class StringDocValuesSupplier implements DocValuesSupplier<String>, Field
         }
     }
 
-    private void resize(int newSize) {
+    protected void resize(int newSize) {
         count = newSize;
         values = ArrayUtil.grow(values, count);
     }

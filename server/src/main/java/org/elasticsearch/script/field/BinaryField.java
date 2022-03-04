@@ -8,15 +8,24 @@
 
 package org.elasticsearch.script.field;
 
-import java.util.NoSuchElementException;
-import java.util.PrimitiveIterator;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues.BytesRefs;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
-public class LongField implements Field<Long> {
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+
+public class BinaryField implements Field<ByteBuffer> {
 
     protected final String name;
-    protected final FieldSupplier.LongSupplier supplier;
+    protected final FieldSupplier.Supplier<ByteBuffer> supplier;
 
-    public LongField(String name, FieldSupplier.LongSupplier supplier) {
+    public BinaryField(String name, FieldSupplier.Supplier<ByteBuffer> supplier) {
         this.name = name;
         this.supplier = supplier;
     }
@@ -36,13 +45,11 @@ public class LongField implements Field<Long> {
         return supplier.size();
     }
 
-    /** Returns the 0th index value as an {@code long} if it exists, otherwise {@code defaultValue}. */
-    public long get(long defaultValue) {
+    public ByteBuffer get(ByteBuffer defaultValue) {
         return get(0, defaultValue);
     }
 
-    /** Returns the value at {@code index} as an {@code long} if it exists, otherwise {@code defaultValue}. */
-    public long get(int index, long defaultValue) {
+    public ByteBuffer get(int index, ByteBuffer defaultValue) {
         if (isEmpty() || index < 0 || index >= size()) {
             return defaultValue;
         }
@@ -51,8 +58,8 @@ public class LongField implements Field<Long> {
     }
 
     @Override
-    public PrimitiveIterator.OfLong iterator() {
-        return new PrimitiveIterator.OfLong() {
+    public Iterator<ByteBuffer> iterator() {
+        return new Iterator<ByteBuffer>() {
             private int index = 0;
 
             @Override
@@ -61,12 +68,7 @@ public class LongField implements Field<Long> {
             }
 
             @Override
-            public Long next() {
-                return nextLong();
-            }
-
-            @Override
-            public long nextLong() {
+            public ByteBuffer next() {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }

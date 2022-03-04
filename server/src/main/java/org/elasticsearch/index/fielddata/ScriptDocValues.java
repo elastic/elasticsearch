@@ -393,10 +393,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class BytesRefs extends ScriptDocValues<BytesRef> {
+    public static class BytesRefs extends ScriptDocValues<BytesRef> {
 
-        public BytesRefs(ScriptFieldDocValuesSupplier<BytesRef> supplier) {
-            super(supplier);
+        protected final DocValuesSupplier<BytesRef> supplier;
+
+        public BytesRefs(DocValuesSupplier<BytesRef> supplier) {
+            this.supplier = supplier;
         }
 
         public BytesRef getValue() {
@@ -407,7 +409,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public BytesRef get(int index) {
             throwIfEmpty();
-            return supplier.getInternal(index);
+            return supplier.getCompatible(index);
         }
 
         @Override

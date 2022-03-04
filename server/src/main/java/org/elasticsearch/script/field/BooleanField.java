@@ -55,7 +55,7 @@ public class BooleanField implements Field<Boolean> {
 
             @Override
             public boolean hasNext() {
-                return index < size();
+                return index < supplier.size();
             }
 
             @Override

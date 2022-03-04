@@ -17,10 +17,10 @@ Geo::
 === Bug fixes
 
 Aggregations::
+* Reenable `BooleanTermsIT` {es-pull}83421[#83421] (issue: {es-issue}83351[#83351])
 * backward compatibility with version 7.17.0 {es-pull}83715[#83715]
 * ip prefix bucket reduction {es-pull}83637[#83637]
 * reduce float and half-float values to their stored precision {es-pull}83213[#83213]
-* Reenable `BooleanTermsIT` {es-pull}83421[#83421] (issue: {es-issue}83351[#83351])
 
 Allocation::
 * Fix `updateMinNode` condition {es-pull}80403[#80403] (issue: {es-issue}41194[#41194])
@@ -43,6 +43,7 @@ Geo::
 * `GeometryNormalizer` should not fail if it cannot compute signed area {es-pull}84051[#84051] (issue: {es-issue}83946[#83946])
 
 Indices APIs::
+* Allow removing unreferenced composable data stream templates {es-pull}84376[#84376] (issues: {es-issue}84171[#84171], {es-issue}84188[#84188])
 * Simplify and speed up `ExecutorSelector` {es-pull}83514[#83514] (issue: {es-issue}82450[#82450])
 
 Infra/Core::
@@ -73,6 +74,7 @@ Machine Learning::
 * Fix submit after shutdown in process worker service {es-pull}83645[#83645] (issue: {es-issue}83633[#83633])
 * Fixes `categorize_text` parameter validation to be parse order independent {es-pull}82628[#82628] (issue: {es-issue}82629[#82629])
 * Record node shutdown start time for each node {es-pull}84355[#84355]
+* Register the named X-content parser for snapshot upgrade params {es-pull}84420[#84420] (issue: {es-issue}84419[#84419])
 * Retry anomaly detection job recovery during relocation {es-pull}83456[#83456]
 * Return `zxx` for `lang_ident_model_1` if no valid text is found for language identification {es-pull}82746[#82746] (issue: {es-issue}81933[#81933])
 * Text structure finder caps exclude lines pattern at 1000 characters {es-pull}84236[#84236] (issue: {es-issue}83434[#83434])

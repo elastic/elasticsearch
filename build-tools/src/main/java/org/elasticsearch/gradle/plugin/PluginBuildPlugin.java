@@ -121,7 +121,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         });
 
         project.getTasks().register("run", RunTask.class, r -> {
-            r.useCluster(runCluster.get());
+            r.useCluster(runCluster);
             r.dependsOn(project.getTasks().named(BUNDLE_PLUGIN_TASK_NAME));
         });
     }
@@ -194,10 +194,10 @@ public class PluginBuildPlugin implements Plugin<Project> {
         testSourceSet.getOutput().dir(map, new File(project.getBuildDir(), "generated-resources"));
         testSourceSet.getResources().srcDir(pluginMetadata);
 
-        Provider<CopySpec> bundleSpec = createBundleSpec(project, pluginMetadata, buildProperties);
+        CopySpec bundleSpec = createBundleSpec(project, pluginMetadata, buildProperties);
         extension.setBundleSpec(bundleSpec);
         // create the actual bundle task, which zips up all the files for the plugin
-        final var bundle = project.getTasks().register("bundlePlugin", Zip.class, zip -> zip.with(bundleSpec.get()));
+        final var bundle = project.getTasks().register("bundlePlugin", Zip.class, zip -> zip.with(bundleSpec));
         project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(task -> task.dependsOn(bundle));
 
         // also make the zip available as a configuration (used when depending on this project)
@@ -206,7 +206,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         project.getArtifacts().add("zip", bundle);
 
         TaskProvider<Copy> explodedBundle = project.getTasks().register("explodedBundlePlugin", Copy.class, copy -> {
-            copy.with(bundleSpec.get());
+            copy.with(bundleSpec);
             copy.into(new File(project.getBuildDir(), "explodedBundle"));
         });
 
@@ -217,9 +217,8 @@ public class PluginBuildPlugin implements Plugin<Project> {
         return bundle;
     }
 
-    private static Provider<CopySpec> createBundleSpec(Project project, File pluginMetadata, TaskProvider<Copy> buildProperties) {
+    private static CopySpec createBundleSpec(Project project, File pluginMetadata, TaskProvider<Copy> buildProperties) {
 
-        return project.provider(() -> {
             CopySpec bundleSpec = project.copySpec();
             bundleSpec.from(buildProperties);
             bundleSpec.from(pluginMetadata, copySpec -> {
@@ -245,7 +244,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
                 copySpec.include("bin/**");
             });
             return bundleSpec;
-        });
 
     }
 

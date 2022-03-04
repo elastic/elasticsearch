@@ -108,12 +108,12 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
     protected static void addNoticeGeneration(final Project project, PluginPropertiesExtension extension) {
         final var licenseFile = extension.getLicenseFile();
         var tasks = project.getTasks();
-        Provider<CopySpec> bundleSpec = extension.getBundleSpec();
+        var bundleSpec = extension.getBundleSpec();
         if (licenseFile != null) {
-            bundleSpec = bundleSpec.map(spec -> spec.from(licenseFile.getParentFile(), s -> {
+            bundleSpec.from(licenseFile.getParentFile(), s -> {
                 s.include(licenseFile.getName());
                 s.rename(f -> "LICENSE.txt");
-            }));
+            });
         }
 
         final var noticeFile = extension.getNoticeFile();
@@ -122,8 +122,7 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
                 noticeTask.setInputFile(noticeFile);
                 noticeTask.source(Util.getJavaMainSourceSet(project).get().getAllJava());
             });
-            bundleSpec = bundleSpec.map(spec -> spec.from(generateNotice));
+            bundleSpec.from(generateNotice);
         }
-        extension.setBundleSpec(bundleSpec);
     }
 }

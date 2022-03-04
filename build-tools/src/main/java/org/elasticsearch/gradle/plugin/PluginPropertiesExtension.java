@@ -56,7 +56,7 @@ public class PluginPropertiesExtension {
     private File noticeFile;
 
     private final Project project;
-    private Provider<CopySpec> bundleSpec;
+    private CopySpec bundleSpec;
 
     public PluginPropertiesExtension(Project project) {
         this.project = project;
@@ -172,11 +172,11 @@ public class PluginPropertiesExtension {
         this.extendedPlugins = extendedPlugins;
     }
 
-    public void setBundleSpec(Provider<CopySpec> bundleSpec) {
+    public void setBundleSpec(CopySpec bundleSpec) {
         this.bundleSpec = bundleSpec;
     }
 
-    public Provider<CopySpec> getBundleSpec() {
+    public CopySpec getBundleSpec() {
         return bundleSpec;
     }
 }

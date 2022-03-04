@@ -33,6 +33,7 @@ class AwsEc2Utils {
         if (Strings.isNullOrEmpty(metadataTokenUrl)) {
             return Optional.empty();
         }
+        // Gets a new IMDSv2 token https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
         return SocketAccess.doPrivileged(() -> {
             HttpURLConnection urlConnection;
             try {

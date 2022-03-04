@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 
 import java.util.Objects;
@@ -34,6 +36,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
 
     private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
     private final StepKey targetNextStepKey;
+    private final SetOnce<String> calculatedTargetIndexName = new SetOnce<>();
 
     public CopyExecutionStateStep(
         StepKey key,
@@ -60,6 +63,12 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
     }
 
     @Override
+    public Tuple<String, StepKey> indexForAsyncInvocation() {
+        assert calculatedTargetIndexName.get() != null : "attempted to retrieve the index for async invocation before it was set";
+        return new Tuple<>(calculatedTargetIndexName.get(), targetNextStepKey);
+    }
+
+    @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
@@ -70,6 +79,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         // get target index
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String targetIndexName = targetIndexNameSupplier.apply(index.getName(), lifecycleState);
+        calculatedTargetIndexName.set(targetIndexName);
         IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
 
         if (targetIndexMetadata == null) {

@@ -89,7 +89,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
 
     @Override
     public Iterator<DiscoveryNode> iterator() {
-        return nodes.valuesIt();
+        return nodes.values().iterator();
     }
 
     @Override

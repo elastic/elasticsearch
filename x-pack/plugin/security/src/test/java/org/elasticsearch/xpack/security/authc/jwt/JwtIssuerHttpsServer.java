@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.io.Closeable;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -30,7 +32,7 @@ import javax.net.ssl.SSLContext;
 /**
  * HTTPS server for JWT issuer to host a public PKC JWKSet.
  */
-public class JwtIssuerHttpsServer extends JwtRealmTestCase implements Closeable {
+public class JwtIssuerHttpsServer implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(JwtIssuerHttpsServer.class);
 
     private static final String ADDRESS = "localhost"; // localhost, 127.0.0.1, ::1, hostname, FQDN, etc
@@ -39,17 +41,15 @@ public class JwtIssuerHttpsServer extends JwtRealmTestCase implements Closeable 
     private static final int STOP_DELAY_SECONDS = 0; // 0 no limit, >0 limited
     private static final String PATH = "/valid/"; // Tests can call other paths like "/invalid/" to verify graceful HTTP 404 error handling
 
-    private static final String CERT = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt";
-    private static final String KEY = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem";
+    static final Path CERT_PATH = JwtUtil.resolvePath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+    private static final Path KEY_PATH = JwtUtil.resolvePath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
     private static final char[] PASSWORD = "testnode".toCharArray();
 
-    final HttpsServer httpsServer;
+    private final HttpsServer httpsServer;
     final String url; // JWT realm needs this for HTTP GET requests
-    final String certPath; // JWT realm needs this for HTTPS handshake
 
     @SuppressForbidden(reason = "MockHttpServer.createHttps requires InetSocketAddress, PORT=0 resolves to an available ephemeral port.")
     public JwtIssuerHttpsServer(final byte[] encodedJwkSetPkcPublicBytes) throws Exception {
-        this.certPath = super.getDataPath(CERT).toAbsolutePath().toString();
         this.httpsServer = MockHttpServer.createHttps(new InetSocketAddress(ADDRESS, PORT), BACKLOG);
         this.url = "https://" + ADDRESS + ":" + this.httpsServer.getAddress().getPort() + PATH; // get ephemeral port
         this.httpsServer.setHttpsConfigurator(new HttpsConfigurator(this.createSslContext()));
@@ -69,8 +69,8 @@ public class JwtIssuerHttpsServer extends JwtRealmTestCase implements Closeable 
     }
 
     private SSLContext createSslContext() throws Exception {
-        final SSLContext sslContext = SSLContext.getInstance(randomFrom("TLSv1.2", "TLSv1.3"));
-        final KeyManager keyManager = CertParsingUtils.getKeyManagerFromPEM(super.getDataPath(CERT), super.getDataPath(KEY), PASSWORD);
+        final SSLContext sslContext = SSLContext.getInstance(ESTestCase.randomFrom("TLSv1.2", "TLSv1.3"));
+        final KeyManager keyManager = CertParsingUtils.getKeyManagerFromPEM(CERT_PATH, KEY_PATH, PASSWORD);
         sslContext.init(new KeyManager[] { keyManager }, null, JwtTestCase.SECURE_RANDOM);
         return sslContext;
     }

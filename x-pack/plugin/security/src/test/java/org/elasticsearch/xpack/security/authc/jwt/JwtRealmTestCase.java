@@ -259,7 +259,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                         new RealmConfig.RealmIdentifier(JwtRealmSettings.TYPE, authcRealmName),
                         SSLConfigurationSettings.CAPATH_SETTING_REALM
                     ),
-                    jwtIssuer.httpsServer.certPath
+                    JwtIssuerHttpsServer.CERT_PATH.toString()
                 );
                 jwkSetPath = jwtIssuer.httpsServer.url;
             }

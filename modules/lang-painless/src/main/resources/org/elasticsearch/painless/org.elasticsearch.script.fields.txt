@@ -105,7 +105,7 @@ class org.elasticsearch.script.field.KeywordDocValuesField @dynamic_type {
 class org.elasticsearch.script.field.FlattenedField @dynamic_type {
 }
 
-class org.elasticsearch.script.field.GeoPointDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.GeoPointField @dynamic_type {
   GeoPoint get(GeoPoint)
   GeoPoint get(int, GeoPoint)
 }

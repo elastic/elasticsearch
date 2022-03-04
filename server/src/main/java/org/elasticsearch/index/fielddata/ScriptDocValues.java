@@ -8,17 +8,14 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.script.field.DocValuesSupplier;
-import org.elasticsearch.script.field.DoubleDocValuesSupplier;
-import org.elasticsearch.script.field.ScriptFieldDocValuesSupplier;
+import org.elasticsearch.script.field.GeoPointDocValuesSupplier;
 
-import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.Comparator;
@@ -106,12 +103,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public ZonedDateTime get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
+            throwIfEmpty();
             if (index >= supplier.size()) {
                 throw new IndexOutOfBoundsException(
                     "attempted to fetch the [" + index + "] date when there are only [" + supplier.size() + "] dates."
@@ -150,42 +142,30 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public abstract static class Geometry<T> extends ScriptDocValues<T> {
-
-        public Geometry(ScriptFieldDocValuesSupplier<T> supplier) {
-            super(supplier);
-        }
+    public interface Geometry {
 
         /** Returns the dimensional type of this geometry */
-        public abstract int getDimensionalType();
+        int getDimensionalType();
 
         /** Returns the bounding box of this geometry  */
-        public abstract GeoBoundingBox getBoundingBox();
+        GeoBoundingBox getBoundingBox();
 
         /** Returns the centroid of this geometry  */
-        public abstract GeoPoint getCentroid();
+        GeoPoint getCentroid();
 
         /** Returns the width of the bounding box diagonal in the spherical Mercator projection (meters)  */
-        public abstract double getMercatorWidth();
+        double getMercatorWidth();
 
         /** Returns the height of the bounding box diagonal in the spherical Mercator projection (meters) */
-        public abstract double getMercatorHeight();
+        double getMercatorHeight();
     }
 
-    public interface GeometrySupplier<T> extends ScriptFieldDocValuesSupplier<T> {
+    public static class GeoPoints extends ScriptDocValues<GeoPoint> implements Geometry {
 
-        GeoPoint getInternalCentroid();
+        protected final GeoPointDocValuesSupplier supplier;
 
-        GeoBoundingBox getInternalBoundingBox();
-    }
-
-    public static class GeoPoints extends Geometry<GeoPoint> {
-
-        private final GeometrySupplier<GeoPoint> geometrySupplier;
-
-        public GeoPoints(GeometrySupplier<GeoPoint> supplier) {
-            super(supplier);
-            geometrySupplier = supplier;
+        public GeoPoints(GeoPointDocValuesSupplier supplier) {
+            this.supplier = supplier;
         }
 
         public GeoPoint getValue() {
@@ -218,13 +198,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoPoint get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
-            final GeoPoint point = supplier.getInternal(index);
+            throwIfEmpty();
+            GeoPoint point = supplier.getCompatible(index);
             return new GeoPoint(point.lat(), point.lon());
         }
 
@@ -276,7 +251,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoPoint getCentroid() {
-            return size() == 0 ? null : geometrySupplier.getInternalCentroid();
+            return size() == 0 ? null : supplier.getCentroid();
         }
 
         @Override
@@ -291,7 +266,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-            return size() == 0 ? null : geometrySupplier.getInternalBoundingBox();
+            return size() == 0 ? null : supplier.getBoundingBox();
         }
     }
 
@@ -334,12 +309,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public String get(int index) {
-            if (supplier.size() == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
+            throwIfEmpty();
             return supplier.getCompatible(index);
         }
 

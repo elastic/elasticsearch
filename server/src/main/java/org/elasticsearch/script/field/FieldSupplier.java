@@ -8,7 +8,10 @@
 
 package org.elasticsearch.script.field;
 
-public class FieldSupplier {
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
+
+public final class FieldSupplier {
 
     public interface Supplier<T> {
 

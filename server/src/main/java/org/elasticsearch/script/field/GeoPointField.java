@@ -8,15 +8,17 @@
 
 package org.elasticsearch.script.field;
 
+import org.elasticsearch.common.geo.GeoPoint;
+
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public abstract class StringField implements Field<String> {
+public class GeoPointField implements Field<GeoPoint> {
 
     protected final String name;
-    protected final FieldSupplier.Supplier<String> supplier;
+    protected final FieldSupplier.Supplier<GeoPoint> supplier;
 
-    public StringField(String name, FieldSupplier.Supplier<String> supplier) {
+    public GeoPointField(String name, FieldSupplier.Supplier<GeoPoint> supplier) {
         this.name = name;
         this.supplier = supplier;
     }
@@ -36,11 +38,11 @@ public abstract class StringField implements Field<String> {
         return supplier.size();
     }
 
-    public String get(String defaultValue) {
+    public GeoPoint get(GeoPoint defaultValue) {
         return get(0, defaultValue);
     }
 
-    public String get(int index, String defaultValue) {
+    public GeoPoint get(int index, GeoPoint defaultValue) {
         if (isEmpty() || index < 0 || index >= supplier.size()) {
             return defaultValue;
         }
@@ -49,8 +51,8 @@ public abstract class StringField implements Field<String> {
     }
 
     @Override
-    public Iterator<String> iterator() {
-        return new Iterator<String>() {
+    public Iterator<GeoPoint> iterator() {
+        return new Iterator<GeoPoint>() {
             private int index = 0;
 
             @Override
@@ -59,7 +61,7 @@ public abstract class StringField implements Field<String> {
             }
 
             @Override
-            public String next() {
+            public GeoPoint next() {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }

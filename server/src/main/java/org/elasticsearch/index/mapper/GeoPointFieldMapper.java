@@ -37,7 +37,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.script.field.GeoPointDocValuesField;
+import org.elasticsearch.script.field.GeoPointField;
 import org.elasticsearch.script.field.SortedNumericDocValuesLongFieldScript;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -358,7 +358,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT, GeoPointDocValuesField::new);
+            return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT, GeoPointField::new);
         }
 
         @Override

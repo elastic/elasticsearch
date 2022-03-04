@@ -11,12 +11,12 @@ package org.elasticsearch.script.field;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public abstract class StringField implements Field<String> {
+public class FloatField implements Field<Float> {
 
     protected final String name;
-    protected final FieldSupplier.Supplier<String> supplier;
+    protected final FieldSupplier.FloatSupplier supplier;
 
-    public StringField(String name, FieldSupplier.Supplier<String> supplier) {
+    public FloatField(String name, FieldSupplier.FloatSupplier supplier) {
         this.name = name;
         this.supplier = supplier;
     }
@@ -36,11 +36,11 @@ public abstract class StringField implements Field<String> {
         return supplier.size();
     }
 
-    public String get(String defaultValue) {
+    public double get(double defaultValue) {
         return get(0, defaultValue);
     }
 
-    public String get(int index, String defaultValue) {
+    public double get(int index, double defaultValue) {
         if (isEmpty() || index < 0 || index >= supplier.size()) {
             return defaultValue;
         }
@@ -49,8 +49,8 @@ public abstract class StringField implements Field<String> {
     }
 
     @Override
-    public Iterator<String> iterator() {
-        return new Iterator<String>() {
+    public Iterator<Float> iterator() {
+        return new Iterator<Float>() {
             private int index = 0;
 
             @Override
@@ -59,7 +59,7 @@ public abstract class StringField implements Field<String> {
             }
 
             @Override
-            public String next() {
+            public Float next() {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
@@ -67,4 +67,5 @@ public abstract class StringField implements Field<String> {
             }
         };
     }
+
 }

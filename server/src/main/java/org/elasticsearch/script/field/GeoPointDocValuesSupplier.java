@@ -18,22 +18,19 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptDocValues.GeometrySupplier<GeoPoint> {
+public class GeoPointDocValuesSupplier implements DocValuesSupplier<GeoPoint>, FieldSupplier.Supplier<GeoPoint> {
 
     protected final MultiGeoPointValues input;
-    protected final String name;
 
     protected GeoPoint[] values = new GeoPoint[0];
     protected int count;
 
     // maintain bwc by making centroid and bounding box available to ScriptDocValues.GeoPoints
-    private ScriptDocValues.GeoPoints geoPoints = null;
     private final GeoPoint centroid = new GeoPoint();
     private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
 
-    public GeoPointDocValuesField(MultiGeoPointValues input, String name) {
+    public GeoPointDocValuesSupplier(MultiGeoPointValues input) {
         this.input = input;
-        this.name = name;
     }
 
     @Override
@@ -50,7 +47,7 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
         }
     }
 
-    private void resize(int newSize) {
+    protected void resize(int newSize) {
         count = newSize;
         if (newSize > values.length) {
             int oldLength = values.length;
@@ -61,7 +58,7 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
         }
     }
 
-    private void setSingleValue() throws IOException {
+    protected void setSingleValue() throws IOException {
         GeoPoint point = input.nextValue();
         values[0].reset(point.lat(), point.lon());
         centroid.reset(point.lat(), point.lon());
@@ -69,7 +66,7 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
         boundingBox.bottomRight().reset(point.lat(), point.lon());
     }
 
-    private void setMultiValue() throws IOException {
+    protected void setMultiValue() throws IOException {
         double centroidLat = 0;
         double centroidLon = 0;
         double maxLon = Double.NEGATIVE_INFINITY;
@@ -92,39 +89,8 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
     }
 
     @Override
-    public ScriptDocValues<GeoPoint> getScriptDocValues() {
-        if (geoPoints == null) {
-            geoPoints = new ScriptDocValues.GeoPoints(this);
-        }
-
-        return geoPoints;
-    }
-
-    @Override
-    public GeoPoint getInternal(int index) {
+    public GeoPoint getCompatible(int index) {
         return values[index];
-    }
-
-    // maintain bwc by making centroid available to ScriptDocValues.GeoPoints
-    @Override
-    public GeoPoint getInternalCentroid() {
-        return centroid;
-    }
-
-    // maintain bwc by making bounding box available to ScriptDocValues.GeoPoints
-    @Override
-    public GeoBoundingBox getInternalBoundingBox() {
-        return boundingBox;
-    }
-
-    @Override
-    public String getName() {
-        return name;
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return count == 0;
     }
 
     @Override
@@ -132,35 +98,16 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
         return count;
     }
 
-    public GeoPoint get(GeoPoint defaultValue) {
-        return get(0, defaultValue);
-    }
-
-    public GeoPoint get(int index, GeoPoint defaultValue) {
-        if (isEmpty() || index < 0 || index >= count) {
-            return defaultValue;
-        }
-
+    @Override
+    public GeoPoint get(int index) {
         return values[index];
     }
 
-    @Override
-    public Iterator<GeoPoint> iterator() {
-        return new Iterator<GeoPoint>() {
-            private int index = 0;
+    public GeoPoint getCentroid() {
+        return centroid;
+    }
 
-            @Override
-            public boolean hasNext() {
-                return index < count;
-            }
-
-            @Override
-            public GeoPoint next() {
-                if (hasNext() == false) {
-                    throw new NoSuchElementException();
-                }
-                return values[index++];
-            }
-        };
+    public GeoBoundingBox getBoundingBox() {
+        return boundingBox;
     }
 }

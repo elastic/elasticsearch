@@ -14,7 +14,6 @@ import com.amazonaws.util.json.Jackson;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -31,8 +30,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -40,15 +39,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.discovery.ec2.AwsEc2Utils.X_AWS_EC_2_METADATA_TOKEN;
 
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
 
     private static final Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
     public static final String EC2 = "ec2";
-    private static final int CONNECT_TIMEOUT = 2000;
-    private static final int METADATA_TOKEN_TTL_SECONDS = 10;
 
     static {
         SpecialPermission.check();
@@ -140,13 +138,13 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         final Settings.Builder attrs = Settings.builder();
 
         final URL url;
-        final HttpURLConnection urlConnection;
+        final URLConnection urlConnection;
         try {
             url = new URL(azMetadataUrl);
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
-            urlConnection = SocketAccess.doPrivilegedIOException(() -> (HttpURLConnection) url.openConnection());
-            urlConnection.setConnectTimeout(CONNECT_TIMEOUT);
-            getToken(azMetadataTokenUrl).ifPresent(token -> urlConnection.setRequestProperty("X-aws-ec2-metadata-token", token));
+            urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
+            urlConnection.setConnectTimeout(2000);
+            AwsEc2Utils.getToken(azMetadataTokenUrl).ifPresent(token -> urlConnection.setRequestProperty(X_AWS_EC_2_METADATA_TOKEN, token));
         } catch (final IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
             throw new UncheckedIOException(e);
@@ -169,34 +167,6 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         }
 
         return attrs.build();
-    }
-
-    @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
-    private static Optional<String> getToken(String azMetadataTokenUrl) {
-        if (Strings.isNullOrEmpty(azMetadataTokenUrl)) {
-            return Optional.empty();
-        }
-        return SocketAccess.doPrivileged(() -> {
-            HttpURLConnection tokenUrlConnection;
-            try {
-                tokenUrlConnection = (HttpURLConnection) new URL(azMetadataTokenUrl).openConnection();
-                tokenUrlConnection.setRequestMethod("PUT");
-                tokenUrlConnection.setConnectTimeout(CONNECT_TIMEOUT);
-                tokenUrlConnection.setRequestProperty("X-aws-ec2-metadata-token-ttl-seconds", String.valueOf(METADATA_TOKEN_TTL_SECONDS));
-            } catch (IOException e) {
-                logger.warn("Unable to access the IMDSv2 URI: " + azMetadataTokenUrl, e);
-                return Optional.empty();
-            }
-            try (
-                var in = tokenUrlConnection.getInputStream();
-                var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
-            ) {
-                return Optional.ofNullable(reader.readLine()).filter(s -> s.isBlank() == false);
-            } catch (IOException e) {
-                logger.warn("Unable to get a session token from IMDSv2 URI: " + azMetadataTokenUrl, e);
-                return Optional.empty();
-            }
-        });
     }
 
     @Override

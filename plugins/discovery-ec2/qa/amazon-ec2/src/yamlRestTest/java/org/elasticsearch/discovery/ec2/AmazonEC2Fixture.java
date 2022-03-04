@@ -105,7 +105,7 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
             return new Response(RestStatus.OK.getStatus(), headers, "my_iam_profile".getBytes(UTF_8));
         }
 
-        if (instanceProfile && "/latest/api/token".equals(request.getPath()) && HttpPut.METHOD_NAME.equals(request.getMethod())) {
+        if ("/latest/api/token".equals(request.getPath()) && HttpPut.METHOD_NAME.equals(request.getMethod())) {
             return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, IMDSV_2_TOKEN.getBytes(StandardCharsets.UTF_8));
         }
 

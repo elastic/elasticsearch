@@ -76,7 +76,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public Iterator<Entry> iterator() {
-        return entries.valuesIt();
+        return entries.values().iterator();
     }
 
     public static final class Builder {

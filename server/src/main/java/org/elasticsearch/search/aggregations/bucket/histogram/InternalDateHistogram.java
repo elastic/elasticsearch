@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,6 +36,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of {@link Histogram}.
@@ -143,6 +145,16 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         public boolean getKeyed() {
             return keyed;
+        }
+
+        Bucket finalizeSampling(SamplingContext samplingContext) {
+            return new Bucket(
+                key,
+                samplingContext.scaleUp(docCount),
+                keyed,
+                format,
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
         }
     }
 
@@ -483,6 +495,21 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         return new InternalDateHistogram(
             getName(),
             reducedBuckets,
+            order,
+            minDocCount,
+            offset,
+            emptyBucketInfo,
+            format,
+            keyed,
+            getMetadata()
+        );
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalDateHistogram(
+            getName(),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
             order,
             minDocCount,
             offset,

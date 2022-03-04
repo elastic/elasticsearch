@@ -49,10 +49,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
     }
 
     @Override
-    public ClusterTasksResult<JoinTask> execute(ClusterState currentState, List<JoinTask> joinTasks) {
-        final ClusterTasksResult.Builder<JoinTask> results = ClusterTasksResult.builder();
+    public ClusterState execute(ClusterState currentState, List<TaskContext<JoinTask>> joinTaskContexts) throws Exception {
 
-        final boolean isBecomingMaster = joinTasks.stream().anyMatch(JoinTask::isBecomingMaster);
+        final boolean isBecomingMaster = joinTaskContexts.stream().anyMatch(t -> t.getTask().isBecomingMaster());
 
         final DiscoveryNodes currentNodes = currentState.nodes();
         boolean nodesChanged = false;
@@ -62,7 +61,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
             // during the cluster state publishing guarantees that we have enough
-            newState = becomeMasterAndTrimConflictingNodes(currentState, joinTasks);
+            newState = becomeMasterAndTrimConflictingNodes(currentState, joinTaskContexts);
             nodesChanged = true;
         } else if (currentNodes.isLocalNodeElectedMaster() == false) {
             logger.trace("processing node joins, but we are not the master. current master: {}", currentNodes.getMasterNode());
@@ -81,7 +80,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
         final boolean enforceVersionBarrier = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
         // processing any joins
         Map<String, String> joiniedNodeNameIds = new HashMap<>();
-        for (final JoinTask joinTask : joinTasks) {
+        for (final var joinTaskContext : joinTaskContexts) {
+            final var joinTask = joinTaskContext.getTask();
             final List<Runnable> onTaskSuccess = new ArrayList<>(joinTask.nodeCount());
             for (final JoinTask.NodeJoinTask nodeJoinTask : joinTask.nodeJoinTasks()) {
                 final DiscoveryNode node = nodeJoinTask.node();
@@ -110,7 +110,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
                 onTaskSuccess.add(() -> nodeJoinTask.listener().onResponse(null));
             }
-            results.success(joinTask, new ActionListener<>() {
+            joinTaskContext.success(new ActionListener<>() {
                 @Override
                 public void onResponse(ClusterState clusterState) {
                     for (Runnable joinCompleter : onTaskSuccess) {
@@ -154,9 +154,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     Metadata newMetadata = Metadata.builder(currentState.metadata())
                         .coordinationMetadata(coordMetadataBuilder.build())
                         .build();
-                    return results.build(
-                        allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).metadata(newMetadata).build())
-                    );
+                    return allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).metadata(newMetadata).build());
                 }
             }
 
@@ -168,22 +166,25 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + "] to ["
                     + updatedState.nodes().getMinNodeVersion()
                     + "]";
-            return results.build(updatedState);
+            return updatedState;
         } else {
             // we must return a new cluster state instance to force publishing. This is important
             // for the joining node to finalize its join and set us as a master
-            return results.build(newState.build());
+            return newState.build();
         }
     }
 
-    protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<JoinTask> joinTasks) {
+    protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
+        ClusterState currentState,
+        List<TaskContext<JoinTask>> taskContexts
+    ) {
         assert currentState.nodes().getMasterNodeId() == null : currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
 
-        for (final JoinTask joinTask : joinTasks) {
-            for (final DiscoveryNode joiningNode : joinTask.nodes()) {
+        for (final var taskContext : taskContexts) {
+            for (final var joiningNode : taskContext.getTask().nodes()) {
                 final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
                 if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);

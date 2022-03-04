@@ -25,7 +25,7 @@ public class SamplingContextTests extends ESTestCase {
             SamplingContext samplingContext = randomContext();
             long randomLong = randomLongBetween(1_000_000_000L, 100_000_000_000L);
             double randomDouble = randomDouble();
-            long rescaled = samplingContext.inverseScale(samplingContext.scale(randomLong));
+            long rescaled = samplingContext.scaleUp(samplingContext.scaleDown(randomLong));
             assertThat(
                 Double.toString(samplingContext.probability()),
                 (double) rescaled / randomLong,
@@ -35,7 +35,7 @@ public class SamplingContextTests extends ESTestCase {
             assertThat(
                 Double.toString(samplingContext.probability()),
                 randomDouble,
-                closeTo(samplingContext.inverseScale(samplingContext.scale(randomDouble)), 1e-12)
+                closeTo(samplingContext.scaleUp(samplingContext.scaleDown(randomDouble)), 1e-12)
             );
         }
     }
@@ -44,8 +44,8 @@ public class SamplingContextTests extends ESTestCase {
         SamplingContext samplingContext = new SamplingContext(1.0, randomInt());
         long randomLong = randomLong();
         double randomDouble = randomDouble();
-        assertThat(randomLong, equalTo(samplingContext.scale(randomLong)));
-        assertThat(randomDouble, equalTo(samplingContext.scale(randomDouble)));
+        assertThat(randomLong, equalTo(samplingContext.scaleDown(randomLong)));
+        assertThat(randomDouble, equalTo(samplingContext.scaleDown(randomDouble)));
     }
 
 }

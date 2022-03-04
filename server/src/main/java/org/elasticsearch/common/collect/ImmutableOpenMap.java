@@ -31,7 +31,6 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -311,22 +310,12 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
         };
     }
 
-    /**
-     * Returns a direct iterator over the keys.
-     */
-    public Iterator<VType> valuesIt() {
-        return iterator(map.values());
-    }
-
-    /**
-     * Returns a {@link Collection} view of the values contained in the map.
-     */
     @Override
     public Collection<VType> values() {
         return new AbstractCollection<VType>() {
             @Override
             public Iterator<VType> iterator() {
-                return valuesIt();
+                return ImmutableOpenMap.iterator(map.values());
             }
 
             @Override
@@ -379,13 +368,6 @@ public final class ImmutableOpenMap<KType, VType> implements Map<KType, VType>, 
     @Override
     public String toString() {
         return map.toString();
-    }
-
-    /**
-     * Convert this ImmutableOpenMap to an immutable Java collection Map
-     */
-    public Map<KType, VType> toMap() {
-        return entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     @Override

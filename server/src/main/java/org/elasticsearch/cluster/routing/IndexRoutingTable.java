@@ -170,7 +170,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable>, Ite
 
     @Override
     public Iterator<IndexShardRoutingTable> iterator() {
-        return shards.valuesIt();
+        return shards.values().iterator();
     }
 
     /**

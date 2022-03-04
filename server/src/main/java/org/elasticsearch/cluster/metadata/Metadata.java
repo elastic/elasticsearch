@@ -1602,7 +1602,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
 
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
-            customs.stream().forEach(entry -> Objects.requireNonNull(entry.getValue(), entry.getKey()));
+            customs.forEach(entry -> Objects.requireNonNull(entry.value, entry.key));
             this.customs.putAll(customs);
             return this;
         }
